@@ -1,0 +1,36 @@
+#!/bin/bash
+# Template: Multi-process dev server launcher
+# Starts multiple processes (e.g., API server + frontend dev server) together.
+# Ctrl+C gracefully shuts down all child processes.
+#
+# Usage: Customize the process blocks below for your project.
+# Call from package.json: "dev:full": "ENV_VAR=value ./scripts/your-script.sh"
+
+set -e
+
+cleanup() {
+  echo ""
+  echo "Shutting down dev servers..."
+  kill $PID_1 2>/dev/null
+  kill $PID_2 2>/dev/null
+  wait $PID_1 2>/dev/null
+  wait $PID_2 2>/dev/null
+  echo "Done."
+}
+trap cleanup EXIT INT TERM
+
+# --- Process 1 (conditional): Background service ---
+# Example: Start only when a specific env var is set
+if [ "$START_BACKEND" = "true" ]; then
+  echo "=== Starting backend server ==="
+  # your-backend-command --flag &
+  PID_1=$!
+  sleep 3  # Wait for backend to be ready
+fi
+
+# --- Process 2: Main dev server ---
+echo "=== Starting main dev server ==="
+# pnpm dev &
+PID_2=$!
+
+wait

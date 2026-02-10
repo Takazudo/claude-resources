@@ -1,0 +1,1 @@
+/Users/takazudo/.claude/scripts/security/deny-check.sh

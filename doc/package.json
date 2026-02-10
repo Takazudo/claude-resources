@@ -1,0 +1,15 @@
+{
+  "name": "claude-code-doc",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Documentation and viewer for Claude Code global commands and skills",
+  "scripts": {
+    "start": "pnpm --filter claude-code-doc-site start",
+    "build": "pnpm --filter claude-code-doc-site build",
+    "app": "pnpm --filter claude-code-doc-app start",
+    "app:build": "pnpm --filter claude-code-doc-app build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

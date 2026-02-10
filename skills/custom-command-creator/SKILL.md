@@ -1,0 +1,340 @@
+---
+name: custom-command-creator
+description: >-
+  Create and manage custom slash commands in Claude Code. Use when: (1) User wants to create a new
+  slash command, (2) User asks about /commands or custom commands, (3) User wants to automate
+  frequently used prompts, (4) User says 'create global command' or 'create local command', (5) User
+  mentions 'command-creator'. Covers: command creation (global and local), command anatomy,
+  frontmatter options, argument handling, bash execution, file references, namespacing, and command
+  vs skill comparison.
+---
+
+# Custom Command Creator
+
+Guide for creating effective custom slash commands in Claude Code.
+
+## What Are Custom Commands?
+
+Custom slash commands are Markdown files that define reusable prompts. They're simpler than skills - single files for quick, frequently-used prompts.
+
+**Use commands when:**
+
+- Same prompt is used repeatedly
+- Prompt fits in one file
+- Explicit control over when to run
+
+**Use skills instead when:**
+
+- Claude should auto-detect the capability
+- Multiple files or scripts needed
+- Complex workflows with validation steps
+
+## Command Locations
+
+| Location | Path | Scope |
+|----------|------|-------|
+| Project | `.claude/commands/<name>.md` | This project only (shows as "project") |
+| Personal | `~/.claude/commands/<name>.md` | All your projects (shows as "user") |
+
+**Priority**: Project commands override personal commands with same name.
+
+## Command Anatomy
+
+Every command is a single Markdown file with optional frontmatter:
+
+```markdown
+---
+description: Brief description of what the command does
+allowed-tools: Bash(git:*), Read
+argument-hint: [filename] [options]
+---
+
+# Command Instructions
+
+Your prompt content here with $ARGUMENTS placeholder.
+```
+
+See [frontmatter.md](references/frontmatter.md) for all available fields.
+
+## Core Features
+
+### Arguments
+
+Pass dynamic values to commands using placeholders:
+
+**All arguments** - `$ARGUMENTS`:
+
+```markdown
+Fix issue #$ARGUMENTS following our coding standards
+```
+
+Usage: `/fix-issue 123 high-priority` → `$ARGUMENTS` = "123 high-priority"
+
+**Positional arguments** - `$1`, `$2`, etc.:
+
+```markdown
+Review PR #$1 with priority $2 and assign to $3
+```
+
+Usage: `/review-pr 456 high alice` → `$1`="456", `$2`="high", `$3`="alice"
+
+### Bash Execution
+
+Run shell commands before the prompt is sent using `!`command`` syntax:
+
+```markdown
+---
+allowed-tools: Bash(git:*)
+---
+
+## Context
+- Git status: !`git status`
+- Current branch: !`git branch --show-current`
+- Recent commits: !`git log --oneline -5`
+
+## Task
+Create a commit based on the above changes.
+```
+
+**Important**: Must include `Bash` in `allowed-tools` for this to work.
+
+### File References
+
+Include file contents using `@` prefix:
+
+```markdown
+Review the implementation in @src/utils/helpers.js
+
+Compare @src/old.js with @src/new.js
+```
+
+### Extended Thinking
+
+Include [thinking keywords](/ja/common-workflows#use-extended-thinking) to trigger extended thinking mode:
+
+```markdown
+Think deeply about the architecture of this codebase.
+```
+
+## Namespacing
+
+Use subdirectories to organize related commands:
+
+```
+.claude/commands/
+├── frontend/
+│   └── component.md  → /component (project:frontend)
+├── backend/
+│   └── api.md        → /api (project:backend)
+└── deploy.md         → /deploy (project)
+```
+
+Same-named commands in different subdirectories are distinguished by their namespace label.
+
+## Command Creation Workflow
+
+When the user asks to create a command, follow this workflow.
+
+### Step 1: Determine Command Name and Location
+
+If the user provides a name, use it. If they describe what they want, derive an appropriate kebab-case name.
+
+**Choose location based on context:**
+
+- **Global command** (`~/.claude/commands/<name>.md`): User says "global", or wants it available across all projects
+- **Local/project command** (`.claude/commands/<name>.md`): User says "local" or "project", or wants it scoped to current repo
+- **If unclear**: Ask the user which they prefer
+
+For local commands, find the project root first:
+
+```bash
+git rev-parse --show-toplevel  # Use repo root, or cwd if not a git repo
+```
+
+Ensure the target directory exists before writing.
+
+### Step 2: Gather Details
+
+Ask the user if needed:
+
+- What should the command do?
+- Does it need arguments? If so, what arguments?
+- Should it use bash execution (`!`command``) for dynamic context?
+- Should it restrict allowed tools?
+
+### Step 3: Write the Command File
+
+Create the command file with proper structure:
+
+**Required best practices:**
+
+- Always include frontmatter with `description` field
+- Use `argument-hint` if the command accepts arguments (e.g., `[filename]`, `[pr-number]`)
+- Use `$ARGUMENTS` for all args or `$1`, `$2` for positional args
+- If using bash execution, include `allowed-tools` in frontmatter
+- If manual-only invocation needed, add `disable-model-invocation: true`
+
+**Template:**
+
+```markdown
+---
+description: Brief description of what the command does
+argument-hint: [expected-args]
+allowed-tools: Bash(git:*), Read
+---
+
+# Command Title
+
+Clear instructions for what Claude should do.
+
+## Context (if using bash execution)
+- Dynamic info: !`shell command here`
+
+## Task
+What to accomplish with $ARGUMENTS.
+```
+
+### Step 4: Verify and Report
+
+After creating the file:
+
+1. Confirm the file exists at the target path
+2. Show the user the full content of the created file
+3. Tell them they can use it with `/<command-name>`
+4. **For global commands**: Remind that project-level commands take priority over global commands with the same name
+5. **For local commands**: Suggest committing to git so the team can share it
+
+### Key Rules for Creation
+
+- Command filename must be kebab-case (lowercase, hyphens): `my-command.md`
+- Always include `description` in frontmatter - commands without it are harder to discover
+- Keep the command focused on a single task
+- Use `$ARGUMENTS` / `$1` / `$2` for dynamic values, not hardcoded values
+- Don't overcomplicate - a command is a single Markdown file for a reusable prompt
+- Local commands are great for project-specific workflows (deploy, test patterns, review checklists)
+
+## Examples
+
+### Simple Review Command
+
+```markdown
+---
+description: Quick code review
+---
+
+Review this code for:
+- Security vulnerabilities
+- Performance issues
+- Code style violations
+```
+
+### Git Commit with Context
+
+```markdown
+---
+description: Create a git commit with context
+allowed-tools: Bash(git:*)
+---
+
+## Context
+- Status: !`git status`
+- Diff: !`git diff HEAD`
+- Branch: !`git branch --show-current`
+- Recent commits: !`git log --oneline -5`
+
+## Task
+Create a single git commit for the staged changes.
+Message should be concise and follow conventional commits.
+```
+
+### PR Review with Arguments
+
+```markdown
+---
+description: Review a pull request
+argument-hint: [pr-number]
+allowed-tools: Bash(gh:*)
+---
+
+## PR Context
+- PR info: !`gh pr view $1`
+- PR diff: !`gh pr diff $1`
+- PR comments: !`gh pr view $1 --comments`
+
+## Task
+Review PR #$1 for:
+1. Code quality and best practices
+2. Potential bugs or edge cases
+3. Security concerns
+4. Test coverage
+```
+
+### Model-Specific Command
+
+```markdown
+---
+description: Complex analysis with specific model
+model: claude-sonnet-4-20250514
+---
+
+Perform detailed analysis of $ARGUMENTS.
+```
+
+## Preventing Auto-Invocation
+
+To prevent Claude from invoking a command automatically via the Skill tool:
+
+```markdown
+---
+description: Deploy to production (manual only)
+disable-model-invocation: true
+---
+
+Deploy the application to production.
+```
+
+## Command-Scoped Hooks
+
+Define hooks that run only during command execution:
+
+```markdown
+---
+description: Deploy with validation
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "./scripts/validate.sh"
+          once: true
+---
+
+Deploy to staging environment.
+```
+
+The `once: true` option runs the hook only once per session.
+
+## Troubleshooting
+
+### Command not appearing
+
+1. Check file is in correct location (`.claude/commands/` or `~/.claude/commands/`)
+2. Verify `.md` extension
+3. Run `/help` to see available commands
+
+### Arguments not working
+
+1. Use `$ARGUMENTS` for all args or `$1`, `$2` for positional
+2. Check for typos in placeholder names
+
+### Bash execution failing
+
+1. Ensure `allowed-tools: Bash(...)` is in frontmatter
+2. Check command syntax is correct
+3. Verify the shell command works standalone
+
+## Related Resources
+
+- [Skills](/ja/skills): For complex multi-file capabilities
+- [Hooks](/ja/hooks): For automated workflows around tool events
+- [Permissions](/ja/iam): For controlling tool access

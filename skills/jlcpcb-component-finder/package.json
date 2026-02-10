@@ -1,0 +1,9 @@
+{
+  "name": "jlcpcb-skill",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "JLCPCB parts finder skill for Claude Code",
+  "dependencies": {
+    "better-sqlite3": "^11.0.0"
+  }
+}

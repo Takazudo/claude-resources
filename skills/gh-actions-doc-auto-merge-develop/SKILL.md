@@ -1,0 +1,71 @@
+---
+name: gh-actions-doc-auto-merge-develop
+description: >
+  Create a GitHub Actions workflow that auto-merges a production branch into a documentation branch.
+  Use when: (1) Setting up auto-sync from production to doc branch, (2) User mentions 'doc auto
+  merge', 'auto sync docs', 'document branch sync', (3) User wants docs to stay up-to-date with
+  production automatically.
+disable-model-invocation: true
+---
+
+# Doc Branch Auto-Merge GitHub Actions Workflow
+
+Create a GitHub Actions workflow that automatically merges a production branch into a documentation deploy branch, keeping docs up-to-date without manual sync.
+
+## Workflow
+
+### 1. Confirm branch names
+
+Ask the user to confirm (use AskUserQuestion):
+
+- **Document branch**: The branch that triggers doc site deployment (default: `doc`)
+- **Production branch**: The source-of-truth branch to merge from (default: `main`)
+
+### 2. Check for existing workflow
+
+Look for existing sync workflows in `.github/workflows/` to avoid duplicates.
+
+### 3. Create the workflow file
+
+Create `.github/workflows/sync-<production>-to-<doc>.yml`:
+
+```yaml
+name: Sync <production> to <doc> branch
+
+# <production>ブランチへのpush時に<doc>ブランチへ自動マージ
+# ドキュメントサイトが常に最新の<production>の内容を反映するようにする
+on:
+  push:
+    branches: [<production>]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: <doc>
+          fetch-depth: 0
+
+      - name: Merge <production> into <doc>
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git merge origin/<production> --no-edit
+
+      - name: Push
+        run: git push origin <doc>
+```
+
+Replace `<production>` and `<doc>` with the confirmed branch names.
+
+### 4. Remind the user
+
+After creating the workflow file, remind:
+
+- This workflow must exist on the **production branch** (the `on.push.branches` target) for GitHub Actions to pick it up
+- If currently on a different branch, the file needs to be merged into the production branch first
+- If merge conflicts occur between the two branches, the Action will fail and notify via GitHub Actions tab — a human resolves manually

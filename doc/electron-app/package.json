@@ -1,0 +1,44 @@
+{
+  "name": "claude-code-doc-app",
+  "version": "1.0.0",
+  "description": "Claude Code Doc - Global commands and skills documentation viewer",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac",
+    "build:dir": "electron-builder --mac --dir"
+  },
+  "author": "Takazudo",
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "engines": {
+    "node": ">=20.0"
+  },
+  "build": {
+    "appId": "com.takazudo.claude-code-doc",
+    "productName": "ccdoc",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dir"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "tabbed-window.html",
+      "src/**/*",
+      "node_modules/electron-tabs/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "main.js"
+    }
+  },
+  "dependencies": {
+    "electron-tabs": "^1.0.4"
+  }
+}

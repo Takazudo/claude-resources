@@ -1,0 +1,131 @@
+---
+name: watch-ci
+description: >-
+   Watch GitHub PR CI checks and notify on completion. Use when: (1) User wants to monitor CI/CD
+   pipeline status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait for CI', (3)
+   User wants to know when PR checks pass or fail, (4) User asks to fix CI failures. Polls CI checks
+   every 20 seconds, sends macOS system notification on completion, and investigates failures.
+---
+
+# Watch CI
+
+Monitor GitHub PR CI checks, notify on completion via macOS system notification, and investigate failures.
+
+## Scripts
+
+- **Notification**: `~/.claude/skills/watch-ci/scripts/notify.sh`
+- **CI Checker**: `~/.claude/skills/watch-ci/scripts/check-ci.sh`
+
+## Workflow
+
+### Step 1: Identify the PR
+
+Determine which PR to watch:
+
+```bash
+# If user provides a PR number or URL, use it directly
+# Otherwise, detect from current branch
+gh pr view --json number,title,url,headRefName --jq '{number,title,url,headRefName}'
+```
+
+If no PR is found for the current branch, inform the user and stop.
+
+### Step 2: Show Initial Status
+
+Before starting the watch loop, show the current state:
+
+```bash
+gh pr checks --json name,state,bucket,workflow
+```
+
+Report to the user:
+
+- PR number and title
+- Total number of checks
+- Current status breakdown (passed/pending/failed)
+
+### Step 3: Poll Loop
+
+**IMPORTANT**: You must poll every 20 seconds until all checks reach a terminal state (pass or fail).
+
+Use this polling approach:
+
+```bash
+# Run check and capture result
+RESULT=$(bash ~/.claude/skills/watch-ci/scripts/check-ci.sh [PR_NUMBER])
+echo "$RESULT"
+```
+
+Parse the JSON result. Based on `status`:
+
+- **`pending`**: Wait 20 seconds, then check again
+  ```bash
+  sleep 20
+  ```
+  Print a brief progress update each cycle (e.g., "Checking... 5/8 passed, 3 pending")
+
+- **`pass`**: All checks green - proceed to Step 4 (Success)
+
+- **`fail`**: One or more checks failed - proceed to Step 5 (Failure)
+
+- **`error`** or **`no_checks`**: Report the issue and stop
+
+**Keep the loop going** until a terminal state is reached. Do NOT give up or ask the user to check manually.
+
+### Step 4: All Checks Passed
+
+When all CI checks pass:
+
+1. **Send system notification**:
+   ```bash
+   bash ~/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<number>"
+   ```
+
+2. Report the final status to the user with a summary of all checks.
+
+3. Done! The CI is green.
+
+### Step 5: CI Check Failed
+
+When one or more CI checks fail:
+
+1. **Send system notification**:
+   ```bash
+   bash ~/.claude/skills/watch-ci/scripts/notify.sh error "CI check failed: <check-name>. PR #<number>"
+   ```
+
+2. **Identify which checks failed**:
+   ```bash
+   gh pr checks [PR_NUMBER] --json name,state,bucket,link --jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")]'
+   ```
+
+3. **Investigate the failure** - fetch the failed run logs:
+   ```bash
+   # List failed runs for this PR's branch
+   gh run list --branch <branch> --status failure --limit 5 --json databaseId,name,conclusion
+
+   # Get logs for the failed run
+   gh run view <run-id> --log-failed
+   ```
+
+4. **Analyze the logs** and determine the root cause:
+   - Build errors: check compiler/transpiler output
+   - Test failures: identify which tests failed and why
+   - Lint errors: identify which files/rules are violated
+   - Timeout: check if tests are hanging
+
+5. **Fix the problem**:
+   - Make the necessary code changes to fix the failure
+   - Commit the fix
+   - Push to the PR branch
+   - **Return to Step 3** to watch the new CI run
+
+6. If the fix requires user input or the failure is unclear, explain the issue and ask the user for guidance before proceeding.
+
+## Notes
+
+- The polling interval is 20 seconds to balance responsiveness with API rate limits
+- System notifications use macOS `osascript` (works on macOS only, degrades gracefully elsewhere)
+- The `gh` CLI must be authenticated and have access to the repository
+- If the PR has no checks configured, report this and stop
+- Maximum reasonable watch time: if CI has been running for over 60 minutes with no progress, warn the user

@@ -1,0 +1,93 @@
+---
+name: lazy-dev
+description: Enable autonomous testing and verification mode where Claude thoroughly tests its own work.
+---
+
+# Lazy Dev Mode
+
+You are now in "Lazy Dev" mode. The user is busy and wants you to thoroughly test and verify your own work instead of asking them to confirm changes manually.
+
+## Your Responsibilities
+
+When you implement changes in this mode, you MUST:
+
+1. **Test your own work** - Don't ask the user to verify. Test it yourself.
+2. **Iterate until it works** - If you find problems during testing, fix them and test again. Repeat until everything works correctly.
+3. **Verify the full workflow** - Don't just assume the code works. Actually run and test it.
+
+## Testing Strategies by Context
+
+### For Browser/Frontend Changes
+
+- Use **chrome-devtools** or **MCP Playwright** to:
+  - Navigate to the relevant page
+  - Take snapshots to see the current state
+  - Interact with elements (click buttons, fill forms, etc.)
+  - Verify the behavior matches expectations
+  - Check console for errors
+  - Test edge cases
+
+### For Build Tools & Scripts
+
+- Actually run the commands (npm scripts, build tools, etc.)
+- Verify they complete successfully
+- Check the output for errors or warnings
+- Test that generated files are correct
+
+### For Testing Tools
+
+- Run storybook and verify components render correctly
+- Execute e2e tests and ensure they pass
+- Run unit tests and fix any failures
+- Check test coverage if applicable
+
+### For Backend/API Changes
+
+- Test API endpoints with actual requests
+- Verify responses match expectations
+- Check error handling
+- Test edge cases and validation
+
+### For CLI Tools
+
+- Run the commands with various inputs
+- Test error cases
+- Verify output formatting
+- Check help/usage information
+
+## Testing Workflow
+
+1. **Implement** the requested changes
+2. **Test** the implementation thoroughly using appropriate tools
+3. **Find issues?** -> Fix them and go back to step 2
+4. **Everything works?** -> Report the successful verification to the user
+5. **Can't test automatically?** -> Explain what you tested and what might need manual verification
+
+## Important Notes
+
+- Be thorough but efficient - don't over-test obvious functionality
+- If you encounter test failures, treat them as bugs to fix, not blockers to report
+- Document what you tested so the user knows you did your due diligence
+- If something genuinely cannot be tested automatically, explain why and what you did test
+
+## Example Behaviors
+
+**Good:**
+```
+I've implemented the button click handler. Let me test it using chrome-devtools...
+[Takes snapshot, clicks button, verifies behavior]
+Found an issue - the click handler fires twice. Fixing...
+[Makes fix, tests again]
+Perfect! The button now works correctly. I've verified:
+- Single click triggers the expected action
+- No console errors
+- State updates properly
+```
+
+**Bad:**
+```
+I've implemented the button click handler. Please launch the server
+and click the button to verify it works.
+```
+
+Now proceed with your task in Lazy Dev mode.

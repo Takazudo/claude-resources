@@ -1,0 +1,736 @@
+# KiCad Schematic File Format Reference
+
+Complete reference for KiCad 6+ S-expression schematic format (.kicad_sch).
+
+## File Structure
+
+KiCad uses S-expression (LISP-like) syntax:
+
+```lisp
+(element_type
+  (property value)
+  (nested_element
+    (sub_property sub_value)
+  )
+)
+```
+
+All coordinates in millimeters. All angles in degrees.
+
+## Root Schematic
+
+Top-level structure of .kicad_sch file:
+
+```lisp
+(kicad_sch
+  (version 20250114)
+  (generator "eeschema")
+  (generator_version "9.0")
+  (uuid "c5ce32ac-bd6d-413c-bfb5-5e9e2f8848d1")
+  (paper "A4")
+
+  (lib_symbols
+    ;; Auto-managed by KiCad - DO NOT EDIT
+  )
+
+  ;; Content: junctions, wires, labels, symbols, sheets...
+
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)
+```
+
+Key fields:
+- `version`: Format version (20250114 for KiCad 9.0)
+- `uuid`: Unique sheet identifier
+- `paper`: Page size (A4, A3, Letter, etc.)
+
+## Symbol Instances
+
+Component placement in schematic:
+
+```lisp
+(symbol
+  (lib_id "library:SymbolName")           ;; Library:SymbolName
+  (at 125.73 69.85 270)                   ;; X Y Rotation
+  (unit 1)                                ;; Unit number (multi-unit symbols)
+  (exclude_from_sim no)
+  (in_bom yes)
+  (on_board yes)
+  (dnp no)                                ;; Do Not Populate
+  (fields_autoplaced yes)
+  (uuid "1f637e01-4db3-4c99-836b-c91649c236a4")
+
+  ;; Properties
+  (property "Reference" "R11"
+    (at 130.81 68.58 90)
+    (effects (font (size 1.27 1.27)))
+  )
+  (property "Value" "56k"
+    (at 130.81 71.12 90)
+    (effects (font (size 1.27 1.27)))
+  )
+  (property "Footprint" "library:R0603"
+    (at 118.11 69.85 0)
+    (effects (font (size 1.27 1.27)) (hide yes))
+  )
+  (property "Datasheet" ""
+    (at 125.73 69.85 0)
+    (effects (font (size 1.27 1.27)) (hide yes))
+  )
+  (property "Description" ""
+    (at 125.73 69.85 0)
+    (effects (font (size 1.27 1.27)) (hide yes))
+  )
+
+  ;; Pin UUIDs (for netlist)
+  (pin "1" (uuid "eb3fc881-f6b1-41bf-aeac-f2bff7bfed5f"))
+  (pin "2" (uuid "5f7daf29-9b22-405d-9cc9-5484f12cd4ca"))
+
+  ;; Instance tracking
+  (instances
+    (project "project-name"
+      (path "/ROOT-UUID/SHEET-UUID"
+        (reference "R11")
+        (unit 1)
+      )
+    )
+  )
+)
+```
+
+### Required Properties
+
+- `Reference`: Component designator (R1, C1, U1, etc.)
+- `Value`: Component value (10k, 100nF, etc.)
+- `Footprint`: PCB footprint reference
+- `Datasheet`: (recommended) Datasheet URL or empty
+- `Description`: (recommended) Component description or empty
+
+### Rotation Values
+
+- 0: Default orientation (usually horizontal, left-to-right)
+- 90: Rotated 90° counter-clockwise
+- 180: Rotated 180°
+- 270: Rotated 270° counter-clockwise (or 90° clockwise)
+
+### Instance Path Format
+
+Path format: `/ROOT-UUID/SHEET-UUID`
+- Root schematic: `/ROOT-UUID`
+- Sub-sheet: `/ROOT-UUID/SHEET-UUID`
+
+**Note**: Project name may be empty string `""` or actual project name - copy from existing components.
+
+## Wires and Connections
+
+### Simple Wire
+
+```lisp
+(wire
+  (pts
+    (xy 104.14 30.48)
+    (xy 111.76 30.48)
+  )
+  (stroke (width 0) (type default))
+  (uuid "0546fbb4-a53e-49e0-95b5-e5498352e3ee")
+)
+```
+
+### Stroke Types
+
+- `default`: Solid line
+- `dot`: Dotted line
+- `dash`: Dashed line
+
+Width 0 = default wire width.
+
+## Labels
+
+### Local Label
+
+Connects nets within same sheet:
+
+```lisp
+(label "SIGNAL_NAME"
+  (at 100 50 0)                           ;; X Y Angle
+  (effects
+    (font (size 1.27 1.27))
+    (justify left bottom)
+  )
+  (uuid "...")
+)
+```
+
+### Global Label
+
+Connects nets across all sheets:
+
+```lisp
+(global_label "GLOBAL_NET"
+  (shape input)                           ;; input, output, bidirectional, tri_state, passive
+  (at 100 50 180)
+  (effects
+    (font (size 1.27 1.27))
+    (justify right)
+  )
+  (uuid "...")
+)
+```
+
+### Hierarchical Label
+
+Connects to parent sheet via sheet pin:
+
+```lisp
+(hierarchical_label "SIGNAL_OUT"
+  (shape input)
+  (at 109.22 40.64 180)
+  (effects
+    (font (size 1.27 1.27))
+    (justify right)
+  )
+  (uuid "a3ee33ca-d5a4-4092-9703-ec1645f50088")
+)
+```
+
+**Important**: Hierarchical label name must exactly match the pin name in the parent sheet.
+
+### Label Shapes
+
+- `input`: Arrow pointing in
+- `output`: Arrow pointing out
+- `bidirectional`: Diamond shape
+- `tri_state`: Inverted triangle
+- `passive`: Rectangle
+
+### Justify Options
+
+- `left`, `right`, `center` (horizontal)
+- `top`, `bottom` (vertical)
+
+## Junctions
+
+Connection point where wires cross:
+
+```lisp
+(junction
+  (at 105.41 64.77)
+  (diameter 0)                            ;; 0 = default
+  (color 0 0 0 0)                         ;; RGBA
+  (uuid "74275667-45b4-41ba-831b-38813d5dda82")
+)
+```
+
+## Hierarchical Sheets
+
+### Sheet Definition (in parent)
+
+```lisp
+(sheet
+  (at 33.02 26.67)                        ;; Position
+  (size 31.75 24.13)                      ;; Width Height
+  (exclude_from_sim no)
+  (in_bom yes)
+  (on_board yes)
+  (dnp no)
+  (fields_autoplaced yes)
+  (stroke (width 0.1524) (type solid))
+  (fill (color 0 0 0 0.0000))
+  (uuid "89c28db7-f9d9-4adf-b951-b9bb069eac97")
+
+  (property "Sheetname" "Sub-Sheet Name"
+    (at 33.02 25.9584 0)
+    (effects (font (size 1.27 1.27)) (justify left bottom))
+  )
+  (property "Sheetfile" "sub-sheet.kicad_sch"
+    (at 33.02 51.4816 0)
+    (effects (font (size 1.27 1.27)) (justify left top))
+  )
+
+  ;; Sheet pins (interface with parent)
+  (pin "GND" input
+    (at 33.02 48.26 180)
+    (effects (font (size 1.27 1.27)) (justify right))
+    (uuid "74c37bc2-be7f-4995-b896-011d8802f8ff")
+  )
+  (pin "OUTPUT" output
+    (at 64.77 35.56 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "...")
+  )
+
+  (instances
+    (project "project-name"
+      (path "/ROOT-UUID"
+        (page "2")
+      )
+    )
+  )
+)
+```
+
+### Sheet Pin Directions
+
+- `input`: Signal enters sheet
+- `output`: Signal exits sheet
+- `bidirectional`: Both directions
+- `tri_state`: High-impedance capable
+- `passive`: No direction
+
+## Power Symbols
+
+Special symbols for power rails (built-in `power:` library):
+
+```lisp
+(symbol
+  (lib_id "power:GND")
+  (at 134.62 53.34 0)
+  (unit 1)
+  (exclude_from_sim no)
+  (in_bom yes)
+  (on_board yes)
+  (dnp no)
+  (fields_autoplaced yes)
+  (uuid "0b0521b3-a114-4fdd-9b90-428d265534a8")
+
+  (property "Reference" "#PWR038"         ;; # prefix = power symbol
+    (at 134.62 59.69 0)
+    (effects (font (size 1.27 1.27)) (hide yes))
+  )
+  (property "Value" "GND"
+    (at 134.62 58.42 0)
+    (effects (font (size 1.27 1.27)))
+  )
+
+  (pin "1" (uuid "64ef5ae6-634b-4f9f-9671-a6e1a49186cf"))
+
+  (instances
+    (project "..."
+      (path "/ROOT-UUID/SHEET-UUID"
+        (reference "#PWR038")
+        (unit 1)
+      )
+    )
+  )
+)
+```
+
+Common power symbols:
+- `power:GND` - Ground
+- `power:+5V` - 5V rail
+- `power:+12V` - 12V rail
+- `power:-12V` - Negative 12V rail
+- `power:VCC` - Generic positive supply
+- `power:VDD` - Digital positive supply
+
+## Properties and Effects
+
+### Property Structure
+
+```lisp
+(property "NAME" "VALUE"
+  (at X Y ANGLE)
+  (effects
+    (font (size WIDTH HEIGHT))
+    (justify HORIZONTAL VERTICAL)
+    (hide yes)                            ;; Optional: hide property
+  )
+)
+```
+
+### Font Effects
+
+```lisp
+(effects
+  (font
+    (size 1.27 1.27)                      ;; Width Height (default)
+    (thickness 0.254)                     ;; Optional: bold text
+    (bold yes)                            ;; Optional
+    (italic yes)                          ;; Optional
+  )
+  (justify left bottom)
+  (hide yes)
+)
+```
+
+## Symbol Library Format
+
+Symbol definitions in .kicad_sym files:
+
+```lisp
+(kicad_symbol_lib
+  (version 20231120)
+  (generator "kicad_symbol_editor")
+  (generator_version "8.0")
+
+  (symbol "COMPONENT_NAME"
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+
+    ;; Default properties
+    (property "Reference" "R" ...)
+    (property "Value" "COMPONENT_NAME" ...)
+    (property "Footprint" "..." ...)
+
+    ;; Graphics and pins (may be in same or separate blocks)
+    (symbol "COMPONENT_NAME_0_1"
+      (rectangle (start -2.54 1.02) (end 2.54 -1.02)
+        (stroke (width 0) (type default))
+        (fill (type background))
+      )
+      ;; Pins may be here or in _1_1 block
+      (pin passive line
+        (at -5.08 0 0)
+        (length 2.54)
+        (name "1" (effects (font (size 1.27 1.27))))
+        (number "1" (effects (font (size 1.27 1.27))))
+      )
+    )
+  )
+)
+```
+
+### Symbol Naming Convention
+
+`SymbolName_X_Y`:
+- X = 0: Body graphics (shared by all units)
+- X = 1+: Unit-specific graphics
+- Y = 1: Unit number
+
+Example for dual op-amp:
+- `OPAMP_0_1`: Body graphics
+- `OPAMP_1_1`: Unit 1 pins
+- `OPAMP_2_1`: Unit 2 pins
+
+### Pin Types
+
+- `input`: Input pin
+- `output`: Output pin
+- `bidirectional`: Bidirectional
+- `tri_state`: High-Z capable
+- `passive`: Passive component (resistors, capacitors)
+- `power_in`: Power input
+- `power_out`: Power output
+- `unconnected`: No connect
+- `free`: Unspecified
+
+### Pin Styles
+
+- `line`: Standard line
+- `inverted`: With bubble (NOT)
+- `clock`: With clock edge
+- `inverted_clock`: Bubble + clock
+- `input_low`: Active low input
+- `output_low`: Active low output
+
+## UUID Format
+
+Standard 36-character UUID:
+```
+xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+- Lowercase hexadecimal (0-9, a-f)
+- 8-4-4-4-12 grouping
+- Must be unique within file
+
+Example: `c5ce32ac-bd6d-413c-bfb5-5e9e2f8848d1`
+
+Quick fix for new UUID: Copy existing UUID, change last 4-8 characters.
+
+## Global Label (Extended Format)
+
+KiCad 9.0+ uses extended global label format with Intersheetrefs property:
+
+```lisp
+(global_label "+12V rail"
+	(shape input)
+	(at 58.42 86.36 180)
+	(effects
+		(font
+			(size 1.27 1.27)
+		)
+		(justify right)
+	)
+	(uuid "c0000001-0001-0001-0001-000000000002")
+	(property "Intersheetrefs" "${INTERSHEET_REFS}"
+		(at 58.42 86.36 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(hide yes)
+		)
+	)
+)
+```
+
+**Key points:**
+- `shape`: input, output, bidirectional, tri_state, passive
+- Rotation 0 = label points right (justify left)
+- Rotation 180 = label points left (justify right)
+- `Intersheetrefs` property uses same coordinates but rotation 0
+- Always `(hide yes)` for Intersheetrefs
+
+## Pin Position Calculation
+
+For dual-row connectors (like 16-pin IDC headers), calculate pin positions from symbol center:
+
+**Example: 2x8 IDC Header (2541WR-2X08P)**
+Symbol definition shows pin offsets from center:
+- Pin 1: (-7.62, +8.89) - left column, top
+- Pin 3: (-7.62, +6.35) - left column
+- Pin 5: (-7.62, +3.81) - left column
+- Pin 7: (-7.62, +1.27) - left column
+- Pin 9: (-7.62, -1.27) - left column
+- Pin 11: (-7.62, -3.81) - left column
+- Pin 13: (-7.62, -6.35) - left column
+- Pin 15: (-7.62, -8.89) - left column, bottom
+- Pin 2: (+7.62, +8.89) - right column, top
+- Pin 4-16 (even): Right column, same Y offsets
+
+**Absolute position formula:**
+For symbol at (cx, cy):
+- Left pin X = cx - 7.62
+- Right pin X = cx + 7.62
+- Pin Y = cy - pin_offset (note: Y inverts because KiCad Y increases downward)
+
+**Label placement:**
+- Left side labels: rotation 180, justify right
+- Right side labels: rotation 0, justify left
+
+## Eurorack IDC Pinout Reference
+
+Standard 16-pin Eurorack power connector:
+| Pin | Rail    | Pin | Rail    |
+|-----|---------|-----|---------|
+| 1   | -12V    | 2   | -12V    |
+| 3   | GND     | 4   | GND     |
+| 5   | GND     | 6   | GND     |
+| 7   | GND     | 8   | GND     |
+| 9   | +12V    | 10  | +12V    |
+| 11  | +5V     | 12  | +5V     |
+| 13  | CV      | 14  | CV      |
+| 15  | GATE    | 16  | GATE    |
+
+Use global labels like "+12V rail", "GND rail", etc. to connect across schematic.
+
+## Batch Label Generation
+
+When adding many labels (e.g., 8 IDC headers × 12 labels each), calculate positions systematically:
+
+```python
+# Example calculation for 8 headers
+headers = [
+    ("U2", 66.04, 85.09),
+    ("U5", 218.44, 128.27),
+    # ...
+]
+pin_offsets = {
+    "-12V": -8.89,  # Pin 1,2
+    "GND": -3.81,   # Pin 5,6 (middle of GND range)
+    "+12V": 1.27,   # Pin 9,10
+    "+5V": 3.81,    # Pin 11,12
+    "CV": 6.35,     # Pin 13,14
+    "GATE": 8.89,   # Pin 15,16
+}
+for name, cx, cy in headers:
+    left_x = cx - 7.62
+    right_x = cx + 7.62
+    for rail, offset in pin_offsets.items():
+        pin_y = cy - offset
+        # Left label: (left_x, pin_y, 180, justify right)
+        # Right label: (right_x, pin_y, 0, justify left)
+```
+
+## Common Component Pin Positions
+
+Reference for calculating absolute pin positions from component center.
+
+### AMS1117 / SOT-223 LDO Regulator
+
+```
+Symbol at (cx, cy):
+- Pin 1 (GND):    (cx, cy + 7.62)      - bottom, extends down
+- Pin 2 (VO):     (cx + 7.62, cy)      - right, output
+- Pin 3 (VI):     (cx - 7.62, cy)      - left, input
+```
+
+### SS14 Schottky Diode (SMA Package)
+
+```
+Symbol at (cx, cy) rotation 0:
+- Pin 1 (K/Cathode): (cx - 5.08, cy)   - left
+- Pin 2 (A/Anode):   (cx + 5.08, cy)   - right
+
+At rotation 180°:
+- Pin 1 (K/Cathode): (cx + 5.08, cy)   - right
+- Pin 2 (A/Anode):   (cx - 5.08, cy)   - left
+```
+
+### LED (0603 Package)
+
+```
+Symbol at (cx, cy):
+- Pin 1 (K/Cathode): (cx - 5.08, cy)   - left
+- Pin 2 (A/Anode):   (cx + 5.08, cy)   - right
+
+Current flows: Anode → Cathode (right to left at rotation 0)
+```
+
+### Resistor (0805 Package)
+
+```
+Symbol at (cx, cy):
+- Pin 1: (cx - 5.08, cy)   - left
+- Pin 2: (cx + 5.08, cy)   - right
+```
+
+### SM4007PL Rectifier Diode (SOD-123FL)
+
+```
+Symbol at (cx, cy):
+- Pin 1 (K/Cathode): (cx - 5.08, cy)   - left
+- Pin 2 (A/Anode):   (cx + 5.08, cy)   - right
+```
+
+## Rotation Effects on Pin Positions
+
+When a component is rotated, pin positions transform:
+
+| Rotation | Pin at (-5.08, 0) becomes | Pin at (+5.08, 0) becomes |
+|----------|---------------------------|---------------------------|
+| 0°       | Left of center            | Right of center           |
+| 90°      | Above center              | Below center              |
+| 180°     | Right of center           | Left of center            |
+| 270°     | Below center              | Above center              |
+
+**Key insight**: At 180° rotation, left/right pins swap sides. Use this to orient diodes correctly in circuit flow.
+
+## Diode Polarity for ±12V Rails
+
+**CRITICAL**: Reverse protection diodes have OPPOSITE orientations for +12V and -12V rails.
+
+### +12V Protection Path
+```
++12V in ──► Fuse ──► Diode (Anode→Cathode) ──► +12V rail
+                         └── TVS ── GND
+```
+- Diode: **Anode at input, Cathode at rail**
+- Current flows: Input → Anode → Cathode → Rail
+- Blocks reverse polarity (if input goes negative)
+
+### -12V Protection Path
+```
+-12V in ──► Fuse ──► Diode (Cathode→Anode) ──► -12V rail
+                         └── TVS ── GND
+```
+- Diode: **Cathode at input, Anode at rail**
+- Current flows: Rail → Anode → Cathode → Input (return path)
+- Blocks reverse polarity (if input goes positive)
+
+### Why Different Orientations?
+- +12V: Positive voltage, conventional current flows from +12V toward GND through load
+- -12V: Negative voltage, conventional current flows from GND toward -12V through load
+- The diode must allow normal current flow while blocking reverse conditions
+
+### KiCad Implementation
+For SM4007PL (SOD-123FL):
+- Pin 1 = Cathode (bar side)
+- Pin 2 = Anode (triangle side)
+
+| Rail | Diode Pin 1 (Cathode) | Diode Pin 2 (Anode) |
+|------|----------------------|---------------------|
+| +12V | → +12V rail          | ← Fuse output       |
+| -12V | ← Fuse output        | → -12V rail         |
+
+**Tip**: For -12V, rotate the diode 180° compared to +12V orientation.
+
+### TVS Diodes (Bidirectional)
+TVS diodes like SMF12CA are bidirectional - no polarity concern. Either pin can connect to signal or GND.
+
+## Circuit Topology Best Practices
+
+**IMPORTANT**: Show actual signal flow with wires between components, not just labels at each pin. Labels alone don't communicate circuit topology.
+
+### LED Indicator Circuits
+
+**Positive rail indicator (+12V, +5V):**
+```
++Rail → Resistor.P1 → Resistor.P2 → LED.Anode → LED.Cathode → GND
+```
+
+**Negative rail indicator (-12V):**
+```
+GND → LED.Anode → LED.Cathode → Resistor.P2 → Resistor.P1 → -Rail
+```
+(Current flows from GND through LED to -12V)
+
+### LDO Section Topology
+
+```
++12V → PTC Fuse → Input Caps → LDO.VI → LDO.VO → Output Caps → Schottky → Output
+                      ↓                      ↓
+                     GND                    GND
+```
+
+Components should be positioned left-to-right showing signal flow.
+
+### Protection Section Topology
+
+```
+Input → PTC Fuse → TVS Diode → Reverse Diode → Bulk Capacitor → Distribution
+           │           │            │               │
+          GND         GND          GND             GND
+```
+
+## Finding KiCad Standard Symbols
+
+KiCad's built-in symbol libraries are located at:
+```
+/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols/
+```
+
+Common libraries for power electronics:
+- `Regulator_Linear.kicad_sym` - LDOs (AMS1117, 78xx, etc.)
+- `Regulator_Switching.kicad_sym` - Switching regulators
+- `Diode.kicad_sym` - Diodes, Schottky, TVS
+- `Device.kicad_sym` - R, C, L basics
+- `Connector.kicad_sym` - Headers, terminals
+
+**To find a symbol:**
+```bash
+grep -l "AMS1117" /Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols/*.kicad_sym
+```
+
+**Note**: Some symbols use `(extends "BaseSymbol")` - copy both the base and derived symbol definitions to lib_symbols.
+
+## Adding Symbols from Standard Library
+
+When adding a KiCad standard library symbol:
+
+1. **Find the symbol file**: Search in `/Applications/KiCad/.../symbols/`
+2. **Copy full definition**: Include graphics blocks (`Symbol_0_1`, `Symbol_1_1`)
+3. **Add library prefix**: In lib_symbols, use `"Regulator_Linear:AMS1117-5.0"` not just `"AMS1117-5.0"`
+4. **Handle extends**: If symbol uses `(extends "...")`, copy both base and derived symbols
+
+Example for AMS1117-5.0:
+```lisp
+(lib_symbols
+    (symbol "Regulator_Linear:AMS1117-5.0"
+        (exclude_from_sim no)
+        (in_bom yes)
+        (on_board yes)
+        ;; Properties...
+        (symbol "AMS1117-5.0_0_1"
+            ;; Graphics (rectangle, etc.)
+        )
+        (symbol "AMS1117-5.0_1_1"
+            ;; Pins
+        )
+        (embedded_fonts no)
+    )
+)

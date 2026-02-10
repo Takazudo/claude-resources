@@ -1,0 +1,36 @@
+{
+  "name": "claude-code-doc-site",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "docusaurus": "docusaurus",
+    "generate-docs": "node scripts/generate-docs.js",
+    "generate-doc-titles": "node scripts/generate-doc-titles.js",
+    "generate": "pnpm run generate-docs && pnpm run generate-doc-titles",
+    "start": "pnpm run generate && docusaurus start --port 9987 --host claude.localhost",
+    "build": "pnpm run generate && docusaurus build",
+    "clear": "docusaurus clear",
+    "serve": "docusaurus serve --port 9987 --host claude.localhost"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.9.2",
+    "@docusaurus/plugin-content-docs": "^3.9.2",
+    "@docusaurus/preset-classic": "3.9.2",
+    "@docusaurus/theme-common": "^3.9.2",
+    "@docusaurus/theme-mermaid": "^3.9.2",
+    "@mdx-js/react": "^3.1.1",
+    "clsx": "^2.1.1",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "remark-breaks": "^4.0.0"
+  },
+  "devDependencies": {
+    "@docusaurus/module-type-aliases": "3.9.2",
+    "@docusaurus/types": "3.9.2",
+    "gray-matter": "^4.0.3"
+  },
+  "engines": {
+    "node": ">=20.0"
+  }
+}

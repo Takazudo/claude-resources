@@ -1,0 +1,170 @@
+# Custom Command Frontmatter Reference
+
+Complete reference for slash command frontmatter fields.
+
+## Available Fields
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `description` | First line of prompt | Brief description shown in `/help` and autocomplete |
+| `argument-hint` | None | Expected arguments shown in autocomplete. Example: `[filename] [options]` |
+| `allowed-tools` | Inherited from conversation | Tools the command can use. Required for bash execution |
+| `model` | Inherited from conversation | Specific model to use. See [model overview](https://docs.claude.com/en/docs/about-claude/models/overview) |
+| `disable-model-invocation` | `false` | Prevent Claude from auto-invoking via Skill tool |
+| `hooks` | None | Command-scoped hooks. See [hooks documentation](/ja/hooks) |
+
+## Field Details
+
+### description
+
+Brief description shown in `/help` output and autocomplete menu.
+
+```yaml
+---
+description: Create a git commit with conventional message
+---
+```
+
+If omitted, uses first line of the prompt content.
+
+### argument-hint
+
+Shows expected arguments during autocomplete. Helps users understand what to pass.
+
+```yaml
+---
+argument-hint: [pr-number] [priority] [assignee]
+---
+
+Review PR #$1 with priority $2 and assign to $3.
+```
+
+Common patterns:
+
+- `[filename]` - Single required argument
+- `[options...]` - Multiple optional arguments
+- `[source] [target]` - Two positional arguments
+- `add [id] | remove [id] | list` - Multiple subcommands
+
+### allowed-tools
+
+Specifies which tools the command can use. Required for `!`command`` bash execution.
+
+```yaml
+---
+allowed-tools: Bash(git:*), Bash(gh:*), Read, Grep
+---
+```
+
+Tool permission patterns:
+
+| Pattern | Description |
+|---------|-------------|
+| `Read` | Allow Read tool |
+| `Bash(git:*)` | Allow bash commands starting with `git` |
+| `Bash(npm run:*)` | Allow bash commands starting with `npm run` |
+| `Bash(*)` | Allow all bash commands (use cautiously) |
+
+Multiple tools separated by comma.
+
+### model
+
+Force a specific model for this command.
+
+```yaml
+---
+model: claude-3-5-haiku-20241022
+---
+```
+
+Common model strings:
+
+- `claude-sonnet-4-20250514` - Claude Sonnet 4
+- `claude-3-5-haiku-20241022` - Claude 3.5 Haiku (faster, cheaper)
+- `claude-opus-4-20250514` - Claude Opus 4
+
+### disable-model-invocation
+
+Prevents Claude from automatically invoking this command via the Skill tool.
+
+```yaml
+---
+disable-model-invocation: true
+---
+```
+
+Use for:
+
+- Commands with side effects (deploy, delete, etc.)
+- Commands you want manual control over
+- Sensitive operations
+
+### hooks
+
+Define hooks that run during command execution. Automatically cleaned up when command ends.
+
+```yaml
+---
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "./scripts/validate.sh"
+          once: true
+  PostToolUse:
+    - matcher: "Write"
+      hooks:
+        - type: command
+          command: "./scripts/lint.sh"
+---
+```
+
+Hook options:
+
+- `matcher`: Tool name to match
+- `type`: `command` for shell commands
+- `command`: Shell command to run
+- `once`: Run only once per session if `true`
+
+## Complete Example
+
+```yaml
+---
+description: Deploy application to staging with validation
+argument-hint: [environment] [version]
+allowed-tools: Bash(./scripts:*), Bash(git:*), Bash(docker:*)
+model: claude-sonnet-4-20250514
+disable-model-invocation: true
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "./scripts/pre-deploy-check.sh"
+          once: true
+---
+
+Deploy version $2 to $1 environment.
+
+## Pre-deployment Context
+- Current branch: !`git branch --show-current`
+- Pending changes: !`git status --short`
+
+## Deployment Steps
+1. Run tests
+2. Build application
+3. Push to $1
+4. Verify deployment
+```
+
+## String Substitutions
+
+Available placeholders in command content:
+
+| Placeholder | Description |
+|-------------|-------------|
+| `$ARGUMENTS` | All arguments as single string |
+| `$1`, `$2`, `$N` | Positional arguments (1-indexed) |
+| `!`command`` | Output of shell command (requires `allowed-tools: Bash(...)`) |
+| `@path/to/file` | Contents of referenced file |

@@ -1,0 +1,448 @@
+# Best Practices for Schemdraw Circuits
+
+Guidelines for creating clear, professional circuit diagrams.
+
+## Layout Strategy
+
+### Standard Orientation
+
+Follow conventional circuit layout:
+
+- **Inputs**: Left side
+- **Outputs**: Right side
+- **Power (Vcc/Vdd)**: Top
+- **Ground**: Bottom
+- **Signal flow**: Left-to-right
+
+```python
+# Good layout
+elm.SourceV().label('Vin')          # Left - input
+elm.Resistor().right()               # Flow right
+elm.Capacitor().right()              # Continue right
+elm.Line().right().label('Vout', 'right')  # Right - output
+```
+
+### Component Grouping
+
+Keep related components visually grouped:
+
+```python
+# Input stage grouped
+R1 = elm.Resistor().label('R1')
+C1 = elm.Capacitor().down().label('C1')
+elm.Ground()
+
+# Output stage grouped (use d.push/pop)
+d.push()
+elm.Line().at(amp_out)
+R2 = elm.Resistor().label('R2')
+elm.Line().dot(open=True).label('Out')
+d.pop()
+```
+
+### Power Rail Strategy
+
+**Option 1: Explicit connections** (clearer for beginners)
+
+```python
+elm.Line().at(Q1.collector).up()
+elm.Vdd().label('+5V')
+```
+
+**Option 2: Implicit labels** (cleaner for simple circuits)
+
+```python
+elm.Line().at(Q1.collector).up(d.unit/4).label('+5V', 'top')
+```
+
+**Option 3: Shared power rail** (best for multi-stage circuits)
+
+```python
+# Create shared top rail
+top_rail = elm.Line().at(stage1.vcc).tox(stage3.vcc)
+elm.Dot().at(top_rail.center)
+elm.Vdd().label('+5V')
+```
+
+### Using Push/Pop for Branching
+
+Save and restore position when routing branches:
+
+```python
+elm.Dot()        # Junction point
+d.push()         # Save position
+
+# Branch 1
+elm.Resistor().down()
+elm.LED()
+elm.Ground()
+
+d.pop()          # Return to saved position
+
+# Branch 2
+elm.Line().right()
+elm.Capacitor().down()
+elm.Ground()
+```
+
+## Labeling
+
+### Component Labels
+
+**Format**: Designator + value on separate lines
+
+```python
+elm.Resistor().label('R1\n10kΩ')
+elm.Capacitor().label('C1\n100µF')
+elm.Inductor().label('L1\n100µH')
+```
+
+**Unicode characters** for units:
+- Ω (Ohm): `Ω` or `\u03A9`
+- µ (micro): `µ` or `\u00B5`
+- π (pi): `π` in math mode `$\pi$`
+
+### LaTeX Math
+
+Use LaTeX for equations and subscripts:
+
+```python
+elm.Resistor().label('$R_{in}$')              # Subscript
+elm.Capacitor().label('$C_1 = 10\mu F$')      # Equation with micro
+elm.Resistor().label('$R = \\frac{V}{I}$')    # Fraction (escape backslash)
+```
+
+### Label Positioning
+
+Control label location with `loc` parameter:
+
+```python
+elm.Resistor().label('R1', loc='top')        # Above (default for horizontal)
+elm.Resistor().label('R1', loc='bottom')     # Below
+elm.Resistor().down().label('R1', loc='right')  # To the right (default for vertical)
+elm.Resistor().down().label('R1', loc='left')   # To the left
+```
+
+### Multiple Labels
+
+Add multiple labels to one element:
+
+```python
+elm.Resistor().label('R1').label('10kΩ', loc='bottom')
+elm.Capacitor().label(('−', '$V_o$', '+'))  # Polarity labels
+```
+
+### Signal Labels
+
+Label key signals clearly:
+
+```python
+elm.Line().label('CLK', 'top')           # Clock signal
+elm.Line().label('Data Bus[7:0]', 'top') # Bus notation
+elm.Gap().label(('+', '5V', '−'))        # Voltage with polarity
+```
+
+## Connections
+
+### Junction Dots
+
+**Always use dots at T-junctions** (3-way):
+
+```python
+elm.Line().right()
+elm.Dot()           # T-junction needs dot
+d.push()
+elm.Line().down()   # Branch off
+d.pop()
+elm.Line().right()  # Continue
+```
+
+**No dot for corners** (2-way):
+
+```python
+elm.Line().right()  # No dot needed
+elm.Line().down()   # Simple corner
+```
+
+### Wire Routing
+
+**Manhattan routing** with `.toy()` and `.tox()`:
+
+```python
+# Connect to specific X coordinate, then Y
+elm.Line().at(R1.end).tox(C1.start)  # Go to C1's X
+elm.Line().toy(C1.start)             # Then to C1's Y
+```
+
+**Wire shapes** for complex routing:
+
+```python
+elm.Wire('-|').at(op.out).to(R1.start)  # Horizontal then vertical
+elm.Wire('|-').at(op.out).to(R1.start)  # Vertical then horizontal
+elm.Wire('N', k=0.5).at(A).to(B)        # Curved connection
+```
+
+### Minimizing Crossings
+
+**Bad** - confusing crossings:
+```python
+# Lines cross without indication
+elm.Line().at((0,0)).to((2,2))
+elm.Line().at((0,2)).to((2,0))  # Ambiguous!
+```
+
+**Good** - use wire routing or jump:
+```python
+# Route around to avoid crossing
+elm.Wire('-|').at((0,0)).to((2,2))
+elm.Wire('|-').at((0,2)).to((2,0))
+```
+
+## Readability
+
+### Spacing
+
+Adjust unit size for circuit complexity:
+
+```python
+# Default spacing
+with schemdraw.Drawing() as d:
+    # Components at default unit=2
+
+# More space for complex circuits
+with schemdraw.Drawing() as d:
+    d.config(unit=3)  # 50% more space
+
+# Less space for simple diagrams
+with schemdraw.Drawing() as d:
+    d.config(unit=1.5)  # Compact
+```
+
+### Font Sizing
+
+Adjust font for different uses:
+
+```python
+# Default
+with schemdraw.Drawing() as d:
+    d.config(fontsize=12)
+
+# Larger for presentations
+with schemdraw.Drawing() as d:
+    d.config(fontsize=16)
+
+# Smaller for dense schematics
+with schemdraw.Drawing() as d:
+    d.config(fontsize=10)
+```
+
+### Component Orientation
+
+**Avoid upside-down labels** by using `.flip()` or `.reverse()`:
+
+```python
+# Bad - diode upside down
+elm.Diode().up()  # Arrow points up, but may look odd
+
+# Good - flip to correct orientation
+elm.Diode().up().flip()  # Now looks correct
+
+# Use reverse to flip direction without flipping symbol
+elm.Diode().down().reverse()  # Points up, rendered correctly
+```
+
+### Keep Text Horizontal
+
+When possible, keep text horizontal for readability:
+
+```python
+# Labels stay horizontal automatically
+elm.Resistor().down().label('R1\n10kΩ')  # Text horizontal
+
+# Force label rotation if needed
+elm.Resistor().down().label('R1', rotate=True)  # Rotated with element
+```
+
+## Code Organization
+
+### Structure Your Code
+
+Organize code in logical sections:
+
+```python
+import schemdraw
+from schemdraw import elements as elm
+
+with schemdraw.Drawing(file='output.svg') as d:
+    # Configuration
+    d.config(unit=2.5, fontsize=12)
+
+    # Input stage
+    V1 = elm.SourceV().label('12V')
+    R1 = elm.Resistor().right().label('R1\n1kΩ')
+
+    # Amplifier stage
+    Q1 = elm.BjtNpn().anchor('base').label('Q1')
+    R2 = elm.Resistor().at(Q1.collector).up().label('R2\n10kΩ')
+
+    # Output stage
+    C1 = elm.Capacitor().at(Q1.collector).right().label('C1\n10µF')
+    elm.Line().dot(open=True).label('Vout')
+
+    # Power connections
+    elm.Vdd().at(R2.end).label('+12V')
+
+    # Ground connections
+    elm.Ground().at(Q1.emitter)
+```
+
+### Save Element References
+
+Save element references for later positioning:
+
+```python
+# Save opamp reference
+op1 = elm.Opamp(leads=True).label('U1')
+
+# Use later for feedback
+elm.Line().at(op1.in1).up()
+elm.Resistor().tox(op1.out)
+elm.Line().toy(op1.out)
+```
+
+### Use Meaningful Names
+
+```python
+# Good - clear names
+input_stage = elm.Opamp()
+output_filter = elm.Capacitor()
+load_resistor = elm.Resistor()
+
+# Bad - unclear
+op1 = elm.Opamp()
+c2 = elm.Capacitor()
+r5 = elm.Resistor()
+```
+
+## Common Mistakes to Avoid
+
+### Mistake 1: Forgetting Dots at Junctions
+
+```python
+# WRONG - looks like lines don't connect
+elm.Line().right()
+d.push()
+elm.Line().down()  # Missing dot!
+d.pop()
+
+# RIGHT
+elm.Line().right()
+elm.Dot()          # Add dot
+d.push()
+elm.Line().down()
+d.pop()
+```
+
+### Mistake 2: Not Using `.at()` for Anchors
+
+```python
+# WRONG - element placed at wrong position
+op = elm.Opamp()
+elm.Resistor()  # Where is this?
+
+# RIGHT - explicitly position
+op = elm.Opamp()
+elm.Resistor().at(op.in1).left()  # Clear positioning
+```
+
+### Mistake 3: Forgetting `.dot(open=True)` for Terminals
+
+```python
+# WRONG - no indication this is a terminal
+elm.Line().label('Vin')
+
+# RIGHT - open dot shows external connection
+elm.Line().dot(open=True).label('Vin', 'left')
+```
+
+### Mistake 4: Overlapping Labels
+
+```python
+# WRONG - labels may overlap
+elm.Resistor().label('R1\n10kΩ')
+elm.Capacitor().label('C1\n10µF')  # Too close!
+
+# RIGHT - add spacing or adjust label position
+elm.Resistor().label('R1\n10kΩ', loc='top')
+elm.Capacitor().label('C1\n10µF', loc='bottom')
+```
+
+### Mistake 5: Not Testing Element Placement
+
+```python
+# WRONG - assume element is positioned correctly
+elm.Resistor().at(Q1.somewhere)  # Typo!
+
+# RIGHT - use correct anchor names
+elm.Resistor().at(Q1.collector)  # Use documented anchor
+```
+
+## Output Quality Tips
+
+### Choose Correct Format
+
+- **SVG**: Publication quality, scalable, recommended default
+- **PNG**: For embedding in documents that don't support SVG
+- **PDF**: For print documents, LaTeX integration
+
+```python
+# SVG (default, recommended)
+with schemdraw.Drawing(file='circuit.svg') as d:
+    ...
+
+# PNG with high DPI
+with schemdraw.Drawing() as d:
+    ...
+    d.save('circuit.png', dpi=300)
+
+# PDF for print
+with schemdraw.Drawing(file='circuit.pdf') as d:
+    ...
+```
+
+### Optimize for Medium
+
+**Web display**:
+```python
+d.config(fontsize=12, unit=2)  # Standard size
+```
+
+**Presentation slides**:
+```python
+d.config(fontsize=16, unit=3)  # Larger, more space
+```
+
+**Technical documentation**:
+```python
+d.config(fontsize=10, unit=2)  # Compact, detailed
+```
+
+**Poster/Banner**:
+```python
+d.config(fontsize=20, unit=4)  # Large, high visibility
+```
+
+## Summary Checklist
+
+Before finalizing your circuit:
+
+- [ ] Signal flow is left-to-right
+- [ ] Power on top, ground on bottom
+- [ ] All T-junctions have dots
+- [ ] External connections have open dots
+- [ ] All components labeled with values
+- [ ] No overlapping labels
+- [ ] No ambiguous line crossings
+- [ ] Consistent spacing and alignment
+- [ ] Appropriate unit and font size for use case
+- [ ] Saved in correct format (SVG recommended)

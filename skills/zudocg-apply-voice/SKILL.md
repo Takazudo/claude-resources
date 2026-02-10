@@ -1,0 +1,83 @@
+---
+name: zudocg-apply-voice
+description: >
+  Apply Takazudo's CodeGrid writing voice and vocabulary rules to text. Use when: (1) User wants to
+  write or rewrite text in Takazudo's CodeGrid style, (2) User says 'apply voice', 'codegrid voice',
+  'codegrid文体で', 'codegrid風に書いて', '文体を適用', (3) User provides text and wants it transformed to match
+  the CodeGrid writing style. Reads the writing-style.md and vocabulary-rule.md from the
+  takazudo-codegrid-writing repo and applies those rules to the given text.
+---
+
+# Apply CodeGrid Voice
+
+Apply Takazudo's **CodeGrid** writing voice and vocabulary rules to incoming text.
+
+## Voice Character Summary
+
+The CodeGrid voice is a **polite but approachable technical article** style. Sits between formal tech writing and casual blogging — です/ます base with conversational warmth. The author shares from personal experience, hedges assertions, and engages in dialogue with the reader.
+
+Key traits:
+- **Experienced but humble** — veteran developer who avoids overstatement
+- **Self-reference**: 「自分」for personal experience, 「筆者」for authorial stance, 「私」for emphatic opinions
+- **Sentence endings**: 〜と考えています / 〜と感じています / 〜のではないでしょうか / 〜かと思います / 〜わけでして
+- **Heavy hedging**: 〜かもしれない / 〜のではないか / 〜かと思われます / おそらく〜 / 〜という感覚があります
+- **Everyday analogies** — explain tech concepts via relatable examples (egg cookers, game buffs)
+- **Reader dialogue** — anticipate reader reactions, address them proactively
+- **Emphasis**: Bold + parenthetical (まったくもってなりません（重要）), katakana emphasis (超スゴイ, ガンガン, サラっと)
+- **Connections**: ただ (soft contrast) / ですが (polite contrast) / さて〜 (topic shift) / 前回は〜 (continuity)
+- **Avoid**: Consecutive 〜です/〜である / stiff literary style / condescending tone / abstract explanations without personal experience / conclusions without reflection
+
+### Contrast with esa voice
+
+| Aspect | CodeGrid | esa |
+|--------|----------|-----|
+| Tone | Polite but approachable tech article | Casual colleague memo |
+| Formality | Medium (です/ます base) | Low (断片的OK) |
+| Self-reference | 自分 / 筆者 / 私 | 自分 / Takazudo |
+| Stance | Writing for readers | Sharing with coworkers |
+| Hedging style | Explicit softening (〜かと思います, 〜のではないでしょうか) | Understatement (〜の模様, 〜良さそう) |
+| Structure | Considered, essay-like | Loose, memo-like |
+
+## When to Use
+
+- User provides text and wants it written/rewritten in Takazudo's **CodeGrid** voice
+- User says "codegrid voice", "codegrid文体で", "codegrid風に書いて" etc.
+- User wants to check or fix text to conform to the CodeGrid writing style
+
+## Workflow
+
+### Step 1: Read the rule files
+
+**Always** read both rule files fresh at invocation time:
+
+1. `/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/docs/overview/writing-style.md`
+2. `/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/docs/overview/vocabulary-rule.md`
+
+These files are the authoritative source of truth. Read them every time to pick up any updates.
+
+### Step 2: Identify the input text
+
+The input text comes from one of:
+- Text provided directly in the conversation (before or after the skill invocation)
+- $ARGUMENTS passed with the command
+- A file path the user points to
+
+If no text is obvious, ask the user what text they want the voice applied to.
+
+### Step 3: Apply the rules
+
+Transform or review the text using the voice character described above and the full details in the rule files. The rule files are the authority — the summary above is just for quick reference.
+
+### Step 4: Output the result
+
+Output the transformed text. If the input was already close to the style, note what minor adjustments were made.
+
+If reviewing existing text (rather than transforming), point out specific violations and suggest fixes.
+
+## Important Notes
+
+- This skill transforms **text style/voice** only — it does not change the content or meaning
+- The skill works on Japanese text. If English text is provided, translate to Japanese in the CodeGrid voice
+- If $ARGUMENTS contains text, treat that as the input text to transform
+- When in doubt about a style choice, refer back to the rule files — they are the authority
+- The rules may be updated over time, which is why we re-read them every invocation

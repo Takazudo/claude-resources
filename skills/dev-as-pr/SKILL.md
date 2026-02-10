@@ -1,0 +1,147 @@
+---
+name: dev-as-pr
+description: >-
+  Start a development workflow as a draft PR. Fetches, creates a branch, makes an empty start
+  commit, pushes, and opens a draft PR. Then starts implementation if instructions are provided. Use
+  when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix development with a
+  PR-first workflow, (3) User wants to set up a branch and draft PR before coding.
+disable-model-invocation: true
+argument-hint: "[issue-url-or-number] [branch-name] [base-branch]"
+---
+
+# Dev As PR
+
+Start a development workflow by creating a branch and draft PR before implementation.
+
+## Input Parsing
+
+Parse `$ARGUMENTS` to extract:
+
+- **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
+- **Branch name**: Explicit branch name if provided (look for words like `branch:` or a slash-containing name like `topic/foo`)
+- **Base branch**: Explicit base branch if provided (look for words like `base:` or `from:`)
+- **Implementation instructions**: Any remaining text describing what to implement
+
+If ambiguous, ask the user to clarify.
+
+## Workflow
+
+### Step 1: Initialize
+
+```bash
+git fetch origin
+```
+
+### Step 2: Read Issue (if specified)
+
+```bash
+# If GitHub URL
+gh issue view <issue-num> --repo <owner/repo>
+
+# If issue number
+gh issue view <issue-num>
+```
+
+Use the issue title and body as context for branch naming and implementation.
+
+### Step 3: Determine Branch Name
+
+If user specified a branch name, use it directly.
+
+Otherwise, derive `{SLUG}` (max 40 chars, lowercase, hyphens) from the issue title or implementation description, then:
+
+| Condition | Branch name pattern |
+|-----------|-------------------|
+| Has issue | `issue-#<ISSUE_NO>/<SLUG>` |
+| Documentation updates | `doc/<SLUG>` |
+| Other | `topic/<SLUG>` |
+
+### Step 4: Determine Target (Base) Branch
+
+- If user specified a base branch, use it
+- Otherwise, use the current locally checked-out branch
+
+Record this as `TARGET_BRANCH`.
+
+### Step 5: Create Branch and Draft PR
+
+```bash
+# Create and switch to new branch from TARGET_BRANCH
+git checkout -b <BRANCH_NAME> <TARGET_BRANCH>
+
+# Create empty start commit
+git commit --allow-empty -m "= start <SLUG> dev ="
+
+# Push to remote
+git push -u origin <BRANCH_NAME>
+
+# Create draft PR against TARGET_BRANCH
+gh pr create \
+  --base <TARGET_BRANCH> \
+  --title "<PR_TITLE>" \
+  --body "$(cat <<'EOF'
+## Summary
+<brief description based on issue or instructions>
+
+## Changes
+- (in progress)
+
+## Test Plan
+- (to be determined)
+EOF
+)" \
+  --draft
+```
+
+The PR title should be descriptive based on the issue or instructions provided.
+
+### Step 6: Start Implementation
+
+If the user provided implementation instructions (either via issue or direct text), begin the implementation work immediately.
+
+If no instructions were provided, report the PR URL and wait for further direction.
+
+## Examples
+
+### With issue number
+
+```
+/dev-as-pr 42
+-> Fetch, read issue #42 "Add dark mode support"
+-> Branch: issue-#42/add-dark-mode-support
+-> Base: current branch
+-> Empty commit, push, draft PR
+-> Start implementing based on issue
+```
+
+### With explicit branch and base
+
+```
+/dev-as-pr branch:feature/new-auth base:develop
+-> Fetch
+-> Branch: feature/new-auth
+-> Base: develop
+-> Empty commit, push, draft PR
+```
+
+### With instructions only
+
+```
+/dev-as-pr add pagination to the user list page
+-> Fetch
+-> Branch: topic/add-pagination-user-list
+-> Base: current branch
+-> Empty commit, push, draft PR
+-> Start implementing pagination
+```
+
+### Documentation update
+
+```
+/dev-as-pr update API docs for v2 endpoints
+-> Fetch
+-> Branch: doc/update-api-docs-v2-endpoints
+-> Base: current branch
+-> Empty commit, push, draft PR
+-> Start updating docs
+```

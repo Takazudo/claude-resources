@@ -1,0 +1,412 @@
+---
+title: "Schemdraw Component Library Reference"
+---
+
+# Schemdraw Component Library Reference
+
+**Skill:** [schemdraw-circuit-generator](../schemdraw-circuit-generator.mdx)
+
+---
+
+# Schemdraw Component Library Reference
+
+Complete reference for all available components in schemdraw.
+
+## Passive Components
+
+### Resistors
+
+```python
+elm.Resistor()              # Standard resistor
+elm.ResistorVar()           # Variable resistor
+elm.Potentiometer()         # Potentiometer with tap
+```
+
+### Capacitors
+
+```python
+elm.Capacitor()             # Standard capacitor
+elm.Capacitor(polar=True)   # Polarized (electrolytic)
+elm.CapacitorVar()          # Variable capacitor
+elm.Capacitor2()            # Alternate style
+elm.CapacitorTrim()         # Trimmer capacitor
+```
+
+### Inductors
+
+```python
+elm.Inductor()              # Standard inductor
+elm.Inductor2()             # Alternate style
+elm.Inductor2(loops=3)      # Inductor with custom loops
+```
+
+### Transformers
+
+**⚠️ Special Component** - Transformers require careful attention to orientation and anchors.
+
+```python
+elm.Transformer(t1=3, t2=3)              # Basic transformer with 3 turns each
+elm.Transformer(t1=4, t2=8)              # Step-up transformer (1:2 ratio)
+elm.Transformer(t1=8, t2=4)              # Step-down transformer (2:1 ratio)
+```
+
+**Parameters:**
+- `t1` - Number of turns in primary winding (left side by default)
+- `t2` - Number of turns in secondary winding (right side by default)
+
+**Anchors (when oriented .right() - default horizontal):**
+- `p1` - Primary winding TOP (left side)
+- `p2` - Primary winding BOTTOM (left side)
+- `s1` - Secondary winding TOP (right side)
+- `s2` - Secondary winding BOTTOM (right side)
+
+**Default Orientation:** Horizontal (primary on left, secondary on right)
+
+```
+    p1 )))  ||| ((( s1
+              |
+    p2 )))  ||| ((( s2
+
+    Primary      Secondary
+    (left)       (right)
+```
+
+**Orientation Control:**
+
+```python
+# Horizontal orientations
+elm.Transformer(t1=3, t2=3).right()     # Primary left (p1=top, p2=bottom), Secondary right (s1=top, s2=bottom)
+elm.Transformer(t1=3, t2=3).left()      # Primary right, secondary left (reversed)
+
+# Vertical orientations
+elm.Transformer(t1=3, t2=3).up()        # Primary bottom, secondary top
+elm.Transformer(t1=3, t2=3).down()      # Primary top, secondary bottom
+```
+
+**Anchor Position Reference (.right() orientation):**
+- **p1**: Top-left (primary top)
+- **p2**: Bottom-left (primary bottom)
+- **s1**: Top-right (secondary top)
+- **s2**: Bottom-right (secondary bottom)
+
+**⚠️ Critical: Using .anchor() for positioning**
+
+Unlike simple two-terminal components, transformers have 4 terminals (p1, p2, s1, s2). When positioning, you MUST specify which anchor point to use as the reference:
+
+```python
+# WRONG - anchor point undefined, positioning unpredictable
+elm.Line().at(position).right(distance)
+t1 = elm.Transformer(t1=3, t2=3).right()  # ❌ Where does it start?
+
+# CORRECT - explicitly anchor to p1
+elm.Line().at(position).right(distance)
+t1 = elm.Transformer(t1=3, t2=3).right().anchor('p1')  # ✅ Starts at p1
+```
+
+**Common use case: Flyback converter**
+
+```python
+# Flyback transformer for voltage inversion (+15V → -15V)
+# For horizontal orientation (.right()):
+#   Primary (left): p1 (top), p2 (bottom)
+#   Secondary (right): s1 (top), s2 (bottom)
+
+# Position at current location, orient horizontally, anchor at p1 (primary top)
+t1 = elm.Transformer(t1=3, t2=3).right().anchor('p1').label('T1\n1:1', loc='left')
+
+# Connect primary p2 (bottom-left) to switching pin
+elm.Line().at(t1.p2).to(switch_pin)
+
+# Connect secondary winding:
+# s1 (top-right) → Diode → Output (-15V)
+elm.Line().at(output_junction).left()
+elm.Diode().left()
+elm.Line().to(t1.s1)
+
+# s2 (bottom-right) → GND
+elm.Line().at(t1.s2).up().right().down()
+elm.Ground()
+```
+
+**Flyback Transformer Best Practices:**
+
+1. **Always use .anchor()** - Specify which pin (p1, p2, s1, or s2) is your reference point
+2. **Capture position first** - Store `d.here` in a variable before calculations
+3. **Orient appropriately** - Use `.right()` for horizontal, `.down()` for vertical
+4. **Label clearly** - Include turns ratio like "T1\n1:1" or "T1\n1:2"
+
+**Common Mistake:**
+
+```python
+# ❌ WRONG - Using d.here directly in calculation
+elm.Line().at(start).up(4.0)
+elm.Line().right(target[0] - d.here[0])  # d.here changes after each draw!
+t1 = elm.Transformer(t1=3, t2=3)
+
+# ✅ CORRECT - Capture position first
+elm.Line().at(start).up(4.0)
+position = d.here  # Capture position
+elm.Line().right(target[0] - position[0])  # Use captured position
+t1 = elm.Transformer(t1=3, t2=3).right().anchor('p1')
+```
+
+**Additional Features:**
+
+```python
+# Add center tap on secondary winding
+t1 = elm.Transformer(t1=4, t2=8).tap(name='CT', pos=4, side='secondary')
+elm.Line().at(t1.CT).down(1)  # Connect to center tap
+
+# Access anchor points (for .right() orientation)
+elm.Line().at(t1.p1)  # Primary top (left side)
+elm.Line().at(t1.p2)  # Primary bottom (left side)
+elm.Line().at(t1.s1)  # Secondary top (right side)
+elm.Line().at(t1.s2)  # Secondary bottom (right side)
+```
+
+## Semiconductors
+
+### Diodes
+
+```python
+elm.Diode()                 # Standard diode
+elm.Zener()                 # Zener diode
+elm.LED()                   # Light-emitting diode
+elm.Schottky()              # Schottky diode
+elm.Photodiode()            # Photodiode
+elm.Varactor()              # Varactor diode
+```
+
+### BJT Transistors
+
+```python
+elm.BjtNpn()                # NPN bipolar transistor
+elm.BjtNpn(circle=True)     # NPN with circle (discrete)
+elm.BjtPnp()                # PNP bipolar transistor
+elm.BjtPnp(circle=True)     # PNP with circle
+```
+
+**Anchors**: `base`, `collector`, `emitter`
+
+### FET Transistors
+
+```python
+elm.NFet()                  # N-channel MOSFET
+elm.PFet()                  # P-channel MOSFET
+elm.JFet()                  # Junction FET
+elm.JFetP()                 # P-channel JFET
+elm.AnalogNFet()            # Analog N-FET (different symbol)
+elm.AnalogPFet()            # Analog P-FET
+```
+
+**Anchors**: `gate`, `drain`, `source`
+
+## Sources
+
+### Voltage Sources
+
+```python
+elm.SourceV()               # DC voltage source
+elm.SourceSin()             # Sinusoidal AC source
+elm.SourceSquare()          # Square wave source
+elm.SourceTriangle()        # Triangle wave source
+elm.SourceRamp()            # Ramp source
+elm.SourcePulse()           # Pulse source
+elm.Battery()               # Battery symbol (multiple cells)
+elm.BatteryCell()           # Single cell
+elm.Solar()                 # Solar cell
+```
+
+### Current Sources
+
+```python
+elm.SourceI()               # DC current source
+```
+
+### Controlled Sources
+
+```python
+elm.SourceControlledV()     # Voltage-controlled voltage source (VCVS)
+elm.SourceControlledI()     # Current-controlled current source (CCCS)
+```
+
+## Integrated Circuits
+
+### Operational Amplifiers
+
+```python
+elm.Opamp()                         # Standard opamp
+elm.Opamp(leads=True)               # With lead extensions
+elm.Opamp(sign=False)               # Without +/- signs
+```
+
+**Anchors**: `in1` (inverting), `in2` (non-inverting), `out`, `vd` (V+), `vs` (V-), `n1`, `n2` (offset null pins)
+
+### Logic Gates
+
+```python
+from schemdraw import logic
+
+logic.And()                         # AND gate
+logic.And(inputs=3)                 # AND with 3 inputs
+logic.Or()                          # OR gate
+logic.Not()                         # NOT gate (inverter)
+logic.Nand()                        # NAND gate
+logic.Nor()                         # NOR gate
+logic.Xor()                         # XOR gate
+logic.Xnor()                        # XNOR gate
+logic.Buf()                         # Buffer
+```
+
+### Specialized ICs
+
+```python
+elm.Ic555()                         # 555 timer IC
+elm.IcDIP(pins=8)                   # Generic DIP package
+elm.Ic(pins=[...])                  # Custom IC with pin definitions
+elm.SevenSegment()                  # Seven-segment display
+elm.Multiplexer()                   # Multiplexer
+elm.Multiplexer(demux=True)         # Demultiplexer
+```
+
+### Custom IC Definition
+
+```python
+elm.Ic(pins=[
+    elm.IcPin(name='VCC', side='left', pin='1'),
+    elm.IcPin(name='IN', side='left', pin='2'),
+    elm.IcPin(name='OUT', side='right', pin='3'),
+    elm.IcPin(name='GND', side='right', pin='4')
+])
+```
+
+## Power and Ground
+
+### Ground Symbols
+
+```python
+elm.Ground()                # Standard ground
+elm.Ground(lead=False)      # Ground without lead
+elm.GroundSignal()          # Signal ground
+elm.GroundChassis()         # Chassis ground
+```
+
+### Power Symbols
+
+```python
+elm.Vdd()                   # Positive supply
+elm.Vdd().label('+5V')      # Labeled power
+elm.Vss()                   # Negative supply
+```
+
+## Connections and Junctions
+
+### Dots and Markers
+
+```python
+elm.Dot()                   # Junction point (filled circle)
+elm.Dot(open=True)          # Open circle (terminal)
+elm.DotDotDot()             # Continuation marker (...)
+elm.Arrowhead()             # Arrow marker
+elm.NoConnect()             # No-connect marker (X)
+```
+
+### Lines and Wires
+
+```python
+elm.Line()                  # Straight connection
+elm.Line().length(2)        # Line with specific length
+elm.Wire('shape')           # Routed connection
+```
+
+**Wire shapes:**
+- `'-'` - Direct line
+- `'|-'` - Vertical then horizontal
+- `'-|'` - Horizontal then vertical
+- `'N'` or `'n'` - Curved (arc)
+- `'Z'` or `'z'` - Z-shaped
+
+### Labels and Annotations
+
+```python
+elm.CurrentLabel()              # Current arrow over element
+elm.CurrentLabelInline()        # Current arrow on lead
+elm.LoopCurrent([elements])     # Loop current indicator
+elm.Annotate()                  # Text annotation with arrow
+elm.Encircle([elements])        # Ellipse around elements
+elm.EncircleBox([elements])     # Rectangle around elements
+```
+
+## Meters and Instruments
+
+```python
+elm.MeterV()                # Voltmeter
+elm.MeterA()                # Ammeter
+elm.MeterI()                # Current meter
+elm.MeterOhm()              # Ohmmeter
+```
+
+## Switches and Mechanical
+
+```python
+elm.Switch()                # Basic switch
+elm.SwitchSpdt()            # SPDT switch
+elm.SwitchSpdt2()           # SPDT switch (alternate)
+elm.SwitchDpst()            # DPST switch
+elm.SwitchDpdt()            # DPDT switch
+elm.Button()                # Pushbutton
+```
+
+## Miscellaneous
+
+```python
+elm.Fuse()                  # Fuse
+elm.Speaker()               # Speaker symbol
+elm.Motor()                 # Motor symbol
+elm.Lamp()                  # Lamp/bulb
+elm.Antenna()               # Antenna
+elm.Gap()                   # Voltage gap (for labeling)
+```
+
+**Note:** For Transformers, see the detailed section under "Passive Components > Transformers" above.
+
+## Component Anchors
+
+Most components have standard anchors you can reference:
+
+**Two-terminal elements** (resistors, capacitors, diodes):
+- `start` - Starting point
+- `end` - Ending point
+- `center` - Midpoint
+
+**Three-terminal elements** (transistors):
+- BJT: `base`, `collector`, `emitter`
+- FET: `gate`, `drain`, `source`
+
+**Opamps**:
+- `in1` - Inverting input (-)
+- `in2` - Non-inverting input (+)
+- `out` - Output
+- `vd` - Positive supply
+- `vs` - Negative supply
+
+**Custom ICs**:
+- Access pins by name: `ic.PIN_NAME`
+- Example: `ic.VCC`, `ic.GND`
+
+## Using Context7 for More Components
+
+For components not listed here or for the latest additions:
+
+```
+mcp__context7__get-library-docs(
+  context7CompatibleLibraryID: "/cdelker/schemdraw",
+  mode: "code",
+  topic: "specific component name"
+)
+```
+
+Examples:
+- `topic: "seven segment display"`
+- `topic: "multiplexer demultiplexer"`
+- `topic: "pictorial components breadboard"`

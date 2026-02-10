@@ -1,0 +1,56 @@
+---
+name: copilot-instructions
+description: "Generate or update the .github/copilot-instructions.md file for GitHub Copilot custom instructions. Use when: (1) User wants to create Copilot instructions for a project, (2) User asks to update or improve existing Copilot guidelines, (3) User mentions 'copilot instructions', 'copilot guidelines', or 'copilot config'. Explores codebase to discover tech stack, file conventions, import patterns, component structure, code style, and testing approaches. Creates actionable instructions with code examples."
+---
+
+Generate or update the `.github/copilot-instructions.md` file for this repository.
+
+**Instructions:**
+
+1. **Check if `.github/copilot-instructions.md` exists:**
+   - Use the Read tool to check if the file exists
+
+2. **If the file does NOT exist:**
+   - Explore the codebase using the Task tool with subagent_type=Explore
+   - Focus on understanding:
+     - Tech stack (frameworks, libraries, languages)
+     - File naming conventions
+     - Import patterns
+     - Component/module structure patterns
+     - Code style (formatting rules, linting config)
+     - Testing approach
+     - Key types and data structures
+     - Common patterns to follow
+   - Generate a comprehensive `.github/copilot-instructions.md` file
+   - Write natural language instructions in Markdown format
+   - Include critical conventions that developers must follow
+   - Provide code examples for common patterns
+
+3. **If the file DOES exist:**
+   - Read the existing `.github/copilot-instructions.md` file
+   - Explore the codebase carefully using the Task tool with subagent_type=Explore
+   - Identify:
+     - New patterns or conventions not documented
+     - Outdated information that needs updating
+     - Missing important guidelines
+     - Areas that need better examples
+   - Update the file with improvements
+   - Preserve existing good content
+   - Add new sections for newly discovered patterns
+   - Remove or update outdated information
+
+4. **Content Guidelines:**
+   - Use clear, natural language
+   - Focus on actionable patterns and conventions
+   - Include code examples liberally
+   - Highlight critical "must follow" rules
+   - Reference key files to check for patterns
+   - Keep instructions concise but comprehensive
+   - Organize by topic (naming, imports, components, testing, etc.)
+
+5. **After creating/updating:**
+   - Inform the user about what was created or changed
+   - Highlight key conventions that were documented
+   - Suggest reviewing the file before committing
+
+**Note:** This creates GitHub Copilot custom instructions following the official format documented at https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions

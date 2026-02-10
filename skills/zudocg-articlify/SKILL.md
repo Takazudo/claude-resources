@@ -1,0 +1,93 @@
+---
+name: zudocg-articlify
+description: >
+  Convert conversation context into a CodeGrid article by delegating to the zudocg-writer subagent.
+  Use when: (1) User wants to write a CodeGrid article based on what was discussed, (2) User says
+  'write codegrid article', 'CodeGrid記事', 'codegridに書いて', 'articlify for codegrid'. This skill
+  gathers context from the conversation, creates a detailed writing brief, and delegates to the
+  writer subagent.
+---
+
+# Articlify for CodeGrid
+
+Convert the current conversation into a CodeGrid article by crafting a detailed writing brief and delegating to the `zudocg-writer` subagent.
+
+## Workflow
+
+### Step 1: Gather context from conversation
+
+Review the conversation history and identify:
+- What topic was discussed
+- What was tried (approaches A, B, C...)
+- What worked and what didn't
+- Key technical details, code snippets, commands
+- The conclusion or final approach taken
+- Any opinions or insights expressed
+- **Images**: Any images attached to the conversation (screenshots, diagrams, etc.)
+
+### Step 1.5: Handle images (if any)
+
+If images were provided in the conversation (attached screenshots, diagrams, etc.):
+
+1. **Determine the series name** (e.g., `ai-agent`, `2025-html-selectbox`)
+2. **Create the image directory** in the codegrid repo:
+   ```
+   mkdir -p /Users/takazudo/repos/work/takazudo-codegrid-writing/doc/static/img/{series-name}/
+   ```
+3. **Copy each image** to that directory with a descriptive filename:
+   ```
+   cp /path/to/source/image.png /Users/takazudo/repos/work/takazudo-codegrid-writing/doc/static/img/{series-name}/descriptive-name.png
+   ```
+4. **Record the image paths** for the writing brief. The markdown reference format is:
+   ```
+   ![alt text](/img/{series-name}/descriptive-name.png)
+   ```
+
+### Step 2: Craft the writing brief
+
+Create a **detailed, self-contained prompt** that the writer subagent can use without any conversation context. The brief must include:
+
+1. **Article topic**: Clear one-line description
+2. **Series info**: Which series this belongs to (existing or new), article number
+3. **Background**: Why this was done, what motivated it
+4. **Story arc**: The journey (tried X, it failed because Y, then tried Z which worked)
+5. **Technical details**: Specific code, commands, configurations, error messages
+6. **Key points to cover**: Bullet list of must-include content
+7. **Images**: If images were copied in Step 1.5, list each with its markdown path and a description of what it shows and where it should be placed in the article
+8. **Conclusion**: What was the outcome, what was learned
+9. **Tone guidance**: Any specific angle or framing (if applicable)
+
+The brief should be written so that someone with zero context could write the full article from it alone.
+
+### Step 3: Delegate to subagent
+
+Use the Task tool to spawn the `zudocg-writer` subagent:
+
+```
+Task tool:
+  subagent_type: zudocg-writer
+  prompt: [the detailed writing brief from Step 2]
+```
+
+The subagent will:
+- Read the repo's writing style guides
+- Write the article in Japanese following CodeGrid conventions
+- Save to the correct series directory
+- Update sidebars.js if needed
+- Run formatting checks
+
+### Step 4: Report back
+
+After the subagent completes, report:
+- The file path of the created article
+- A brief summary of what was written
+
+## Important Notes
+
+- The writing brief is the ONLY context the subagent receives - make it thorough
+- Include actual code snippets, error messages, and command outputs in the brief
+- CodeGrid articles are part of a series - clarify which series and episode number
+- If the conversation involved multiple topics, ask the user which one to articlify
+- **Images must be copied BEFORE delegating** - the subagent cannot see conversation images
+- Include the full markdown image reference paths in the brief so the subagent can embed them
+- $ARGUMENTS can provide additional guidance on focus or angle

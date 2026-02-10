@@ -1,0 +1,111 @@
+---
+name: claude-resources-share
+description: >-
+  Publish Claude Code resources (commands, skills, agents, hooks, scripts, doc, CLAUDE.md) from the
+  private ~/.claude repo to the public claude-resources repo. One-direction copy with a safety gate:
+  scans for private info before copying, requires user confirmation. Use when: (1) User says 'share
+  resources', 'publish resources', 'sync public repo', (2) User wants to update the public
+  claude-resources repo.
+---
+
+# Claude Resources Share
+
+One-direction publish from `~/.claude/` (private) to `/Users/takazudo/repos/p/claude-resources` (public).
+
+## Paths
+
+- **Source**: `~/.claude/`
+- **Target**: `/Users/takazudo/repos/p/claude-resources`
+
+## Directories to copy
+
+| Source | Target |
+|--------|--------|
+| `~/.claude/commands/` | `commands/` |
+| `~/.claude/skills/` | `skills/` |
+| `~/.claude/agents/` | `agents/` |
+| `~/.claude/hooks/` | `hooks/` |
+| `~/.claude/scripts/` | `scripts/` |
+| `~/.claude/doc/` | `doc/` |
+| `~/.claude/CLAUDE.md` | `CLAUDE.md` |
+
+## Excludes (apply to all rsync operations)
+
+- `node_modules/`
+- `.docusaurus/`
+- `dist/`
+- `__pycache__/`
+- `.DS_Store`
+- `*.pyc`
+- `.cache/`
+- `pnpm-lock.yaml`
+- `package-lock.json`
+
+## Workflow
+
+### Step 1: Scan for private info
+
+Invoke the `/purge-private-info` command, targeting the source directories listed above. Scan file contents for:
+
+- API keys, tokens, passwords, webhook keys
+- Client/corporate names that appear to be real clients
+- Personal SNS accounts (other than the repo owner's)
+- Hardcoded absolute paths containing usernames (e.g., `/Users/takazudo/`)
+
+Present all findings to the user. **Do NOT proceed until the user explicitly confirms** there are no problems or that findings are acceptable.
+
+### Step 2: Prepare target directory
+
+```bash
+# Create target if it doesn't exist
+mkdir -p /Users/takazudo/repos/p/claude-resources
+```
+
+If the target has a `.git/` directory, preserve it. If not, the user should initialize it separately.
+
+### Step 3: Clean and copy
+
+Remove old content in the target (preserving `.git/`, `.gitignore`, `README.md`, `LICENSE`):
+
+```bash
+# Remove previous copies (but preserve git and repo meta files)
+cd /Users/takazudo/repos/p/claude-resources
+for dir in commands skills agents hooks scripts doc; do
+  rm -rf "./$dir"
+done
+rm -f ./CLAUDE.md
+```
+
+Then copy each directory using rsync:
+
+```bash
+EXCLUDES="--exclude=node_modules --exclude=.docusaurus --exclude=dist --exclude=__pycache__ --exclude=.DS_Store --exclude='*.pyc' --exclude=.cache --exclude=pnpm-lock.yaml --exclude=package-lock.json"
+
+SRC="$HOME/.claude"
+DST="/Users/takazudo/repos/p/claude-resources"
+
+rsync -av $EXCLUDES "$SRC/commands/" "$DST/commands/"
+rsync -av $EXCLUDES "$SRC/skills/" "$DST/skills/"
+rsync -av $EXCLUDES "$SRC/agents/" "$DST/agents/"
+rsync -av $EXCLUDES "$SRC/hooks/" "$DST/hooks/"
+rsync -av $EXCLUDES "$SRC/scripts/" "$DST/scripts/"
+rsync -av $EXCLUDES "$SRC/doc/" "$DST/doc/"
+cp "$SRC/CLAUDE.md" "$DST/CLAUDE.md"
+```
+
+### Step 4: Summary
+
+After copying, report file counts per directory:
+
+```bash
+for dir in commands skills agents hooks scripts doc; do
+  echo "$dir: $(find "$DST/$dir" -type f | wc -l) files"
+done
+echo "CLAUDE.md: 1 file"
+```
+
+## Important rules
+
+- **Never copy from public to private.** This is strictly one-direction.
+- **Never skip Step 1.** The safety scan is mandatory every time.
+- **Never auto-confirm.** Always wait for explicit user approval after the scan.
