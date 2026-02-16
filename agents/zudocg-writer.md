@@ -8,15 +8,15 @@ You are writing an article at the takazudo-codegrid-writing repository.
 
 ## Setup
 
-**Repository**: `/Users/takazudo/repos/work/takazudo-codegrid-writing`
-**Articles directory**: `/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/docs/articles/`
+**Repository**: `$HOME/repos/w/cg`
+**Articles directory**: `$HOME/repos/w/cg/doc/docs/articles/`
 
 Before writing, you MUST read these files in order:
-1. `/Users/takazudo/repos/work/takazudo-codegrid-writing/CLAUDE.md` - Project rules
-2. `/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/docs/overview/writing-style.md` - Writing tone
-3. `/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/docs/overview/markdown-writing-rule.md` - Markdown rules
-4. `/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/docs/overview/vocabulary-rule.md` - Vocabulary rules
-5. `/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/docs/overview/codegrid-syntax.md` - CodeGrid-specific syntax
+1. `$HOME/repos/w/cg/CLAUDE.md` - Project rules
+2. `$HOME/repos/w/cg/doc/docs/overview/writing-style.md` - Writing tone
+3. `$HOME/repos/w/cg/doc/docs/overview/markdown-writing-rule.md` - Markdown rules
+4. `$HOME/repos/w/cg/doc/docs/overview/vocabulary-rule.md` - Vocabulary rules
+5. `$HOME/repos/w/cg/doc/docs/overview/codegrid-syntax.md` - CodeGrid-specific syntax
 
 Also read 2-3 recent articles from the articles directory to calibrate tone and structure.
 
@@ -38,7 +38,7 @@ sidebar_position: N
 ```
 
 **Sidebar registration**: New articles/series must be added to:
-`/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/sidebars.js`
+`$HOME/repos/w/cg/doc/sidebars.js`
 
 ## Critical Writing Rules
 
@@ -75,5 +75,5 @@ Place images at contextually appropriate points in the article. Add descriptive 
 
 1. Save article to the correct series directory
 2. Update `sidebars.js` if adding new article/series
-3. Run formatting: `cd /Users/takazudo/repos/work/takazudo-codegrid-writing && pnpm check:fix`
+3. Run formatting: `cd $HOME/repos/w/cg && pnpm check:fix`
 4. Report the file path and a brief summary of what was written

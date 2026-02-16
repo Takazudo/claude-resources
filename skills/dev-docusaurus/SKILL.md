@@ -1,0 +1,48 @@
+---
+name: dev-docusaurus
+description: >-
+  Common Docusaurus v3/v4 development fixes and configuration tweaks. Use when: (1) Setting up or
+  maintaining a Docusaurus site, (2) Seeing warnings about deprecated config options like
+  onBrokenMarkdownLinks, (3) Getting "Module not found" errors for @docusaurus/theme-common or
+  plugin-content-docs when swizzling with pnpm, (4) Generated docs produce broken link warnings that
+  should be suppressed, (5) User says 'docusaurus fix', 'docusaurus warnings', 'fix docusaurus
+  config'.
+---
+
+# Docusaurus Development Fixes
+
+Tiny but important configuration tweaks for Docusaurus v3.x projects that prevent annoying warnings and build errors.
+
+## Fix 1: Suppress Broken Link Warnings for Generated Docs
+
+When docs are auto-generated from external sources (e.g., Claude Code skills, API specs), they often contain internal references (`references/foo.md`) that don't resolve in Docusaurus. These warnings are noise.
+
+In `docusaurus.config.ts` (or `.js`):
+
+```js
+const config = {
+  // Suppress broken link errors for generated docs with internal references
+  onBrokenLinks: "ignore",
+
+  markdown: {
+    // v4-compatible location for onBrokenMarkdownLinks
+    hooks: {
+      onBrokenMarkdownLinks: "ignore",
+    },
+  },
+};
+```
+
+**Important:** Do NOT use the top-level `onBrokenMarkdownLinks` option — it is deprecated since Docusaurus v3.6+ and will be removed in v4. Always place it under `markdown.hooks.onBrokenMarkdownLinks` instead.
+
+## Fix 2: Explicit Dependencies for pnpm + Swizzled Components
+
+When swizzling Docusaurus theme components (e.g., `DocItem/Content`) under **pnpm**, imports like `@docusaurus/theme-common` and `@docusaurus/plugin-content-docs/client` fail with "Module not found" because pnpm's strict dependency resolution doesn't hoist transitive deps from `@docusaurus/preset-classic`.
+
+Fix: install them explicitly.
+
+```bash
+pnpm add @docusaurus/theme-common @docusaurus/plugin-content-docs
+```
+
+This is only needed when the project uses pnpm AND has swizzled components that import from these packages. npm/yarn hoist these automatically.

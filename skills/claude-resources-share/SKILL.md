@@ -10,12 +10,12 @@ description: >-
 
 # Claude Resources Share
 
-One-direction publish from `~/.claude/` (private) to `/Users/takazudo/repos/p/claude-resources` (public).
+One-direction publish from `~/.claude/` (private) to `$HOME/repos/p/claude-resources` (public).
 
 ## Paths
 
 - **Source**: `~/.claude/`
-- **Target**: `/Users/takazudo/repos/p/claude-resources`
+- **Target**: `$HOME/repos/p/claude-resources`
 
 ## Directories to copy
 
@@ -50,7 +50,7 @@ Invoke the `/purge-private-info` command, targeting the source directories liste
 - API keys, tokens, passwords, webhook keys
 - Client/corporate names that appear to be real clients
 - Personal SNS accounts (other than the repo owner's)
-- Hardcoded absolute paths containing usernames (e.g., `/Users/takazudo/`)
+- Hardcoded absolute paths containing usernames (e.g., `$HOME/`)
 
 Present all findings to the user. **Do NOT proceed until the user explicitly confirms** there are no problems or that findings are acceptable.
 
@@ -58,7 +58,7 @@ Present all findings to the user. **Do NOT proceed until the user explicitly con
 
 ```bash
 # Create target if it doesn't exist
-mkdir -p /Users/takazudo/repos/p/claude-resources
+mkdir -p $HOME/repos/p/claude-resources
 ```
 
 If the target has a `.git/` directory, preserve it. If not, the user should initialize it separately.
@@ -69,7 +69,7 @@ Remove old content in the target (preserving `.git/`, `.gitignore`, `README.md`,
 
 ```bash
 # Remove previous copies (but preserve git and repo meta files)
-cd /Users/takazudo/repos/p/claude-resources
+cd $HOME/repos/p/claude-resources
 for dir in commands skills agents hooks scripts doc; do
   rm -rf "./$dir"
 done
@@ -82,7 +82,7 @@ Then copy each directory using rsync:
 EXCLUDES="--exclude=node_modules --exclude=.docusaurus --exclude=dist --exclude=__pycache__ --exclude=.DS_Store --exclude='*.pyc' --exclude=.cache --exclude=pnpm-lock.yaml --exclude=package-lock.json"
 
 SRC="$HOME/.claude"
-DST="/Users/takazudo/repos/p/claude-resources"
+DST="$HOME/repos/p/claude-resources"
 
 rsync -av $EXCLUDES "$SRC/commands/" "$DST/commands/"
 rsync -av $EXCLUDES "$SRC/skills/" "$DST/skills/"

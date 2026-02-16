@@ -1,0 +1,123 @@
+---
+name: dev-npxify
+description: >
+  Audit project dependencies and replace CLI-only tools with npx/pnpm dlx to reduce installed
+  packages.
+
+  Use when: (1) User wants to reduce dependencies, (2) User says 'npxify', 'dlxify', 'reduce deps',
+
+  (3) User wants to clean up package.json, (4) User asks which deps can use npx/pnpm dlx.
+---
+
+# Dependency NPXification
+
+Audit project dependencies and identify packages that can be replaced with `npx` or `pnpm dlx` to reduce the installed dependency count.
+
+## Package Manager Detection
+
+Check the project for lockfiles to determine the package manager:
+
+- `pnpm-lock.yaml` → use `pnpm dlx`
+- `package-lock.json` → use `npx`
+- `yarn.lock` → use `npx` (yarn dlx also works but npx is more universal)
+
+## Workflow
+
+### Step 1: Read all package.json files
+
+Find all `package.json` files in the project (root + workspaces). For each, catalog all `dependencies` and `devDependencies`.
+
+### Step 2: Analyze each dependency
+
+For each dependency, determine how it is used:
+
+1. **Search for imports/requires** — `grep` for `require('pkg')`, `from 'pkg'`, `import 'pkg'` in source code
+2. **Search for CLI usage** — check `scripts` in package.json for the package binary name
+3. **Check if other packages depend on it** — eslint plugins need eslint, prettier plugins need prettier, etc.
+
+### Step 3: Classify each dependency
+
+Classify into one of these categories:
+
+#### Replaceable with npx/pnpm dlx (White List patterns)
+
+These are CLI tools that run infrequently and have few sub-dependencies:
+
+| Package | Typical Usage | Notes |
+|---|---|---|
+| `husky` | `"prepare": "husky"` | One-time setup on install |
+| `lint-staged` | Called from git hooks | Runs only on commit |
+| `serve` / `http-server` | `"serve": "serve dist"` | Ad-hoc static file serving |
+| `create-*` / `init-*` | Project scaffolding | One-time use |
+| `madge` | Dependency graph | Occasional analysis |
+| `depcheck` | Unused dep detection | Occasional analysis |
+| `license-checker` | License audit | Occasional audit |
+| `npm-check-updates` / `ncu` | Update checking | Occasional use |
+| `@takazudo/mdx-formatter` | Markdown formatting | Infrequent, lint-staged |
+| `concurrently` / `npm-run-all` | Script runners | If used only in one script |
+| `rimraf` / `del-cli` | Cross-platform rm | Simple CLI, few deps |
+| `cross-env` | Cross-platform env vars | Simple CLI, few deps |
+| `dotenv-cli` | Env file loading | Simple CLI |
+
+#### NEVER replace with npx/pnpm dlx (Black List)
+
+These must stay as installed dependencies:
+
+| Category | Examples | Reason |
+|---|---|---|
+| **Runtime libraries** | react, express, lodash, axios | Imported in source code |
+| **Build toolchains** | webpack, vite, esbuild, next, typescript | Deep integration, used constantly |
+| **Framework packages** | @docusaurus/*, @nestjs/*, gatsby | Core framework |
+| **Type definitions** | @types/* | Needed for IDE and typecheck |
+| **Test frameworks** | jest, vitest, mocha, playwright | Run frequently, deep integration |
+| **Linter + plugins** | eslint, eslint-plugin-*, prettier (when used by eslint-plugin-prettier) | Plugins must resolve from same node_modules |
+| **PostCSS/Tailwind** | tailwindcss, postcss, autoprefixer | Build-time integration |
+| **Heavy CLI tools (100+ deps)** | electron-builder (300+ deps), webpack-cli | Too slow to download each time |
+| **Packages used by other deps** | prettier (if eslint-plugin-prettier is installed) | Must be resolvable |
+| **Config dependencies** | globals (if imported in eslint.config.mjs) | Imported at config load time |
+
+### Step 4: Present findings
+
+Present a table to the user:
+
+```
+## Replaceable with pnpm dlx
+
+| Package | Location | Current Usage | Sub-deps |
+|---|---|---|---|
+| husky | root devDep | prepare script | ~1 |
+| lint-staged | doc devDep | pre-commit hook | ~30 |
+
+## Keep as dependency (cannot replace)
+
+| Package | Location | Reason |
+|---|---|---|
+| eslint | doc devDep | Plugins need local resolution |
+| typescript | blog devDep | Build toolchain, IDE integration |
+```
+
+### Step 5: Apply changes (after user approval)
+
+For each approved replacement:
+
+1. Update the script/hook that invokes the tool to use `pnpm dlx <package>` or `npx <package>`
+2. Remove the package from `dependencies` or `devDependencies`
+3. Run `pnpm install` (or `npm install`) to update the lockfile
+4. Test that the affected scripts still work
+
+## Key Decision Criteria
+
+When unsure whether a package is replaceable, check these:
+
+1. **How many sub-dependencies?** — Run `pnpm why <package>` or check npm. If 100+, keep as dep.
+2. **How often is it invoked?** — Daily dev workflow (keep) vs occasional/one-time (replaceable).
+3. **Is it imported in code?** — If `require`/`import`ed, it MUST stay as a dependency.
+4. **Do other installed packages depend on it?** — If yes, keep it.
+5. **Does it need to be in the same node_modules tree?** — ESLint plugins, Babel plugins, etc. must co-locate.
+
+## Common Gotchas
+
+- **prettier**: Often can be replaced with `pnpm dlx`, BUT if `eslint-plugin-prettier` is installed, prettier must stay as a devDependency (the plugin requires it to be locally resolvable).
+- **typescript**: Technically a CLI tool, but it's also needed for IDE type resolution and by build tools. Always keep as devDep.
+- **electron-builder**: Has 300+ sub-dependencies. Using `pnpm dlx` downloads all of them every time — extremely slow. Always keep as devDep.
+- **lint-staged in monorepos**: The `lint-staged` config may reference `pnpm exec <tool>` for tools that ARE installed. Only the lint-staged binary itself can be dlx'd; the tools it invokes still need to be installed.

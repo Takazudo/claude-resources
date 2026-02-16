@@ -31,8 +31,8 @@ The argument is a short name/description of the feature to extract.
 ### Phase 1: Parse Input
 
 Extract from the argument:
-- **Feature name**: Convert to kebab-case for the skill name (e.g., "sidebar filter" → `docusaurus-sidebar-filter-develop`)
-- **Skill directory**: `~/.claude/skills/docusaurus-<feature-kebab>-develop/`
+- **Feature name**: Convert to kebab-case for the skill name (e.g., "sidebar filter" → `dev-docusaurus-sidebar-filter`)
+- **Skill directory**: `~/.claude/skills/dev-docusaurus-<feature-kebab>/`
 
 If the skill directory already exists, warn the user and ask whether to overwrite or pick a different name.
 
@@ -107,7 +107,7 @@ For each file found, decide how to handle it:
 
 ```markdown
 ---
-name: docusaurus-<feature>-develop
+name: dev-docusaurus-<feature>
 description: "<What it does>. Use when: (1) <trigger>, (2) <trigger>, (3) <trigger>."
 ---
 
@@ -161,7 +161,7 @@ After implementing, verify:
 ### Phase 6: Report
 
 After creating the skill, report to the user:
-- Skill location: `~/.claude/skills/docusaurus-<feature>-develop/`
+- Skill location: `~/.claude/skills/dev-docusaurus-<feature>/`
 - Files created (list the tree)
 - What the skill does when invoked
 - Trigger phrases

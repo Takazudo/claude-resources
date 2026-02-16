@@ -1,0 +1,10 @@
+node_modules/
+.docusaurus/
+dist/
+build/
+__pycache__/
+.DS_Store
+*.pyc
+.cache/
+pnpm-lock.yaml
+package-lock.json

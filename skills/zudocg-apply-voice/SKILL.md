@@ -50,8 +50,8 @@ Key traits:
 
 **Always** read both rule files fresh at invocation time:
 
-1. `/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/docs/overview/writing-style.md`
-2. `/Users/takazudo/repos/work/takazudo-codegrid-writing/doc/docs/overview/vocabulary-rule.md`
+1. `$HOME/repos/w/cg/doc/docs/overview/writing-style.md`
+2. `$HOME/repos/w/cg/doc/docs/overview/vocabulary-rule.md`
 
 These files are the authoritative source of truth. Read them every time to pick up any updates.
 

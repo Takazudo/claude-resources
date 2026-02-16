@@ -23,8 +23,8 @@ Output the absolute path on a single line with no additional text:
 
 ## Example
 
-If the previous message mentioned creating `__inbox/_0113-report.md` in `/Users/takazudo/repos/work/my-project/`:
+If the previous message mentioned creating `__inbox/_0113-report.md` in `$HOME/repos/work/my-project/`:
 
 ```
-/Users/takazudo/repos/work/my-project/__inbox/_0113-report.md
+$HOME/repos/work/my-project/__inbox/_0113-report.md
 ```

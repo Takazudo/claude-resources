@@ -32,11 +32,11 @@ If images were provided in the conversation (attached screenshots, diagrams, etc
 1. **Determine the series name** (e.g., `ai-agent`, `2025-html-selectbox`)
 2. **Create the image directory** in the codegrid repo:
    ```
-   mkdir -p /Users/takazudo/repos/work/takazudo-codegrid-writing/doc/static/img/{series-name}/
+   mkdir -p $HOME/repos/w/cg/doc/static/img/{series-name}/
    ```
 3. **Copy each image** to that directory with a descriptive filename:
    ```
-   cp /path/to/source/image.png /Users/takazudo/repos/work/takazudo-codegrid-writing/doc/static/img/{series-name}/descriptive-name.png
+   cp /path/to/source/image.png $HOME/repos/w/cg/doc/static/img/{series-name}/descriptive-name.png
    ```
 4. **Record the image paths** for the writing brief. The markdown reference format is:
    ```

@@ -16,7 +16,7 @@ The user can specify:
 
 ## Script Details
 
-- **Script location**: `/Users/takazudo/.claude/skills/pdf-combine/scripts/combine_pdfs.py`
+- **Script location**: `$HOME/.claude/skills/pdf-combine/scripts/combine_pdfs.py`
 - **Dependency**: PyMuPDF (fitz) - `pip install PyMuPDF`
 
 ## Instructions
@@ -31,12 +31,12 @@ The user can specify:
 
 3. Run the combine script:
    ```bash
-   python3 /Users/takazudo/.claude/skills/pdf-combine/scripts/combine_pdfs.py <input1.pdf> <input2.pdf> ... -o <output.pdf>
+   python3 $HOME/.claude/skills/pdf-combine/scripts/combine_pdfs.py <input1.pdf> <input2.pdf> ... -o <output.pdf>
    ```
 
    Or for a directory:
    ```bash
-   python3 /Users/takazudo/.claude/skills/pdf-combine/scripts/combine_pdfs.py <directory> -o <output.pdf>
+   python3 $HOME/.claude/skills/pdf-combine/scripts/combine_pdfs.py <directory> -o <output.pdf>
    ```
 
 4. Report the results to the user (number of files combined, total pages, output location)
@@ -45,14 +45,14 @@ The user can specify:
 
 ### Combine specific files in order
 ```bash
-python3 /Users/takazudo/.claude/skills/pdf-combine/scripts/combine_pdfs.py \
+python3 $HOME/.claude/skills/pdf-combine/scripts/combine_pdfs.py \
   chapter1.pdf chapter2.pdf chapter3.pdf \
   -o book.pdf
 ```
 
 ### Combine all PDFs in a directory (alphabetical order)
 ```bash
-python3 /Users/takazudo/.claude/skills/pdf-combine/scripts/combine_pdfs.py \
+python3 $HOME/.claude/skills/pdf-combine/scripts/combine_pdfs.py \
   ./documents/ \
   -o combined.pdf
 ```

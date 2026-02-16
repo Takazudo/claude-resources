@@ -8,14 +8,14 @@ You are writing an article at the takazudo-esa-writing repository.
 
 ## Setup
 
-**Repository**: `/Users/takazudo/repos/work/takazudo-esa-writing`
-**Articles directory**: `/Users/takazudo/repos/work/takazudo-esa-writing/doc/docs/articles/`
+**Repository**: `$HOME/repos/w/esa`
+**Articles directory**: `$HOME/repos/w/esa/doc/docs/articles/`
 
 Before writing, you MUST read these files in order:
-1. `/Users/takazudo/repos/work/takazudo-esa-writing/CLAUDE.md` - Project rules
-2. `/Users/takazudo/repos/work/takazudo-esa-writing/doc/docs/overview/writing-style.md` - Writing tone
-3. `/Users/takazudo/repos/work/takazudo-esa-writing/doc/docs/overview/markdown-writing-rule.md` - Markdown rules
-4. `/Users/takazudo/repos/work/takazudo-esa-writing/doc/docs/overview/vocabulary-rule.md` - Vocabulary rules
+1. `$HOME/repos/w/esa/CLAUDE.md` - Project rules
+2. `$HOME/repos/w/esa/doc/docs/overview/writing-style.md` - Writing tone
+3. `$HOME/repos/w/esa/doc/docs/overview/markdown-writing-rule.md` - Markdown rules
+4. `$HOME/repos/w/esa/doc/docs/overview/vocabulary-rule.md` - Vocabulary rules
 
 Also read 2-3 recent articles from the articles directory to calibrate tone.
 
@@ -71,5 +71,5 @@ Place images at contextually appropriate points in the article. Add descriptive 
 ## After Writing
 
 1. Save the article to the articles directory
-2. Run formatting: `cd /Users/takazudo/repos/work/takazudo-esa-writing && pnpm check:fix`
+2. Run formatting: `cd $HOME/repos/w/esa && pnpm check:fix`
 3. Report the file path and a brief summary of what was written
