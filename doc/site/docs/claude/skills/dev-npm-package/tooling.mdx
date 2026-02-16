@@ -1,0 +1,927 @@
+---
+title: "npm Package Development Tooling and Project Setup (2025-2026)"
+---
+
+# npm Package Development Tooling and Project Setup (2025-2026)
+
+**Skill:** [dev-npm-package](../dev-npm-package.mdx)
+
+---
+
+# npm Package Development Tooling and Project Setup (2025-2026)
+
+A comprehensive guide to current best practices for building, configuring, testing, and publishing npm packages.
+
+## Build Tools
+
+### tsup (Recommended for Most Projects)
+
+tsup is an esbuild-powered bundler that works with zero configuration for TypeScript projects. It remains the most popular choice for library authors as of 2025.
+
+- tsup
+  - https://github.com/egoist/tsup
+
+#### Strengths
+
+- Zero-config out of the box: auto-detects entry points, handles TypeScript, optimizes output
+- Extremely fast builds via esbuild
+- Native dual CJS/ESM output
+- Built-in `.d.ts` generation (via rollup-plugin-dts under the hood)
+- Mature and well-documented
+
+#### Weaknesses
+
+- CSS support is still experimental
+- Limited plugin ecosystem compared to Rollup
+- Declaration file generation can be slower than the JS bundling itself
+
+#### Configuration Example
+
+```ts
+// tsup.config.ts
+import { defineConfig } from "tsup";
+
+export default defineConfig({
+  entry: ["src/index.ts"],
+  format: ["cjs", "esm"],
+  dts: true,
+  splitting: false,
+  sourcemap: true,
+  clean: true,
+  minify: false,
+});
+```
+
+### tsdown (Emerging Successor to tsup)
+
+tsdown is a new library bundler powered by Rolldown (the Rust-based Rollup successor at the heart of Vite). It is positioned as the successor to tsup and is compatible with tsup's main options.
+
+- tsdown
+  - https://tsdown.dev/
+
+#### Strengths
+
+- Powered by Rolldown: 3x-16x faster production builds, up to 100x less memory usage
+- Compatible with tsup's main options for smooth migration
+- Backed by the VoidZero / Vite ecosystem (Evan You)
+- Built-in declaration file generation via Oxc
+
+#### Weaknesses
+
+- Still relatively new (early adoption phase)
+- Smaller community and fewer battle-tested examples
+- Plugin ecosystem is developing
+
+#### When to Consider
+
+tsdown is worth evaluating for new projects in late 2025 and beyond, especially if you are already invested in the Vite ecosystem. For existing tsup projects, migration is straightforward but not urgent.
+
+### unbuild
+
+unbuild is a generalized bundler built on Rollup. It is used by the Nuxt ecosystem to bundle Nuxt 3 and its sub-packages.
+
+- unbuild
+  - https://github.com/unjs/unbuild
+
+#### Strengths
+
+- Rollup-based: excellent tree-shaking
+- Automatic inference of entry points from `package.json`
+- Passive and active modes (stub mode for development)
+- Flexible hooks system
+
+#### Weaknesses
+
+- Slower than esbuild-based tools
+- Smaller community than tsup (approximately 200k weekly downloads vs tsup's 2.7M)
+- More configuration required for complex setups
+
+#### Best For
+
+Projects in the Nuxt/UnJS ecosystem, or projects that need advanced Rollup plugin capabilities.
+
+### Rollup
+
+Rollup is the original library bundler with the best tree-shaking in the ecosystem. Weekly downloads exceed 55M because it is used as a dependency by many other tools.
+
+#### Strengths
+
+- Best-in-class tree-shaking
+- Massive plugin ecosystem
+- Proven and stable
+
+#### Weaknesses
+
+- Significantly slower than esbuild-based tools
+- Requires more manual configuration
+- Verbose setup for TypeScript projects
+
+#### Best For
+
+Projects requiring advanced tree-shaking, custom plugins, or unusual module targets.
+
+### esbuild (Direct Usage)
+
+esbuild is the underlying engine behind tsup. Using it directly gives maximum speed but requires more manual setup.
+
+#### Strengths
+
+- Fastest JavaScript bundler available
+- Written in Go for raw performance
+
+#### Weaknesses
+
+- No built-in `.d.ts` generation (requires separate `tsc --emitDeclarationOnly`)
+- No built-in config file support (CLI flags or API calls)
+- Limited tree-shaking compared to Rollup
+
+#### Best For
+
+Internal build pipelines where speed is paramount and you handle type declarations separately.
+
+### tsc (TypeScript Compiler Only)
+
+Using `tsc` alone without a bundler is a valid strategy for simple packages.
+
+#### Strengths
+
+- Zero extra dependencies
+- Guaranteed correct type declarations
+- Simplest possible setup
+
+#### Weaknesses
+
+- No bundling (output mirrors source directory structure)
+- No minification
+- Slower than esbuild for large codebases
+
+#### Best For
+
+Simple utility libraries with few files, or when paired with a bundler for the final output.
+
+### Summary Table
+
+| Tool | Speed | Tree-shaking | DTS | Config | Best For |
+|------|-------|-------------|-----|--------|----------|
+| tsup | Fast | Good | Built-in | Zero-config | Most libraries |
+| tsdown | Fastest | Excellent | Built-in | Zero-config | New projects (2025+) |
+| unbuild | Medium | Excellent | Built-in | Low | Nuxt/UnJS ecosystem |
+| Rollup | Slow | Best | Plugin | Verbose | Complex libraries |
+| esbuild | Fastest | Limited | None | Manual | Build pipelines |
+| tsc | Slow | None | Native | tsconfig only | Simple utilities |
+
+## package.json Configuration
+
+### Recommended package.json for Dual CJS/ESM
+
+```json
+{
+  "name": "my-library",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./utils": {
+      "import": {
+        "types": "./dist/utils.d.ts",
+        "default": "./dist/utils.js"
+      },
+      "require": {
+        "types": "./dist/utils.d.cts",
+        "default": "./dist/utils.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "lint": "biome check .",
+    "prepublishOnly": "npm run build",
+    "postbuild": "publint"
+  },
+  "devDependencies": {
+    "tsup": "^8.4",
+    "typescript": "^5.7",
+    "vitest": "^3.0",
+    "@biomejs/biome": "^2.3"
+  }
+}
+```
+
+### Key Fields Explained
+
+#### `type: "module"`
+
+Setting `"type": "module"` tells Node.js that `.js` files in this package use ESM syntax. This is the recommended default for new packages in 2025. Files with `.cjs` extension are treated as CommonJS regardless of this setting.
+
+#### `exports`
+
+The `exports` field is the modern replacement for `main`. It enables conditional exports based on how the package is consumed. Key rules:
+
+- Always place `types` first within each condition block
+- The `import` condition is used by ESM consumers
+- The `require` condition is used by CJS consumers
+- The `default` fallback catches everything else
+
+#### `main` and `module`
+
+These fields exist for backward compatibility with older tools:
+
+- `main`: Entry point for older Node.js versions and bundlers that do not support `exports`
+- `module`: Non-standard field used by older bundlers (Webpack 4, Rollup) to find the ESM entry
+
+#### `types`
+
+Top-level `types` field is the fallback for TypeScript versions that do not support conditional exports in the `exports` field.
+
+#### `files`
+
+Whitelist of files and directories to include when publishing. Always use this instead of `.npmignore`. Set it to `["dist"]` to include only the build output.
+
+#### `engines`
+
+Declare the minimum Node.js version your package supports. As of 2025, Node.js 18 is the oldest LTS version still in maintenance.
+
+### Validation Tools
+
+Before publishing, validate your package configuration with these tools:
+
+- **publint**: Checks package.json for compatibility issues across environments
+  - https://publint.dev
+  - Run locally: `npx publint`
+- **Are The Types Wrong?**: Analyzes TypeScript type definitions for module resolution issues
+  - https://arethetypeswrong.github.io
+  - Run locally: `npx @arethetypeswrong/cli`
+
+Use `npm pack` to inspect the tarball contents before publishing.
+
+## TypeScript Configuration
+
+### Recommended tsconfig.json for Library Authoring
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    "outDir": "./dist",
+    "rootDir": "./src",
+
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}
+```
+
+### Key Settings Explained
+
+#### Module and Resolution
+
+- **`module: "ESNext"`**: Allows TypeScript to output modern ESM syntax. The bundler (tsup/tsdown) handles the final format conversion.
+- **`moduleResolution: "Bundler"`**: Use this when a bundler processes the output. It supports package.json `exports` and does not require file extensions in imports. For Node.js-only packages without a bundler, use `"NodeNext"` instead.
+- **`target: "ES2022"`**: Provides modern features (top-level await, class fields, `Array.at()`) while maintaining broad runtime compatibility.
+
+#### Strictness
+
+- **`strict: true`**: Enables all strict type-checking options
+- **`verbatimModuleSyntax: true`**: Ensures import/export statements are preserved exactly as written. Enforces `import type` for type-only imports, which improves tree-shaking.
+- **`isolatedModules: true`**: Required by esbuild-based tools (tsup, tsdown, Vite). Ensures each file can be transpiled independently.
+- **`noUncheckedIndexedAccess: true`**: Adds `undefined` to index signatures, catching common runtime errors.
+
+#### Declaration Files
+
+- **`declaration: true`**: Generates `.d.ts` files. When using tsup/tsdown, this is handled by the bundler, so set `noEmit: true` in tsconfig and let the bundler manage declarations.
+- **`declarationMap: true`**: Generates source maps for declarations, allowing consumers to navigate to original source code during debugging.
+
+#### Performance
+
+- **`skipLibCheck: true`**: Skips type-checking of `.d.ts` files from `node_modules`, significantly reducing compilation time.
+- **`incremental: true`**: Optional. Enables incremental compilation for faster subsequent builds. Add this if you run `tsc` for type-checking in CI.
+
+### tsconfig.json for Node.js-Only Libraries (No Bundler)
+
+When using `tsc` directly without a bundler:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src"]
+}
+```
+
+With `"module": "NodeNext"`, TypeScript requires file extensions in relative imports (e.g., `import { foo } from "./utils.js"`).
+
+## Monorepo Considerations
+
+### When to Use a Monorepo
+
+#### Use a Monorepo When
+
+- You maintain multiple related packages that share code or types
+- A change in one package often requires coordinated changes in others
+- You want a unified CI/CD pipeline and consistent tooling across packages
+- Your project includes both a library and its documentation site, example apps, or CLI tools
+
+#### Stay with a Single Package When
+
+- You are publishing a single, focused library
+- The package has no internal sub-packages or related apps
+- The overhead of monorepo tooling is not justified by the project scope
+
+### Recommended Stack: pnpm Workspaces + Turborepo
+
+#### pnpm Workspaces
+
+pnpm is the recommended package manager for monorepos due to:
+
+- Content-addressable storage: deduplicates packages across the workspace, saving disk space
+- Strict `node_modules`: prevents phantom dependencies (accessing packages not declared in your own `package.json`)
+- Built-in workspace protocol: `"workspace:*"` for linking internal packages
+- Fastest install times among npm, Yarn, and pnpm
+
+##### Setup
+
+```yaml
+# pnpm-workspace.yaml
+packages:
+  - "packages/*"
+  - "apps/*"
+```
+
+```
+project-root/
+  packages/
+    core/
+      package.json
+      src/
+    utils/
+      package.json
+      src/
+  apps/
+    docs/
+      package.json
+    example/
+      package.json
+  package.json
+  pnpm-workspace.yaml
+  turbo.json
+```
+
+Use a namespace prefix for internal packages (e.g., `@myorg/core`, `@myorg/utils`) to avoid conflicts with public npm packages.
+
+#### Turborepo
+
+Turborepo is a build system designed for JavaScript/TypeScript monorepos.
+
+- Intelligent caching: if nothing changed, a 30-second build completes in 0.2 seconds
+- Parallel task execution across packages
+- Dependency-aware task ordering
+
+##### Configuration
+
+```json
+// turbo.json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "dependsOn": ["build"]
+    },
+    "lint": {},
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
+```
+
+### Versioning and Publishing: Changesets
+
+Changesets is the standard tool for managing versions and changelogs in monorepos.
+
+- changesets
+  - https://github.com/changesets/changesets
+
+#### Workflow
+
+1. Contributors add a changeset file describing their change: `pnpm changeset`
+2. Changesets stores the intent (patch/minor/major) as a Markdown file in `.changeset/`
+3. At release time, `pnpm changeset version` bumps versions and updates changelogs
+4. `pnpm changeset publish` publishes updated packages to npm
+5. GitHub Actions integration automates the entire process via the `changesets/action`
+
+## Testing Frameworks
+
+### Vitest (Recommended for New Projects)
+
+Vitest is the recommended testing framework for npm library development in 2025-2026. It is built on Vite and offers native ESM and TypeScript support.
+
+- Vitest
+  - https://vitest.dev
+
+#### Strengths
+
+- Native ESM support without configuration
+- Native TypeScript support (no `ts-jest` transformer needed)
+- Compatible with Jest's API (`describe`, `it`, `expect`, `vi.fn()`)
+- Built-in watch mode with HMR-level speed
+- 4x faster cold runs and 30% lower memory usage compared to Jest (per Vitest benchmarks)
+- Built-in coverage via `@vitest/coverage-v8`
+
+#### Configuration
+
+```ts
+// vitest.config.ts
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts"],
+    },
+  },
+});
+```
+
+#### Example Test
+
+```ts
+// src/add.test.ts
+import { describe, it, expect } from "vitest";
+import { add } from "./add.js";
+
+describe("add", () => {
+  it("adds two numbers", () => {
+    expect(add(1, 2)).toBe(3);
+  });
+
+  it("handles negative numbers", () => {
+    expect(add(-1, 1)).toBe(0);
+  });
+});
+```
+
+### Jest
+
+Jest remains a viable choice for projects with existing Jest test suites or for React Native development where Jest is required.
+
+#### When to Stick with Jest
+
+- Existing large test suite already using Jest
+- React Native projects (Jest is the standard)
+- Need for specific Jest plugins not yet available in Vitest
+
+### Testing Best Practices for npm Libraries
+
+- Test both CJS and ESM entry points to catch module resolution issues
+- Test against the built output (`dist/`) in addition to source, at least in CI
+- Use `npm pack` and install the tarball in a test project to verify the published package works correctly
+- Keep unit tests fast and focused; run them in watch mode during development
+- Use coverage thresholds to prevent regressions
+
+## Linting and Formatting
+
+### Option A: Biome (Recommended for New Projects)
+
+Biome is an all-in-one linter and formatter written in Rust. As of v2.3 (January 2026), it includes 423+ lint rules and type-aware linting capabilities.
+
+- Biome
+  - https://biomejs.dev
+
+#### Strengths
+
+- 10-25x faster than ESLint + Prettier
+- Single tool replaces both ESLint and Prettier
+- Single configuration file (`biome.json`)
+- Prettier-compatible formatting output
+- Zero npm dependencies (ships as a single binary)
+
+#### Configuration
+
+```json
+// biome.json
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.0/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always"
+    }
+  }
+}
+```
+
+#### Scripts
+
+```json
+{
+  "scripts": {
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write ."
+  }
+}
+```
+
+#### Trade-offs
+
+- Biome's lint rule coverage sits at approximately 85% of what typescript-eslint provides for type-aware rules
+- Plugin ecosystem is significantly smaller than ESLint's
+- Some niche ESLint plugins (e.g., `eslint-plugin-import`, specialized framework plugins) have no Biome equivalent yet
+
+### Option B: ESLint Flat Config + Prettier
+
+For projects that need the full ESLint plugin ecosystem, the flat config format (`eslint.config.mjs`) is the current standard. The legacy `.eslintrc.*` format is deprecated.
+
+#### Configuration
+
+```js
+// eslint.config.mjs
+import eslint from "@eslint/js";
+import { defineConfig } from "eslint/config";
+import tseslint from "typescript-eslint";
+
+export default defineConfig([
+  {
+    ignores: ["dist/", "node_modules/"],
+  },
+  eslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+      },
+    },
+  },
+  {
+    files: ["**/*.js", "**/*.mjs"],
+    ...tseslint.configs.disableTypeChecked,
+  },
+]);
+```
+
+```json
+// .prettierrc
+{
+  "semi": true,
+  "singleQuote": false,
+  "trailingComma": "all",
+  "printWidth": 100,
+  "tabWidth": 2
+}
+```
+
+### Recommendation
+
+- **New projects**: Use Biome. The speed advantage and single-tool simplicity outweigh the smaller rule set for most library development.
+- **Existing projects with heavy ESLint customization**: Stay with ESLint flat config + Prettier. Migration is possible but may not be worth the effort if you depend on many ESLint plugins.
+- **Projects requiring type-aware lint rules extensively**: ESLint with typescript-eslint provides the most comprehensive type-checked linting.
+
+## Development Workflow Tools
+
+### tsx (Recommended TypeScript Runner)
+
+tsx is an esbuild-powered TypeScript executor that replaces the combination of ts-node + nodemon.
+
+- tsx
+  - https://github.com/privatenumber/tsx
+
+#### Features
+
+- 5-10x faster startup than ts-node
+- Built-in watch mode: `tsx watch src/index.ts`
+- Handles both CJS and ESM seamlessly
+- Drop-in replacement for `node` command
+
+#### Usage
+
+```json
+{
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  }
+}
+```
+
+### Node.js Native Watch Mode
+
+Node.js v18+ includes a built-in `--watch` flag, eliminating the need for nodemon in many cases.
+
+```json
+{
+  "scripts": {
+    "dev": "node --watch dist/index.js"
+  }
+}
+```
+
+This is useful when you are already building to JavaScript and want to watch the output without an additional tool.
+
+### Node.js Native TypeScript Support
+
+Starting with Node.js v23.6.0, TypeScript files can be run natively via type stripping (no compilation, just removal of type annotations). This feature is experimental and not yet recommended for production.
+
+```bash
+# Node.js v23.6+
+node src/index.ts
+```
+
+Limitations: does not support `enum`, `namespace`, or other TypeScript-specific syntax that requires code generation. For these, the `--experimental-transform-types` flag is needed.
+
+### Recommended Dev Scripts
+
+```json
+{
+  "scripts": {
+    "dev": "tsup --watch",
+    "dev:run": "tsx watch src/index.ts",
+    "build": "tsup",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
+    "postbuild": "publint"
+  }
+}
+```
+
+## Starter Templates and Scaffolding
+
+### Manual Starter Setup (Recommended)
+
+There is no single dominant scaffolding tool for npm packages in 2025. The ecosystem favors manual setup with well-documented configurations. The sections above provide all the configuration needed.
+
+### Minimal File Structure
+
+```
+my-library/
+  src/
+    index.ts
+    index.test.ts
+  dist/               # generated by build
+  package.json
+  tsconfig.json
+  tsup.config.ts      # or tsdown.config.ts
+  vitest.config.ts
+  biome.json           # or eslint.config.mjs + .prettierrc
+  .gitignore
+  LICENSE
+  README.md
+```
+
+### Template Repositories
+
+Several open-source repositories serve as reference implementations:
+
+- **VulcanJS/npm-the-right-way**: Demonstrates full-stack typed npm package setup
+  - https://github.com/VulcanJS/npm-the-right-way
+- **antfu/starter-ts**: Anthony Fu's TypeScript starter for libraries
+  - https://github.com/antfu/starter-ts
+
+### Quick Init Commands
+
+```bash
+# Initialize project
+mkdir my-library && cd my-library
+pnpm init
+pnpm add -D typescript tsup vitest @biomejs/biome
+
+# Generate tsconfig
+npx tsc --init
+
+# Initialize Biome
+npx @biomejs/biome init
+```
+
+## Complete Minimal Example
+
+Putting it all together, here is a minimal but production-ready npm package setup.
+
+### package.json
+
+```json
+{
+  "name": "my-library",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3",
+    "tsup": "^8.4",
+    "typescript": "^5.7",
+    "vitest": "^3.0"
+  }
+}
+```
+
+### tsup.config.ts
+
+```ts
+import { defineConfig } from "tsup";
+
+export default defineConfig({
+  entry: ["src/index.ts"],
+  format: ["cjs", "esm"],
+  dts: true,
+  splitting: false,
+  sourcemap: true,
+  clean: true,
+});
+```
+
+### tsconfig.json
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+### vitest.config.ts
+
+```ts
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    globals: true,
+    include: ["src/**/*.test.ts"],
+  },
+});
+```
+
+### biome.json
+
+```json
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.0/schema.json",
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "rules": {
+      "recommended": true
+    }
+  }
+}
+```
+
+## Sources
+
+- [Ship ESM and CJS in one Package - Anthony Fu](https://antfu.me/posts/publish-esm-and-cjs)
+- [TypeScript in 2025 with ESM and CJS npm publishing - Liran Tal](https://lirantal.com/blog/typescript-in-2025-with-esm-and-cjs-npm-publishing)
+- [Guide to the package.json exports field - Hiroki Osame](https://hirok.io/posts/package-json-exports)
+- [Dual Publishing ESM and CJS Modules with tsup - John Reilly](https://johnnyreilly.com/dual-publishing-esm-cjs-modules-with-tsup-and-are-the-types-wrong)
+- [The TSConfig Cheat Sheet - Total TypeScript](https://www.totaltypescript.com/tsconfig-cheat-sheet)
+- [A guide to tsconfig.json - 2ality](https://2ality.com/2025/01/tsconfig-json.html)
+- [Tutorial: publishing ESM-based npm packages with TypeScript - 2ality](https://2ality.com/2025/02/typescript-esm-packages.html)
+- [TypeScript: Choosing Compiler Options - Official Docs](https://www.typescriptlang.org/docs/handbook/modules/guides/choosing-compiler-options.html)
+- [Vitest vs Jest - Better Stack](https://betterstack.com/community/guides/scaling-nodejs/vitest-vs-jest/)
+- [Vitest Official Documentation](https://vitest.dev/guide/)
+- [Biome vs ESLint + Prettier: The 2025 Linting Revolution](https://medium.com/better-dev-nextjs-react/biome-vs-eslint-prettier-the-2025-linting-revolution-you-need-to-know-about-ec01c5d5b6c8)
+- [Modern Linting in 2025: ESLint Flat Config](https://advancedfrontends.com/eslint-flat-config-typescript-javascript/)
+- [typescript-eslint Getting Started](https://typescript-eslint.io/getting-started/)
+- [Complete Monorepo Guide: pnpm + Workspace + Changesets](https://jsdev.space/complete-monorepo-guide/)
+- [Turborepo: Structuring a Repository](https://turborepo.dev/docs/crafting-your-repository/structuring-a-repository)
+- [TSX vs ts-node - Better Stack](https://betterstack.com/community/guides/scaling-nodejs/tsx-vs-ts-node/)
+- [Node.js: Running TypeScript Natively](https://nodejs.org/en/learn/typescript/run-natively)
+- [tsdown - The Elegant Bundler for Libraries](https://tsdown.dev/guide/)
+- [Announcing Rolldown-Vite - VoidZero](https://voidzero.dev/posts/announcing-rolldown-vite)
+- [publint - Getting Started](https://publint.dev/docs/)
+- [Are The Types Wrong?](https://arethetypeswrong.github.io/)
+- [Changesets - GitHub](https://github.com/changesets/changesets)
+- [Switching from tsup to tsdown - Alan Norbauer](https://alan.norbauer.com/articles/tsdown-bundler/)

@@ -1,0 +1,87 @@
+.sitemap {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sidebarSection {
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sidebarTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  background: var(--ifm-color-emphasis-100);
+}
+
+.sidebarTitle::-webkit-details-marker {
+  display: none;
+}
+
+.chevron {
+  display: inline-block;
+  font-size: 0.75rem;
+  transition: transform 0.2s ease;
+}
+
+details[open] > .sidebarTitle .chevron {
+  transform: rotate(90deg);
+}
+
+.sidebarContent {
+  padding: 1rem 1.5rem;
+}
+
+.categorySection {
+  margin-bottom: 1.5rem;
+}
+
+.categoryTitle {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: var(--ifm-color-primary);
+}
+
+.subcategory {
+  margin-left: 1rem;
+  margin-bottom: 1rem;
+}
+
+.subcategoryTitle {
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.pageList {
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.25rem;
+}
+
+.pageList li {
+  margin: 0.2rem 0;
+  line-height: 1.6;
+}
+
+.pageList a {
+  color: var(--ifm-link-color);
+  text-decoration: none;
+}
+
+.pageList a:hover {
+  color: var(--ifm-link-hover-color);
+  text-decoration: underline;
+}
+
+.empty {
+  color: var(--ifm-color-emphasis-600);
+  font-style: italic;
+}

@@ -1,0 +1,64 @@
+---
+title: "/bambulab-height-calculation"
+description: "Calculate Z coordinates for stacking/merging objects in Bambu Studio."
+---
+
+# /bambulab-height-calculation
+
+# Bambu Lab Object Stacking Height Calculator
+
+Calculate Z coordinates for stacking/merging objects in Bambu Studio.
+
+## Behavior
+
+1. **Ask the user** for object information:
+   ```
+   I can help calculate Z coordinates for stacking objects in Bambu Studio.
+
+   Please provide the heights of your objects in order (bottom to top).
+   Example: "1mm, 0.8mm, 1mm" or list them like:
+   - 1st: 1mm
+   - 2nd: 0.8mm
+   - 3rd: 1mm
+   ```
+
+2. **Calculate center-based Z positions** using this formula:
+   - Bambu Studio uses **center of object** for Z position, not bottom
+   - For each object: `Z = (sum of all previous heights) + (current height / 2)`
+
+3. **Return a table** with:
+   - Object number
+   - Height
+   - Bottom position
+   - **Center Z (the value to enter in Bambu Studio)**
+
+## Calculation Example
+
+For objects with heights: 1.0mm, 0.8mm, 1.0mm
+
+| Object | Height | Bottom | Center Z (enter this) |
+|--------|--------|--------|----------------------|
+| 1st | 1.0mm | 0 | 0.5 |
+| 2nd | 0.8mm | 1.0 | 1.4 |
+| 3rd | 1.0mm | 1.8 | 2.3 |
+
+Formula breakdown:
+
+- 1st: `0 + 1.0/2 = 0.5`
+- 2nd: `1.0 + 0.8/2 = 1.4`
+- 3rd: `(1.0 + 0.8) + 1.0/2 = 2.3`
+
+## Important Notes
+
+- After merging, objects may appear to "float" in the 3D view - this is normal
+- Bambu Studio auto-drops the merged group to the build plate
+- Always verify in the **slice preview** that layers are continuous with no gaps
+- Total stack height = sum of all object heights
+
+## Output Format
+
+Always provide:
+
+1. Table with Z values
+2. Quick copy-paste list of Z values
+3. Total stack height for verification

@@ -1,12 +1,11 @@
 ---
-name: claude-resources-share
-description: >-
-  Publish Claude Code resources (commands, skills, agents, hooks, scripts, doc, CLAUDE.md) from the
-  private ~/.claude repo to the public claude-resources repo. One-direction copy with a safety gate:
-  scans for private info before copying, requires user confirmation. Use when: (1) User says 'share
-  resources', 'publish resources', 'sync public repo', (2) User wants to update the public
-  claude-resources repo.
+title: "claude-resources-share"
+description: "Publish Claude Code resources (commands, skills, agents, hooks, scripts, doc, CLAUDE.md) from the private ~/.claude repo to the public claude-resources repo. One-direction copy with a safety gate: sca..."
 ---
+
+# claude-resources-share
+
+
 
 # Claude Resources Share
 
@@ -33,7 +32,6 @@ One-direction publish from `~/.claude/` (private) to `$HOME/repos/p/claude-resou
 
 - `node_modules/`
 - `.docusaurus/`
-- `build/`
 - `dist/`
 - `__pycache__/`
 - `.DS_Store`
@@ -77,54 +75,28 @@ done
 rm -f ./CLAUDE.md
 ```
 
-Then copy each directory using rsync. **IMPORTANT**: Pass each `--exclude` flag separately — do NOT store them in a shell variable, as variable expansion breaks glob patterns like `*.pyc`.
+Then copy each directory using rsync:
 
 ```bash
+EXCLUDES="--exclude=node_modules --exclude=.docusaurus --exclude=dist --exclude=__pycache__ --exclude=.DS_Store --exclude='*.pyc' --exclude=.cache --exclude=pnpm-lock.yaml --exclude=package-lock.json"
+
 SRC="$HOME/.claude"
 DST="$HOME/repos/p/claude-resources"
 
-for dir in commands skills agents hooks scripts doc; do
-  rsync -av \
-    --exclude=node_modules \
-    --exclude=.docusaurus \
-    --exclude=build \
-    --exclude=dist \
-    --exclude=__pycache__ \
-    --exclude=.DS_Store \
-    --exclude='*.pyc' \
-    --exclude=.cache \
-    --exclude=pnpm-lock.yaml \
-    --exclude=package-lock.json \
-    "$SRC/$dir/" "$DST/$dir/"
-done
+rsync -av $EXCLUDES "$SRC/commands/" "$DST/commands/"
+rsync -av $EXCLUDES "$SRC/skills/" "$DST/skills/"
+rsync -av $EXCLUDES "$SRC/agents/" "$DST/agents/"
+rsync -av $EXCLUDES "$SRC/hooks/" "$DST/hooks/"
+rsync -av $EXCLUDES "$SRC/scripts/" "$DST/scripts/"
+rsync -av $EXCLUDES "$SRC/doc/" "$DST/doc/"
 cp "$SRC/CLAUDE.md" "$DST/CLAUDE.md"
 ```
 
-### Step 4: Verify and clean
+### Step 4: Summary
 
-After copying, verify no excluded artifacts leaked through:
-
-```bash
-DST="$HOME/repos/p/claude-resources"
-
-# Check for leaked node_modules
-leaked=$(find "$DST" -name node_modules -type d 2>/dev/null)
-if [ -n "$leaked" ]; then
-  echo "WARNING: Leaked node_modules found, removing:"
-  echo "$leaked"
-  find "$DST" -name node_modules -type d -exec rm -rf {} + 2>/dev/null
-fi
-
-# Clean .DS_Store files
-find "$DST" -name .DS_Store -delete 2>/dev/null
-```
-
-### Step 5: Summary
-
-Report file counts per directory:
+After copying, report file counts per directory:
 
 ```bash
-DST="$HOME/repos/p/claude-resources"
 for dir in commands skills agents hooks scripts doc; do
   echo "$dir: $(find "$DST/$dir" -type f | wc -l) files"
 done
@@ -136,4 +108,4 @@ echo "CLAUDE.md: 1 file"
 - **Never copy from public to private.** This is strictly one-direction.
 - **Never skip Step 1.** The safety scan is mandatory every time.
 - **Never auto-confirm.** Always wait for explicit user approval after the scan.
-- **Never store rsync excludes in a shell variable.** Pass each `--exclude` flag inline to avoid glob expansion issues.
+

@@ -1,0 +1,121 @@
+---
+title: "Frontmatter Reference"
+---
+
+# Frontmatter Reference
+
+**Skill:** [skill-creator](../skill-creator.mdx)
+
+---
+
+# Frontmatter Reference
+
+Complete reference for SKILL.md frontmatter fields.
+
+## Required/Recommended Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | No | Display name. Uses directory name if omitted. Lowercase, numbers, hyphens (max 64 chars) |
+| `description` | Recommended | What the skill does and when to use it. Claude uses this to decide when to apply the skill |
+
+## Invocation Control
+
+| Field | Description |
+|-------|-------------|
+| `disable-model-invocation` | `true` prevents Claude from auto-loading. Use for workflows you want to trigger manually |
+| `user-invocable` | `false` hides from `/` menu. Use for background knowledge users shouldn't invoke directly |
+| `argument-hint` | Hint shown during autocomplete. Example: `[issue-number]` or `[filename] [format]` |
+
+### Invocation Matrix
+
+| Frontmatter | User can invoke | Claude can invoke |
+|-------------|-----------------|-------------------|
+| (default) | Yes | Yes |
+| `disable-model-invocation: true` | Yes | No |
+| `user-invocable: false` | No | Yes |
+
+## Execution Control
+
+| Field | Description |
+|-------|-------------|
+| `allowed-tools` | Tools Claude can use without permission when skill is active. Example: `Read, Grep, Glob` |
+| `model` | Model to use when skill is active |
+| `context` | Set to `fork` to run in isolated subagent context |
+| `agent` | Subagent type when `context: fork` is set. Options: `Explore`, `Plan`, `general-purpose`, or custom agent name |
+| `hooks` | Hooks scoped to skill lifecycle. See hooks documentation |
+
+## String Substitutions
+
+Use these variables in skill content for dynamic values:
+
+| Variable | Description |
+|----------|-------------|
+| `$ARGUMENTS` | All arguments passed when invoking |
+| `$ARGUMENTS[N]` | Specific argument by 0-based index (e.g., `$ARGUMENTS[0]`) |
+| `$N` | Shorthand for `$ARGUMENTS[N]` (e.g., `$0`, `$1`) |
+| `${CLAUDE_SESSION_ID}` | Current session ID |
+
+**Example:**
+
+```yaml
+---
+name: fix-issue
+description: Fix a GitHub issue
+disable-model-invocation: true
+---
+
+Fix GitHub issue $ARGUMENTS following our coding standards.
+```
+
+Running `/fix-issue 123` sends "Fix GitHub issue 123 following our coding standards."
+
+## Dynamic Context Injection
+
+The `!`command`` syntax runs shell commands before skill content is sent to Claude:
+
+```yaml
+---
+name: pr-summary
+description: Summarize changes in a pull request
+context: fork
+agent: Explore
+---
+
+## PR Context
+- Diff: !`gh pr diff`
+- Comments: !`gh pr view --comments`
+
+## Task
+Summarize this pull request...
+```
+
+Commands execute immediately, output replaces the placeholder.
+
+## Subagent Execution Example
+
+```yaml
+---
+name: deep-research
+description: Research a topic thoroughly
+context: fork
+agent: Explore
+---
+
+Research $ARGUMENTS thoroughly:
+1. Find relevant files using Glob and Grep
+2. Read and analyze the code
+3. Summarize findings with file references
+```
+
+## Read-Only Mode Example
+
+```yaml
+---
+name: safe-reader
+description: Read files without making changes
+allowed-tools: Read, Grep, Glob
+---
+
+Explore the codebase without modifying any files.
+```

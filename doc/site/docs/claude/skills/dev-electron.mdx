@@ -1,0 +1,265 @@
+---
+title: "dev-electron"
+description: "Electron app development patterns, especially with electron-tabs for browser-like tabs.
+Use when: (1) Building Electron apps with tabs, (2) Using electron-tabs library,
+(3) Implementing keyboard short..."
+---
+
+# dev-electron
+
+
+:::info Bundled Resources
+This skill includes: [references](#references)
+:::
+
+
+# Electron Development
+
+## Common Pattern: Thin Wrapper App
+
+Electron as thin wrapper around a dev server (e.g., Vite, Docusaurus):
+
+1. Show splash screen
+2. Spawn dev server as background process
+3. Wait for server ready
+4. Show BrowserWindow pointing to localhost URL
+5. Clean up server on quit
+
+See [references/background-process.md](references/background-process.md) for implementation.
+
+## Packaging & Build
+
+### electron-builder: Keep as devDependency (DO NOT use pnpm dlx)
+
+**electron-builder has 300+ sub-dependencies.** Using `pnpm dlx` downloads them all on every invocation, making builds extremely slow. Always install it as a devDependency:
+
+```json
+{
+  "devDependencies": {
+    "electron": "^35.7.5",
+    "electron-builder": "^26.8.0"
+  },
+  "scripts": {
+    "build": "electron-builder --mac",
+    "build:dir": "electron-builder --mac --dir"
+  }
+}
+```
+
+### Shared Modules: Use extraResources, NOT files glob
+
+```json
+// WRONG - shared module won't be in the asar
+"files": ["main.js", "../../../shared/module/**/*"]
+
+// CORRECT - copies to app's Resources directory
+"extraResources": [{ "from": "../../../shared/module", "to": "module" }]
+```
+
+Then resolve dynamically in main.js:
+
+```javascript
+function getSharedCorePath() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'electron-app-core');
+  }
+  return path.join(__dirname, '..', '..', '..', 'shared', 'electron-app-core');
+}
+```
+
+### Dynamic Project Root (Don't Hardcode Paths)
+
+Walk up from `app.getPath("exe")` checking each directory for `package.json` with the expected project name. This is robust against repo moves and directory restructuring — no fragile `..` counting.
+
+```javascript
+function findProjectRootFromExePath() {
+  let dir = path.dirname(app.getPath("exe"));
+  const root = path.parse(dir).root;
+  while (dir !== root) {
+    if (isProjectRoot(dir)) return dir;
+    dir = path.dirname(dir);
+  }
+  return null;
+}
+```
+
+See [references/packaging.md](references/packaging.md) for full pattern including `isProjectRoot` helper.
+
+## Critical Pitfalls
+
+### electron-tabs: Tab Order Bug
+
+**`getTabs()` returns CREATION order, NOT visual order.**
+
+```javascript
+// WRONG
+tabs[index].activate();
+
+// CORRECT
+tabGroup.getTabByPosition(index).activate(); // 0-indexed
+```
+
+### electron-tabs: Required Settings
+
+Must use these settings (less secure, only for trusted content):
+
+```javascript
+webPreferences: {
+  nodeIntegration: true,
+  contextIsolation: false,
+  webviewTag: true,
+}
+```
+
+### Keyboard Shortcuts in Webview
+
+Menu accelerators and `document.keydown` don't work when webview has focus. Use `globalShortcut` instead:
+
+```javascript
+globalShortcut.register("CommandOrControl+1", () => {
+  win.webContents.send("goto-tab", 0);
+});
+```
+
+**Pitfall:** If using both menu accelerator AND globalShortcut for same key, shortcuts fire twice. Remove menu accelerator.
+
+### globalShortcut Conflicts with Other Apps
+
+`globalShortcut` is **system-wide** - it intercepts shortcuts even when other Electron apps (e.g., Slack) are focused. Solution: register/unregister based on window focus:
+
+```javascript
+let shortcutsRegistered = false;
+
+function registerShortcuts() {
+  if (shortcutsRegistered) return;
+  globalShortcut.register("CommandOrControl+1", handler);
+  shortcutsRegistered = true;
+}
+
+function unregisterShortcuts() {
+  if (!shortcutsRegistered) return;
+  globalShortcut.unregister("CommandOrControl+1");
+  shortcutsRegistered = false;
+}
+
+// In window creation:
+win.on("focus", registerShortcuts);
+win.on("blur", () => {
+  setTimeout(() => {
+    if (!BrowserWindow.getFocusedWindow()) unregisterShortcuts();
+  }, 100);
+});
+```
+
+The `setTimeout` + focus check prevents unregistering when switching between your own windows.
+
+**Critical: Multiple cleanup points required.** Focus/blur alone is not enough - shortcuts can remain "stolen" after app closes if cleanup fails. Add these handlers:
+
+```javascript
+// On macOS, app stays running when all windows close - must unregister
+app.on("window-all-closed", () => {
+  unregisterShortcuts();
+  if (process.platform !== "darwin") app.quit();
+});
+
+// Ensure cleanup before quit begins
+app.on("before-quit", () => {
+  unregisterShortcuts();
+});
+
+// Final fallback cleanup
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
+});
+```
+
+Without all these cleanup points, shortcuts may remain intercepted even after your app closes, breaking shortcuts in other apps like Slack.
+
+### electron-tabs: Menu Reload Resets Tabs
+
+**Built-in `{ role: "reload" }` reloads the main window (`tabbed-window.html`), NOT the active tab's webview.** This causes all tabs to reinitialize and navigate back to the default URL.
+
+Solution: Use custom menu items that send IPC to reload the active tab's webview:
+
+```javascript
+// menu.js - Replace built-in roles with custom handlers
+{
+  label: "Reload",
+  accelerator: "CmdOrCtrl+R",
+  click: () => sendToFocusedWindow("menu-reload"),
+},
+{
+  label: "Force Reload",
+  accelerator: "CmdOrCtrl+Shift+R",
+  click: () => sendToFocusedWindow("menu-force-reload"),
+},
+```
+
+```javascript
+// tabbed-window.html - Reload active tab's webview
+ipcRenderer.on("menu-reload", () => {
+  const activeTab = tabGroup.getActiveTab();
+  if (activeTab && activeTab.webview) {
+    activeTab.webview.reload();
+  }
+});
+
+ipcRenderer.on("menu-force-reload", () => {
+  const activeTab = tabGroup.getActiveTab();
+  if (activeTab && activeTab.webview) {
+    activeTab.webview.reloadIgnoringCache();
+  }
+});
+```
+
+### Shadow DOM Manipulation
+
+Avoid manipulating electron-tabs shadow DOM directly - it breaks the component. CSS `::part()` selectors may not work reliably.
+
+### macOS Title Bar
+
+Hidden title bar (`titleBarStyle: "hiddenInset"`) requires tab bar padding for traffic lights. Simpler: use standard title bar (no titleBarStyle option).
+
+### Open External Links in Default Browser (Cmd+Click)
+
+Electron doesn't open links in the system browser by default. Use `setWindowOpenHandler` to intercept Cmd+click (which triggers a new-window request) and route external URLs to the default browser via `shell.openExternal`:
+
+```javascript
+const { shell } = require('electron');
+
+const devServerOrigin = new URL(config.devServerUrl).origin;
+win.webContents.setWindowOpenHandler(({ url }) => {
+  try {
+    const urlOrigin = new URL(url).origin;
+    if (urlOrigin !== devServerOrigin) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+  } catch {
+    // Invalid URL - let Electron handle it
+  }
+  return { action: 'deny' };
+});
+```
+
+This compares origins so same-origin links stay in the app while external URLs open in the default browser.
+
+### nodenv/anyenv PATH Issues
+
+Spawned processes don't inherit version managers. Source shell profile first. See [references/background-process.md](references/background-process.md).
+
+## Detailed References
+
+- **Packaging & build**: [references/packaging.md](references/packaging.md) - pnpm dlx, extraResources, dynamic project root
+- **Background process & dev server**: [references/background-process.md](references/background-process.md) - Spawn, wait, cleanup
+- **Webview patterns**: [references/webview.md](references/webview.md) - BrowserWindow, webview tag, IPC
+- **electron-tabs patterns**: [references/electron-tabs.md](references/electron-tabs.md) - Setup, dark theme, tab titles
+
+
+## References
+
+- [Background Process & Dev Server](./dev-electron/background-process.mdx)
+- [electron-tabs Reference](./dev-electron/electron-tabs.mdx)
+- [Packaging & Build](./dev-electron/packaging.mdx)
+- [Webview & BrowserWindow Patterns](./dev-electron/webview.mdx)
+
