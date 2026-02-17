@@ -1,4 +1,4 @@
-const { app, dialog, globalShortcut, BrowserWindow } = require("electron");
+const { app, dialog } = require("electron");
 const { setupMenu } = require("./src/menu");
 const { getProjectRoot } = require("./src/config");
 const {
@@ -7,8 +7,6 @@ const {
   createMainWindow,
   createNewWindow,
   hasWindows,
-  setupWindowIPC,
-  setWindowFocusCallbacks,
 } = require("./src/windows");
 const {
   startDevServer,
@@ -23,16 +21,6 @@ async function initialize() {
   // Setup menu with callbacks
   setupMenu({
     onNewWindow: () => createNewWindow(),
-  });
-
-  // Setup IPC handlers
-  setupWindowIPC();
-
-  // Setup focus/blur callbacks to register/unregister shortcuts
-  // This ensures shortcuts only work when our app is focused
-  setWindowFocusCallbacks({
-    onFocus: registerGlobalShortcuts,
-    onBlur: unregisterGlobalShortcuts,
   });
 
   createSplashWindow();
@@ -82,59 +70,14 @@ app.on("activate", async () => {
 });
 
 app.on("window-all-closed", () => {
-  // Unregister shortcuts when no windows are open (app may still run on macOS)
-  unregisterGlobalShortcuts();
   if (process.platform !== "darwin") {
     app.quit();
   }
 });
 
-app.on("before-quit", () => {
-  unregisterGlobalShortcuts();
-});
-
 app.on("will-quit", () => {
-  globalShortcut.unregisterAll();
   stopDevServer();
 });
-
-// Track if shortcuts are currently registered
-let shortcutsRegistered = false;
-
-// Register global shortcuts for tab navigation (Cmd+1-9) and copy URL (Cmd+Option+C)
-function registerGlobalShortcuts() {
-  if (shortcutsRegistered) return;
-
-  for (let i = 1; i <= 9; i++) {
-    globalShortcut.register(`CommandOrControl+${i}`, () => {
-      const win = BrowserWindow.getFocusedWindow();
-      if (win) {
-        win.webContents.send("menu-goto-tab", i - 1);
-      }
-    });
-  }
-
-  // Copy current URL shortcut (Cmd+Option+C / Ctrl+Alt+C)
-  globalShortcut.register("CommandOrControl+Alt+C", () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) {
-      win.webContents.send("copy-current-url");
-    }
-  });
-
-  shortcutsRegistered = true;
-}
-
-// Unregister global shortcuts
-function unregisterGlobalShortcuts() {
-  if (!shortcutsRegistered) return;
-
-  for (let i = 1; i <= 9; i++) {
-    globalShortcut.unregister(`CommandOrControl+${i}`);
-  }
-  globalShortcut.unregister("CommandOrControl+Alt+C");
-  shortcutsRegistered = false;
-}
 
 // Handle process termination signals
 process.on("SIGINT", () => {

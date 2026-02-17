@@ -1,4 +1,4 @@
-# Webview & BrowserWindow Patterns
+# BrowserWindow Patterns
 
 ## Basic BrowserWindow
 
@@ -14,81 +14,14 @@ function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"),
     },
   });
 
   win.loadURL("http://localhost:3000");
-  // Or: win.loadFile("index.html");
-
   win.once("ready-to-show", () => win.show());
 
   return win;
 }
-```
-
-## Webview Tag (for tabs)
-
-HTML with webview:
-
-```html
-<webview src="http://localhost:3000" style="width:100%; height:100%;"></webview>
-```
-
-Required BrowserWindow settings:
-
-```javascript
-webPreferences: {
-  webviewTag: true, // Enable <webview> tag
-}
-```
-
-## IPC Communication
-
-### Main ↔ Renderer
-
-Main process:
-
-```javascript
-const { ipcMain, BrowserWindow } = require("electron");
-
-// Receive from renderer
-ipcMain.on("channel-name", (event, arg) => {
-  console.log(arg);
-});
-
-// Send to renderer
-const win = BrowserWindow.getFocusedWindow();
-win.webContents.send("channel-name", data);
-```
-
-Preload (contextIsolation: true):
-
-```javascript
-const { contextBridge, ipcRenderer } = require("electron");
-
-contextBridge.exposeInMainWorld("electronAPI", {
-  send: (channel, data) => ipcRenderer.send(channel, data),
-  on: (channel, callback) => ipcRenderer.on(channel, (e, ...args) => callback(...args)),
-});
-```
-
-Renderer:
-
-```javascript
-window.electronAPI.send("channel-name", data);
-window.electronAPI.on("channel-name", (data) => console.log(data));
-```
-
-### Without contextIsolation (for electron-tabs)
-
-Renderer (nodeIntegration: true, contextIsolation: false):
-
-```javascript
-const { ipcRenderer } = require("electron");
-
-ipcRenderer.send("channel-name", data);
-ipcRenderer.on("channel-name", (event, data) => console.log(data));
 ```
 
 ## Menu Shortcuts
@@ -100,16 +33,7 @@ const template = [
   {
     label: "File",
     submenu: [
-      {
-        label: "New Tab",
-        accelerator: "CmdOrCtrl+T",
-        click: () => sendToWindow("new-tab"),
-      },
-      {
-        label: "Close Tab",
-        accelerator: "CmdOrCtrl+W",
-        click: () => sendToWindow("close-tab"),
-      },
+      { role: "close" },
     ],
   },
   {
@@ -121,6 +45,22 @@ const template = [
       { role: "cut" },
       { role: "copy" },
       { role: "paste" },
+      { role: "selectAll" },
+    ],
+  },
+  {
+    label: "View",
+    submenu: [
+      { role: "reload" },
+      { role: "forceReload" },
+      { role: "toggleDevTools" },
+    ],
+  },
+  {
+    label: "Window",
+    submenu: [
+      { role: "minimize" },
+      { role: "zoom" },
     ],
   },
 ];
@@ -140,35 +80,11 @@ if (process.platform === "darwin") {
 Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 ```
 
-## Global Shortcuts
-
-For shortcuts that must work even when webview has focus:
-
-```javascript
-const { globalShortcut, BrowserWindow } = require("electron");
-
-app.whenReady().then(() => {
-  globalShortcut.register("CommandOrControl+Shift+I", () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) win.webContents.toggleDevTools();
-  });
-});
-
-app.on("will-quit", () => {
-  globalShortcut.unregisterAll();
-});
-```
-
-**Note:** Global shortcuts work system-wide. Use sparingly.
-
 ## Security Settings Reference
 
 | Setting | Secure | Use Case |
 |---------|--------|----------|
-| `nodeIntegration: false` | ✅ | Default, most apps |
-| `contextIsolation: true` | ✅ | Default, most apps |
-| `nodeIntegration: true` | ⚠️ | electron-tabs, trusted content only |
-| `contextIsolation: false` | ⚠️ | electron-tabs, trusted content only |
-| `webviewTag: true` | ⚠️ | Tab functionality |
+| `nodeIntegration: false` | Yes | Default, most apps |
+| `contextIsolation: true` | Yes | Default, most apps |
 
-For localhost-only apps loading trusted content, less secure settings are acceptable.
+For localhost-only apps loading trusted content, these secure defaults are sufficient. No need for `nodeIntegration: true` or `webviewTag: true` when using plain BrowserWindow.

@@ -46,13 +46,8 @@ const config = {
       ({
         docs: {
           sidebarPath: "./sidebars.js",
-          routeBasePath: "/docs",
+          routeBasePath: "/",
           editUrl: undefined,
-          showLastUpdateTime: true,
-          showLastUpdateAuthor: true,
-          beforeDefaultRemarkPlugins: [
-            [require('./plugins/remark-creation-date.js'), {}],
-          ],
           remarkPlugins: [require("remark-breaks")],
         },
         // Disable blog feature
@@ -75,14 +70,7 @@ const config = {
       },
       navbar: {
         title: "Claude Code Doc",
-        items: [
-          {
-            type: "doc",
-            docId: "claude/index",
-            position: "left",
-            label: "Claude",
-          },
-        ],
+        items: [],
       },
       footer: {
         style: "dark",

@@ -27,18 +27,12 @@
     },
     "files": [
       "main.js",
-      "preload.js",
       "splash.html",
-      "tabbed-window.html",
       "src/**/*",
-      "node_modules/electron-tabs/**/*",
       "package.json"
     ],
     "extraMetadata": {
       "main": "main.js"
     }
-  },
-  "dependencies": {
-    "electron-tabs": "^1.0.4"
   }
 }

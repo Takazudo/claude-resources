@@ -1,18 +1,7 @@
-const { app, Menu, BrowserWindow } = require("electron");
+const { app, Menu, BrowserWindow, clipboard } = require("electron");
 
 // Callbacks for menu actions
 let onNewWindow = null;
-
-/**
- * Send command to focused window's webContents
- * @param {string} channel - IPC channel name
- */
-function sendToFocusedWindow(channel) {
-  const win = BrowserWindow.getFocusedWindow();
-  if (win) {
-    win.webContents.send(channel);
-  }
-}
 
 /**
  * Get the application menu template
@@ -40,11 +29,6 @@ function getMenuTemplate() {
     label: "File",
     submenu: [
       {
-        label: "New Tab",
-        accelerator: "CmdOrCtrl+T",
-        click: () => sendToFocusedWindow("menu-new-tab"),
-      },
-      {
         label: "New Window",
         accelerator: "CmdOrCtrl+N",
         click: () => {
@@ -53,13 +37,9 @@ function getMenuTemplate() {
           }
         },
       },
-      { type: "separator" },
-      {
-        label: "Close Tab",
-        accelerator: "CmdOrCtrl+W",
-        click: () => sendToFocusedWindow("menu-close-tab"),
-      },
-      ...(isMac ? [] : [{ type: "separator" }, { role: "quit" }]),
+      ...(isMac
+        ? [{ role: "close" }]
+        : [{ type: "separator" }, { role: "quit" }]),
     ],
   };
 
@@ -75,6 +55,20 @@ function getMenuTemplate() {
       ...(isMac ? [{ role: "pasteAndMatchStyle" }] : []),
       { role: "delete" },
       { role: "selectAll" },
+      { type: "separator" },
+      {
+        label: "Copy URL",
+        accelerator: "CmdOrCtrl+Alt+C",
+        click: () => {
+          const win = BrowserWindow.getFocusedWindow();
+          if (win) {
+            const url = win.webContents.getURL();
+            if (url) {
+              clipboard.writeText(url);
+            }
+          }
+        },
+      },
     ],
   };
 

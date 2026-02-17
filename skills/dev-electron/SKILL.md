@@ -1,13 +1,14 @@
 ---
 name: dev-electron
 description: |
-  Electron app development patterns, especially with electron-tabs for browser-like tabs.
-  Use when: (1) Building Electron apps with tabs, (2) Using electron-tabs library,
-  (3) Implementing keyboard shortcuts in Electron, (4) Managing dev server processes,
-  (5) Handling nodenv/anyenv PATH issues in spawned processes,
-  (6) Packaging Electron apps with electron-builder,
-  (7) Sharing modules across multiple Electron apps (extraResources pattern),
-  (8) Dynamic project root resolution in packaged apps.
+  Electron app development patterns for thin wrapper apps around dev servers.
+  Use when: (1) Building Electron apps as thin wrappers around web apps,
+  (2) Managing dev server processes in Electron,
+  (3) Handling nodenv/anyenv PATH issues in spawned processes,
+  (4) Packaging Electron apps with electron-builder,
+  (5) Sharing modules across multiple Electron apps (extraResources pattern),
+  (6) Dynamic project root resolution in packaged apps,
+  (7) Opening external links in default browser.
 ---
 
 # Electron Development
@@ -23,6 +24,88 @@ Electron as thin wrapper around a dev server (e.g., Vite, Docusaurus):
 5. Clean up server on quit
 
 See [references/background-process.md](references/background-process.md) for implementation.
+
+### BrowserWindow Setup
+
+Load the dev server URL directly in BrowserWindow (no webview, no tabs):
+
+```javascript
+const { BrowserWindow, shell } = require("electron");
+
+function createMainWindow(devServerUrl) {
+  const win = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    title: "My App",
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  win.loadURL(devServerUrl);
+  win.once("ready-to-show", () => win.show());
+
+  // Open external links in default browser
+  const devServerOrigin = new URL(devServerUrl).origin;
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return { action: "deny" };
+      }
+      if (parsed.origin !== devServerOrigin) {
+        shell.openExternal(url);
+        return { action: "deny" };
+      }
+    } catch {
+      // Invalid URL
+    }
+    return { action: "deny" };
+  });
+
+  return win;
+}
+```
+
+Key points:
+- Use `nodeIntegration: false` + `contextIsolation: true` (secure defaults)
+- Standard `{ role: "reload" }` menu items work correctly (they reload the BrowserWindow content directly)
+- No need for custom IPC, globalShortcut, or webview tags
+
+### Menu
+
+Use standard Electron menu roles. No custom IPC needed:
+
+```javascript
+const template = [
+  {
+    label: "View",
+    submenu: [
+      { role: "reload" },
+      { role: "forceReload" },
+      { role: "toggleDevTools" },
+    ],
+  },
+  {
+    label: "Edit",
+    submenu: [
+      { role: "undo" }, { role: "redo" },
+      { type: "separator" },
+      { role: "cut" }, { role: "copy" }, { role: "paste" },
+      { role: "selectAll" },
+    ],
+  },
+  {
+    label: "Window",
+    submenu: [
+      { role: "minimize" },
+      { role: "close" },
+    ],
+  },
+];
+```
 
 ## Packaging & Build
 
@@ -84,162 +167,11 @@ See [references/packaging.md](references/packaging.md) for full pattern includin
 
 ## Critical Pitfalls
 
-### electron-tabs: Tab Order Bug
-
-**`getTabs()` returns CREATION order, NOT visual order.**
-
-```javascript
-// WRONG
-tabs[index].activate();
-
-// CORRECT
-tabGroup.getTabByPosition(index).activate(); // 0-indexed
-```
-
-### electron-tabs: Required Settings
-
-Must use these settings (less secure, only for trusted content):
-
-```javascript
-webPreferences: {
-  nodeIntegration: true,
-  contextIsolation: false,
-  webviewTag: true,
-}
-```
-
-### Keyboard Shortcuts in Webview
-
-Menu accelerators and `document.keydown` don't work when webview has focus. Use `globalShortcut` instead:
-
-```javascript
-globalShortcut.register("CommandOrControl+1", () => {
-  win.webContents.send("goto-tab", 0);
-});
-```
-
-**Pitfall:** If using both menu accelerator AND globalShortcut for same key, shortcuts fire twice. Remove menu accelerator.
-
-### globalShortcut Conflicts with Other Apps
-
-`globalShortcut` is **system-wide** - it intercepts shortcuts even when other Electron apps (e.g., Slack) are focused. Solution: register/unregister based on window focus:
-
-```javascript
-let shortcutsRegistered = false;
-
-function registerShortcuts() {
-  if (shortcutsRegistered) return;
-  globalShortcut.register("CommandOrControl+1", handler);
-  shortcutsRegistered = true;
-}
-
-function unregisterShortcuts() {
-  if (!shortcutsRegistered) return;
-  globalShortcut.unregister("CommandOrControl+1");
-  shortcutsRegistered = false;
-}
-
-// In window creation:
-win.on("focus", registerShortcuts);
-win.on("blur", () => {
-  setTimeout(() => {
-    if (!BrowserWindow.getFocusedWindow()) unregisterShortcuts();
-  }, 100);
-});
-```
-
-The `setTimeout` + focus check prevents unregistering when switching between your own windows.
-
-**Critical: Multiple cleanup points required.** Focus/blur alone is not enough - shortcuts can remain "stolen" after app closes if cleanup fails. Add these handlers:
-
-```javascript
-// On macOS, app stays running when all windows close - must unregister
-app.on("window-all-closed", () => {
-  unregisterShortcuts();
-  if (process.platform !== "darwin") app.quit();
-});
-
-// Ensure cleanup before quit begins
-app.on("before-quit", () => {
-  unregisterShortcuts();
-});
-
-// Final fallback cleanup
-app.on("will-quit", () => {
-  globalShortcut.unregisterAll();
-});
-```
-
-Without all these cleanup points, shortcuts may remain intercepted even after your app closes, breaking shortcuts in other apps like Slack.
-
-### electron-tabs: Menu Reload Resets Tabs
-
-**Built-in `{ role: "reload" }` reloads the main window (`tabbed-window.html`), NOT the active tab's webview.** This causes all tabs to reinitialize and navigate back to the default URL.
-
-Solution: Use custom menu items that send IPC to reload the active tab's webview:
-
-```javascript
-// menu.js - Replace built-in roles with custom handlers
-{
-  label: "Reload",
-  accelerator: "CmdOrCtrl+R",
-  click: () => sendToFocusedWindow("menu-reload"),
-},
-{
-  label: "Force Reload",
-  accelerator: "CmdOrCtrl+Shift+R",
-  click: () => sendToFocusedWindow("menu-force-reload"),
-},
-```
-
-```javascript
-// tabbed-window.html - Reload active tab's webview
-ipcRenderer.on("menu-reload", () => {
-  const activeTab = tabGroup.getActiveTab();
-  if (activeTab && activeTab.webview) {
-    activeTab.webview.reload();
-  }
-});
-
-ipcRenderer.on("menu-force-reload", () => {
-  const activeTab = tabGroup.getActiveTab();
-  if (activeTab && activeTab.webview) {
-    activeTab.webview.reloadIgnoringCache();
-  }
-});
-```
-
-### Shadow DOM Manipulation
-
-Avoid manipulating electron-tabs shadow DOM directly - it breaks the component. CSS `::part()` selectors may not work reliably.
-
-### macOS Title Bar
-
-Hidden title bar (`titleBarStyle: "hiddenInset"`) requires tab bar padding for traffic lights. Simpler: use standard title bar (no titleBarStyle option).
-
 ### Open External Links in Default Browser (Cmd+Click)
 
-Electron doesn't open links in the system browser by default. Use `setWindowOpenHandler` to intercept Cmd+click (which triggers a new-window request) and route external URLs to the default browser via `shell.openExternal`:
+Electron doesn't open links in the system browser by default. Use `setWindowOpenHandler` to intercept Cmd+click and route external URLs to the default browser via `shell.openExternal`. See BrowserWindow Setup above.
 
-```javascript
-const { shell } = require('electron');
-
-const devServerOrigin = new URL(config.devServerUrl).origin;
-win.webContents.setWindowOpenHandler(({ url }) => {
-  try {
-    const urlOrigin = new URL(url).origin;
-    if (urlOrigin !== devServerOrigin) {
-      shell.openExternal(url);
-      return { action: 'deny' };
-    }
-  } catch {
-    // Invalid URL - let Electron handle it
-  }
-  return { action: 'deny' };
-});
-```
-
-This compares origins so same-origin links stay in the app while external URLs open in the default browser.
+Validate URL protocol (allow only `http:` and `https:`) to prevent `javascript:` or other protocol injection.
 
 ### Dev Server: Kill Stale Port Before Start
 
@@ -275,7 +207,7 @@ When the dev server framework uses a non-root `baseUrl` (e.g., Docusaurus with `
 
 ### Dev Server: Default URL Must Include baseUrl
 
-When the framework uses a non-root `baseUrl`, the default URL for tabs/webviews must include the full path. Otherwise the app opens to a 404 page:
+When the framework uses a non-root `baseUrl`, the default URL must include the full path. Otherwise the app opens to a 404 page:
 
 ```javascript
 // WRONG - opens to 404 when baseUrl is "/pj/app/doc/"
@@ -285,6 +217,10 @@ const defaultUrl = "http://localhost:3000";
 const defaultUrl = "http://localhost:3000/pj/app/doc/";
 ```
 
+### Dev Server: Avoid Transient Errors During File Regeneration
+
+When regenerating files that a running dev server watches, **write new files before deleting stale ones**. If you delete first, the dev server sees missing files and shows errors. See the dev-docusaurus skill for the `removeStaleItems` pattern.
+
 ### nodenv/anyenv PATH Issues
 
 Spawned processes don't inherit version managers. Source shell profile first. See [references/background-process.md](references/background-process.md).
@@ -293,5 +229,3 @@ Spawned processes don't inherit version managers. Source shell profile first. Se
 
 - **Packaging & build**: [references/packaging.md](references/packaging.md) - pnpm dlx, extraResources, dynamic project root
 - **Background process & dev server**: [references/background-process.md](references/background-process.md) - Spawn, wait, cleanup
-- **Webview patterns**: [references/webview.md](references/webview.md) - BrowserWindow, webview tag, IPC
-- **electron-tabs patterns**: [references/electron-tabs.md](references/electron-tabs.md) - Setup, dark theme, tab titles

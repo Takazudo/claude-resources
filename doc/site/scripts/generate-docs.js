@@ -19,7 +19,6 @@ const OUTPUT_CLAUDEMD_DIR = path.join(OUTPUT_CLAUDE_DIR, "claudemd");
 const OUTPUT_COMMANDS_DIR = path.join(OUTPUT_CLAUDE_DIR, "commands");
 const OUTPUT_SKILLS_DIR = path.join(OUTPUT_CLAUDE_DIR, "skills");
 const OUTPUT_AGENTS_DIR = path.join(OUTPUT_CLAUDE_DIR, "agents");
-const DATA_DIR = path.join(__dirname, "../src/data");
 
 /**
  * Ensure directory exists
@@ -28,6 +27,19 @@ function ensureDir(dir) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
+}
+
+/**
+ * Write file only if content has changed.
+ * Avoids unnecessary writes that trigger Docusaurus full rebuild instead of HMR.
+ */
+function writeFileIfChanged(filePath, content) {
+  if (fs.existsSync(filePath)) {
+    const existing = fs.readFileSync(filePath, "utf8");
+    if (existing === content) return false;
+  }
+  fs.writeFileSync(filePath, content);
+  return true;
 }
 
 /**
@@ -76,18 +88,22 @@ function escapeForMdx(content) {
 }
 
 /**
- * Clean generated files (except index.mdx)
+ * Remove stale files/dirs from a directory.
+ * Keeps only items in the expectedItems set. Runs AFTER writing new files
+ * so Docusaurus never sees a missing-file state.
  */
-function cleanGeneratedFiles(dir, keepIndex = true) {
+function removeStaleItems(dir, expectedItems) {
   if (!fs.existsSync(dir)) return;
-  const files = fs.readdirSync(dir);
-  files.forEach((file) => {
-    if (keepIndex && file === "index.mdx") return;
-    const filePath = path.join(dir, file);
-    if (fs.statSync(filePath).isFile()) {
-      fs.unlinkSync(filePath);
+  for (const item of fs.readdirSync(dir)) {
+    if (expectedItems.has(item)) continue;
+    const itemPath = path.join(dir, item);
+    if (fs.statSync(itemPath).isDirectory()) {
+      cleanDir(itemPath);
+      fs.rmdirSync(itemPath);
+    } else {
+      fs.unlinkSync(itemPath);
     }
-  });
+  }
 }
 
 /**
@@ -118,9 +134,6 @@ function findClaudeMdFiles(dir, excludeDirs) {
  */
 function generateClaudemdDocs() {
   console.log("\n📄 Generating CLAUDE.md documentation...");
-
-  // Clean previous output
-  cleanDir(OUTPUT_CLAUDEMD_DIR);
 
   // Directories to exclude from search
   const excludeDirs = [
@@ -171,8 +184,9 @@ ${escapeForMdx(content.trim())}
 `;
 
     const outputPath = path.join(OUTPUT_CLAUDEMD_DIR, `${slug}.mdx`);
-    fs.writeFileSync(outputPath, mdxContent);
-    console.log(`  ${displayPath} → docs/claude/claudemd/${slug}.mdx`);
+    if (writeFileIfChanged(outputPath, mdxContent)) {
+      console.log(`  ${displayPath} → docs/claude/claudemd/${slug}.mdx (updated)`);
+    }
   });
 
   // Sort: root first, then alphabetically
@@ -204,8 +218,15 @@ CLAUDE.md files provide project-specific instructions to Claude Code.
 ${claudemdList}
 `;
 
-  fs.writeFileSync(path.join(OUTPUT_CLAUDEMD_DIR, "index.mdx"), indexContent);
-  console.log(`  → docs/claude/claudemd/index.mdx`);
+  if (writeFileIfChanged(path.join(OUTPUT_CLAUDEMD_DIR, "index.mdx"), indexContent)) {
+    console.log(`  → docs/claude/claudemd/index.mdx (updated)`);
+  }
+
+  // Remove stale files (written first, so no missing-file window)
+  const expectedFiles = new Set(claudemds.map((item) => `${item.slug}.mdx`));
+  expectedFiles.add("index.mdx");
+  expectedFiles.add("_category_.json");
+  removeStaleItems(OUTPUT_CLAUDEMD_DIR, expectedFiles);
 
   return claudemds;
 }
@@ -217,7 +238,6 @@ function generateCommandsDocs() {
   console.log("\n📝 Generating commands documentation...");
 
   ensureDir(OUTPUT_COMMANDS_DIR);
-  cleanGeneratedFiles(OUTPUT_COMMANDS_DIR);
 
   if (!fs.existsSync(COMMANDS_DIR)) {
     console.log("  ⚠️  Commands directory not found");
@@ -249,8 +269,9 @@ ${escapeForMdx(bodyContent.trim())}
 `;
 
     const outputPath = path.join(OUTPUT_COMMANDS_DIR, `${name}.mdx`);
-    fs.writeFileSync(outputPath, mdxContent);
-    console.log(`  /${name} → docs/claude/commands/${name}.mdx`);
+    if (writeFileIfChanged(outputPath, mdxContent)) {
+      console.log(`  /${name} → docs/claude/commands/${name}.mdx (updated)`);
+    }
   });
 
   // Sort commands alphabetically
@@ -278,8 +299,15 @@ These commands are available globally from \`~/.claude/commands/\`.
 ${commandsList}
 `;
 
-  fs.writeFileSync(path.join(OUTPUT_COMMANDS_DIR, "index.mdx"), indexContent);
-  console.log(`  → docs/claude/commands/index.mdx`);
+  if (writeFileIfChanged(path.join(OUTPUT_COMMANDS_DIR, "index.mdx"), indexContent)) {
+    console.log(`  → docs/claude/commands/index.mdx (updated)`);
+  }
+
+  // Remove stale command files
+  const expectedFiles = new Set(commands.map((cmd) => `${cmd.name}.mdx`));
+  expectedFiles.add("index.mdx");
+  expectedFiles.add("_category_.json");
+  removeStaleItems(OUTPUT_COMMANDS_DIR, expectedFiles);
 
   return commands;
 }
@@ -330,8 +358,6 @@ function getSkillReferences(skillDir) {
 function generateSkillsDocs() {
   console.log("\n🛠️  Generating skills documentation...");
 
-  // Clean the entire skills output directory (including subdirectories)
-  cleanDir(OUTPUT_SKILLS_DIR);
   ensureDir(OUTPUT_SKILLS_DIR);
 
   if (!fs.existsSync(SKILLS_DIR)) {
@@ -420,8 +446,9 @@ ${referencesSection}
 `;
 
     const outputPath = path.join(OUTPUT_SKILLS_DIR, `${dir}.mdx`);
-    fs.writeFileSync(outputPath, mdxContent);
-    console.log(`  ${name} → docs/claude/skills/${dir}.mdx`);
+    if (writeFileIfChanged(outputPath, mdxContent)) {
+      console.log(`  ${name} → docs/claude/skills/${dir}.mdx (updated)`);
+    }
 
     // Generate reference pages
     if (references.length > 0) {
@@ -442,8 +469,9 @@ title: "${ref.title}"
 ${escapeForMdx(ref.content.trim())}
 `;
         const refOutputPath = path.join(skillRefsOutputDir, `${ref.name}.mdx`);
-        fs.writeFileSync(refOutputPath, refMdxContent);
-        console.log(`    └─ ${ref.name} → docs/claude/skills/${dir}/${ref.name}.mdx`);
+        if (writeFileIfChanged(refOutputPath, refMdxContent)) {
+          console.log(`    └─ ${ref.name} → docs/claude/skills/${dir}/${ref.name}.mdx (updated)`);
+        }
       });
     }
   });
@@ -480,8 +508,27 @@ These skills are available globally from \`~/.claude/skills/\`.
 ${skillsList}
 `;
 
-  fs.writeFileSync(path.join(OUTPUT_SKILLS_DIR, "index.mdx"), indexContent);
-  console.log(`  → docs/claude/skills/index.mdx`);
+  if (writeFileIfChanged(path.join(OUTPUT_SKILLS_DIR, "index.mdx"), indexContent)) {
+    console.log(`  → docs/claude/skills/index.mdx (updated)`);
+  }
+
+  // Remove stale skill files and directories
+  const expectedItems = new Set(skills.map((s) => `${s.dir}.mdx`));
+  skills.forEach((s) => {
+    if (s.references.length > 0) expectedItems.add(s.dir);
+  });
+  expectedItems.add("index.mdx");
+  expectedItems.add("_category_.json");
+  removeStaleItems(OUTPUT_SKILLS_DIR, expectedItems);
+
+  // Clean stale reference files within each skill's subdirectory
+  skills.forEach((skill) => {
+    if (skill.references.length > 0) {
+      const skillRefDir = path.join(OUTPUT_SKILLS_DIR, skill.dir);
+      const expectedRefs = new Set(skill.references.map((r) => `${r.name}.mdx`));
+      removeStaleItems(skillRefDir, expectedRefs);
+    }
+  });
 
   return skills;
 }
@@ -493,7 +540,6 @@ function generateAgentsDocs() {
   console.log("\n🤖 Generating agents documentation...");
 
   ensureDir(OUTPUT_AGENTS_DIR);
-  cleanGeneratedFiles(OUTPUT_AGENTS_DIR);
 
   if (!fs.existsSync(AGENTS_DIR)) {
     console.log("  ⚠️  Agents directory not found");
@@ -539,8 +585,9 @@ ${escapeForMdx(bodyContent.trim())}
 `;
 
     const outputPath = path.join(OUTPUT_AGENTS_DIR, `${file.replace(/\.md$/, "")}.mdx`);
-    fs.writeFileSync(outputPath, mdxContent);
-    console.log(`  ${name} → docs/claude/agents/${file.replace(/\.md$/, "")}.mdx`);
+    if (writeFileIfChanged(outputPath, mdxContent)) {
+      console.log(`  ${name} → docs/claude/agents/${file.replace(/\.md$/, "")}.mdx (updated)`);
+    }
   });
 
   // Sort agents alphabetically
@@ -571,8 +618,15 @@ These agents are available globally from \`~/.claude/agents/\`.
 ${agentsList}
 `;
 
-  fs.writeFileSync(path.join(OUTPUT_AGENTS_DIR, "index.mdx"), indexContent);
-  console.log(`  → docs/claude/agents/index.mdx`);
+  if (writeFileIfChanged(path.join(OUTPUT_AGENTS_DIR, "index.mdx"), indexContent)) {
+    console.log(`  → docs/claude/agents/index.mdx (updated)`);
+  }
+
+  // Remove stale agent files
+  const expectedFiles = new Set(agents.map((a) => `${a.file}.mdx`));
+  expectedFiles.add("index.mdx");
+  expectedFiles.add("_category_.json");
+  removeStaleItems(OUTPUT_AGENTS_DIR, expectedFiles);
 
   return agents;
 }
@@ -602,6 +656,7 @@ function generateClaudeIndex(claudemds, commands, skills, agents) {
   ].filter(Boolean);
 
   const indexContent = `---
+slug: /
 sidebar_position: 1
 pagination_next: null
 pagination_prev: null
@@ -625,87 +680,9 @@ ${treeLines.join("\n")}
 \`\`\`
 `;
 
-  fs.writeFileSync(path.join(OUTPUT_CLAUDE_DIR, "index.mdx"), indexContent);
-  console.log("  → docs/claude/index.mdx");
-}
-
-/**
- * Generate unified sidebar for Claude category
- */
-function generateClaudeSidebar(claudemds, commands, skills, agents) {
-  console.log("\n🗂️  Generating Claude sidebar...");
-
-  // Build skill items with optional reference sub-items
-  const skillItems = skills.map((skill) => {
-    if (skill.references && skill.references.length > 0) {
-      // Skill with references - create a category
-      return {
-        type: "category",
-        label: skill.name,
-        collapsed: true,
-        link: { type: "doc", id: `claude/skills/${skill.dir}` },
-        items: skill.references.map((ref) => `claude/skills/${skill.dir}/${ref.name}`),
-      };
-    } else {
-      // Skill without references - just a doc link
-      return `claude/skills/${skill.dir}`;
-    }
-  });
-
-  const sidebarConfig = [
-    "claude/index",
-    // Only include CLAUDE.md category when files exist
-    ...(claudemds.length > 0
-      ? [
-          {
-            type: "category",
-            label: "CLAUDE.md",
-            collapsed: false,
-            link: { type: "doc", id: "claude/claudemd/index" },
-            items: claudemds.map((item) => `claude/claudemd/${item.slug}`),
-          },
-        ]
-      : []),
-    ...(commands.length > 0
-      ? [
-          {
-            type: "category",
-            label: "Commands",
-            collapsed: false,
-            link: { type: "doc", id: "claude/commands/index" },
-            items: commands.map((cmd) => `claude/commands/${cmd.name}`),
-          },
-        ]
-      : []),
-    ...(skills.length > 0
-      ? [
-          {
-            type: "category",
-            label: "Skills",
-            collapsed: false,
-            link: { type: "doc", id: "claude/skills/index" },
-            items: skillItems,
-          },
-        ]
-      : []),
-    ...(agents.length > 0
-      ? [
-          {
-            type: "category",
-            label: "Agents",
-            collapsed: false,
-            link: { type: "doc", id: "claude/agents/index" },
-            items: agents.map((agent) => `claude/agents/${agent.file}`),
-          },
-        ]
-      : []),
-  ];
-
-  fs.writeFileSync(
-    path.join(DATA_DIR, "claude-sidebar.json"),
-    JSON.stringify(sidebarConfig, null, 2) + "\n"
-  );
-  console.log("  → src/data/claude-sidebar.json");
+  if (writeFileIfChanged(path.join(OUTPUT_CLAUDE_DIR, "index.mdx"), indexContent)) {
+    console.log("  → docs/claude/index.mdx (updated)");
+  }
 }
 
 /**
@@ -715,7 +692,6 @@ function main() {
   console.log("🚀 Generating Claude Code documentation...");
   console.log(`   Source: ${CLAUDE_DIR}`);
 
-  ensureDir(DATA_DIR);
   ensureDir(OUTPUT_CLAUDE_DIR);
 
   const claudemds = generateClaudemdDocs();
@@ -724,7 +700,6 @@ function main() {
   const agents = generateAgentsDocs();
 
   generateClaudeIndex(claudemds, commands, skills, agents);
-  generateClaudeSidebar(claudemds, commands, skills, agents);
 
   console.log(`\n✅ Generated documentation:`);
   console.log(`   - ${claudemds.length} CLAUDE.md files`);
