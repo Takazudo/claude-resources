@@ -2,16 +2,19 @@
 name: strategy-impl-as-pr
 description: >-
   Start a development workflow as a draft PR. Fetches, creates a branch, makes an empty start
-  commit, pushes, and opens a draft PR. Then starts implementation if instructions are provided. Use
-  when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix development with a
-  PR-first workflow, (3) User wants to set up a branch and draft PR before coding.
+  commit, pushes, and opens a draft PR. Then starts implementation if instructions are provided.
+  Also handles the case where implementation is already done on a topic branch — detects this and
+  creates a PR from the current branch instead. Use when: (1) User says 'dev as pr', (2) User wants
+  to start a new feature/fix development with a PR-first workflow, (3) User wants to set up a branch
+  and draft PR before coding, (4) User has already implemented changes on a branch and wants to
+  create a PR for them.
 disable-model-invocation: true
 argument-hint: "[issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
 
-Start a development workflow by creating a branch and draft PR before implementation.
+Start a development workflow by creating a branch and draft PR before implementation — or create a PR from existing work on the current branch.
 
 ## Input Parsing
 
@@ -24,15 +27,37 @@ Parse `$ARGUMENTS` to extract:
 
 If ambiguous, ask the user to clarify.
 
-## Workflow
+## Mode Detection
 
-### Step 1: Initialize
+Before starting the workflow, detect which mode to use:
+
+### Check Current State
 
 ```bash
 git fetch origin
+CURRENT_BRANCH=$(git branch --show-current)
+DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
 ```
 
-### Step 2: Read Issue (if specified)
+### Existing-Work Mode
+
+Use **Existing-Work Mode** when ALL of these are true:
+
+1. The current branch is NOT the default branch (e.g., not `main` or `master`)
+2. There are commits on the current branch that are not on the default branch (`git log origin/$DEFAULT_BRANCH..$CURRENT_BRANCH --oneline` shows commits)
+3. No PR already exists for this branch (`gh pr view $CURRENT_BRANCH` returns error / not found)
+
+### Fresh-Start Mode
+
+Use **Fresh-Start Mode** in all other cases (on the default branch, no extra commits, or a PR already exists).
+
+---
+
+## Fresh-Start Mode (default)
+
+This is the original workflow for starting new work.
+
+### Step 1: Read Issue (if specified)
 
 ```bash
 # If GitHub URL
@@ -44,7 +69,7 @@ gh issue view <issue-num>
 
 Use the issue title and body as context for branch naming and implementation.
 
-### Step 3: Determine Branch Name
+### Step 2: Determine Branch Name
 
 If user specified a branch name, use it directly.
 
@@ -56,14 +81,14 @@ Otherwise, derive `{SLUG}` (max 40 chars, lowercase, hyphens) from the issue tit
 | Documentation updates | `doc/<SLUG>` |
 | Other | `topic/<SLUG>` |
 
-### Step 4: Determine Target (Base) Branch
+### Step 3: Determine Target (Base) Branch
 
 - If user specified a base branch, use it
 - Otherwise, use the current locally checked-out branch
 
 Record this as `TARGET_BRANCH`.
 
-### Step 5: Create Branch and Draft PR
+### Step 4: Create Branch and Draft PR
 
 ```bash
 # Create and switch to new branch from TARGET_BRANCH
@@ -95,53 +120,129 @@ EOF
 
 The PR title should be descriptive based on the issue or instructions provided.
 
-### Step 6: Start Implementation
+### Step 5: Start Implementation
 
 If the user provided implementation instructions (either via issue or direct text), begin the implementation work immediately.
 
 If no instructions were provided, report the PR URL and wait for further direction.
 
+---
+
+## Existing-Work Mode
+
+Use this when implementation is already done (or nearly done) on the current branch.
+
+### Step 1: Gather Context
+
+```bash
+# Identify current branch and base
+CURRENT_BRANCH=$(git branch --show-current)
+DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
+
+# Review what was done
+git log origin/$DEFAULT_BRANCH..$CURRENT_BRANCH --oneline
+git diff origin/$DEFAULT_BRANCH...$CURRENT_BRANCH --stat
+```
+
+If the user specified a base branch, use that instead of `DEFAULT_BRANCH` as `TARGET_BRANCH`. Otherwise, use `DEFAULT_BRANCH`.
+
+If the user specified an issue, read it for PR title/body context.
+
+### Step 2: Stage and Commit Remaining Work (if any)
+
+If there are uncommitted changes (staged or unstaged):
+
+```bash
+git add <relevant-files>
+git commit -m "<descriptive message>"
+```
+
+Follow normal commit conventions — no empty commits, meaningful messages.
+
+### Step 3: Push and Create Draft PR
+
+```bash
+# Push current branch to remote
+git push -u origin $CURRENT_BRANCH
+
+# Create draft PR against TARGET_BRANCH
+gh pr create \
+  --base <TARGET_BRANCH> \
+  --title "<PR_TITLE>" \
+  --body "$(cat <<'EOF'
+## Summary
+<brief description based on commits and diff>
+
+## Changes
+- <list actual changes from the diff/commits>
+
+## Test Plan
+- <describe how changes were tested, if known>
+EOF
+)" \
+  --draft
+```
+
+The PR title and body should reflect the **actual work done** (derived from commit messages and diff), not placeholder text.
+
+### Step 4: Continue or Report
+
+If the user provided additional implementation instructions, continue working on the branch and commit/push as needed.
+
+If no further instructions were provided, report the PR URL and wait for direction.
+
+---
+
 ## Examples
 
-### With issue number
+### Fresh-start: with issue number
 
 ```
-/dev-as-pr 42
--> Fetch, read issue #42 "Add dark mode support"
+/strategy-impl-as-pr 42
+-> Fetch, detect on main → Fresh-Start Mode
+-> Read issue #42 "Add dark mode support"
 -> Branch: issue-#42/add-dark-mode-support
--> Base: current branch
+-> Base: main
 -> Empty commit, push, draft PR
 -> Start implementing based on issue
 ```
 
-### With explicit branch and base
+### Fresh-start: with explicit branch and base
 
 ```
-/dev-as-pr branch:feature/new-auth base:develop
--> Fetch
+/strategy-impl-as-pr branch:feature/new-auth base:develop
+-> Fetch, detect on develop → Fresh-Start Mode
 -> Branch: feature/new-auth
 -> Base: develop
 -> Empty commit, push, draft PR
 ```
 
-### With instructions only
+### Fresh-start: with instructions only
 
 ```
-/dev-as-pr add pagination to the user list page
--> Fetch
+/strategy-impl-as-pr add pagination to the user list page
+-> Fetch, detect on main → Fresh-Start Mode
 -> Branch: topic/add-pagination-user-list
--> Base: current branch
+-> Base: main
 -> Empty commit, push, draft PR
 -> Start implementing pagination
 ```
 
-### Documentation update
+### Existing-work: implementation already done on branch
 
 ```
-/dev-as-pr update API docs for v2 endpoints
--> Fetch
--> Branch: doc/update-api-docs-v2-endpoints
--> Base: current branch
--> Empty commit, push, draft PR
--> Start updating docs
+/strategy-impl-as-pr
+-> Fetch, detect on topic/add-search-feature with 3 commits ahead → Existing-Work Mode
+-> Push branch, create draft PR with summary from actual commits
+-> Report PR URL
+```
+
+### Existing-work: with issue reference for context
+
+```
+/strategy-impl-as-pr 42
+-> Fetch, detect on issue-#42/add-dark-mode with commits ahead → Existing-Work Mode
+-> Read issue #42 for PR title/body context
+-> Push branch, create draft PR
+-> Report PR URL
 ```

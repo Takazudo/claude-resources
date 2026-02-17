@@ -55,7 +55,7 @@ Create a **detailed, self-contained prompt** that the writer subagent can use wi
 6. **Images**: If images were copied in Step 1.5, list each with its markdown path and a description of what it shows and where it should be placed in the article
 7. **Conclusion**: What was the outcome, what was learned
 8. **Tone guidance**: Any specific angle or framing (if applicable)
-9. **Suggested tags**: Suggest tag IDs from the tag list (the writer will read the tags doc)
+9. **Suggested tags**: Suggest tag IDs from the tag list (the writer will read the tags doc). Suggest at most 7 tags — prefer broader tags over overly specific ones. See the tag selection rules in `doc/docs/overview/tags.md`.
 
 The brief should be written so that someone with zero context could write the full article from it alone.
 
