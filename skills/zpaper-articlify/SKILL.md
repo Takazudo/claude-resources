@@ -25,6 +25,17 @@ Review the conversation history and identify:
 - Any opinions or insights expressed
 - **Images**: Any images attached to the conversation (screenshots, diagrams, etc.)
 
+### Step 1.3: Purge confidential information
+
+Before crafting the writing brief, scan the gathered context for client-identifying information:
+
+- Replace client/company names with generic placeholders (`acme-corp`, `some-client`)
+- Anonymize project-specific file names and variable names (`some-project`, `SomeComponent`)
+- Remove internal URLs and staging URLs
+- Remove client-specific internal tool names
+
+**Exception**: Takazudo's personal projects and Takazudo Modular are public — keep them as-is.
+
 ### Step 1.5: Handle images (if any)
 
 If images were provided in the conversation (attached screenshots, diagrams, etc.):
@@ -56,6 +67,8 @@ Create a **detailed, self-contained prompt** that the writer subagent can use wi
 7. **Conclusion**: What was the outcome, what was learned
 8. **Tone guidance**: Any specific angle or framing (if applicable)
 9. **Suggested tags**: Suggest tag IDs from the tag list (the writer will read the tags doc). Suggest at most 7 tags — prefer broader tags over overly specific ones. See the tag selection rules in `doc/docs/overview/tags.md`.
+
+The brief must not contain any client-identifying information. All confidential details should have been purged in Step 1.3.
 
 The brief should be written so that someone with zero context could write the full article from it alone.
 

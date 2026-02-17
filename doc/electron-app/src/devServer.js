@@ -23,6 +23,25 @@ function sleep(ms) {
 }
 
 /**
+ * Kill any process occupying the given port
+ * @param {number} port - Port number to free
+ */
+function killProcessOnPort(port) {
+  try {
+    const output = execSync(`lsof -ti tcp:${port}`, { encoding: "utf-8" });
+    const pids = output.trim().split("\n").filter(Boolean);
+    for (const pid of pids) {
+      process.kill(Number(pid), "SIGKILL");
+    }
+    if (pids.length > 0) {
+      console.log(`Killed stale process(es) on port ${port}: ${pids.join(", ")}`);
+    }
+  } catch {
+    // No process on port - fine
+  }
+}
+
+/**
  * Check if the server is responding
  * @param {string} url - URL to check
  * @returns {Promise<boolean>}
@@ -39,7 +58,8 @@ function isServerReady(url) {
           method: "HEAD",
           timeout: HTTP_REQUEST_TIMEOUT_MS,
         },
-        (res) => resolve(res.statusCode === 200)
+        // Accept any HTTP response as proof the server is alive
+        (res) => resolve(res.statusCode > 0)
       );
 
       req.on("error", () => resolve(false));
@@ -75,49 +95,7 @@ async function waitForServer(url, timeout) {
 }
 
 /**
- * Build the Docusaurus site
- * @param {string} siteDir - Path to the site directory
- * @returns {Promise<void>}
- */
-function buildSite(siteDir) {
-  return new Promise((resolve, reject) => {
-    console.log("Building site...");
-
-    // Build shell command - source shell profile for proper PATH
-    const shellCommand = `source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null || true; cd "${siteDir}" && pnpm run build`;
-
-    const buildProcess = spawn(getShell(), ["-c", shellCommand], {
-      cwd: siteDir,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: getShellEnv(),
-    });
-
-    buildProcess.stdout.on("data", (data) => {
-      console.log(`[build] ${data.toString().trim()}`);
-    });
-
-    buildProcess.stderr.on("data", (data) => {
-      console.error(`[build] ${data.toString().trim()}`);
-    });
-
-    buildProcess.on("error", (err) => {
-      console.error("Build failed:", err);
-      reject(err);
-    });
-
-    buildProcess.on("exit", (code) => {
-      if (code === 0) {
-        console.log("Build completed successfully!");
-        resolve();
-      } else {
-        reject(new Error(`Build exited with code ${code}`));
-      }
-    });
-  });
-}
-
-/**
- * Start the static file server
+ * Start the Docusaurus dev server (with hot reload)
  * @param {string} projectRoot - Path to the project root (doc/ directory)
  * @returns {Promise<void>}
  */
@@ -139,12 +117,11 @@ function startDevServer(projectRoot) {
       }
     };
 
-    console.log("Starting server...");
+    console.log("Starting dev server...");
     console.log("Project root:", projectRoot);
 
     // The site is in projectRoot/site
     const siteDir = path.join(projectRoot, "site");
-    const buildDir = path.join(siteDir, "build");
 
     // Verify project exists
     if (!fs.existsSync(siteDir)) {
@@ -153,19 +130,13 @@ function startDevServer(projectRoot) {
     }
 
     try {
-      // Build the site first
-      await buildSite(siteDir);
+      // Kill any stale process on the port from a previous crash
+      killProcessOnPort(SERVER_PORT);
 
-      // Verify build directory exists
-      if (!fs.existsSync(buildDir)) {
-        safeReject(new Error(`Build directory not found at: ${buildDir}`));
-        return;
-      }
+      // Start Docusaurus dev server (runs generate + docusaurus start)
+      console.log("Starting Docusaurus dev server...");
 
-      // Start serving static files using docusaurus serve
-      console.log("Starting static file server...");
-
-      const shellCommand = `source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null || true; cd "${siteDir}" && pnpm exec docusaurus serve --port ${SERVER_PORT} --host claude.localhost --no-open`;
+      const shellCommand = `source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null || true; cd "${siteDir}" && pnpm run start:silent`;
 
       serverProcess = spawn(getShell(), ["-c", shellCommand], {
         cwd: siteDir,
@@ -175,22 +146,22 @@ function startDevServer(projectRoot) {
       });
 
       serverProcess.stdout.on("data", (data) => {
-        console.log(`[serve] ${data.toString().trim()}`);
+        console.log(`[dev] ${data.toString().trim()}`);
       });
 
       serverProcess.stderr.on("data", (data) => {
-        console.error(`[serve] ${data.toString().trim()}`);
+        console.error(`[dev] ${data.toString().trim()}`);
       });
 
       serverProcess.on("error", (err) => {
-        console.error("Failed to start server:", err);
+        console.error("Failed to start dev server:", err);
         safeReject(err);
       });
 
       serverProcess.on("exit", (code) => {
-        console.log(`Server exited with code ${code}`);
+        console.log(`Dev server exited with code ${code}`);
         if (code !== 0 && code !== null) {
-          safeReject(new Error(`Server exited with code ${code}`));
+          safeReject(new Error(`Dev server exited with code ${code}`));
         }
       });
 

@@ -1,20 +1,25 @@
 ---
 name: dev-package-json
 description: >
-  Organize and maintain package.json scripts sections for readability and maintainability. Use when:
-  (1) Reorganizing a large package.json scripts section, (2) Adding comment separators to group
-  scripts, (3) Extracting complex multi-process commands into shell scripts, (4) Setting up
-  multi-environment dev commands (local/preview/production), (5) User mentions 'organize
-  package.json', 'package.json readability', 'script sections', or 'multi-process dev script'.
-  Keywords: package.json, npm scripts, organize, separator, shell script, multi-process, dev
-  environment.
+  Organize and maintain package.json and npm-related config files (.npmrc, etc.) for readability,
+  maintainability, and security. Use when: (1) Reorganizing a large package.json scripts section,
+  (2) Adding comment separators to group scripts, (3) Extracting complex multi-process commands into
+  shell scripts, (4) Setting up multi-environment dev commands (local/preview/production), (5)
+  Handling pnpm "Ignored build scripts" warnings or evaluating dependency build scripts, (6)
+  Configuring .npmrc security settings (strictDepBuilds, allowBuilds, ignoredBuilds), (7) User
+  mentions 'organize package.json', 'package.json readability', 'script sections', 'multi-process
+  dev script', 'build scripts warning', 'npmrc', 'allowBuilds', 'ignoredBuilds', or 'supply chain
+  security'. Keywords: package.json, npm scripts, organize, separator, shell script, multi-process,
+  dev environment, .npmrc, pnpm, build scripts, security, supply chain, allowBuilds, ignoredBuilds.
 ---
 
-# package.json Scripts Organization
+# package.json & npm Config Management
+
+## Part 1: package.json Scripts Organization
 
 Two techniques for keeping large `scripts` sections readable and maintainable.
 
-## Technique 1: Comment Separator Keys
+### Technique 1: Comment Separator Keys
 
 Add visual section dividers using unused JSON keys:
 
@@ -33,7 +38,7 @@ Add visual section dividers using unused JSON keys:
 
 Format: `"// ── Section Name ──────..."` with `─` padding to ~50 chars, value `""`.
 
-## Technique 2: External Shell Scripts for Multi-Process Commands
+### Technique 2: External Shell Scripts for Multi-Process Commands
 
 When a command starts 2+ background processes, extract to `scripts/*.sh`.
 
@@ -63,7 +68,7 @@ Call from package.json: `"dev:full": "MODE=local ./scripts/dev-full.sh"`
 
 Make executable: `chmod +x scripts/*.sh`
 
-## Multi-Environment Pattern
+### Multi-Environment Pattern
 
 For apps with local/preview/production API targets:
 
@@ -76,10 +81,22 @@ For apps with local/preview/production API targets:
 }
 ```
 
-## Detailed Patterns
+### Detailed Patterns
 
 See [references/patterns.md](references/patterns.md) for:
 - Full list of suggested section names
 - Namespace prefixing for monorepo sub-packages
 - Internal/private script conventions (`_` prefix)
 - Complete multi-process shell script template with explanations
+
+---
+
+## Part 2: .npmrc Build Script Security Management
+
+Evaluate and manage dependency build scripts for supply chain security.
+
+See [references/npmrc-build-scripts.md](references/npmrc-build-scripts.md) for:
+- The full evaluation workflow for "Ignored build scripts" warnings
+- Decision criteria for allowBuilds vs ignoredBuilds
+- Common package evaluations (reference table)
+- .npmrc configuration patterns

@@ -17,6 +17,7 @@ Before writing, you MUST read these files in order:
 3. `$HOME/repos/w/zpaper/doc/docs/overview/markdown-writing-rule.md` - Markdown rules
 4. `$HOME/repos/w/zpaper/doc/docs/overview/vocabulary-rule.md` - Vocabulary rules
 5. `$HOME/repos/w/zpaper/doc/docs/overview/tags.md` - Tag IDs and label conventions
+6. `$HOME/repos/w/zpaper/doc/docs/overview/confidentiality-rule.md` - Confidentiality rules
 
 Also read 2-3 recent articles from `$HOME/repos/w/zpaper/blog/src/articles/` to calibrate tone (these are the published blog articles).
 
@@ -62,6 +63,8 @@ Do NOT include blog-specific frontmatter (`description`, `author`, `tags`, `crea
 - Common endings: `〜なので、それ。`, `〜わけで`, `〜良さそう`, `〜的な`, `〜とのこと`
 
 **Never invent emotions**: Do not add `〜と感じた`, `〜に感動した`, `〜が嬉しかった` unless the writing brief explicitly states those feelings.
+
+**Never include client-identifying information**: No client/company names, project-specific file/variable names, internal URLs, or other details that could identify a specific client engagement. Use generic placeholders. Exception: Takazudo's personal projects and Takazudo Modular are public.
 
 **Vocabulary**: `言う`=speech only, `いう`=explanation (`〜ということ`, `〜というわけ`)
 

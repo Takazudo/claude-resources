@@ -14,7 +14,7 @@ Coordinate parallel development of multiple related features using git worktrees
 ## Architecture
 
 ```
-main (default branch)
+<parent-branch> (the branch you branch from — could be main, develop, or a feature branch)
   └── base/<project-name>  (base branch, created by manager)
         ├── <project-name>/topicA  (child branch → PR into base)
         ├── <project-name>/topicB  (child branch → PR into base)
@@ -34,10 +34,11 @@ Each topic gets its own worktree directory, its own branch, and its own PR targe
 
 The manager session operates from the repo root directory. It:
 
-1. Creates the base branch from main
-2. Creates worktrees for each topic
-3. Reviews and merges topic PRs into the base branch
-4. Creates the final root PR (base → main)
+1. Creates the base branch from the parent branch
+2. Creates the root PR immediately (draft, with empty commit) — this locks in the correct parent branch
+3. Creates worktrees for each topic
+4. Reviews and merges topic PRs into the base branch
+5. Updates the root PR and marks it ready for review
 
 ### Child Sessions (worktree dirs)
 
@@ -50,20 +51,40 @@ Each child session operates from its own worktree directory. It:
 
 ## Manager Workflow
 
-### Step 1: Create Base Branch
+### Step 1: Create Base Branch and Root PR
+
+The base branch is created from whichever branch is the "parent" — this is often `main` or `develop`, but can also be a feature branch.
+
+**CRITICAL**: Create the root PR immediately with an empty commit. This locks in the correct parent branch from the start, so you never forget or misidentify it later. This follows the same principle as `/strategy-impl-as-pr`.
 
 ```bash
-# Ensure main is up to date
-git checkout main
-git pull origin main
+# Ensure parent branch is up to date
+git checkout <parent-branch>
+git pull origin <parent-branch>
 
-# Create and push the base branch
+# Create the base branch
 git checkout -b base/<project-name>
+
+# Create empty start commit and push
+git commit --allow-empty -m "= start <project-name> dev ="
 git push -u origin base/<project-name>
 
-# Return to main
-git checkout main
+# Create the root PR immediately (draft, targeting parent branch)
+gh pr create \
+  --base <parent-branch> \
+  --title "<project-name>: root PR title" \
+  --body "$(cat <<'EOF'
+## Summary
+(in progress)
+
+## Topic PRs
+(to be added as topics are completed)
+EOF
+)" \
+  --draft
 ```
+
+Save the root PR number — you will update it as topics are merged.
 
 ### Step 2: Create Worktrees
 
@@ -126,15 +147,13 @@ gh pr merge <pr-number>
 
 **IMPORTANT**: Do not skip merging PRs. If topic work is merged directly into the base branch without going through the PR, close the PR explicitly: `gh pr close &lt;pr-number&gt; --comment "Merged outside PR"`. Leaving PRs open with deleted branches causes confusion.
 
-### Step 6: Create Root PR
+### Step 6: Update Root PR and Mark Ready
 
-After all topics are merged into the base branch:
+The root PR was already created in Step 1. After all topics are merged, update it with the final summary and mark it ready for review.
 
 ```bash
-# Create the root PR: base → main
-gh pr create --base main --head base/<project-name> \
-  --title "Root PR title" \
-  --body "$(cat <<'EOF'
+# Update the root PR body with merged topic details
+gh pr edit <root-pr-number> --body "$(cat <<'EOF'
 ## Summary
 - Merged topicA: description
 - Merged topicB: description
@@ -146,6 +165,9 @@ gh pr create --base main --head base/<project-name> \
 - #N topicC
 EOF
 )"
+
+# Mark ready for review (remove draft status)
+gh pr ready <root-pr-number>
 ```
 
 ### Step 7: Cleanup
@@ -201,14 +223,15 @@ gh pr create --base base/<project-name> \
 
 ## Important Rules
 
-1. **Always pull main before creating the base branch** — stale bases cause conflicts
-2. **Never force push** — regular merge only, preserves history
-3. **Topic PRs target the base branch**, not main
-4. **Root PR targets main** from the base branch
-5. **worktrees/ must be in .gitignore** — worktrees are local only
-6. **Manager session stays at repo root** — never cd into worktrees for git ops
-7. **Each child session stays in its worktree** — git ops affect that branch only
-8. **Always merge PRs before cleanup** — never leave topic PRs or the root PR open. Open PRs with stale branches cause confusion later. The full flow is: merge topic PRs → merge root PR → then cleanup branches. If you merge directly (e.g., fast-forward on the command line) instead of via the PR, close the PR explicitly with a comment explaining it was merged outside the PR
+1. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts
+2. **Create the root PR immediately in Step 1** — an empty commit + draft PR locks in the correct parent branch. This prevents the common mistake of forgetting or misidentifying the parent branch later when creating the root PR at the end
+3. **Never force push** — regular merge only, preserves history
+4. **Topic PRs target the base branch**, not the parent branch
+5. **Root PR targets the parent branch** — this is handled automatically by creating it in Step 1
+6. **worktrees/ must be in .gitignore** — worktrees are local only
+7. **Manager session stays at repo root** — never cd into worktrees for git ops
+8. **Each child session stays in its worktree** — git ops affect that branch only
+9. **Always merge PRs before cleanup** — never leave topic PRs or the root PR open. Open PRs with stale branches cause confusion later. The full flow is: merge topic PRs → update root PR → merge root PR → then cleanup branches. If you merge directly (e.g., fast-forward on the command line) instead of via the PR, close the PR explicitly with a comment explaining it was merged outside the PR
 
 ## Prerequisites
 
@@ -219,9 +242,16 @@ gh pr create --base base/<project-name> \
 ## Quick Reference
 
 ```bash
-# Manager: full setup
-git checkout main && git pull origin main
-git checkout -b base/my-project && git push -u origin base/my-project && git checkout main
+# Manager: full setup (replace <parent-branch> with the branch you're branching from)
+git checkout <parent-branch> && git pull origin <parent-branch>
+git checkout -b base/my-project
+git commit --allow-empty -m "= start my-project dev ="
+git push -u origin base/my-project
+
+# Create root PR immediately (locks in correct parent branch!)
+gh pr create --base <parent-branch> --title "My Project: root PR" --draft --body "## Summary\n(in progress)"
+
+# Create worktrees
 git worktree add worktrees/topic1 -b my-project/topic1 base/my-project
 git worktree add worktrees/topic2 -b my-project/topic2 base/my-project
 
@@ -229,9 +259,10 @@ git worktree add worktrees/topic2 -b my-project/topic2 base/my-project
 git push -u origin my-project/topic1
 gh pr create --base base/my-project --title "Topic1: description"
 
-# Manager: merge topics and create root PR
+# Manager: merge topics, update root PR, mark ready
 gh pr merge <topic1-pr> && gh pr merge <topic2-pr>
-gh pr create --base main --head base/my-project --title "My Project: root PR"
+gh pr edit <root-pr> --body "## Summary\n- topic1\n- topic2"
+gh pr ready <root-pr>
 
 # Manager: cleanup after root PR merged
 git worktree remove worktrees/topic1 && git worktree remove worktrees/topic2

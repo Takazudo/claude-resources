@@ -1,0 +1,131 @@
+---
+title: ".npmrc Build Script Security Management"
+---
+
+# .npmrc Build Script Security Management
+
+**Skill:** [dev-package-json](../dev-package-json.mdx)
+
+---
+
+# .npmrc Build Script Security Management
+
+## Background
+
+pnpm's `strictDepBuilds=true` blocks all dependency lifecycle scripts (`postinstall`, `install`, `prepare`, etc.) by default. This is a supply chain attack countermeasure. Packages with blocked scripts produce:
+
+```
+Warning: Ignored build scripts: @parcel/watcher@2.5.4, core-js@3.48.0, ...
+Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
+```
+
+**Do NOT blindly approve all.** Evaluate each package individually.
+
+## Evaluation Workflow
+
+When the warning appears:
+
+### Step 1: Identify the scripts
+
+For each package in the warning, check what script it runs:
+
+```bash
+node -e "const p = require('./node_modules/<pkg>/package.json'); console.log(JSON.stringify(p.scripts, null, 2))"
+```
+
+Look for: `install`, `postinstall`, `preinstall`, `prepare`, `prebuild`.
+
+### Step 2: Read the actual script code
+
+```bash
+# Check what the script does
+cat node_modules/<pkg>/postinstall.js
+cat node_modules/<pkg>/scripts/build-from-source.js
+```
+
+### Step 3: Classify into one of three categories
+
+| Category | Config key | Criteria |
+|----------|-----------|----------|
+| **Allow** | `allowBuilds[]` | Script execution is required for the package to function (native bindings, code generation) |
+| **Ignore** | `ignoredBuilds[]` | Script is harmless but unnecessary (banners, echo messages, optional telemetry) |
+| **Neither** | (leave as warning) | Needs further investigation or is suspicious |
+
+### Step 4: Document the decision in .npmrc
+
+```ini
+# allowBuilds: scripts that must run
+# - <pkg>: <reason why it's needed>
+allowBuilds[]=<pkg>
+
+# ignoredBuilds: scripts evaluated and deemed unnecessary
+# - <pkg>: <what the script does and why it's not needed>
+ignoredBuilds[]=<pkg>
+```
+
+## Decision Criteria
+
+### Allow (`allowBuilds[]`) when:
+
+- **Native bindings** that must compile for the platform (and no prebuilt binary is available)
+  - Examples: `node-gyp rebuild`, native addon compilation
+- **Code generation** required at install time
+- **Package won't work** without the script running
+
+### Ignore (`ignoredBuilds[]`) when:
+
+- **Donation/sponsorship banners** (e.g., core-js)
+- **Echo/console messages** (e.g., "don't forget to install X")
+- **Prebuilt binaries exist** as separate platform packages (e.g., `@parcel/watcher` has `@parcel/watcher-darwin-arm64`)
+- **Optional telemetry** or usage tracking
+- Script only runs under specific conditions that don't apply (e.g., `if npm_config_build_from_source === 'true'`)
+
+### Investigate further when:
+
+- Script downloads external code at install time
+- Script modifies files outside its own package directory
+- Script has obfuscated or minified code
+- Unknown package with complex postinstall
+
+## Common Package Evaluations (Reference)
+
+| Package | Script | What it does | Verdict |
+|---------|--------|-------------|---------|
+| `core-js` | `postinstall` | Donation banner display | **Ignore or Allow** (harmless) |
+| `core-js-pure` | `postinstall` | Same as core-js | **Ignore or Allow** (harmless) |
+| `@parcel/watcher` | `install` | `build-from-source.js` - only runs when `npm_config_build_from_source=true`. Prebuilt binaries provided via `@parcel/watcher-{platform}` | **Ignore** |
+| `svelte-preprocess` | `postinstall` | `echo` message about installing preprocessor packages | **Ignore** |
+| `unrs-resolver` | `postinstall` | Native binding setup | **Allow** (required) |
+| `esbuild` | `postinstall` | Downloads platform-specific binary | **Allow** (required) |
+| `sharp` | `install` | Downloads libvips native binary | **Allow** (required) |
+| `husky` | `prepare` | Sets up git hooks | **Allow** (required for dev workflow) |
+
+This table should be expanded as new packages are evaluated.
+
+## .npmrc Configuration Example
+
+```ini
+# Security: block all lifecycle scripts by default
+strictDepBuilds=true
+
+# allowBuilds: packages whose scripts must run
+# - core-js / core-js-pure: postinstall donation banner (harmless, allowing is fine)
+# - unrs-resolver: native binding build (required)
+allowBuilds[]=core-js
+allowBuilds[]=core-js-pure
+allowBuilds[]=unrs-resolver
+
+# ignoredBuilds: packages whose scripts are not needed (warning suppressed)
+# - @parcel/watcher: prebuilt binaries available, install script is for manual build only
+# - svelte-preprocess: postinstall is just an echo message
+ignoredBuilds[]=@parcel/watcher
+ignoredBuilds[]=svelte-preprocess
+```
+
+## Key Principles
+
+1. **Default deny** — `strictDepBuilds=true` blocks everything
+2. **Evaluate each package** — never bulk-approve with `pnpm approve-builds` selecting all
+3. **Document decisions** — comments in `.npmrc` explain why each package is allowed/ignored
+4. **Re-evaluate on update** — when a package version changes, its scripts may change too
+5. **Check prebuilt binaries** — many native packages now ship platform-specific prebuilts (e.g., `@pkg/tool-darwin-arm64`), making their install scripts unnecessary

@@ -63,11 +63,34 @@ function getShellEnv() {
 }
 ```
 
+## Kill Stale Port Before Start
+
+When the app crashes or is force-quit, the old dev server may survive and hold the port. Kill it before starting a new one:
+
+```javascript
+const { execSync } = require("child_process");
+
+function killProcessOnPort(port) {
+  try {
+    const output = execSync(`lsof -ti tcp:${port}`, { encoding: "utf-8" });
+    const pids = output.trim().split("\n").filter(Boolean);
+    for (const pid of pids) {
+      process.kill(Number(pid), "SIGKILL");
+    }
+  } catch {
+    // No process on port - fine
+  }
+}
+```
+
 ## Starting Dev Server
 
 ```javascript
 async function startDevServer(projectRoot) {
   const env = await getShellEnv();
+
+  // Kill any leftover process on the port
+  killProcessOnPort(SERVER_PORT);
 
   return new Promise((resolve, reject) => {
     serverProcess = spawn("pnpm", ["start"], {
@@ -91,6 +114,33 @@ async function startDevServer(projectRoot) {
     setTimeout(resolve, 10000);
   });
 }
+```
+
+## Health Check: Accept Any HTTP Response
+
+When polling the server URL, don't require HTTP 200. Frameworks with a non-root `baseUrl` (e.g., Docusaurus `baseUrl: "/pj/app/doc/"`) return 404 for `/`. Any HTTP response means the server is up:
+
+```javascript
+function isServerReady(url) {
+  return new Promise((resolve) => {
+    const urlObj = new URL(url);
+    const req = http.request(
+      {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 80,
+        path: "/",
+        method: "HEAD",
+        timeout: 2000,
+      },
+      // CORRECT: any response means server is alive
+      (res) => resolve(res.statusCode > 0)
+    );
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+    req.end();
+  });
+}
+```
 ```
 
 ## Process Group Cleanup (Unix)
@@ -140,9 +190,9 @@ function createSplashWindow() {
 ```html
 <!-- splash.html -->
 <!DOCTYPE html>
-<html>
-<head>
-  <style>
+&lt;html&gt;
+&lt;head&gt;
+  &lt;style&gt;
     body {
       margin: 0;
       display: flex;
@@ -166,7 +216,7 @@ function createSplashWindow() {
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
-<body>
+&lt;body&gt;
   <div class="spinner"></div>
   <p>Starting...</p>
 </body>

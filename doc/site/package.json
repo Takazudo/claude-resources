@@ -8,6 +8,7 @@
     "generate-doc-titles": "node scripts/generate-doc-titles.js",
     "generate": "pnpm run generate-docs && pnpm run generate-doc-titles",
     "start": "pnpm run generate && docusaurus start --port 9987 --host claude.localhost",
+    "start:silent": "pnpm run generate && docusaurus start --port 9987 --host claude.localhost --no-open",
     "build": "pnpm run generate && docusaurus build",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve --port 9987 --host claude.localhost"

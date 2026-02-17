@@ -244,6 +244,50 @@ win.webContents.setWindowOpenHandler(({ url }) => {
 
 This compares origins so same-origin links stay in the app while external URLs open in the default browser.
 
+### Dev Server: Kill Stale Port Before Start
+
+When the app crashes or is force-quit, the old dev server process may survive and hold the port. On next launch the new server can't bind, causing a timeout. Kill any existing process on the port before spawning:
+
+```javascript
+const { execSync } = require("child_process");
+
+function killProcessOnPort(port) {
+  try {
+    const output = execSync(`lsof -ti tcp:${port}`, { encoding: "utf-8" });
+    const pids = output.trim().split("\n").filter(Boolean);
+    for (const pid of pids) {
+      process.kill(Number(pid), "SIGKILL");
+    }
+  } catch {
+    // No process on port - fine
+  }
+}
+```
+
+### Dev Server: Health Check Must Not Require HTTP 200
+
+When the dev server framework uses a non-root `baseUrl` (e.g., Docusaurus with `baseUrl: "/pj/app/doc/"`), the root path `/` returns 404. **Accept any HTTP response** as proof the server is alive:
+
+```javascript
+// WRONG - breaks when baseUrl is not "/"
+(res) => resolve(res.statusCode === 200)
+
+// CORRECT - any response means server is up
+(res) => resolve(res.statusCode > 0)
+```
+
+### Dev Server: Default URL Must Include baseUrl
+
+When the framework uses a non-root `baseUrl`, the default URL for tabs/webviews must include the full path. Otherwise the app opens to a 404 page:
+
+```javascript
+// WRONG - opens to 404 when baseUrl is "/pj/app/doc/"
+const defaultUrl = "http://localhost:3000";
+
+// CORRECT - include the full baseUrl path
+const defaultUrl = "http://localhost:3000/pj/app/doc/";
+```
+
 ### nodenv/anyenv PATH Issues
 
 Spawned processes don't inherit version managers. Source shell profile first. See [references/background-process.md](references/background-process.md).

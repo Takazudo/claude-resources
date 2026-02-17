@@ -52,7 +52,7 @@ async function initialize() {
       return;
     }
 
-    // Start the server (builds and serves)
+    // Start the dev server (generates docs + docusaurus start with hot reload)
     await startDevServer(projectRoot);
 
     // Close splash and show main window
@@ -82,10 +82,15 @@ app.on("activate", async () => {
 });
 
 app.on("window-all-closed", () => {
-  // On macOS, keep app running until explicit quit
+  // Unregister shortcuts when no windows are open (app may still run on macOS)
+  unregisterGlobalShortcuts();
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  unregisterGlobalShortcuts();
 });
 
 app.on("will-quit", () => {

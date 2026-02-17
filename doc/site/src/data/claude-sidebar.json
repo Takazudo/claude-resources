@@ -140,14 +140,15 @@
           "id": "claude/skills/dev-package-json"
         },
         "items": [
+          "claude/skills/dev-package-json/npmrc-build-scripts",
           "claude/skills/dev-package-json/patterns"
         ]
       },
-      "claude/skills/docusaurus-amplify-fix",
-      "claude/skills/docusaurus-category-nav",
-      "claude/skills/docusaurus-doc-title",
-      "claude/skills/docusaurus-doc-title-with-top-layout",
-      "claude/skills/docusaurus-feature-skillify",
+      "claude/skills/dev-docusaurus-amplify-fix",
+      "claude/skills/dev-docusaurus-category-nav",
+      "claude/skills/dev-docusaurus-doc-title",
+      "claude/skills/dev-docusaurus-doc-title-with-top-layout",
+      "claude/skills/dev-docusaurus-feature-skillify",
       "claude/skills/easyeda2kicad",
       "claude/skills/format-md",
       "claude/skills/headless-browser",
@@ -214,6 +215,7 @@
       "claude/skills/strategy-impl-as-pr",
       "claude/skills/subagent-creator",
       "claude/skills/subagent-tweaker",
+      "claude/skills/sync-to",
       "claude/skills/watch-ci",
       "claude/skills/xlsx",
       "claude/skills/zpaper-apply-voice",
