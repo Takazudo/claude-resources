@@ -1,5 +1,5 @@
 ---
-name: docusaurus-feature-skillify
+name: dev-docusaurus-feature-skillify
 description: >-
   Extract a Docusaurus feature from the current project and package it as a reusable global skill.
   Takes a feature name as argument, explores the implementation in the current project's Docusaurus

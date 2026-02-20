@@ -70,6 +70,7 @@ Task tool:
 The subagent will:
 - Read the repo's writing style guides
 - Write the article in Japanese following esa conventions
+- Set `sidebar_position` using the formula `999999999999 - YYYYMMDDHHMM` (ensures newest articles appear first)
 - Save to the articles directory
 - Run formatting checks
 

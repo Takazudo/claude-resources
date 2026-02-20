@@ -92,6 +92,8 @@ if ! git merge "$SOURCE" --no-edit 2>/tmp/sync-to-merge-err; then
     echo "Conflicting files:"
     echo "$CONFLICTED" | sed 's/^/  - /'
   fi
+  echo ""
+  echo "Use /sync-force-to $TARGET to force-overwrite the target branch."
   exit 1
 fi
 

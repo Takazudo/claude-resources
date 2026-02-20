@@ -29,8 +29,14 @@ Also read 2-3 recent articles from the articles directory to calibrate tone.
 ---
 title: 日本語のタイトル
 sidebar_label: 短い表示名（任意）
+sidebar_position: <computed>
 ---
 ```
+
+**sidebar_position formula**: `999999999999 - YYYYMMDDHHMM`
+- Extract the 12-digit datetime from the filename (e.g., `20260220-1500` → `202602201500`)
+- Compute: `999999999999 - 202602201500 = 797397798499`
+- This ensures newer articles appear first in the sidebar (lower value = higher position)
 
 **Typical structure**:
 - `## 概要` (Overview)

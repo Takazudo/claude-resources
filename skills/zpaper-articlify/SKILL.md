@@ -85,6 +85,7 @@ Task tool:
 The subagent will:
 - Read the repo's writing style guides
 - Write the draft article in Japanese following zpaper conventions
+- Set `sidebar_position` using the formula `999999999999 - YYYYMMDDHHMM` (ensures newest articles appear first)
 - Save to the draft articles directory (`doc/docs/articles/`)
 - Run formatting checks
 - Report the file path

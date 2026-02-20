@@ -329,7 +329,7 @@ In a monorepo, `netlify dev` requires `--filter` to select the project. Without 
 
 ```bash
 # This works - selects the correct package
-netlify dev --functions=netlify/functions --offline --filter takazudo-modular
+netlify dev --functions=netlify/functions --offline --filter my-package
 
 # This gets stuck at interactive prompt
 netlify dev --functions=netlify/functions --offline
@@ -339,7 +339,7 @@ A typical `package.json` script:
 
 ```json
 {
-  "netlify:dev": "PNPM_DISABLE_TRUST_STORE=true pnpm --package=netlify-cli dlx netlify dev --functions=netlify/functions --offline --filter takazudo-modular"
+  "netlify:dev": "PNPM_DISABLE_TRUST_STORE=true pnpm --package=netlify-cli dlx netlify dev --functions=netlify/functions --offline --filter my-package"
 }
 ```
 
@@ -368,12 +368,12 @@ The `PNPM_DISABLE_TRUST_STORE=true` env var may **not** work with `pnpm dlx` eve
 1. **Install netlify-cli globally** instead of using `pnpm dlx`:
    ```bash
    npm install -g netlify-cli
-   netlify dev --functions=netlify/functions --offline --filter takazudo-modular
+   netlify dev --functions=netlify/functions --offline --filter my-package
    ```
 
 2. **Use npx** (if the global install exists):
    ```bash
-   npx netlify-cli dev --functions=netlify/functions --offline --filter takazudo-modular
+   npx netlify-cli dev --functions=netlify/functions --offline --filter my-package
    ```
 
 ### `netlify dev` Crash Workaround
@@ -386,7 +386,7 @@ Use `netlify functions:serve` to run just the functions server on **port 9999**,
 
 ```bash
 # Terminal 1: Start functions server (port 9999)
-netlify functions:serve --functions=netlify/functions --offline --filter takazudo-modular
+netlify functions:serve --functions=netlify/functions --offline --filter my-package
 
 # Terminal 2: Start Next.js dev server (port 34434)
 pnpm dev

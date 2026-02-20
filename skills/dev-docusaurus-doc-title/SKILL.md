@@ -1,5 +1,5 @@
 ---
-name: docusaurus-doc-title
+name: dev-docusaurus-doc-title
 description: >-
   Add DocsSitemap component with expand/collapse navigation to a Docusaurus site's landing page.
   Generates doc-titles.json from markdown frontmatter and renders a full docs sitemap with

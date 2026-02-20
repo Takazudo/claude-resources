@@ -52,7 +52,7 @@ gh issue view <issue-num>
 Use the helper script:
 
 ```bash
-bash ~/.claude/__inbox/start-wt-dev-skill-backup/scripts/create-worktree.sh <issue-number> [repo]
+bash ~/.claude/scripts/create-worktree.sh <issue-number> [repo]
 ```
 
 **Arguments:**
@@ -89,10 +89,10 @@ Tell the user:
 ### Example 1: With GitHub URL
 
 ```
-User: /start-wt-dev https://github.com/Takazudo/zmodular/issues/268
--> Parse URL: repo=Takazudo/zmodular, issue=268
+User: /start-wt-dev https://github.com/owner/repo/issues/42
+-> Parse URL: repo=owner/repo, issue=42
 -> Verify issue exists
--> Run script with: 268 Takazudo/zmodular
+-> Run script with: 42 owner/repo
 -> Output paths
 ```
 

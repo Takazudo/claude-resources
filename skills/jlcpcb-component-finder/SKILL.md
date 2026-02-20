@@ -11,118 +11,79 @@ description: >-
   Look up voltage regulators (LDO, linear, switching), audio jacks, connectors, or any other
   electronic parts. Keywords: JLCPCB, LCSC, electronic components, PCB parts, SMT assembly, BOM,
   bill of materials, component sourcing.
+allowed-tools:
+  - Bash
 ---
 
 # JLCPCB Parts Finder
 
-Search the JLCPCB electronic components database (~7 million parts) for hardware/electronics projects. Use when the user needs to: (1) Find electronic components (resistors, capacitors, ICs, connectors, etc.), (2) Look up specific part numbers or manufacturers, (3) Find alternatives or equivalents for components, (4) Check component availability and stock at JLCPCB, (5) Get component specifications (package type, description, etc.), or (6) Search for parts for PCB assembly projects.
+Search ~7 million electronic components in the local JLCPCB database.
 
-## Database Location
+## Database
 
-Database: `~/.jlcpcb-db/cache.sqlite3`
-
-If missing, user should download from https://yaqwsx.github.io/jlcparts/
+- Path: `~/.jlcpcb-db/cache.sqlite3` (~11 GB)
+- If missing, tell the user to run `/jlcpcb-component-finder-update-db`
 
 ## Query Script
 
-Use `~/.claude/skills/jlcpcb-component-finder/query.js` for all database queries.
+All queries use: `node ~/.claude/skills/jlcpcb-component-finder/query.js <command>`
 
-### List categories:
+### Commands
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `db-info` | `node query.js db-info` | Show DB stats (total parts, categories, stock count, DB date) |
+| `list-categories` | `node query.js list-categories [keyword]` | List categories, optionally filtered by keyword |
+| `search-parts` | `node query.js search-parts <cat_id> [keyword] [limit]` | Search within a specific category |
+| `search-all` | `node query.js search-all <keyword> [limit]` | Search across ALL categories by keyword |
+| `lookup` | `node query.js lookup <lcsc_number>` | Look up a specific part by LCSC number (e.g. C12084) |
+
+### Examples
 
 ```bash
-node ~/.claude/skills/jlcpcb-component-finder/query.js list-categories
-```
+# Check database status
+node ~/.claude/skills/jlcpcb-component-finder/query.js db-info
 
-### Search parts:
+# Find audio-related categories
+node ~/.claude/skills/jlcpcb-component-finder/query.js list-categories "audio"
 
-```bash
-node ~/.claude/skills/jlcpcb-component-finder/query.js search-parts <category_id> [keyword] [limit]
-```
-
-**Examples:**
-```bash
-# Search for 3.5mm audio jacks
+# Search for 3.5mm audio jacks in category 208
 node ~/.claude/skills/jlcpcb-component-finder/query.js search-parts 208 "3.5" 10
 
-# Search for LDO regulators
-node ~/.claude/skills/jlcpcb-component-finder/query.js search-parts 111 "LDO" 15
+# Search for CH340 across all categories
+node ~/.claude/skills/jlcpcb-component-finder/query.js search-all "CH340" 10
 
-# List all parts in a category (no keyword)
-node ~/.claude/skills/jlcpcb-component-finder/query.js search-parts 208 "" 20
+# Look up a specific part
+node ~/.claude/skills/jlcpcb-component-finder/query.js lookup C12084
 ```
-
-## Common Categories
-
-Quick reference for frequently used categories:
-
-- **Audio Connectors**: 208
-- **Linear Voltage Regulators**: 130
-- **LDO Regulators**: 111, 120
-- **PMIC - Current & Power Monitors & Regulators**: 512
-
-For other categories, use `list-categories` to find the appropriate ID.
 
 ## Workflow
 
 1. **Understand request** - What component does the user need?
-2. **Find category**:
-  - If known, proceed to search
-  - If unknown, list categories to find the right one
-3. **Search parts** with category ID and optional keyword
-4. **Present results**:
-  - Part number (C-prefix LCSC number)
-  - Manufacturer
-  - Description
-  - Package type
-  - Stock availability
-  - Detail page URL for each part
+2. **Find category** - Use `list-categories [keyword]` or `search-all` for quick discovery
+3. **Search parts** - Use `search-parts` with category ID, or `search-all` for cross-category
+4. **Present results** with LCSC number, manufacturer, description, package, stock, price, and URL
 
-## Output Format
+## Output Fields
 
-Results from query.js are formatted as:
-```
-C{lcsc}: {mfr} - {description} ({package}, Stock: {stock})
-   → https://jlcpcb.com/partdetail/C{lcsc}
-```
+Each result includes:
 
-Example:
-```
-C5155561: PJ-393-8P - 3.5mm Headphone Jack 1A -20℃~+70℃ 20V Gold Phosphor Bronze SMD Audio Connectors (SMD, Stock: 1995)
-   → https://jlcpcb.com/partdetail/C5155561
-```
-
-**Important:** Always include the URL in your response so users can view detailed specifications and datasheets.
+- **LCSC number** (C-prefix, e.g. C12084)
+- **Manufacturer** and **description**
+- **Package type** (e.g. SOP-8, 0805)
+- **Stock** availability (sorted highest first)
+- **Basic/Preferred** tags - Basic parts have lower assembly fees at JLCPCB
+- **Price** tiers (quantity breaks)
+- **Datasheet** URL (when available)
+- **Detail page** URL: `https://jlcpcb.com/partdetail/C{number}`
 
 ## Tips
 
+- **Basic parts** have the lowest JLCPCB assembly fee - prefer these when possible
+- **Preferred parts** are commonly used and well-stocked
 - Start with broader keywords if specific searches return no results
-- Part numbers may vary (e.g., "7812" vs "LM7812")
-- Results are sorted by stock (descending) - highest stock first
+- Use `search-all` when you don't know the category
+- Use `list-categories` with a keyword to narrow down category IDs
 - Limit initial searches to 10-20 results to avoid overwhelming output
-- For DIY projects, suggest through-hole over SMD when appropriate
-- Always show stock availability in recommendations
-
-## SQL Reference
-
-The query script uses these SQL patterns:
-
-**With keyword:**
-```sql
-SELECT lcsc, mfr, description, package, stock
-FROM components
-WHERE category_id = ? AND (mfr LIKE ? OR description LIKE ?)
-ORDER BY stock DESC LIMIT ?
-```
-
-**Without keyword:**
-```sql
-SELECT lcsc, mfr, description, package, stock
-FROM components
-WHERE category_id = ?
-ORDER BY stock DESC LIMIT ?
-```
-
-Alternative: Use sqlite3 CLI directly if needed:
-```bash
-sqlite3 ~/.jlcpcb-db/cache.sqlite3 "SELECT id, category, subcategory FROM categories LIMIT 10"
-```
+- Results are sorted by stock (descending) - highest stock = most available
+- Always include the detail page URL in recommendations

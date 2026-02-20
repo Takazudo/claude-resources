@@ -1,5 +1,5 @@
 ---
-name: docusaurus-doc-title-with-top-layout
+name: dev-docusaurus-doc-title-with-top-layout
 description: >-
   Add a two-column landing page layout with DocsSitemap to a Docusaurus site. Left column has sticky
   sidebar with title, tagline, logo, and quick links. Right column shows expand/collapse docs

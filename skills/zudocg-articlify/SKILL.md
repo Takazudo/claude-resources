@@ -73,7 +73,7 @@ The subagent will:
 - Read the repo's writing style guides
 - Write the article in Japanese following CodeGrid conventions
 - Save to the correct series directory
-- Update sidebars.js if needed
+- For new series: create `_category_.json` with descending position (`99999999 - YYYYMMDD`) so newer series appear first
 - Run formatting checks
 
 ### Step 4: Report back

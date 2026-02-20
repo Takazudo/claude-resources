@@ -34,19 +34,25 @@ You only handle step 1 — writing the draft.
 
 ## Article Format
 
-**Filename**: `title-in-kebab-case.md`
-- Use a descriptive kebab-case slug
+**Filename**: `YYYYMMDD-HHMM-title-in-kebab-case.md`
+- Use current date and appropriate time, followed by a descriptive kebab-case slug
 
 **Frontmatter** (Docusaurus style):
 ```yaml
 ---
 title: 日本語のタイトル
 sidebar_label: 短い表示名（任意）
+sidebar_position: <computed>
 ---
 ```
 
 - `title`: Japanese article title
 - `sidebar_label`: Optional shorter display name
+
+**sidebar_position formula**: `999999999999 - YYYYMMDDHHMM`
+- Extract the 12-digit datetime from the filename (e.g., `20260220-1500` → `202602201500`)
+- Compute: `999999999999 - 202602201500 = 797397798499`
+- This ensures newer articles appear first in the sidebar (lower value = higher position)
 
 Do NOT include blog-specific frontmatter (`description`, `author`, `tags`, `createdAt`) — those are added during the convert-to-article step.
 

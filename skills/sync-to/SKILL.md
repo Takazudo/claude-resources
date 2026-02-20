@@ -22,3 +22,7 @@ bash ~/.claude/skills/sync-to/scripts/sync-to.sh $ARGUMENTS
 ```
 
 Report the script output to the user verbatim. Do not add extra commentary unless there was an error.
+
+## Conflict handling
+
+If the script exits with a merge conflict error, immediately stop and ask the user to use `/sync-force-to` instead. Do not attempt to resolve conflicts manually.

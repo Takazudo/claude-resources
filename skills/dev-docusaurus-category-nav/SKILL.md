@@ -1,5 +1,5 @@
 ---
-name: docusaurus-category-nav
+name: dev-docusaurus-category-nav
 description: >-
   Add auto-generated CategoryNav component to Docusaurus category index pages. Use when adding
   category navigation to a Docusaurus doc site, or when the user says 'category nav', 'add category

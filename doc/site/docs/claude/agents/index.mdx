@@ -10,11 +10,12 @@ Global Claude Code subagents reference.
 
 These agents are available globally from `~/.claude/agents/`.
 
-## Available Agents (10)
+## Available Agents (11)
 
 - [`code-reviewer`](./code-reviewer.mdx) (opus) - code reviewer
 - [`markdown-generator`](./markdown-generator.mdx) (opus) - markdown file generator for creating markdown formatted text files based on user-provided context. It handles file management, URL formatting, and follows strict guidelines for markdown generation.
 - [`markdown-writer`](./markdown-writer.mdx) (opus) - markdown writer
+- [`repo-syncer`](./repo-syncer.mdx) (sonnet) - Git pull-push sync agent for a single repository. Handles fetch, pull with rebase, conflict resolution, and push.
 - [`researcher`](./researcher.mdx) (opus) - researcher
 - [`safe-developer`](./safe-developer.mdx) (opus) - standard developer agent for implementing code changes based on user requirements. It follows a strict development workflow with mandatory approval gates and prioritizes safety, correctness, and clear communication.
 - [`tdd-developer`](./tdd-developer.mdx) (opus) - TDD developer agent for implementing code changes based on user requirements. It follows a strict development workflow with mandatory approval gates and prioritizes safety, correctness, and clear communication.

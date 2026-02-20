@@ -1,5 +1,5 @@
 ---
-name: docusaurus-amplify-fix
+name: dev-docusaurus-amplify-fix
 description: >-
   Fix trailing slash 404 errors in Docusaurus sites deployed on AWS Amplify. Use when: (1)
   Docusaurus documentation pages return 404 with trailing slash URLs (e.g., /docs/page/ returns 404

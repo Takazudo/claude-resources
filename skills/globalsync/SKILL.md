@@ -1,0 +1,59 @@
+---
+name: globalsync
+description: Sync all personal repos across machines via git pull & push. Use when: (1) User says 'globalsync', 'sync repos', 'pull push all', (2) User wants to sync their daily resources across machines, (3) User starts or ends a work session and needs repos up to date.
+allowed-tools: Bash, Read, Task
+---
+
+# globalsync
+
+Sync all personal repos across machines by running git pull & push on each repo in parallel.
+
+## Target Repos
+
+Work resources (`$HOME/repos/w/`):
+- `cg` - CodeGrid writing (Docusaurus)
+- `esa` - esa writing (Docusaurus)
+- `message` - Message writing helper (Docusaurus)
+- `zpaper` - Personal blog & writing (Next.js + Docusaurus)
+
+Standalone:
+- `~/.claude` - Claude Code settings, skills, agents, commands
+
+Personal resources (`$HOME/repos/p/`):
+- `claude-resources` - Claude Code config & resources
+- `dotconfigetc` - ~/.config managed entries
+- `dotconfignvim` - Neovim/VimR config
+- `dotfiles` - Shared dotfiles across Macs
+
+## Workflow
+
+1. Collect all repo paths from the two parent directories
+2. Spawn a `repo-syncer` subagent for each repo in parallel using the Task tool
+3. Wait for all agents to complete
+4. Report a summary table of results
+
+## Execution
+
+Spawn all repo-syncer agents in parallel like this:
+
+```
+Task tool calls (all in one message for parallel execution):
+- For each repo directory:
+  subagent_type: "repo-syncer"
+  prompt: "Sync the git repository at <repo-path>. Pull remote changes, resolve any conflicts, and push local changes."
+```
+
+## Summary Format
+
+After all agents complete, report results as:
+
+```
+## Sync Results
+
+| Repo | Status | Details |
+|------|--------|---------|
+| w/cg | OK | pulled 3 commits, pushed 1 |
+| w/esa | OK | already up to date |
+| p/dotfiles | CONFLICT | needs user decision - .zshrc has overlapping edits |
+| ... | ... | ... |
+```

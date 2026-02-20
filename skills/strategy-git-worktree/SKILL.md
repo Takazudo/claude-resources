@@ -1,17 +1,16 @@
 ---
 name: strategy-git-worktree
 description: >-
-  Parallel multi-topic development using git worktrees with a base branch strategy. Use when: (1)
-  User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base
-  branch', or 'parallel development', (3) User wants a manager session to coordinate child sessions,
-  (4) User says 'split into topics' or 'multi-topic development'. Covers: base branch creation,
-  worktree initialization, topic branch management, PR strategy (topic PRs into base, root PR into
-  main), and manager/child session coordination.
+  Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code
+  agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User
+  mentions 'worktree', 'base branch', or 'parallel development', (3) User says 'split into topics'
+  or 'multi-topic development'. This skill is FULLY AUTONOMOUS — it creates worktrees, spawns agent
+  teams, and coordinates everything automatically. No manual child sessions needed.
 ---
 
 # Git Worktree Multi-Topic Development
 
-Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and manager/child Claude Code sessions.
+Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and Claude Code agent teams. **This is fully automated** — you (the manager) create the infrastructure and spawn child agents to do the work. Never ask the user to manually start sessions in worktrees.
 
 ## Architecture
 
@@ -23,41 +22,31 @@ Coordinate parallel development of multiple related features using git worktrees
         └── <project-name>/topicC  (child branch → PR into base)
 
 worktrees/
-  ├── <topicA>/  (worktree for topicA branch)
-  ├── <topicB>/  (worktree for topicB branch)
-  └── <topicC>/  (worktree for topicC branch)
+  ├── <topicA>/  (worktree for topicA, child agent works here)
+  ├── <topicB>/  (worktree for topicB, child agent works here)
+  └── <topicC>/  (worktree for topicC, child agent works here)
 ```
 
-Each topic gets its own worktree directory, its own branch, and its own PR targeting the base branch. The manager merges topic PRs into the base branch, then creates one root PR from base into main.
+Each topic gets its own worktree directory, its own branch, and its own PR targeting the base branch. The manager merges topic PRs into the base branch, then creates one root PR from base into the parent branch.
 
-## Roles
+## Fully Automated Workflow
 
-### Manager Session (root repo)
+**IMPORTANT**: You are the manager. You handle ALL steps automatically:
+1. Create base branch + root PR
+2. Create worktrees for each topic
+3. Set up environment in worktrees
+4. Use TeamCreate + Task tool to spawn child agents in worktrees
+5. Monitor child agents, review their PRs, merge into base
+6. Update root PR and mark ready
+7. Clean up worktrees and branches
 
-The manager session operates from the repo root directory. It:
-
-1. Creates the base branch from the parent branch
-2. Creates the root PR immediately (draft, with empty commit) — this locks in the correct parent branch
-3. Creates worktrees for each topic
-4. Reviews and merges topic PRs into the base branch
-5. Updates the root PR and marks it ready for review
-
-### Child Sessions (worktree dirs)
-
-Each child session operates from its own worktree directory. It:
-
-1. Implements its assigned topic
-2. Commits and pushes to its topic branch
-3. Creates a PR targeting the base branch
-4. Addresses review feedback from the manager
-
-## Manager Workflow
+**Never ask the user to manually cd into worktrees or start Claude sessions.** Use the Task tool to spawn agents that work in each worktree directory.
 
 ### Step 1: Create Base Branch and Root PR
 
 The base branch is created from whichever branch is the "parent" — this is often `main` or `develop`, but can also be a feature branch.
 
-**CRITICAL**: Create the root PR immediately with an empty commit. This locks in the correct parent branch from the start, so you never forget or misidentify it later. This follows the same principle as `/strategy-impl-as-pr`.
+**CRITICAL**: Create the root PR immediately with an empty commit. This locks in the correct parent branch from the start.
 
 ```bash
 # Ensure parent branch is up to date
@@ -123,20 +112,36 @@ for wt in worktrees/*/; do
 done
 ```
 
-### Step 4: Launch Child Sessions
+### Step 4: Spawn Child Agents via Teams
 
-Tell the user to start a new Claude Code session in each worktree directory:
+Use TeamCreate to create a team, then use the Task tool to spawn child agents — one per topic. Each agent works in its own worktree directory.
 
 ```
-cd worktrees/<topic-name>
-claude
+1. TeamCreate with team_name: "<project-name>"
+2. TaskCreate for each topic (implementation tasks)
+3. Task tool to spawn agents with:
+   - subagent_type: "safe-developer" (or "general-purpose")
+   - team_name: "<project-name>"
+   - name: "topic-<name>"  (e.g., "topic-topicA")
+   - prompt: Detailed instructions including:
+     a. The worktree absolute path to work in
+     b. What to implement for this topic
+     c. Branch name: <project-name>/<topic-name>
+     d. Base branch: base/<project-name>
+     e. Instructions to commit, push, and create PR targeting base branch
+     f. PR creation command: gh pr create --base base/<project-name>
 ```
 
-Or use Claude Code teams with the Task tool to spawn child agents in each worktree.
+**Spawn all child agents in parallel** using multiple Task tool calls in a single message. Each agent should:
+1. Work in its assigned worktree directory
+2. Implement the topic
+3. Commit and push changes
+4. Create a PR targeting `base/<project-name>`
+5. Report back when done
 
 ### Step 5: Review and Merge Topic PRs
 
-As child sessions complete work and create PRs, **merge each topic PR via GitHub** (not command-line merge). This keeps the PR marked as "Merged" and avoids stale open PRs.
+As child agents complete work and create PRs, **merge each topic PR via GitHub** (not command-line merge). This keeps the PR marked as "Merged" and avoids stale open PRs.
 
 ```bash
 # Review each topic PR
@@ -151,7 +156,7 @@ gh pr merge <pr-number>
 
 ### Step 6: Update Root PR and Mark Ready
 
-The root PR was already created in Step 1. After all topics are merged, update it with the final summary and mark it ready for review.
+After all topics are merged, update the root PR with the final summary and mark it ready for review.
 
 ```bash
 # Update the root PR body with merged topic details
@@ -172,11 +177,13 @@ EOF
 gh pr ready <root-pr-number>
 ```
 
-### Step 7: Cleanup
+### Step 7: Shutdown Team and Cleanup
 
 After the root PR is merged:
 
 ```bash
+# Send shutdown to all agents, then TeamDelete
+
 # Remove worktrees
 for wt in worktrees/*/; do
   git worktree remove "$wt"
@@ -191,30 +198,6 @@ git branch -d base/<project-name>
 git push origin --delete base/<project-name>
 ```
 
-## Child Session Workflow
-
-### Step 1: Verify Branch
-
-```bash
-git branch --show-current
-# Should show: <project-name>/<topic-name>
-```
-
-### Step 2: Implement
-
-Work normally — edit files, run tests, commit.
-
-### Step 3: Push and Create PR
-
-```bash
-git push -u origin <project-name>/<topic-name>
-
-# Create PR targeting the base branch
-gh pr create --base base/<project-name> \
-  --title "Topic: description" \
-  --body "Description of changes"
-```
-
 ## Branch Naming Conventions
 
 | Type | Pattern | Example |
@@ -225,47 +208,19 @@ gh pr create --base base/<project-name> \
 
 ## Important Rules
 
-1. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts
-2. **Create the root PR immediately in Step 1** — an empty commit + draft PR locks in the correct parent branch. This prevents the common mistake of forgetting or misidentifying the parent branch later when creating the root PR at the end
-3. **Never force push** — regular merge only, preserves history
-4. **Topic PRs target the base branch**, not the parent branch
-5. **Root PR targets the parent branch** — this is handled automatically by creating it in Step 1
-6. **worktrees/ must be in .gitignore** — worktrees are local only
-7. **Manager session stays at repo root** — never cd into worktrees for git ops
-8. **Each child session stays in its worktree** — git ops affect that branch only
-9. **Always merge PRs before cleanup** — never leave topic PRs or the root PR open. Open PRs with stale branches cause confusion later. The full flow is: merge topic PRs → update root PR → merge root PR → then cleanup branches. If you merge directly (e.g., fast-forward on the command line) instead of via the PR, close the PR explicitly with a comment explaining it was merged outside the PR
+1. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents
+2. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts
+3. **Create the root PR immediately in Step 1** — an empty commit + draft PR locks in the correct parent branch
+4. **Never force push** — regular merge only, preserves history
+5. **Topic PRs target the base branch**, not the parent branch
+6. **Root PR targets the parent branch** — this is handled automatically by creating it in Step 1
+7. **worktrees/ must be in .gitignore** — worktrees are local only
+8. **Manager stays at repo root** — never cd into worktrees for git ops
+9. **Each child agent works in its worktree** — git ops affect that branch only
+10. **Always merge PRs before cleanup** — never leave topic PRs or the root PR open. The full flow is: merge topic PRs → update root PR → merge root PR → then cleanup
 
 ## Prerequisites
 
 - `worktrees/` in `.gitignore`
 - `gh` CLI authenticated
 - `git` version 2.15+ (worktree support)
-
-## Quick Reference
-
-```bash
-# Manager: full setup (replace <parent-branch> with the branch you're branching from)
-git checkout <parent-branch> && git pull origin <parent-branch>
-git checkout -b base/my-project
-git commit --allow-empty -m "= start my-project dev ="
-git push -u origin base/my-project
-
-# Create root PR immediately (locks in correct parent branch!)
-gh pr create --base <parent-branch> --title "My Project: root PR" --draft --body "## Summary\n(in progress)"
-
-# Create worktrees
-git worktree add worktrees/topic1 -b my-project/topic1 base/my-project
-git worktree add worktrees/topic2 -b my-project/topic2 base/my-project
-
-# Child: push and PR
-git push -u origin my-project/topic1
-gh pr create --base base/my-project --title "Topic1: description"
-
-# Manager: merge topics, update root PR, mark ready
-gh pr merge <topic1-pr> && gh pr merge <topic2-pr>
-gh pr edit <root-pr> --body "## Summary\n- topic1\n- topic2"
-gh pr ready <root-pr>
-
-# Manager: cleanup after root PR merged
-git worktree remove worktrees/topic1 && git worktree remove worktrees/topic2
-```

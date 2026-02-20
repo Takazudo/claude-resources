@@ -130,6 +130,14 @@ done
 echo "CLAUDE.md: 1 file"
 ```
 
+## Scan whitelist
+
+The following items are known and acceptable — do NOT flag them during the Step 1 scan:
+
+- IFTTT webhook event names in `hooks/notify-ifttt.sh` (the key itself is in an env var)
+- References to "CodeGrid", "esa", repo names like `takazudo-codegrid-writing`, `takazudo-esa-writing` in skills/agents (publicly known authorship)
+- `$HOME/repos/w/` and `$HOME/repos/p/` directory structure references (personal convention, no secrets)
+
 ## Important rules
 
 - **Never copy from public to private.** This is strictly one-direction.
