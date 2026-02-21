@@ -120,7 +120,7 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents â€
 1. TeamCreate with team_name: "<project-name>"
 2. TaskCreate for each topic (implementation tasks)
 3. Task tool to spawn agents with:
-   - subagent_type: "safe-developer" (or "general-purpose")
+   - subagent_type: "frontend-worktree-child" (or "general-purpose" for non-frontend topics)
    - team_name: "<project-name>"
    - name: "topic-<name>"  (e.g., "topic-topicA")
    - prompt: Detailed instructions including:

@@ -1,11 +1,11 @@
 ---
 name: git-filtered-merge
 description: >-
-  Filtered squash merge: take only matching paths (e.g., doc/) from a source branch
-  and apply them to a target branch via squash merge, PR creation.
-  Use when: (1) User says 'filtered merge', 'sync doc to develop', 'cherry-pick directory',
-  (2) User wants to sync a subset of changes between branches,
-  (3) User needs to apply only specific directory or file changes from one branch to another.
+  Filtered squash merge: take only matching paths (e.g., doc/) from a source branch and apply them
+  to a target branch via squash merge, PR creation. Use when: (1) User says 'filtered merge', 'sync
+  doc to develop', 'cherry-pick directory', (2) User wants to sync a subset of changes between
+  branches, (3) User needs to apply only specific directory or file changes from one branch to
+  another.
 user-invocable: true
 argument-hint: "[branch-name]"
 allowed-tools:

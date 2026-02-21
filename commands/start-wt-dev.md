@@ -12,16 +12,16 @@ Prepare a git worktree for development on a GitHub issue. Creates worktree, gene
 Parse the user's input to determine the type:
 
 1. **GitHub URL**: `https://github.com/owner/repo/issues/123`
-   - Extract: owner, repo, issue number
+  - Extract: owner, repo, issue number
 
 2. **Issue Number**: `123`
-   - Use as issue number for current repo
+  - Use as issue number for current repo
 
 3. **Proposal Text**: `"Add authentication system"`
-   - Create GitHub issue first, then proceed
+  - Create GitHub issue first, then proceed
 
 4. **No Arguments**:
-   - Ask user what they want to implement
+  - Ask user what they want to implement
 
 ## Workflow
 

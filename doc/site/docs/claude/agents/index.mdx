@@ -13,12 +13,12 @@ These agents are available globally from `~/.claude/agents/`.
 ## Available Agents (11)
 
 - [`code-reviewer`](./code-reviewer.mdx) (opus) - code reviewer
+- [`frontend-developer`](./frontend-developer.mdx) (opus) - Frontend developer agent for implementing code changes. Applies TDD for logic and pragmatic testing for UI. Works autonomously with clear communication.
+- [`frontend-worktree-child`](./frontend-worktree-child.mdx) (opus) - Frontend developer agent that works inside a git worktree as part of an agent team. Implements features, commits, pushes, and creates PRs targeting the base branch. Reports back to the manager when done.
 - [`markdown-generator`](./markdown-generator.mdx) (opus) - markdown file generator for creating markdown formatted text files based on user-provided context. It handles file management, URL formatting, and follows strict guidelines for markdown generation.
 - [`markdown-writer`](./markdown-writer.mdx) (opus) - markdown writer
 - [`repo-syncer`](./repo-syncer.mdx) (sonnet) - Git pull-push sync agent for a single repository. Handles fetch, pull with rebase, conflict resolution, and push.
 - [`researcher`](./researcher.mdx) (opus) - researcher
-- [`safe-developer`](./safe-developer.mdx) (opus) - standard developer agent for implementing code changes based on user requirements. It follows a strict development workflow with mandatory approval gates and prioritizes safety, correctness, and clear communication.
-- [`tdd-developer`](./tdd-developer.mdx) (opus) - TDD developer agent for implementing code changes based on user requirements. It follows a strict development workflow with mandatory approval gates and prioritizes safety, correctness, and clear communication.
 - [`text-fixer`](./text-fixer.mdx) (opus) - text fix agent.
 - [`zpaper-writer`](./zpaper-writer.mdx) (opus) - Write articles for zpaper (personal blog) at the zpaper repository. Receives a detailed writing brief and produces a complete article following zpaper conventions.
 - [`zudocg-writer`](./zudocg-writer.mdx) (opus) - Write articles for CodeGrid at the takazudo-codegrid-writing repository. Receives a detailed writing brief and produces a complete article following CodeGrid conventions.

@@ -74,7 +74,15 @@ The subagent will:
 - Save to the articles directory
 - Run formatting checks
 
-### Step 4: Report back
+### Step 4: Verify sidebar_position
+
+After the subagent completes, read the created article file and verify that:
+- `sidebar_position` is present in the frontmatter
+- The value follows the formula `999999999999 - YYYYMMDDHHMM`
+
+If `sidebar_position` is missing or incorrect, fix it directly. This is critical — without it, the article appears at the bottom of the sidebar instead of the top.
+
+### Step 5: Report back
 
 After the subagent completes, report:
 - The file path of the created article

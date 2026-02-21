@@ -36,10 +36,13 @@ sidebar_position: <computed>
 ---
 ```
 
+**CRITICAL - sidebar_position is REQUIRED**: Every article MUST have `sidebar_position` in frontmatter. Without it, the article falls to the bottom of the sidebar.
+
 **sidebar_position formula**: `999999999999 - YYYYMMDDHHMM`
 - Extract the 12-digit datetime from the filename (e.g., `20260220-1500` → `202602201500`)
 - Compute: `999999999999 - 202602201500 = 797397798499`
 - This ensures newer articles appear first in the sidebar (lower value = higher position)
+- **Always double-check** that the computed value is present in the final frontmatter before saving
 
 **Typical structure**:
 - `## 概要` (Overview)
