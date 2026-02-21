@@ -83,7 +83,15 @@ You are a specialized [role]. [Core instruction in 1-2 sentences.]
 [Step-by-step procedure if applicable]
 ```
 
-### Step 4: Verify
+### Step 4: Format the agent file
+
+Format the created agent file using the mdx-formatter to ensure consistent markdown formatting:
+
+```bash
+pnpm dlx @takazudo/mdx-formatter --write <path-to-agent-file.md>
+```
+
+### Step 5: Verify
 
 After creating the file, verify:
 1. File is at the correct location

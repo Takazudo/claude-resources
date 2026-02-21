@@ -11,13 +11,13 @@ The skill is installed in `~/.claude/skills/headless-browser/`, making it availa
 The script has two possible locations:
 
 1. **Project-local** (recommended): `scripts/headless-check.js`
-   - Works when you're in a project that has this script
-   - Uses the project's Playwright installation
-   - No additional setup needed
+  - Works when you're in a project that has this script
+  - Uses the project's Playwright installation
+  - No additional setup needed
 
 2. **Global**: `~/bin/headless-check.mjs`
-   - Can run from anywhere
-   - Requires: `npm install -g playwright`
+  - Can run from anywhere
+  - Requires: `npm install -g playwright`
 
 ## Usage
 

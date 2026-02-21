@@ -22,18 +22,18 @@ Edit KiCad 6+ schematic files (.kicad_sch) using S-expression text format.
 **Best practice for adding components:**
 
 1. **User adds components via KiCad GUI**: Use KiCad's graphical interface to add new symbol types. This automatically:
-   - Populates the `lib_symbols` section with full symbol definitions
-   - Ensures correct UUID formats
-   - Handles footprint assignments
-   - Places components roughly where needed
+  - Populates the `lib_symbols` section with full symbol definitions
+  - Ensures correct UUID formats
+  - Handles footprint assignments
+  - Places components roughly where needed
 
 2. **AI performs text-based tweaks**: After user adds components, AI can efficiently:
-   - Add/modify global labels and net labels
-   - Add wires and junctions
-   - Change component values
-   - Adjust coordinates
-   - Add text annotations
-   - Duplicate existing components (copy from file)
+  - Add/modify global labels and net labels
+  - Add wires and junctions
+  - Change component values
+  - Adjust coordinates
+  - Add text annotations
+  - Duplicate existing components (copy from file)
 
 **Why this workflow?**
 

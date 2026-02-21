@@ -9,12 +9,12 @@ This PR is checked, reviewed, and no other tasks are left. Complete the followin
 
 1. Check the current PR status and CI checks using `gh pr view`
 2. If CI checks are still in progress, continuously monitor them until completion
-   - Poll the CI status every 10-15 seconds
-   - Display progress updates to the user
-   - Wait until all checks complete
+  - Poll the CI status every 10-15 seconds
+  - Display progress updates to the user
+  - Wait until all checks complete
 3. Once all CI checks are green and the PR is approved:
-   - Merge the PR using `gh pr merge --merge --delete-branch`
-   - Confirm the operation completed successfully
+  - Merge the PR using `gh pr merge --merge --delete-branch`
+  - Confirm the operation completed successfully
 
 **Important:** Before merging, verify:
 

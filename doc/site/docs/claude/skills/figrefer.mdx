@@ -1,0 +1,55 @@
+---
+title: "figrefer"
+description: "Read the currently selected Figma element and work with it. Use when: (1) User says 'figrefer', 'figma refer', 'check my figma selection', (2) User wants to implement or analyze a design selected in F..."
+---
+
+# figrefer
+
+
+
+# Figma Refer
+
+Read the user's current Figma desktop app selection and work with it based on their instructions.
+
+## Prerequisites
+
+- Figma Desktop MCP must be connected: `claude mcp add --transport http figma-desktop http://127.0.0.1:3845/mcp`
+- Figma desktop app open with Dev Mode enabled (Shift+D)
+- User has selected a layer/frame in Figma
+
+## Workflow
+
+### Step 1: Read the Selection
+
+Call these tools in parallel (no nodeId needed — reads current selection):
+
+- `mcp__figma-desktop__get_screenshot` - visual reference
+- `mcp__figma-desktop__get_design_context` - code reference with styles, fonts, colors
+- `mcp__figma-desktop__get_metadata` - structure, dimensions, positions
+
+### Step 2: Present What You See
+
+Summarize the selection for the user:
+
+- What the element looks like (from screenshot)
+- Dimensions and position (from metadata)
+- Key style properties: fonts, colors, spacing (from design context)
+- Layer structure if relevant
+
+### Step 3: Follow User Instructions
+
+`$ARGUMENTS` contains what the user wants to do. Common scenarios:
+
+- **"implement this"** - Generate code matching the design, adapted to the current project's stack
+- **"what is this"** - Describe the element's properties in detail
+- **"use this style for..."** - Extract style values and apply them
+- **"compare with my code"** - Read the user's code and compare against the Figma design
+- **No argument** - Just show what's selected and ask what they'd like to do
+
+## Important Notes
+
+- The design context returns React+Tailwind as a reference. Always adapt to the project's actual framework and styling system.
+- If the selection is too large, `get_design_context` may return only metadata. Use `get_metadata` to find specific child node IDs, then call `get_design_context` on those.
+- Use `get_variable_defs` (via `mcp__figma-desktop__get_variable_defs`) if the user asks about design tokens or variables.
+- Images from desktop MCP are served from `http://localhost:3845/assets/...` and can be used directly in code.
+

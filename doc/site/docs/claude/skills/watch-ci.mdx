@@ -113,16 +113,16 @@ When one or more CI checks fail:
    ```
 
 4. **Analyze the logs** and determine the root cause:
-   - Build errors: check compiler/transpiler output
-   - Test failures: identify which tests failed and why
-   - Lint errors: identify which files/rules are violated
-   - Timeout: check if tests are hanging
+  - Build errors: check compiler/transpiler output
+  - Test failures: identify which tests failed and why
+  - Lint errors: identify which files/rules are violated
+  - Timeout: check if tests are hanging
 
 5. **Fix the problem**:
-   - Make the necessary code changes to fix the failure
-   - Commit the fix
-   - Push to the PR branch
-   - **Return to Step 3** to watch the new CI run
+  - Make the necessary code changes to fix the failure
+  - Commit the fix
+  - Push to the PR branch
+  - **Return to Step 3** to watch the new CI run
 
 6. If the fix requires user input or the failure is unclear, explain the issue and ask the user for guidance before proceeding.
 

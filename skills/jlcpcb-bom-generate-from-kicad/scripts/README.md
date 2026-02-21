@@ -5,6 +5,7 @@ Python scripts for converting KiCad exports to JLCPCB format.
 ## Scripts
 
 ### 1. convert_to_jlcpcb.py
+
 Main conversion script - converts KiCad BOM and position files to JLCPCB format.
 
 **Usage:**
@@ -30,6 +31,7 @@ python3 convert_to_jlcpcb.py bom.csv top.pos bottom.pos
 - `jlcpcb-cpl.csv` - CPL ready for upload
 
 ### 2. add_lcsc_numbers.py
+
 Add LCSC part numbers to converted BOM.
 
 **Usage:**
@@ -54,6 +56,7 @@ python3 add_lcsc_numbers.py <input.csv> --map parts.json --filter-test-points -o
 - `--output FILE` - Output file (default: input_with_lcsc.csv)
 
 ### 3. create_parts_mapping.py
+
 Generate a JSON mapping template for LCSC part numbers.
 
 **Usage:**
@@ -106,24 +109,28 @@ python3 add_lcsc_numbers.py \
 ## File Formats
 
 ### Input: KiCad BOM CSV (semicolon-delimited)
+
 ```
 "Id";"Designator";"Footprint";"Quantity";"Designation";"Supplier and ref";
 1;"U6";"TO-263-2";1;"L7812CD2T-TR";;;
 ```
 
 ### Input: KiCad Position File
+
 ```
 # Ref     Val        Package    PosX       PosY       Rot  Side
 C1        10uF       C1206      46.7500   -12.4325  180.0000  top
 ```
 
 ### Output: JLCPCB BOM CSV
+
 ```
 Comment,Designator,Footprint,JLCPCB Part #
 L7812CD2T-TR,U6,TO-263-2,C13456
 ```
 
 ### Output: JLCPCB CPL CSV
+
 ```
 Designator,Mid X,Mid Y,Layer,Rotation
 C1,46.7500mm,12.4325mm,Top,180

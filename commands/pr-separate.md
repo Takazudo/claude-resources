@@ -47,20 +47,20 @@ b. **Apply changes using squash merge**
    git merge --squash original-branch
    ```
 
-   - Review staged changes
-   - Unstage files not related to this feature
-   - Create clean, logical commits
+- Review staged changes
+- Unstage files not related to this feature
+- Create clean, logical commits
 
    **CRITICAL - NO COMMIT ALTERATION:**
 
-   - NEVER use `git commit --amend`
-   - NEVER use `git rebase`
+- NEVER use `git commit --amend`
+- NEVER use `git rebase`
 
 c. **Push and create PR**
 
-   - Use `gh pr create --base <base-branch>`
-   - Include original issue reference FIRST
-   - Include old PR reference LAST
+- Use `gh pr create --base <base-branch>`
+- Include original issue reference FIRST
+- Include old PR reference LAST
 
 ### 5. Handle Original PR
 

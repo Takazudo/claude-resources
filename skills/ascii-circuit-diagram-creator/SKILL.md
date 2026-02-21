@@ -1,6 +1,11 @@
 ---
 name: ascii-circuit-diagram-creator
-description: Create and validate ASCII circuit diagrams with automatic rule checking and iterative refinement. Use when the user requests circuit diagrams in ASCII/text format, or when creating technical documentation with embedded circuit schematics. Automatically ensures diagrams follow golden rules (no line crossings without junctions, no lines crossing labels, proper component connections, correct polarity). Includes preview validation using monospace rendering.
+description: >-
+  Create and validate ASCII circuit diagrams with automatic rule checking and iterative refinement.
+  Use when the user requests circuit diagrams in ASCII/text format, or when creating technical
+  documentation with embedded circuit schematics. Automatically ensures diagrams follow golden rules
+  (no line crossings without junctions, no lines crossing labels, proper component connections,
+  correct polarity). Includes preview validation using monospace rendering.
 ---
 
 # ASCII Circuit Diagram Creator
@@ -13,8 +18,8 @@ Creates clear, unambiguous ASCII circuit diagrams through an iterative generate-
 **B. Generate ASCII diagram** - Create circuit that satisfies ALL connections
 **C. Preview** - Render in monospace font, capture as image
 **D. Confirm** - Check for rule violations
-   - If violations found: **Return to B** with fixes
-   - If clean: **Proceed to E**
+- If violations found: **Return to B** with fixes
+- If clean: **Proceed to E**
 **E. Complete** - Deliver both connection list AND ASCII diagram
 
 ## Core Principles
@@ -193,7 +198,6 @@ If ANY violations found, **return to Step B** with fixes.
 - False junctions where signals appear connected but shouldn't be
 - Box padding issues where text touches borders
 - Incorrect component leg counts
-
 
 **Check against golden rules** (see `references/golden-rules.md`):
 

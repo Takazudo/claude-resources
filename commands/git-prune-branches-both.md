@@ -25,12 +25,12 @@ Check and prune both local and remote branches that have been merged:
 ## Step 3: Confirm and Execute
 
 1. Present both lists to the user clearly:
-   - Local branches to be deleted
-   - Remote branches to be deleted
+  - Local branches to be deleted
+  - Remote branches to be deleted
 2. Ask for confirmation: "The above local and remote branches will be deleted. Proceed? (yes/no)"
 3. If user confirms with "yes" or similar affirmative response:
-   - Delete local branches using `git branch -d <branch-name>`
-   - Delete remote branches using `git push origin --delete <branch-name>`
+  - Delete local branches using `git branch -d <branch-name>`
+  - Delete remote branches using `git push origin --delete <branch-name>`
 4. Report the results for both operations
 
 **Important:** Never delete:

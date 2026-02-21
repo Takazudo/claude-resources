@@ -5,24 +5,24 @@
 ### Critical Rules to Avoid Errors
 
 1. **NO HTML tags in text** - Never use `<br/>`, `<br>`, or any HTML
-   - ❌ `participant User<br/>Browser`
-   - ✅ `participant UserBrowser as User Browser`
+  - ❌ `participant User<br/>Browser`
+  - ✅ `participant UserBrowser as User Browser`
 
 2. **Line breaks in labels** - Use escaped newlines or avoid them
-   - ❌ Multi-line text with `<br/>`
-   - ✅ Use short, single-line labels
+  - ❌ Multi-line text with `<br/>`
+  - ✅ Use short, single-line labels
 
 3. **Special characters** - Escape or avoid: `#`, `{`, `}`, `[`, `]`, `(`, `)`
-   - ❌ `A[Label with (parentheses)]`
-   - ✅ `A[Label with parentheses]`
+  - ❌ `A[Label with (parentheses)]`
+  - ✅ `A[Label with parentheses]`
 
 4. **NO style/color directives** (per CLAUDE.md)
-   - ❌ `style A fill:#ff0000`
-   - ❌ `classDef myClass fill:#f9f,stroke:#333`
-   - ✅ Use default styling only
+  - ❌ `style A fill:#ff0000`
+  - ❌ `classDef myClass fill:#f9f,stroke:#333`
+  - ✅ Use default styling only
 
 5. **Quotes** - Use for labels with special characters
-   - `A["Label with: special chars"]`
+  - `A["Label with: special chars"]`
 
 ## Sequence Diagrams
 

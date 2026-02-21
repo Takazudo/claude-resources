@@ -214,10 +214,11 @@ Skill creation involves these steps:
 2. Plan reusable skill contents (scripts, references, assets)
 3. Initialize the skill (run init_skill.py)
 4. Edit the skill (implement resources and write SKILL.md)
-5. Iterate based on real usage
-6. Package the skill (run package_skill.py) - **ONLY when distributing to others**
+5. Format SKILL.md with mdx-formatter
+6. Iterate based on real usage
+7. Package the skill (run package_skill.py) - **ONLY when distributing to others**
 
-Follow these steps in order. Step 6 (packaging) should be skipped for local development - only package when you need to share the skill with others.
+Follow these steps in order. Step 7 (packaging) should be skipped for local development - only package when you need to share the skill with others.
 
 ### Step 1: Understanding the Skill with Concrete Examples
 
@@ -338,7 +339,15 @@ Basic example:
 
 Write instructions for using the skill and its bundled resources.
 
-### Step 5: Iterate
+### Step 5: Format SKILL.md
+
+Format the SKILL.md file using the mdx-formatter to ensure consistent markdown formatting:
+
+```bash
+pnpm dlx @takazudo/mdx-formatter --write <path-to-SKILL.md>
+```
+
+### Step 6: Iterate
 
 After testing the skill, users may request improvements. Often this happens right after using the skill, with fresh context of how the skill performed.
 
@@ -349,7 +358,7 @@ After testing the skill, users may request improvements. Often this happens righ
 3. Identify how SKILL.md or bundled resources should be updated
 4. Implement changes and test again
 
-### Step 6: Packaging a Skill (Optional - Only for Distribution)
+### Step 7: Packaging a Skill (Optional - Only for Distribution)
 
 **Skip this step for local development.** Only package skills when you need to distribute them to others.
 

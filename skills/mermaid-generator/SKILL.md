@@ -1,6 +1,11 @@
 ---
 name: mermaid-generator
-description: Generate syntactically correct Mermaid diagrams with automatic error prevention. Use when creating any Mermaid diagram (sequence, flowchart, class, state, ER) for documentation, architecture diagrams, authentication flows, API workflows, database schemas, or state machines. Automatically avoids common syntax errors (br tags, invalid escapes, style directives) and follows best practices for clean, maintainable diagrams.
+description: >-
+  Generate syntactically correct Mermaid diagrams with automatic error prevention. Use when creating
+  any Mermaid diagram (sequence, flowchart, class, state, ER) for documentation, architecture
+  diagrams, authentication flows, API workflows, database schemas, or state machines. Automatically
+  avoids common syntax errors (br tags, invalid escapes, style directives) and follows best
+  practices for clean, maintainable diagrams.
 ---
 
 # Mermaid Generator

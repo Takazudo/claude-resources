@@ -40,24 +40,24 @@ When deciding where to place information, follow this hierarchy (most to least r
 2. **Read the root CLAUDE.md** — understand what's currently there, measure its size
 
 3. **Explore the repo structure** — understand the directory layout, identify logical boundaries
-  - What are the major directories? (src/, docs/, scripts/, tests/, etc.)
-  - What languages/frameworks are used?
-  - Are there distinct subsystems with their own conventions?
+- What are the major directories? (src/, docs/, scripts/, tests/, etc.)
+- What languages/frameworks are used?
+- Are there distinct subsystems with their own conventions?
 
 4. **Categorize the content** in the existing root CLAUDE.md into buckets:
-  - **Global**: Project-wide info that applies everywhere (project name, tech stack, overall architecture, global conventions)
-  - **Directory-specific**: Rules that only apply to certain directories (e.g., "use camelCase in src/", "frontmatter required in docs/")
-  - **Task-specific**: Instructions tied to specific operations (e.g., "before modifying API routes, read api-design.md")
-  - **Redundant/outdated**: Content that can be removed
+- **Global**: Project-wide info that applies everywhere (project name, tech stack, overall architecture, global conventions)
+- **Directory-specific**: Rules that only apply to certain directories (e.g., "use camelCase in src/", "frontmatter required in docs/")
+- **Task-specific**: Instructions tied to specific operations (e.g., "before modifying API routes, read api-design.md")
+- **Redundant/outdated**: Content that can be removed
 
 ### Phase 2: Propose a Plan
 
 Present the user with a concrete proposal. Include:
 
 1. **Current state summary**
-  - Number of CLAUDE.md files found
-  - Root CLAUDE.md size (lines/sections)
-  - Content categories identified
+- Number of CLAUDE.md files found
+- Root CLAUDE.md size (lines/sections)
+- Content categories identified
 
 2. **Proposed CLAUDE.md structure** — show a tree like:
    ```
@@ -72,14 +72,14 @@ Present the user with a concrete proposal. Include:
    ```
 
 3. **For each proposed CLAUDE.md**, list:
-  - What content moves there (with specific sections/lines from original)
-  - What stays in root
-  - Any new content needed (e.g., cross-references)
+- What content moves there (with specific sections/lines from original)
+- What stays in root
+- Any new content needed (e.g., cross-references)
 
 4. **Migration of "refer to" patterns** — identify any passive references and propose upgrades:
-  - Passive → Inline (if content is small and critical)
-  - Passive → Explicit trigger ("Before modifying X, read Y")
-  - Keep as passive (only if truly optional background info)
+- Passive → Inline (if content is small and critical)
+- Passive → Explicit trigger ("Before modifying X, read Y")
+- Keep as passive (only if truly optional background info)
 
 ### Phase 3: Ask for User Approval
 

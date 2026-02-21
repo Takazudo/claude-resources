@@ -44,8 +44,8 @@ The skill requires the JLCPCB parts database (~11GB).
 
 1. Visit https://yaqwsx.github.io/jlcparts/
 2. Download all database parts:
-   - `cache.zip`
-   - `cache.z01` through `cache.z18`
+  - `cache.zip`
+  - `cache.z01` through `cache.z18`
 3. Combine and extract:
 
 ```bash

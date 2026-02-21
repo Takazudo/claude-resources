@@ -161,8 +161,8 @@ These files are regenerated on every build, so they should not be committed.
 1. Run the generation: `node {DOCUSAURUS_ROOT}/scripts/generate-claude-docs.js`
 2. Check that `{DOCUSAURUS_ROOT}/docs/claude/` contains generated MDX files
 3. Start the dev server and verify:
-  - Sidebar shows categories (CLAUDE.md, Commands, Skills, Agents)
-  - Each resource page renders correctly
+- Sidebar shows categories (CLAUDE.md, Commands, Skills, Agents)
+- Each resource page renders correctly
 
 ## How It Works
 

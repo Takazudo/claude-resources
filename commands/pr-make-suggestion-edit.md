@@ -23,12 +23,12 @@ First, gather context about the current PR:
 Run these two reviews simultaneously:
 
 1. **Code-Reviewer Subagent Review** (Primary Focus)
-   - Use Task tool with `subagent_type: "code-reviewer"`
-   - Focus on structure, patterns, performance, accessibility, type safety, readability
+  - Use Task tool with `subagent_type: "code-reviewer"`
+  - Focus on structure, patterns, performance, accessibility, type safety, readability
 
 2. **Codex MCP Review** (Secondary - Security Check)
-   - Use `mcp__codex__spawn_agent` for security-focused review
-   - Focus on critical security issues only
+  - Use `mcp__codex__spawn_agent` for security-focused review
+  - Focus on critical security issues only
 
 ### Step 3: Analyze and Categorize Findings
 

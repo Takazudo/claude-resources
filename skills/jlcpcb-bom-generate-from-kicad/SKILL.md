@@ -194,8 +194,8 @@ Claude: [Uses jlcpcb-component-finder skill]
 2. Upload Gerber files
 3. Enable "SMT Assembly"
 4. Upload:
-   - BOM: `jlcpcb-bom-with-lcsc.csv`
-   - CPL: `jlcpcb-cpl.csv`
+  - BOM: `jlcpcb-bom-with-lcsc.csv`
+  - CPL: `jlcpcb-cpl.csv`
 5. Review component matching
 6. Verify placements in viewer
 7. Checkout!

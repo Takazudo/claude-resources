@@ -1,6 +1,8 @@
 ---
 name: zpaper-writer
-description: Write articles for zpaper (personal blog) at the zpaper repository. Receives a detailed writing brief and produces a complete article following zpaper conventions.
+description: >-
+  Write articles for zpaper (personal blog) at the zpaper repository. Receives a detailed writing
+  brief and produces a complete article following zpaper conventions.
 model: opus
 ---
 

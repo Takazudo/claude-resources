@@ -53,7 +53,15 @@ Common problems and fixes:
 
 **Dynamic injection:** Use the exclamation-backtick pattern (e.g. exclamation + backtick-wrapped command) to run shell commands before skill content is sent to Claude.
 
-### Step 4: Verify
+### Step 4: Format SKILL.md
+
+Format the edited SKILL.md file using the mdx-formatter to ensure consistent markdown formatting:
+
+```bash
+pnpm dlx @takazudo/mdx-formatter --write <path-to-SKILL.md>
+```
+
+### Step 5: Verify
 
 After editing:
 1. YAML frontmatter parses without errors

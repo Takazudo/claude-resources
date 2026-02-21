@@ -1,6 +1,8 @@
 ---
 name: zudoesa-writer
-description: Write articles for esa (internal blog) at the takazudo-esa-writing repository. Receives a detailed writing brief and produces a complete article following esa conventions.
+description: >-
+  Write articles for esa (internal blog) at the takazudo-esa-writing repository. Receives a detailed
+  writing brief and produces a complete article following esa conventions.
 model: opus
 ---
 

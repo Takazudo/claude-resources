@@ -9,8 +9,8 @@ Make commits for all necessary changes in the working directory.
 ## Instructions
 
 1. **Check current status**
-   - Run `git status` to see all modified, staged, and untracked files
-   - Run `git diff --stat` to understand the scope of changes
+  - Run `git status` to see all modified, staged, and untracked files
+  - Run `git diff --stat` to understand the scope of changes
 
 2. **Check for unwanted files and update .gitignore**
 
@@ -18,50 +18,50 @@ Make commits for all necessary changes in the working directory.
 
    **Files/directories to exclude:**
 
-   - `node_modules/` - Package dependencies
-   - Build outputs: `dist/`, `build/`, `.next/`, `out/`, `*.bundle.js`
-   - Log files: `*.log`, `npm-debug.log*`, `yarn-error.log`
-   - Temporary files: `*.tmp`, `*.temp`, `.cache/`, `*.swp`, `*~`
-   - OS files: `.DS_Store`, `Thumbs.db`, `Desktop.ini`
-   - IDE files: `.idea/`, `.vscode/`, `*.sublime-*` (unless intentional)
-   - Environment files: `.env`, `.env.local`, `.env*.local`
-   - Test coverage: `coverage/`, `.nyc_output/`
-   - Package manager: `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock` (context-dependent)
-   - Secrets/credentials: `*.pem`, `*.key`, `credentials.json`, `secrets.*`
+  - `node_modules/` - Package dependencies
+  - Build outputs: `dist/`, `build/`, `.next/`, `out/`, `*.bundle.js`
+  - Log files: `*.log`, `npm-debug.log*`, `yarn-error.log`
+  - Temporary files: `*.tmp`, `*.temp`, `.cache/`, `*.swp`, `*~`
+  - OS files: `.DS_Store`, `Thumbs.db`, `Desktop.ini`
+  - IDE files: `.idea/`, `.vscode/`, `*.sublime-*` (unless intentional)
+  - Environment files: `.env`, `.env.local`, `.env*.local`
+  - Test coverage: `coverage/`, `.nyc_output/`
+  - Package manager: `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock` (context-dependent)
+  - Secrets/credentials: `*.pem`, `*.key`, `credentials.json`, `secrets.*`
 
    **If unwanted files are found:**
 
-   1. Check if `.gitignore` exists in the project root
-   2. If it exists, check if the unwanted patterns are already listed
-   3. If patterns are missing, add them to `.gitignore`
-   4. If `.gitignore` doesn't exist and project has `package.json` or other project markers, create one with common patterns
-   5. After updating `.gitignore`, the ignored files will no longer appear in `git status`
+  1. Check if `.gitignore` exists in the project root
+  2. If it exists, check if the unwanted patterns are already listed
+  3. If patterns are missing, add them to `.gitignore`
+  4. If `.gitignore` doesn't exist and project has `package.json` or other project markers, create one with common patterns
+  5. After updating `.gitignore`, the ignored files will no longer appear in `git status`
 
    **If any unwanted files are already staged:**
 
-   - Unstage them with `git reset HEAD <file>`
-   - If they were previously committed, inform the user they may need to remove them from history
+  - Unstage them with `git reset HEAD <file>`
+  - If they were previously committed, inform the user they may need to remove them from history
 
 3. **Filter and select files to commit**
-   - Review remaining files after .gitignore filtering
-   - Only stage files that contain intentional, meaningful changes
-   - Skip auto-generated files (timestamps, caches, lock files unless relevant)
-   - If unsure about a file, ask the user
+  - Review remaining files after .gitignore filtering
+  - Only stage files that contain intentional, meaningful changes
+  - Skip auto-generated files (timestamps, caches, lock files unless relevant)
+  - If unsure about a file, ask the user
 
 4. **Analyze and group changes**
-   - If changes are small and related: make a single commit
-   - If changes span multiple unrelated concerns: separate into logical commits
-   - Examples of good separation:
-     - Documentation changes vs code changes
-     - Feature additions vs bug fixes
-     - Refactoring vs new functionality
-     - Config changes vs source changes
+  - If changes are small and related: make a single commit
+  - If changes span multiple unrelated concerns: separate into logical commits
+  - Examples of good separation:
+    - Documentation changes vs code changes
+    - Feature additions vs bug fixes
+    - Refactoring vs new functionality
+    - Config changes vs source changes
 
 5. **Create commits**
-   - Write clear, concise commit messages
-   - Use conventional commit style when appropriate (feat:, fix:, docs:, refactor:, etc.)
-   - Add `Co-Authored-By: Claude <noreply@anthropic.com>` if Claude contributed significantly
-   - Use HEREDOC format for commit messages:
+  - Write clear, concise commit messages
+  - Use conventional commit style when appropriate (feat:, fix:, docs:, refactor:, etc.)
+  - Add `Co-Authored-By: Claude <noreply@anthropic.com>` if Claude contributed significantly
+  - Use HEREDOC format for commit messages:
      ```bash
      git commit -m "$(cat <<'EOF'
      Commit message here
@@ -72,8 +72,8 @@ Make commits for all necessary changes in the working directory.
      ```
 
 6. **Verify**
-   - Run `git status` after committing to confirm working tree is clean
-   - Run `git log --oneline -n <number of commits>` to show what was committed
+  - Run `git status` after committing to confirm working tree is clean
+  - Run `git log --oneline -n <number of commits>` to show what was committed
 
 ## Important Notes
 

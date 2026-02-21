@@ -1,6 +1,8 @@
 ---
 name: zudocg-writer
-description: Write articles for CodeGrid at the takazudo-codegrid-writing repository. Receives a detailed writing brief and produces a complete article following CodeGrid conventions.
+description: >-
+  Write articles for CodeGrid at the takazudo-codegrid-writing repository. Receives a detailed
+  writing brief and produces a complete article following CodeGrid conventions.
 model: opus
 ---
 

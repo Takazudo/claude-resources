@@ -12,15 +12,15 @@ The user is unsure whether unwanted private or confidential information exists i
 ### HIGH PRIORITY (most important — always fix)
 
 1. **Client/corporate information** — Company names that appear to be real clients (e.g., Sony, Rakuten, Yahoo, any recognizable corporation or brand that seems like an actual work client, not a generic example)
-  - In file contents (code, config, comments, docs)
-  - In directory names and file names
-  - In project names, package names, or identifiers
-  - In URLs referencing client domains or systems
+- In file contents (code, config, comments, docs)
+- In directory names and file names
+- In project names, package names, or identifiers
+- In URLs referencing client domains or systems
 2. **Passwords and secrets**
-  - Hardcoded passwords, API keys, tokens, secrets
-  - `.env` files with real credentials committed to the repo
-  - Private keys, certificates
-  - Database connection strings with credentials
+- Hardcoded passwords, API keys, tokens, secrets
+- `.env` files with real credentials committed to the repo
+- Private keys, certificates
+- Database connection strings with credentials
 
 ### MEDIUM PRIORITY (fix when found)
 
@@ -34,13 +34,13 @@ The user is unsure whether unwanted private or confidential information exists i
 Use parallel searches to scan the repository efficiently:
 
 1. **Search file/directory names** for client-like or corporate names
-  - Look at directory structure for project names that might be client names
+- Look at directory structure for project names that might be client names
 2. **Search file contents** for:
-  - Known corporate/brand names that look like client references (not generic library/tool names)
-  - Patterns like `password`, `secret`, `api_key`, `token`, `credential`, `apiKey`, `API_KEY`, `SECRET`, `PRIVATE_KEY`
-  - `.env` files or similar config with sensitive values
-  - SNS URLs: `twitter.com/`, `x.com/`, `instagram.com/`, `facebook.com/`, `github.com/` (check if they reference specific personal accounts)
-  - Personal blog-like URLs
+- Known corporate/brand names that look like client references (not generic library/tool names)
+- Patterns like `password`, `secret`, `api_key`, `token`, `credential`, `apiKey`, `API_KEY`, `SECRET`, `PRIVATE_KEY`
+- `.env` files or similar config with sensitive values
+- SNS URLs: `twitter.com/`, `x.com/`, `instagram.com/`, `facebook.com/`, `github.com/` (check if they reference specific personal accounts)
+- Personal blog-like URLs
 3. **Check git history** (recent commits) for accidentally committed secrets
 
 ### Step 2: Analyze Findings

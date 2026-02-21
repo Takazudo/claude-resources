@@ -23,22 +23,22 @@ This workflow builds diagrams step-by-step with visual confirmation at each stag
 
 **A. Connection List** - Write explicit connection list showing all component pins
 **B. Incremental Build Loop** - Build one component/section at a time:
-   1. **Add ONE component or connection** (e.g., "IC only", "add GND connection", "add R1")
-   2. **Execute** - Run Python script and save SVG
-   3. **Visual Check** - Generate screenshot via HTML wrapper + headless browser
-   4. **User Confirmation** - Show screenshot, get approval before proceeding
-   5. **REPEAT** - Go back to step 1 for next component until circuit complete
+1. **Add ONE component or connection** (e.g., "IC only", "add GND connection", "add R1")
+2. **Execute** - Run Python script and save SVG
+3. **Visual Check** - Generate screenshot via HTML wrapper + headless browser
+4. **User Confirmation** - Show screenshot, get approval before proceeding
+5. **REPEAT** - Go back to step 1 for next component until circuit complete
 
    **Why this works:**
-   - Catches issues immediately when they occur
-   - Easy to debug single changes
-   - User can guide spacing, positioning, and layout decisions
-   - Prevents compound errors that are hard to untangle
+- Catches issues immediately when they occur
+- Easy to debug single changes
+- User can guide spacing, positioning, and layout decisions
+- Prevents compound errors that are hard to untangle
 
 **C. Final Verification** - Once all components added:
-   - Generate final screenshot
-   - Trace each connection from Step A connection list
-   - Verify all component values, labels, pin numbers present
+- Generate final screenshot
+- Trace each connection from Step A connection list
+- Verify all component values, labels, pin numbers present
 
 **D. Complete** - Deliver connection list AND final diagram
 
@@ -55,14 +55,14 @@ Use this workflow ONLY when:
 **B. Generate Complete Code** - Create schemdraw code implementing ALL connections
 **C. Execute** - Run Python script and save SVG
 **D. Visual Verification (MANDATORY)** - Perform comprehensive visual assessment
-   - Generate screenshot via HTML wrapper + headless browser
-   - **LIST ALL PROBLEMS FIRST** (don't fix one-by-one - you'll forget issues!)
-   - Apply ALL fixes at once
-   - Confirm with fresh screenshot
-   - **REPEAT** until all problems resolved
+- Generate screenshot via HTML wrapper + headless browser
+- **LIST ALL PROBLEMS FIRST** (don't fix one-by-one - you'll forget issues!)
+- Apply ALL fixes at once
+- Confirm with fresh screenshot
+- **REPEAT** until all problems resolved
 **E. Final Confirmation** - Trace each signal path from connection list
-   - If violations found: **Return to B** with fixes
-   - If clean: **Proceed to F**
+- If violations found: **Return to B** with fixes
+- If clean: **Proceed to F**
 **F. Complete** - Deliver both connection list AND diagram
 
 **⚠️ Warning:** All-at-once approach often requires multiple fix iterations for complex circuits. Incremental approach is more reliable.
@@ -521,6 +521,7 @@ See `references/patterns.md` for copy-paste patterns:
 ## Reference Documentation
 
 ### components.md
+
 Complete component library reference with syntax for all elements:
 - Passive: Resistors, capacitors, inductors
 - Semiconductors: Diodes, transistors (BJT/FET)
@@ -530,6 +531,7 @@ Complete component library reference with syntax for all elements:
 - Connections: Dots, lines, wires
 
 ### patterns.md
+
 Copy-paste code for common circuits:
 - Simple circuits (voltage divider, RC filter, LED)
 - Opamp configurations (inverting, non-inverting, buffer, comparator)
@@ -537,6 +539,7 @@ Copy-paste code for common circuits:
 - Advanced circuits (H-bridge, oscillators)
 
 ### best-practices.md
+
 Guidelines for professional diagrams:
 - Layout strategies
 - Labeling conventions
@@ -546,6 +549,7 @@ Guidelines for professional diagrams:
 - Common mistakes to avoid
 
 ### examples.md
+
 Complete working examples:
 - 555 timer LED blinker
 - Inverting opamp with power
@@ -556,6 +560,7 @@ Complete working examples:
 - Natural language parsing tips
 
 ### troubleshooting.md
+
 Solutions to common problems:
 - Installation and import issues
 - Layout and positioning problems

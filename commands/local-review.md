@@ -33,13 +33,13 @@ Perform a practical code quality review with priorities:
    ```
 
 2. **If current branch has a PR:**
-  - Use **PR Review Mode** (3 reviewers, diff-based)
-  - Use the PR's `baseRefName` as the base branch for diff
-  - Report: "Found PR #X targeting `base-branch`, reviewing changes against that branch"
+- Use **PR Review Mode** (3 reviewers, diff-based)
+- Use the PR's `baseRefName` as the base branch for diff
+- Report: "Found PR #X targeting `base-branch`, reviewing changes against that branch"
 
 3. **If current branch is the default branch (main/master) or has no PR:**
-  - Use **Full Project Review Mode** (6 reviewers, whole-project scan)
-  - Report: "On default branch with no PR — running full project review"
+- Use **Full Project Review Mode** (6 reviewers, whole-project scan)
+- Report: "On default branch with no PR — running full project review"
 
 ---
 

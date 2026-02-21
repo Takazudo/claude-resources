@@ -52,7 +52,15 @@ Edit the agent's Markdown file. Preserve existing content that works well.
 | `hooks` | Scoped lifecycle hooks |
 | `memory` | `user`, `project`, `local` |
 
-### Step 4: Verify
+### Step 4: Format the agent file
+
+Format the edited agent file using the mdx-formatter to ensure consistent markdown formatting:
+
+```bash
+pnpm dlx @takazudo/mdx-formatter --write <path-to-agent-file.md>
+```
+
+### Step 5: Verify
 
 After editing:
 1. Confirm YAML frontmatter has no syntax errors

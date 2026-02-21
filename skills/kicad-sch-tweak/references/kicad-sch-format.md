@@ -615,6 +615,7 @@ When a component is rotated, pin positions transform:
 **CRITICAL**: Reverse protection diodes have OPPOSITE orientations for +12V and -12V rails.
 
 ### +12V Protection Path
+
 ```
 +12V in ──► Fuse ──► Diode (Anode→Cathode) ──► +12V rail
                          └── TVS ── GND
@@ -624,6 +625,7 @@ When a component is rotated, pin positions transform:
 - Blocks reverse polarity (if input goes negative)
 
 ### -12V Protection Path
+
 ```
 -12V in ──► Fuse ──► Diode (Cathode→Anode) ──► -12V rail
                          └── TVS ── GND
@@ -633,11 +635,13 @@ When a component is rotated, pin positions transform:
 - Blocks reverse polarity (if input goes positive)
 
 ### Why Different Orientations?
+
 - +12V: Positive voltage, conventional current flows from +12V toward GND through load
 - -12V: Negative voltage, conventional current flows from GND toward -12V through load
 - The diode must allow normal current flow while blocking reverse conditions
 
 ### KiCad Implementation
+
 For SM4007PL (SOD-123FL):
 - Pin 1 = Cathode (bar side)
 - Pin 2 = Anode (triangle side)
@@ -650,6 +654,7 @@ For SM4007PL (SOD-123FL):
 **Tip**: For -12V, rotate the diode 180° compared to +12V orientation.
 
 ### TVS Diodes (Bidirectional)
+
 TVS diodes like SMF12CA are bidirectional - no polarity concern. Either pin can connect to signal or GND.
 
 ## Circuit Topology Best Practices

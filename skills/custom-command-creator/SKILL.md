@@ -194,7 +194,15 @@ Clear instructions for what Claude should do.
 What to accomplish with $ARGUMENTS.
 ```
 
-### Step 4: Verify and Report
+### Step 4: Format the command file
+
+Format the created command file using the mdx-formatter to ensure consistent markdown formatting:
+
+```bash
+pnpm dlx @takazudo/mdx-formatter --write <path-to-command-file.md>
+```
+
+### Step 5: Verify and Report
 
 After creating the file:
 

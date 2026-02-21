@@ -1,6 +1,10 @@
 ---
 name: pdf-combine
-description: "Combine multiple PDF files into a single PDF. Use when: (1) User wants to merge PDF files, (2) User mentions 'combine PDFs', 'merge PDFs', or 'join PDFs', (3) User has multiple PDFs that need to be consolidated. Respects file order: when given a directory, files are sorted alphabetically; when given specific file paths, the order provided is preserved."
+description: >-
+  Combine multiple PDF files into a single PDF. Use when: (1) User wants to merge PDF files, (2)
+  User mentions 'combine PDFs', 'merge PDFs', or 'join PDFs', (3) User has multiple PDFs that need
+  to be consolidated. Respects file order: when given a directory, files are sorted alphabetically;
+  when given specific file paths, the order provided is preserved.
 ---
 
 # Combine PDF Files
@@ -22,12 +26,12 @@ The user can specify:
 ## Instructions
 
 1. Determine the source PDF files:
-   - If user provides a directory, all PDFs in that directory will be combined in alphabetical order
-   - If user provides specific file paths, use them in the exact order provided
+  - If user provides a directory, all PDFs in that directory will be combined in alphabetical order
+  - If user provides specific file paths, use them in the exact order provided
 
 2. Determine the output file path:
-   - If user specifies an output path, use it
-   - If not specified, ask the user for the output file name/path
+  - If user specifies an output path, use it
+  - If not specified, ask the user for the output file name/path
 
 3. Run the combine script:
    ```bash
@@ -44,6 +48,7 @@ The user can specify:
 ## Examples
 
 ### Combine specific files in order
+
 ```bash
 python3 $HOME/.claude/skills/pdf-combine/scripts/combine_pdfs.py \
   chapter1.pdf chapter2.pdf chapter3.pdf \
@@ -51,6 +56,7 @@ python3 $HOME/.claude/skills/pdf-combine/scripts/combine_pdfs.py \
 ```
 
 ### Combine all PDFs in a directory (alphabetical order)
+
 ```bash
 python3 $HOME/.claude/skills/pdf-combine/scripts/combine_pdfs.py \
   ./documents/ \

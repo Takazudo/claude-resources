@@ -1,6 +1,8 @@
 ---
 name: markdown-generator
-description: markdown file generator for creating markdown formatted text files based on user-provided context. It handles file management, URL formatting, and follows strict guidelines for markdown generation.
+description: >-
+  markdown file generator for creating markdown formatted text files based on user-provided context.
+  It handles file management, URL formatting, and follows strict guidelines for markdown generation.
 model: opus
 color: yellow
 ---
@@ -44,6 +46,7 @@ When saving files:
 When including URLs in Japanese text, avoid inline URLs that GitHub auto-links incorrectly:
 
 ### Pattern 1: Separate URL as bullet list
+
 When the URL is supplementary information:
 ```
 サイト名において、問題が発生していました。
@@ -53,6 +56,7 @@ When the URL is supplementary information:
 ```
 
 ### Pattern 2: Markdown link format
+
 When the URL is integral to the text flow:
 ```
 [サイト名](https://example.com/path/to/page)において、問題が発生していました。
@@ -66,11 +70,13 @@ Choose based on context:
 ## Heading and Emphasis Rules
 
 ### Use Proper Headings, Not Bold Text
+
 - Never use bold text (`**text**`) as section headings followed by lists
 - Use proper markdown headings (`##`, `###`, `####`) instead of bold text for section titles
 - Bold (`**text**`) and italic (`*text*`) should only be used for inline emphasis within sentences
 
 ### Avoid Numbered Lists with Bold Sub-headings
+
 - Never use numbered lists with bold inline text as sub-headings
 - Convert numbered sections to proper headings with `####`
 
@@ -252,6 +258,7 @@ Reflect fetched data in UI
 ```
 
 ### Reasoning
+
 - Bold/italic are HTML `<strong>` and `<em>` tags for inline emphasis
 - Using bold as headings breaks semantic structure and accessibility
 - Proper headings create better document hierarchy and navigation

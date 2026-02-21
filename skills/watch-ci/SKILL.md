@@ -1,10 +1,10 @@
 ---
 name: watch-ci
 description: >-
-   Watch GitHub PR CI checks and notify on completion. Use when: (1) User wants to monitor CI/CD
-   pipeline status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait for CI', (3)
-   User wants to know when PR checks pass or fail, (4) User asks to fix CI failures. Polls CI checks
-   every 20 seconds, sends macOS system notification on completion, and investigates failures.
+  Watch GitHub PR CI checks and notify on completion. Use when: (1) User wants to monitor CI/CD
+  pipeline status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait for CI', (3)
+  User wants to know when PR checks pass or fail, (4) User asks to fix CI failures. Polls CI checks
+  every 20 seconds, sends macOS system notification on completion, and investigates failures.
 ---
 
 # Watch CI
@@ -109,16 +109,16 @@ When one or more CI checks fail:
    ```
 
 4. **Analyze the logs** and determine the root cause:
-   - Build errors: check compiler/transpiler output
-   - Test failures: identify which tests failed and why
-   - Lint errors: identify which files/rules are violated
-   - Timeout: check if tests are hanging
+  - Build errors: check compiler/transpiler output
+  - Test failures: identify which tests failed and why
+  - Lint errors: identify which files/rules are violated
+  - Timeout: check if tests are hanging
 
 5. **Fix the problem**:
-   - Make the necessary code changes to fix the failure
-   - Commit the fix
-   - Push to the PR branch
-   - **Return to Step 3** to watch the new CI run
+  - Make the necessary code changes to fix the failure
+  - Commit the fix
+  - Push to the PR branch
+  - **Return to Step 3** to watch the new CI run
 
 6. If the fix requires user input or the failure is unclear, explain the issue and ask the user for guidance before proceeding.
 

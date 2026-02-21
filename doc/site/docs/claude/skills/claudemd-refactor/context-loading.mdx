@@ -17,9 +17,9 @@ Claude Code loads CLAUDE.md files automatically based on the working directory:
 1. **Root CLAUDE.md** (`/CLAUDE.md` or `/.claude/CLAUDE.md`) — ALWAYS loaded at conversation start
 2. **Subdirectory CLAUDE.md** — loaded when Claude works on files in or below that directory
 3. **Multiple levels** — if working on `src/components/Button.tsx`, Claude loads:
-   - `/CLAUDE.md`
-   - `/src/CLAUDE.md` (if exists)
-   - `/src/components/CLAUDE.md` (if exists)
+  - `/CLAUDE.md`
+  - `/src/CLAUDE.md` (if exists)
+  - `/src/components/CLAUDE.md` (if exists)
 
 ## What "Loaded" Means
 
@@ -38,21 +38,25 @@ Claude Code loads CLAUDE.md files automatically based on the working directory:
 ## Reliability Explanation
 
 ### Highest: Inline in CLAUDE.md
+
 - Automatically loaded, always in context
 - Claude sees it before doing any work
 - Zero chance of missing it
 
 ### High: Directory-scoped CLAUDE.md
+
 - Automatically loaded when working in that directory
 - Only risk: if Claude works on a file from outside its directory context
 - Very reliable for directory-specific rules
 
 ### Medium: Explicit "read before doing X"
+
 - Requires Claude to follow the instruction and use Read tool
 - Claude usually follows explicit instructions but may occasionally skip
 - Better for large reference docs that would bloat CLAUDE.md
 
 ### Low: Passive "refer to file"
+
 - Claude may or may not read the file
 - Depends on whether Claude thinks it's relevant to the current task
 - Only use for truly optional supplementary info
