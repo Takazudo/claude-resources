@@ -1,5 +1,5 @@
 ---
-name: strategy-git-worktree
+name: x-wt-teams
 description: >-
   Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code
   agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User

@@ -418,10 +418,13 @@ This skill includes: ${hasReferences ? `[references](#references)` : ""}${hasRef
     }
 
     // Build references section with links
+    // When skill has references, it lives at skills/{dir}/index.mdx
+    // so links to refs are relative siblings: ./{ref.name}.mdx
+    // When skill has no references, it lives at skills/{dir}.mdx
     let referencesSection = "";
     if (references.length > 0) {
       const refLinks = references
-        .map((ref) => `- [${ref.title}](./${dir}/${ref.name}.mdx)`)
+        .map((ref) => `- [${ref.title}](./${ref.name}.mdx)`)
         .join("\n");
       referencesSection = `
 
@@ -445,16 +448,23 @@ ${escapeForMdx(bodyContent.trim())}
 ${referencesSection}
 `;
 
-    const outputPath = path.join(OUTPUT_SKILLS_DIR, `${dir}.mdx`);
-    if (writeFileIfChanged(outputPath, mdxContent)) {
-      console.log(`  ${name} → docs/claude/skills/${dir}.mdx (updated)`);
-    }
-
-    // Generate reference pages
     if (references.length > 0) {
-      const skillRefsOutputDir = path.join(OUTPUT_SKILLS_DIR, dir);
-      ensureDir(skillRefsOutputDir);
+      // Skills with references: write as index.mdx inside the subdirectory
+      // This makes the Docusaurus category header link to the skill doc itself
+      const skillSubDir = path.join(OUTPUT_SKILLS_DIR, dir);
+      ensureDir(skillSubDir);
 
+      const outputPath = path.join(skillSubDir, "index.mdx");
+      if (writeFileIfChanged(outputPath, mdxContent)) {
+        console.log(`  ${name} → docs/claude/skills/${dir}/index.mdx (updated)`);
+      }
+
+      // Generate _category_.json to keep subcategory collapsed by default
+      const categoryJson = JSON.stringify({ collapsed: true }, null, 2) + "\n";
+      const categoryPath = path.join(skillSubDir, "_category_.json");
+      writeFileIfChanged(categoryPath, categoryJson);
+
+      // Generate reference pages as siblings
       references.forEach((ref) => {
         const refMdxContent = `---
 title: "${ref.title}"
@@ -462,17 +472,23 @@ title: "${ref.title}"
 
 # ${ref.title}
 
-**Skill:** [${name}](../${dir}.mdx)
+**Skill:** [${name}](./index.mdx)
 
 ---
 
 ${escapeForMdx(ref.content.trim())}
 `;
-        const refOutputPath = path.join(skillRefsOutputDir, `${ref.name}.mdx`);
+        const refOutputPath = path.join(skillSubDir, `${ref.name}.mdx`);
         if (writeFileIfChanged(refOutputPath, refMdxContent)) {
           console.log(`    └─ ${ref.name} → docs/claude/skills/${dir}/${ref.name}.mdx (updated)`);
         }
       });
+    } else {
+      // Skills without references: write as a standalone file
+      const outputPath = path.join(OUTPUT_SKILLS_DIR, `${dir}.mdx`);
+      if (writeFileIfChanged(outputPath, mdxContent)) {
+        console.log(`  ${name} → docs/claude/skills/${dir}.mdx (updated)`);
+      }
     }
   });
 
@@ -487,7 +503,8 @@ ${escapeForMdx(ref.content.trim())}
           ? skill.description.substring(0, 100) + "..."
           : skill.description;
       const refCount = skill.references.length > 0 ? ` (${skill.references.length} refs)` : "";
-      return `- [\`${skill.name}\`](./${skill.dir}.mdx)${refCount} - ${shortDesc}`;
+      const skillLink = skill.references.length > 0 ? `./${skill.dir}/index.mdx` : `./${skill.dir}.mdx`;
+      return `- [\`${skill.name}\`](${skillLink})${refCount} - ${shortDesc}`;
     })
     .join("\n");
 
@@ -513,9 +530,15 @@ ${skillsList}
   }
 
   // Remove stale skill files and directories
-  const expectedItems = new Set(skills.map((s) => `${s.dir}.mdx`));
+  const expectedItems = new Set();
   skills.forEach((s) => {
-    if (s.references.length > 0) expectedItems.add(s.dir);
+    if (s.references.length > 0) {
+      // Skills with references live in a subdirectory (index.mdx + ref files)
+      expectedItems.add(s.dir);
+    } else {
+      // Skills without references are standalone .mdx files
+      expectedItems.add(`${s.dir}.mdx`);
+    }
   });
   expectedItems.add("index.mdx");
   expectedItems.add("_category_.json");
@@ -526,6 +549,8 @@ ${skillsList}
     if (skill.references.length > 0) {
       const skillRefDir = path.join(OUTPUT_SKILLS_DIR, skill.dir);
       const expectedRefs = new Set(skill.references.map((r) => `${r.name}.mdx`));
+      expectedRefs.add("index.mdx"); // The skill doc itself
+      expectedRefs.add("_category_.json");
       removeStaleItems(skillRefDir, expectedRefs);
     }
   });

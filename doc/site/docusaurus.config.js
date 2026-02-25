@@ -49,6 +49,7 @@ const config = {
           routeBasePath: "/",
           editUrl: undefined,
           remarkPlugins: [require("remark-breaks")],
+          sidebarCollapsed: false,
         },
         // Disable blog feature
         blog: false,

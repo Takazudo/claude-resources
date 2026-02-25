@@ -1,14 +1,16 @@
 ---
-name: mermaid-generator
+name: mermaid-creator
 description: >-
-  Generate syntactically correct Mermaid diagrams with automatic error prevention. Use when creating
-  any Mermaid diagram (sequence, flowchart, class, state, ER) for documentation, architecture
-  diagrams, authentication flows, API workflows, database schemas, or state machines. Automatically
-  avoids common syntax errors (br tags, invalid escapes, style directives) and follows best
-  practices for clean, maintainable diagrams.
+  ALWAYS use this skill proactively whenever generating, writing, or outputting Mermaid diagram code
+  — whether in markdown code blocks, .md files, documentation, or any other context. This includes
+  flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, gantt charts, pie
+  charts, mindmaps, timelines, and all other Mermaid diagram types. Applies strict syntax rules to
+  prevent common rendering errors (HTML tags, style directives, invalid escapes). No need for the
+  user to explicitly request this skill — load it automatically whenever Mermaid syntax is being
+  produced.
 ---
 
-# Mermaid Generator
+# Mermaid Creator
 
 Generate valid, error-free Mermaid diagrams following strict syntax rules and best practices.
 

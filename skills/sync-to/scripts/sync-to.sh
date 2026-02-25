@@ -66,16 +66,44 @@ if [[ "$TARGET_EXISTS_LOCAL" == "false" && "$TARGET_EXISTS_REMOTE" == "false" ]]
   exit 1
 fi
 
-# 3. Checkout target branch
+# 3. Checkout target branch and update from remote
 if [[ "$TARGET_EXISTS_LOCAL" == "true" ]]; then
+  # Fetch latest from remote before checkout so local ref is up to date
+  TRACKING_REMOTE=$(git config "branch.$TARGET.remote" 2>/dev/null || true)
+  if [[ -n "$TRACKING_REMOTE" ]]; then
+    echo "Fetching latest '$TARGET' from $TRACKING_REMOTE..."
+    git fetch "$TRACKING_REMOTE" "$TARGET" --quiet 2>/dev/null || true
+  elif [[ "$TARGET_EXISTS_REMOTE" == "true" && -n "$REMOTE_NAME" ]]; then
+    echo "Fetching latest '$TARGET' from $REMOTE_NAME..."
+    git fetch "$REMOTE_NAME" "$TARGET" --quiet 2>/dev/null || true
+  fi
+
   git checkout "$TARGET" --quiet
-  # Pull latest if remote tracking exists
-  TRACKING=$(git config "branch.$TARGET.remote" 2>/dev/null || true)
-  if [[ -n "$TRACKING" ]]; then
-    git pull --ff-only --quiet 2>/dev/null || git pull --quiet 2>/dev/null || true
+
+  # Pull/reset to match remote if tracking exists
+  TRACKING_REMOTE=$(git config "branch.$TARGET.remote" 2>/dev/null || true)
+  TRACKING_MERGE=$(git config "branch.$TARGET.merge" 2>/dev/null || true)
+  if [[ -n "$TRACKING_REMOTE" && -n "$TRACKING_MERGE" ]]; then
+    UPSTREAM="$TRACKING_REMOTE/$TARGET"
+    if git rev-parse --verify "$UPSTREAM" >/dev/null 2>&1; then
+      LOCAL_SHA=$(git rev-parse HEAD)
+      REMOTE_SHA=$(git rev-parse "$UPSTREAM")
+      if [[ "$LOCAL_SHA" != "$REMOTE_SHA" ]]; then
+        # Try fast-forward first, fall back to merge pull
+        if ! git pull --ff-only --quiet 2>/dev/null; then
+          echo "Fast-forward failed, pulling with merge..."
+          git pull --quiet 2>/dev/null || {
+            echo "Error: Could not update local '$TARGET' from remote. Please resolve manually."
+            exit 1
+          }
+        fi
+        echo "Updated local '$TARGET' to match $UPSTREAM."
+      fi
+    fi
   fi
 else
   # Branch exists only on remote — create local tracking branch
+  git fetch "$REMOTE_NAME" "$TARGET" --quiet 2>/dev/null || true
   git checkout -b "$TARGET" "$REMOTE_NAME/$TARGET" --quiet
 fi
 

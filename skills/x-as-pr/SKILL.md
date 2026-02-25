@@ -1,5 +1,5 @@
 ---
-name: strategy-impl-as-pr
+name: x-as-pr
 description: >-
   Start a development workflow as a draft PR. Fetches, creates a branch, makes an empty start
   commit, pushes, and opens a draft PR. Then starts implementation if instructions are provided.
@@ -8,7 +8,6 @@ description: >-
   to start a new feature/fix development with a PR-first workflow, (3) User wants to set up a branch
   and draft PR before coding, (4) User has already implemented changes on a branch and wants to
   create a PR for them.
-disable-model-invocation: true
 argument-hint: "[issue-url-or-number] [branch-name] [base-branch]"
 ---
 
@@ -198,7 +197,7 @@ If no further instructions were provided, report the PR URL and wait for directi
 ### Fresh-start: with issue number
 
 ```
-/strategy-impl-as-pr 42
+/x-as-pr 42
 -> Fetch, detect on main → Fresh-Start Mode
 -> Read issue #42 "Add dark mode support"
 -> Branch: issue-#42/add-dark-mode-support
@@ -210,7 +209,7 @@ If no further instructions were provided, report the PR URL and wait for directi
 ### Fresh-start: with explicit branch and base
 
 ```
-/strategy-impl-as-pr branch:feature/new-auth base:develop
+/x-as-pr branch:feature/new-auth base:develop
 -> Fetch, detect on develop → Fresh-Start Mode
 -> Branch: feature/new-auth
 -> Base: develop
@@ -220,7 +219,7 @@ If no further instructions were provided, report the PR URL and wait for directi
 ### Fresh-start: with instructions only
 
 ```
-/strategy-impl-as-pr add pagination to the user list page
+/x-as-pr add pagination to the user list page
 -> Fetch, detect on main → Fresh-Start Mode
 -> Branch: topic/add-pagination-user-list
 -> Base: main
@@ -231,7 +230,7 @@ If no further instructions were provided, report the PR URL and wait for directi
 ### Existing-work: implementation already done on branch
 
 ```
-/strategy-impl-as-pr
+/x-as-pr
 -> Fetch, detect on topic/add-search-feature with 3 commits ahead → Existing-Work Mode
 -> Push branch, create draft PR with summary from actual commits
 -> Report PR URL
@@ -240,7 +239,7 @@ If no further instructions were provided, report the PR URL and wait for directi
 ### Existing-work: with issue reference for context
 
 ```
-/strategy-impl-as-pr 42
+/x-as-pr 42
 -> Fetch, detect on issue-#42/add-dark-mode with commits ahead → Existing-Work Mode
 -> Read issue #42 for PR title/body context
 -> Push branch, create draft PR

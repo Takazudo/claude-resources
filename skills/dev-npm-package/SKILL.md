@@ -139,11 +139,13 @@ my-library/
 ```json
 {
   "bin": {
-    "my-cli": "./dist/cli.js"
+    "my-cli": "dist/cli.js"
   },
   "files": ["dist"]
 }
 ```
+
+**Important**: bin paths must NOT have a `./` prefix. npm will auto-correct and warn on publish, and may remove the bin entry entirely. Use `"dist/cli.js"` not `"./dist/cli.js"`. Run `npm pkg fix` to check for issues.
 
 ### Entry file (src/cli.ts)
 

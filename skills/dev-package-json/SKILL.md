@@ -6,11 +6,13 @@ description: >
   (2) Adding comment separators to group scripts, (3) Extracting complex multi-process commands into
   shell scripts, (4) Setting up multi-environment dev commands (local/preview/production), (5)
   Handling pnpm "Ignored build scripts" warnings or evaluating dependency build scripts, (6)
-  Configuring .npmrc security settings (strictDepBuilds, allowBuilds, ignoredBuilds), (7) User
-  mentions 'organize package.json', 'package.json readability', 'script sections', 'multi-process
-  dev script', 'build scripts warning', 'npmrc', 'allowBuilds', 'ignoredBuilds', or 'supply chain
-  security'. Keywords: package.json, npm scripts, organize, separator, shell script, multi-process,
-  dev environment, .npmrc, pnpm, build scripts, security, supply chain, allowBuilds, ignoredBuilds.
+  Configuring .npmrc security settings (strictDepBuilds, allowBuilds, ignoredBuilds), (7) Managing
+  pnpm versions via corepack and packageManager field, (8) User mentions 'organize package.json',
+  'package.json readability', 'script sections', 'multi-process dev script', 'build scripts
+  warning', 'npmrc', 'allowBuilds', 'ignoredBuilds', 'supply chain security', 'corepack',
+  'packageManager', 'pnpm version', or 'pnpm self-update'. Keywords: package.json, npm scripts,
+  organize, separator, shell script, multi-process, dev environment, .npmrc, pnpm, build scripts,
+  security, supply chain, allowBuilds, ignoredBuilds, corepack, packageManager, version pinning.
 ---
 
 # package.json & npm Config Management
@@ -91,7 +93,42 @@ See [references/patterns.md](references/patterns.md) for:
 
 ---
 
-## Part 2: .npmrc Build Script Security Management
+## Part 2: pnpm Version Management with Corepack
+
+### The `packageManager` Field
+
+Pin the exact pnpm version in `package.json`:
+
+```json
+{
+  "packageManager": "pnpm@10.30.2+sha512.36cdc707e7b..."
+}
+```
+
+This ensures every developer and CI uses the identical pnpm version. Corepack reads this field and auto-downloads the specified version.
+
+### Setup (Once Per Machine)
+
+```bash
+corepack enable
+```
+
+After this, running `pnpm install` / `pnpm dev` / etc. just works — corepack intercepts the `pnpm` command and uses the pinned version automatically. No global pnpm install needed.
+
+### Key Rules
+
+- **Never run `pnpm self-update`** — it errors when pnpm is managed by corepack
+- **Never run `corepack use pnpm@latest` routinely** — it bumps the version in `package.json` and often regenerates `pnpm-lock.yaml`, creating noisy diffs
+- **Only update intentionally** — when the team decides to upgrade, one person runs `corepack use pnpm@<version>`, commits the `package.json` + lockfile changes, and everyone else gets it via `pnpm install`
+- **Different repos can pin different versions** — corepack handles per-project version switching automatically
+
+### Common Mistake
+
+AI tools and automation sometimes add `corepack use pnpm@latest` to setup steps. This causes unnecessary version bumps and lockfile churn. Remove it — `corepack enable` + the existing `packageManager` field is sufficient.
+
+---
+
+## Part 3: .npmrc Build Script Security Management
 
 Evaluate and manage dependency build scripts for supply chain security.
 

@@ -61,26 +61,13 @@ function ensureDir(dir) {
   }
 }
 
-function cleanGeneratedFiles(dir, keepIndex = true) {
-  if (!fs.existsSync(dir)) return;
-  const files = fs.readdirSync(dir);
-  files.forEach((file) => {
-    if (keepIndex && file === "index.mdx") return;
-    const filePath = path.join(dir, file);
-    if (fs.statSync(filePath).isFile()) {
-      fs.unlinkSync(filePath);
-    }
-  });
-}
-
 function cleanDir(dir) {
   if (!fs.existsSync(dir)) return;
   const items = fs.readdirSync(dir);
   items.forEach((item) => {
     const itemPath = path.join(dir, item);
     if (fs.statSync(itemPath).isDirectory()) {
-      cleanDir(itemPath);
-      fs.rmdirSync(itemPath);
+      fs.rmSync(itemPath, { recursive: true, force: true });
     } else {
       fs.unlinkSync(itemPath);
     }
@@ -90,6 +77,7 @@ function cleanDir(dir) {
 /**
  * Escape angle brackets and curly braces in content for MDX compatibility.
  * Preserves content inside code blocks (``` ... ```) and inline code (` ... `).
+ * Handles 3+ backtick fenced blocks correctly (e.g., ```` containing ``` inside).
  */
 function escapeForMdx(content) {
   const htmlTags = new Set([
@@ -104,14 +92,23 @@ function escapeForMdx(content) {
     "fieldset", "legend", "dl", "dt", "dd", "caption",
   ]);
 
-  // Split on code blocks first
-  const codeBlockRegex = /(```[\s\S]*?```)/g;
-  const parts = content.split(codeBlockRegex);
+  // Extract code blocks (supports 3+ backtick fences via backreference)
+  // and replace with placeholders to protect them from escaping
+  const codeBlocks = [];
+  const placeholder = "\x00CODEBLOCK_";
+  const codeBlockRegex = /(`{3,})[^\n]*\n[\s\S]*?\1/g;
+  const withPlaceholders = content.replace(codeBlockRegex, (match) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(match);
+    return `${placeholder}${idx}\x00`;
+  });
+  const parts = withPlaceholders.split(new RegExp(`(${placeholder}\\d+\x00)`, "g"));
 
   return parts
-    .map((part, index) => {
-      // Odd indices are code blocks - leave untouched
-      if (index % 2 === 1) return part;
+    .map((part) => {
+      // Restore code block placeholders untouched
+      const placeholderMatch = part.match(new RegExp(`^${placeholder}(\\d+)\x00$`));
+      if (placeholderMatch) return codeBlocks[Number(placeholderMatch[1])];
 
       // For non-code-block text, split on inline code to preserve it
       const inlineCodeRegex = /(`[^`]+`)/g;
@@ -123,10 +120,20 @@ function escapeForMdx(content) {
           if (subIndex % 2 === 1) return subPart;
 
           return subPart
-            // Escape angle brackets that look like JSX tags (but not standard HTML)
-            .replace(/<([A-Za-z][A-Za-z0-9_-]*)>/g, (match, name) => {
+            // Escape opening tags: <Name>, <Name attr="val">
+            .replace(/<([A-Za-z][A-Za-z0-9_-]*)(\s[^>]*)?>(?!\/)/g, (match, name) => {
               if (htmlTags.has(name.toLowerCase())) return match;
-              return `&lt;${name}&gt;`;
+              return match.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            })
+            // Escape closing tags: </Name>
+            .replace(/<\/([A-Za-z][A-Za-z0-9_-]*)>/g, (match, name) => {
+              if (htmlTags.has(name.toLowerCase())) return match;
+              return `&lt;/${name}&gt;`;
+            })
+            // Escape self-closing tags: <Name />
+            .replace(/<([A-Za-z][A-Za-z0-9_-]*)(\s[^>]*)?\s*\/>/g, (match, name) => {
+              if (htmlTags.has(name.toLowerCase())) return match;
+              return match.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             })
             .replace(/<(-+|=+)/g, "&lt;$1")
             .replace(/<(\d)/g, "&lt;$1")
@@ -149,6 +156,7 @@ function findClaudeMdFiles(dir, excludeDirs) {
 
   const items = fs.readdirSync(dir);
   items.forEach((item) => {
+    if (item === "node_modules") return;
     const itemPath = path.join(dir, item);
     if (excludeDirs.some((d) => itemPath.startsWith(d))) return;
 
@@ -184,9 +192,7 @@ function generateClaudemdDocs() {
   ];
 
   // Scan from PROJECT_ROOT for CLAUDE.md files (not CLAUDE_DIR)
-  const files = findClaudeMdFiles(PROJECT_ROOT, excludeDirs).filter(
-    (f) => !f.includes("node_modules")
-  );
+  const files = findClaudeMdFiles(PROJECT_ROOT, excludeDirs);
 
   if (files.length === 0) {
     console.log("    No CLAUDE.md files found");
@@ -259,7 +265,6 @@ function generateCommandsDocs() {
   console.log("\n  Generating commands documentation...");
 
   ensureDir(OUTPUT_COMMANDS_DIR);
-  cleanGeneratedFiles(OUTPUT_COMMANDS_DIR);
 
   if (!fs.existsSync(COMMANDS_DIR)) {
     console.log("    Commands directory not found");
@@ -272,7 +277,16 @@ function generateCommandsDocs() {
   files.forEach((file) => {
     const filePath = path.join(COMMANDS_DIR, file);
     const content = fs.readFileSync(filePath, "utf8");
-    const { data, content: bodyContent } = matter(content);
+
+    let data, bodyContent;
+    try {
+      const parsed = matter(content);
+      data = parsed.data;
+      bodyContent = parsed.content;
+    } catch (err) {
+      console.log(`    Skipping ${file} (YAML parse error: ${err.reason || err.message})`);
+      return;
+    }
 
     const name = file.replace(/\.md$/, "");
     const description = data.description || "";
@@ -343,12 +357,13 @@ function generateSkillsDocs() {
   console.log("\n  Generating skills documentation...");
 
   cleanDir(OUTPUT_SKILLS_DIR);
-  ensureDir(OUTPUT_SKILLS_DIR);
 
   if (!fs.existsSync(SKILLS_DIR)) {
     console.log("    Skills directory not found");
     return [];
   }
+
+  ensureDir(OUTPUT_SKILLS_DIR);
 
   const dirs = fs.readdirSync(SKILLS_DIR).filter((d) => {
     const skillPath = path.join(SKILLS_DIR, d);
@@ -394,10 +409,13 @@ This skill includes: ${hasReferences ? `[references](#references)` : ""}${hasRef
 `;
     }
 
+    // When skill has references, it lives at skills/{dir}/index.mdx
+    // so links to refs are relative siblings: ./{ref.name}.mdx
+    // When skill has no references, it lives at skills/{dir}.mdx
     let referencesSection = "";
     if (references.length > 0) {
       const refLinks = references
-        .map((ref) => `- [${ref.title}](./${dir}/${ref.name}.mdx)`)
+        .map((ref) => `- [${ref.title}](./${ref.name}.mdx)`)
         .join("\n");
       referencesSection = `
 
@@ -420,14 +438,20 @@ ${escapeForMdx(bodyContent.trim())}
 ${referencesSection}
 `;
 
-    const outputPath = path.join(OUTPUT_SKILLS_DIR, `${dir}.mdx`);
-    fs.writeFileSync(outputPath, mdxContent);
-    console.log(`    ${name}`);
-
     if (references.length > 0) {
-      const skillRefsOutputDir = path.join(OUTPUT_SKILLS_DIR, dir);
-      ensureDir(skillRefsOutputDir);
+      // Skills with references: write as index.mdx inside the subdirectory
+      // This makes the Docusaurus category header link to the skill doc itself
+      const skillSubDir = path.join(OUTPUT_SKILLS_DIR, dir);
+      ensureDir(skillSubDir);
 
+      fs.writeFileSync(path.join(skillSubDir, "index.mdx"), mdxContent);
+      console.log(`    ${name} (with refs)`);
+
+      // Generate _category_.json to keep subcategory collapsed by default
+      const categoryJson = JSON.stringify({ collapsed: true }, null, 2) + "\n";
+      fs.writeFileSync(path.join(skillSubDir, "_category_.json"), categoryJson);
+
+      // Generate reference pages as siblings
       references.forEach((ref) => {
         const refMdxContent = `---
 title: "${ref.title}"
@@ -435,15 +459,18 @@ title: "${ref.title}"
 
 # ${ref.title}
 
-**Skill:** [${name}](../${dir}.mdx)
+**Skill:** [${name}](./index.mdx)
 
 ---
 
 ${escapeForMdx(ref.content.trim())}
 `;
-        const refOutputPath = path.join(skillRefsOutputDir, `${ref.name}.mdx`);
-        fs.writeFileSync(refOutputPath, refMdxContent);
+        fs.writeFileSync(path.join(skillSubDir, `${ref.name}.mdx`), refMdxContent);
       });
+    } else {
+      // Skills without references: write as a standalone file
+      fs.writeFileSync(path.join(OUTPUT_SKILLS_DIR, `${dir}.mdx`), mdxContent);
+      console.log(`    ${name}`);
     }
   });
 
@@ -477,13 +504,14 @@ Claude Code skills reference.
 function generateAgentsDocs() {
   console.log("\n  Generating agents documentation...");
 
-  ensureDir(OUTPUT_AGENTS_DIR);
-  cleanGeneratedFiles(OUTPUT_AGENTS_DIR);
+  cleanDir(OUTPUT_AGENTS_DIR);
 
   if (!fs.existsSync(AGENTS_DIR)) {
     console.log("    Agents directory not found");
     return [];
   }
+
+  ensureDir(OUTPUT_AGENTS_DIR);
 
   const files = fs.readdirSync(AGENTS_DIR).filter((f) => f.endsWith(".md"));
   const agents = [];
@@ -589,7 +617,7 @@ function generateSidebar(claudemds, commands, skills, agents) {
         type: "category",
         label: skill.name,
         collapsed: true,
-        link: { type: "doc", id: `${P}/skills/${skill.dir}` },
+        link: { type: "doc", id: `${P}/skills/${skill.dir}/index` },
         items: skill.references.map((ref) => `${P}/skills/${skill.dir}/${ref.name}`),
       };
     } else {
