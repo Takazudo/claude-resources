@@ -1,11 +1,11 @@
 ---
-name: pr-separate
-description: Separate a multi-feature pull request into smaller, focused PRs.
+name: pr-split
+description: Split a multi-feature pull request into smaller, focused PRs.
 ---
 
-# PR Separation Command
+# PR Split Command
 
-Separate a multi-feature pull request into smaller, focused PRs.
+Split a multi-feature pull request into smaller, focused PRs.
 
 **IMPORTANT: This command ALWAYS uses squash merge to discard try-and-error history and create clean, meaningful commits. Never use cherry-pick.**
 
@@ -20,26 +20,26 @@ Separate a multi-feature pull request into smaller, focused PRs.
 - Run `git log origin/<BASE>..HEAD` (not main!)
 - Identify distinct features/fixes
 
-### 2. Determine if Separation is Needed
+### 2. Determine if Split is Needed
 
 - Check if PR contains multiple independent features
-- If single feature, inform user separation not needed
-- If beneficial, explain what will be separated
+- If single feature, inform user split not needed
+- If beneficial, explain what will be split
 
-### 3. Plan the Separation
+### 3. Plan the Split
 
 - **Use the EXACT base branch from step 1**
-- List distinct features/fixes to separate
+- List distinct features/fixes to split
 - Present plan for user approval
 
-### 4. Execute Separation
+### 4. Execute Split
 
-For each separated feature:
+For each split feature:
 
 a. **Create new branch from base**
    ```bash
    git fetch origin
-   git checkout -b feature/separate-name origin/<base-branch>
+   git checkout -b feature/split-name origin/<base-branch>
    ```
 
 b. **Apply changes using squash merge**

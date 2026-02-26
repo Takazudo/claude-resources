@@ -154,11 +154,16 @@ gh pr merge <pr-number>
 
 **IMPORTANT**: Do not skip merging PRs. If topic work is merged directly into the base branch without going through the PR, close the PR explicitly: `gh pr close <pr-number> --comment "Merged outside PR"`. Leaving PRs open with deleted branches causes confusion.
 
-### Step 6: Update Root PR and Mark Ready
+### Step 6: Sync Local Base Branch, Update Root PR, and Mark Ready
 
-After all topics are merged, update the root PR with the final summary and mark it ready for review.
+After all topics are merged via GitHub, **the local base branch is behind the remote**. Pull to sync before proceeding.
 
 ```bash
+# CRITICAL: Pull remote changes into local base branch
+# Topic PRs were merged on GitHub (remote), so local is behind
+git fetch origin base/<project-name>
+git merge origin/base/<project-name>
+
 # Update the root PR body with merged topic details
 gh pr edit <root-pr-number> --body "$(cat <<'EOF'
 ## Summary
