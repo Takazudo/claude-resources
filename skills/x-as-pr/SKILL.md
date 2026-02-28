@@ -34,7 +34,7 @@ Before starting the workflow, detect which mode to use:
 
 ```bash
 git fetch origin
-CURRENT_BRANCH=$(git branch --show-current)
+INVOCATION_BRANCH=$(git branch --show-current)  # Record this — default base for PRs
 DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
 ```
 
@@ -43,8 +43,9 @@ DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}'
 Use **Existing-Work Mode** when ALL of these are true:
 
 1. The current branch is NOT the default branch (e.g., not `main` or `master`)
-2. There are commits on the current branch that are not on the default branch (`git log origin/$DEFAULT_BRANCH..$CURRENT_BRANCH --oneline` shows commits)
-3. No PR already exists for this branch (`gh pr view $CURRENT_BRANCH` returns error / not found)
+2. There are commits on the current branch that are not on the default branch (`git log origin/$DEFAULT_BRANCH..$INVOCATION_BRANCH --oneline` shows commits)
+3. No PR already exists for this branch (`gh pr view $INVOCATION_BRANCH` returns error / not found)
+4. No explicit branch name or implementation instructions were provided in `$ARGUMENTS` (if the user provided these, always use Fresh-Start Mode — the user wants to create a new sub-branch from the current one)
 
 ### Fresh-Start Mode
 
@@ -83,9 +84,11 @@ Otherwise, derive `{SLUG}` (max 40 chars, lowercase, hyphens) from the issue tit
 ### Step 3: Determine Target (Base) Branch
 
 - If user specified a base branch, use it
-- Otherwise, use the current locally checked-out branch
+- Otherwise, use `INVOCATION_BRANCH` (the branch that was checked out when the command was invoked)
 
 Record this as `TARGET_BRANCH`.
+
+**Example**: If invoked on `topic/foobar`, the new branch targets `topic/foobar` by default, not the repository's default branch.
 
 ### Step 4: Create Branch and Draft PR
 
@@ -135,15 +138,18 @@ Use this when implementation is already done (or nearly done) on the current bra
 
 ```bash
 # Identify current branch and base
-CURRENT_BRANCH=$(git branch --show-current)
+INVOCATION_BRANCH=$(git branch --show-current)
 DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
 
 # Review what was done
-git log origin/$DEFAULT_BRANCH..$CURRENT_BRANCH --oneline
-git diff origin/$DEFAULT_BRANCH...$CURRENT_BRANCH --stat
+git log origin/$DEFAULT_BRANCH..$INVOCATION_BRANCH --oneline
+git diff origin/$DEFAULT_BRANCH...$INVOCATION_BRANCH --stat
 ```
 
-If the user specified a base branch, use that instead of `DEFAULT_BRANCH` as `TARGET_BRANCH`. Otherwise, use `DEFAULT_BRANCH`.
+Determine `TARGET_BRANCH`:
+
+- If the user specified a base branch, use it
+- Otherwise, use `DEFAULT_BRANCH` as the fallback (since `INVOCATION_BRANCH` is the working branch itself in this mode)
 
 If the user specified an issue, read it for PR title/body context.
 
@@ -162,7 +168,7 @@ Follow normal commit conventions — no empty commits, meaningful messages.
 
 ```bash
 # Push current branch to remote
-git push -u origin $CURRENT_BRANCH
+git push -u origin $INVOCATION_BRANCH
 
 # Create draft PR against TARGET_BRANCH
 gh pr create \
@@ -227,6 +233,17 @@ If no further instructions were provided, report the PR URL and wait for directi
 -> Start implementing pagination
 ```
 
+### Fresh-start: from a non-default branch (invocation branch as base)
+
+```
+/x-as-pr add search to the sidebar
+-> Fetch, detect on topic/foobar → Fresh-Start Mode
+-> Branch: topic/add-search-sidebar
+-> Base: topic/foobar (INVOCATION_BRANCH, not main)
+-> Empty commit, push, draft PR targeting topic/foobar
+-> Start implementing search
+```
+
 ### Existing-work: implementation already done on branch
 
 ```
@@ -245,3 +262,31 @@ If no further instructions were provided, report the PR URL and wait for directi
 -> Push branch, create draft PR
 -> Report PR URL
 ```
+
+---
+
+## Post-Implementation: Automatic Local Review
+
+After implementation is complete (in either mode), evaluate whether to run an automatic code review:
+
+### Trigger Conditions (ALL must be true)
+
+1. Implementation was actually performed (not just PR creation with no instructions)
+2. The implementation completed without needing to ask the user for confirmation or clarification (no `AskUserQuestion` was used during implementation)
+3. No errors or failures occurred during implementation
+4. Changes were committed and pushed successfully
+
+### Action
+
+When all conditions are met, invoke `/local-review` to perform an automatic code quality review of the changes.
+
+Tell the user: "Implementation went smoothly — running local review on the changes."
+
+### Skip Conditions
+
+Do NOT run local review if:
+
+- No implementation was done (e.g., Existing-Work Mode with no additional instructions)
+- The user was asked for confirmation or clarification during implementation
+- Errors occurred that required user intervention
+- The user explicitly asked to skip review

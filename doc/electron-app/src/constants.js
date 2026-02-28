@@ -3,7 +3,7 @@ const os = require("os");
 
 // Server configuration
 const DEV_SERVER_URL = "http://claude.localhost:9987";
-const SERVER_START_TIMEOUT_MS = 60000;
+const SERVER_START_TIMEOUT_MS = 120000;
 const SERVER_POLL_INTERVAL_MS = 500;
 const HTTP_REQUEST_TIMEOUT_MS = 1000;
 const SERVER_PORT = 9987;

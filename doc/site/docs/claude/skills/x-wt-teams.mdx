@@ -36,14 +36,22 @@ Each topic gets its own worktree directory, its own branch, and its own PR targe
 3. Set up environment in worktrees
 4. Use TeamCreate + Task tool to spawn child agents in worktrees
 5. Monitor child agents, review their PRs, merge into base
-6. Update root PR and mark ready
-7. Clean up worktrees and branches
+6. Sync local base branch
+7. Quality assurance: local review + conditional CI verification
+8. Update root PR and mark ready
+9. Clean up worktrees and branches
 
 **Never ask the user to manually cd into worktrees or start Claude sessions.** Use the Task tool to spawn agents that work in each worktree directory.
 
 ### Step 1: Create Base Branch and Root PR
 
 The base branch is created from whichever branch is the "parent" — this is often `main` or `develop`, but can also be a feature branch.
+
+**Determine `&lt;parent-branch&gt;`**: If the user specified a parent/base branch, use it. Otherwise, **default to the branch that was checked out when the command was invoked** (`INVOCATION_BRANCH`). For example, if invoked on `topic/foobar`, the parent branch is `topic/foobar`, not `main`.
+
+```bash
+INVOCATION_BRANCH=$(git branch --show-current)  # Record before any checkout
+```
 
 **CRITICAL**: Create the root PR immediately with an empty commit. This locks in the correct parent branch from the start.
 
@@ -153,9 +161,70 @@ gh pr merge <pr-number>
 
 **IMPORTANT**: Do not skip merging PRs. If topic work is merged directly into the base branch without going through the PR, close the PR explicitly: `gh pr close &lt;pr-number&gt; --comment "Merged outside PR"`. Leaving PRs open with deleted branches causes confusion.
 
-### Step 6: Update Root PR and Mark Ready
+### Step 6: Sync Local Base Branch
 
-After all topics are merged, update the root PR with the final summary and mark it ready for review.
+After all topics are merged via GitHub, **the local base branch is behind the remote**. Pull to sync before proceeding.
+
+```bash
+# CRITICAL: Pull remote changes into local base branch
+# Topic PRs were merged on GitHub (remote), so local is behind
+git checkout base/<project-name>
+git fetch origin base/<project-name>
+git merge origin/base/<project-name>
+```
+
+### Step 7: Quality Assurance (Local Review + CI Verification)
+
+After all topic PRs are merged into the base branch and synced locally, perform a quality review to ensure the combined result works well together.
+
+#### 7a: Local Review
+
+Run a code quality review on the merged result. Review the diff between the parent branch and the base branch:
+
+```bash
+git diff <parent-branch>...base/<project-name>
+```
+
+Use Task tool with `subagent_type: "code-reviewer"` and `model: "opus"` to launch **3 parallel reviewers** (same approach as `/local-review` PR mode), each analyzing the full diff:
+
+- **Reviewer 1: Bugs & Logic** — silly mistakes, logic errors, broken functionality from merged topics interacting
+- **Reviewer 2: Structure & Refactoring** — code duplication across topics, inconsistent patterns, structural issues
+- **Reviewer 3: Quality & Best Practices** — type safety, performance, accessibility, integration issues between topics
+
+After receiving all review results:
+
+1. Synthesize and deduplicate findings
+2. Fix **High Priority** issues automatically (bugs, broken logic)
+3. Fix **Medium Priority** issues if clearly useful and safe
+4. Skip or ask about **Low Priority** issues
+5. Commit and push fixes to the base branch
+
+#### 7b: CI Verification (Conditional)
+
+**Only perform CI verification if ALL of the following are true:**
+
+1. The project has CI configured (check with `gh pr checks &lt;root-pr-number&gt;` — if no checks exist, skip)
+2. The task's changes are expected to fulfill existing common behavior (i.e., the changes should not intentionally break CI — they are bug fixes, improvements, refactors, or features that align with existing conventions)
+
+If CI verification applies:
+
+1. Push any review fixes from Step 7a to the base branch
+2. Watch CI using the polling approach:
+   ```bash
+   RESULT=$(bash ~/.claude/skills/watch-ci/scripts/check-ci.sh <root-pr-number>)
+   echo "$RESULT"
+   # Poll every 20 seconds until terminal state
+   ```
+3. **If CI passes**: Proceed to Step 8
+4. **If CI fails**: Investigate the failure and attempt to fix it
+- Fetch failed run logs: `gh run view &lt;run-id&gt; --log-failed`
+- Fix the issue, commit, push, and re-watch CI
+- **IMPORTANT**: Only attempt CI fixes if the failure is related to the changes made (not pre-existing failures or infrastructure issues)
+5. **If CI still fails after a fix attempt**: Stop and ask the user for guidance. Explain what failed, what was tried, and why it could not be resolved automatically
+
+If the task is intentionally CI-breaking (e.g., adding new linting rules, migrating frameworks, changing build config), **skip CI verification entirely** and inform the user that CI verification was skipped because the changes are expected to alter CI behavior.
+
+### Step 8: Update Root PR and Mark Ready
 
 ```bash
 # Update the root PR body with merged topic details
@@ -176,7 +245,7 @@ EOF
 gh pr ready <root-pr-number>
 ```
 
-### Step 7: Shutdown Team and Cleanup
+### Step 9: Shutdown Team and Cleanup
 
 After the root PR is merged:
 
@@ -216,7 +285,8 @@ git push origin --delete base/<project-name>
 7. **worktrees/ must be in .gitignore** — worktrees are local only
 8. **Manager stays at repo root** — never cd into worktrees for git ops
 9. **Each child agent works in its worktree** — git ops affect that branch only
-10. **Always merge PRs before cleanup** — never leave topic PRs or the root PR open. The full flow is: merge topic PRs → update root PR → merge root PR → then cleanup
+10. **Always merge PRs before cleanup** — never leave topic PRs or the root PR open. The full flow is: merge topic PRs → sync base branch → local review + fix → CI verification (if applicable) → update root PR → merge root PR → then cleanup
+11. **Quality assurance before marking ready** — always run local review after merging all topics. CI verification is conditional: only if the project has CI and the changes are expected to be non-CI-breaking
 
 ## Prerequisites
 
