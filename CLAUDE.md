@@ -14,6 +14,11 @@
 - No force push, no `--amend` unless explicitly permitted
 - No branch name reuse. Regular merge by default (not squash)
 
+## CSS Coding
+
+- Before writing non-trivial CSS, invoke `/css-wisdom <topic>` to look up best practices
+- This covers: layout, typography, spacing, color, shadows, responsive, transitions, modern CSS
+
 ## Safety
 
 - `rm -rf`: relative paths only (`./path`, never `/absolute/path`)

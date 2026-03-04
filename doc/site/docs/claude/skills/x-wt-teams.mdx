@@ -226,21 +226,11 @@ If the task is intentionally CI-breaking (e.g., adding new linting rules, migrat
 
 ### Step 8: Update Root PR and Mark Ready
 
+Invoke `/pr-revise` to analyze the full diff between the parent branch and `base/&lt;project-name&gt;`, and update the root PR title and description to accurately reflect all combined changes from the merged topics.
+
+After `/pr-revise` completes, mark the PR as ready:
+
 ```bash
-# Update the root PR body with merged topic details
-gh pr edit <root-pr-number> --body "$(cat <<'EOF'
-## Summary
-- Merged topicA: description
-- Merged topicB: description
-- Merged topicC: description
-
-## Topic PRs
-- #N topicA
-- #N topicB
-- #N topicC
-EOF
-)"
-
 # Mark ready for review (remove draft status)
 gh pr ready <root-pr-number>
 ```

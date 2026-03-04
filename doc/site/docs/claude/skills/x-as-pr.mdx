@@ -287,3 +287,24 @@ Do NOT run local review if:
 - Errors occurred that required user intervention
 - The user explicitly asked to skip review
 
+---
+
+## Post-Implementation: PR Revision
+
+After implementation and local review are complete (or skipped), update the PR to reflect the full implementation.
+
+### When to Run
+
+Run `/pr-revise` when implementation was performed (in either Fresh-Start or Existing-Work mode). The PR was created at the start with placeholder or initial content, and the implementation may have gone beyond the original scope.
+
+### Action
+
+Invoke `/pr-revise` to analyze the full diff and update the PR title and description to accurately reflect all changes made.
+
+### Skip Conditions
+
+Do NOT run PR revision if:
+
+- No implementation was done (PR was just created with no instructions)
+- The PR was just created in Existing-Work Mode with an already-accurate description (the body was derived from actual commits/diff)
+

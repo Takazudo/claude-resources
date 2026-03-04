@@ -4,17 +4,21 @@ description: >-
   Watch GitHub PR CI checks and notify on completion. Use when: (1) User wants to monitor CI/CD
   pipeline status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait for CI', (3)
   User wants to know when PR checks pass or fail, (4) User asks to fix CI failures. Polls CI checks
-  every 20 seconds, sends macOS system notification on completion, and investigates failures.
+  every 20 seconds, sends macOS system notification on completion, and investigates failures. Also
+  handles merged PRs: if a PR is already merged, watches the CI of the merge target branch (e.g.,
+  main) instead.
 ---
 
 # Watch CI
 
 Monitor GitHub PR CI checks, notify on completion via macOS system notification, and investigate failures.
+Also supports watching CI on the merge target branch when a PR is already merged.
 
 ## Scripts
 
 - **Notification**: `~/.claude/skills/watch-ci/scripts/notify.sh`
-- **CI Checker**: `~/.claude/skills/watch-ci/scripts/check-ci.sh`
+- **CI Checker (PR)**: `~/.claude/skills/watch-ci/scripts/check-ci.sh`
+- **CI Checker (Branch)**: `~/.claude/skills/watch-ci/scripts/check-branch-ci.sh`
 
 ## Workflow
 
@@ -25,12 +29,18 @@ Determine which PR to watch:
 ```bash
 # If user provides a PR number or URL, use it directly
 # Otherwise, detect from current branch
-gh pr view --json number,title,url,headRefName --jq '{number,title,url,headRefName}'
+gh pr view --json number,title,url,headRefName,baseRefName,state,mergeCommit --jq '{number,title,url,headRefName,baseRefName,state,mergeCommit}'
 ```
 
 If no PR is found for the current branch, inform the user and stop.
 
-### Step 2: Show Initial Status
+**Check the PR state:**
+
+- If `state` is `"OPEN"` → proceed to Step 2 (normal PR watch)
+- If `state` is `"MERGED"` → proceed to Step 2b (merged PR: watch target branch CI)
+- If `state` is `"CLOSED"` (not merged) → inform the user the PR was closed without merging and stop
+
+### Step 2: Show Initial Status (Open PR)
 
 Before starting the watch loop, show the current state:
 
@@ -44,7 +54,40 @@ Report to the user:
 - Total number of checks
 - Current status breakdown (passed/pending/failed)
 
-### Step 3: Poll Loop
+Then proceed to **Step 3**.
+
+### Step 2b: Merged PR — Switch to Target Branch CI
+
+When the PR is already merged:
+
+1. **Identify the target branch and merge commit**:
+
+   ```bash
+   # Get the base branch (e.g., main) and merge commit SHA
+   gh pr view <PR_NUMBER> --json baseRefName,mergeCommit --jq '{baseRefName,mergeCommit}'
+   ```
+
+2. **Inform the user**:
+   Report that the PR is already merged, and that you'll watch the CI on the target branch instead.
+   Example: "PR #123 is already merged into `main`. Watching CI on `main` for merge commit `abc1234`..."
+
+3. **Show initial status of branch CI**:
+
+   ```bash
+   RESULT=$(bash ~/.claude/skills/watch-ci/scripts/check-branch-ci.sh <base-branch> <merge-commit-sha>)
+   echo "$RESULT"
+   ```
+
+   If `no_checks` and commit SHA was used, retry without the commit SHA to catch workflows that may have triggered on the branch:
+
+   ```bash
+   RESULT=$(bash ~/.claude/skills/watch-ci/scripts/check-branch-ci.sh <base-branch>)
+   echo "$RESULT"
+   ```
+
+4. Proceed to **Step 3b** (branch poll loop).
+
+### Step 3: Poll Loop (Open PR)
 
 **IMPORTANT**: You must poll every 20 seconds until all checks reach a terminal state (pass or fail).
 
@@ -72,6 +115,27 @@ Parse the JSON result. Based on `status`:
 
 **Keep the loop going** until a terminal state is reached. Do NOT give up or ask the user to check manually.
 
+### Step 3b: Poll Loop (Merged PR — Target Branch)
+
+**IMPORTANT**: Same 20-second polling as Step 3, but for branch workflow runs.
+
+```bash
+RESULT=$(bash ~/.claude/skills/watch-ci/scripts/check-branch-ci.sh <base-branch> <merge-commit-sha>)
+echo "$RESULT"
+```
+
+Parse the JSON result. Based on `status`:
+
+- **`pending`**: Wait 20 seconds, then check again. Print progress update.
+
+- **`pass`**: All workflow runs succeeded - proceed to Step 4 (Success)
+
+- **`fail`**: One or more workflow runs failed - proceed to Step 5b (Branch CI Failure)
+
+- **`no_checks`**: If no runs found yet and it's within the first few polls, keep waiting (CI may not have started yet). After 3 polls with no checks, report and stop.
+
+- **`error`**: Report the issue and stop
+
 ### Step 4: All Checks Passed
 
 When all CI checks pass:
@@ -80,12 +144,16 @@ When all CI checks pass:
    ```bash
    bash ~/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<number>"
    ```
+   For merged PRs watching target branch:
+   ```bash
+   bash ~/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed on <branch>! (merged PR #<number>)"
+   ```
 
 2. Report the final status to the user with a summary of all checks.
 
 3. Done! The CI is green.
 
-### Step 5: CI Check Failed
+### Step 5: CI Check Failed (Open PR)
 
 When one or more CI checks fail:
 
@@ -109,18 +177,38 @@ When one or more CI checks fail:
    ```
 
 4. **Analyze the logs** and determine the root cause:
-  - Build errors: check compiler/transpiler output
-  - Test failures: identify which tests failed and why
-  - Lint errors: identify which files/rules are violated
-  - Timeout: check if tests are hanging
+- Build errors: check compiler/transpiler output
+- Test failures: identify which tests failed and why
+- Lint errors: identify which files/rules are violated
+- Timeout: check if tests are hanging
 
 5. **Fix the problem**:
-  - Make the necessary code changes to fix the failure
-  - Commit the fix
-  - Push to the PR branch
-  - **Return to Step 3** to watch the new CI run
+- Make the necessary code changes to fix the failure
+- Commit the fix
+- Push to the PR branch
+- **Return to Step 3** to watch the new CI run
 
 6. If the fix requires user input or the failure is unclear, explain the issue and ask the user for guidance before proceeding.
+
+### Step 5b: CI Check Failed (Merged PR — Target Branch)
+
+When target branch CI fails after a merge:
+
+1. **Send system notification**:
+   ```bash
+   bash ~/.claude/skills/watch-ci/scripts/notify.sh error "CI failed on <branch> after merging PR #<number>: <workflow-name>"
+   ```
+
+2. **Identify which workflow runs failed** from the check-branch-ci.sh output.
+
+3. **Investigate the failure** - fetch the failed run logs:
+   ```bash
+   gh run view <run-id> --log-failed
+   ```
+
+4. **Analyze the logs** and report findings to the user.
+
+5. **Do NOT auto-fix** on the target branch (e.g., main). Instead, report the failure details and ask the user how they want to proceed (e.g., create a hotfix branch, revert the merge, etc.).
 
 ## Notes
 
@@ -129,3 +217,4 @@ When one or more CI checks fail:
 - The `gh` CLI must be authenticated and have access to the repository
 - If the PR has no checks configured, report this and stop
 - Maximum reasonable watch time: if CI has been running for over 60 minutes with no progress, warn the user
+- For merged PRs, the skill watches workflow runs on the target branch filtered by the merge commit SHA

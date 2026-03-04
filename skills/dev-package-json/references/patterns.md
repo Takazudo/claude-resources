@@ -150,6 +150,41 @@ For monorepos with sub-packages, prefix commands with the package name:
 }
 ```
 
+## Predev Port Cleanup
+
+Kill stale processes on dev server ports before starting. Prevents "port already in use" errors from orphaned processes, crashed dev servers, or forgotten terminals.
+
+npm/pnpm lifecycle hooks auto-run `predev` before `dev` — no manual step needed.
+
+```json
+{
+  "predev": "lsof -ti :5173,:8787 | xargs kill 2>/dev/null; true",
+  "dev": "vite"
+}
+```
+
+**Command breakdown:**
+
+| Part | Purpose |
+|------|---------|
+| `lsof -ti :5173,:8787` | Find PIDs on ports 5173 and 8787 (`-t` = PID only) |
+| `xargs kill` | SIGTERM (graceful shutdown) to each PID |
+| `2>/dev/null; true` | Silently succeed when no processes found |
+
+**Common port combinations:**
+
+| Stack | Ports | predev |
+|-------|-------|--------|
+| Vite + Wrangler | 5173, 8787 | `lsof -ti :5173,:8787 \| xargs kill 2>/dev/null; true` |
+| Next.js | 3000 | `lsof -ti :3000 \| xargs kill 2>/dev/null; true` |
+| Vite + Express | 5173, 3001 | `lsof -ti :5173,:3001 \| xargs kill 2>/dev/null; true` |
+| CRA + API | 3000, 8080 | `lsof -ti :3000,:8080 \| xargs kill 2>/dev/null; true` |
+
+**Notes:**
+- Use `kill` (SIGTERM) not `kill -9` (SIGKILL) — give processes a chance to clean up
+- `; true` is preferred over `|| true` because it always succeeds regardless of which command in the pipeline fails
+- This is macOS/Linux only (`lsof`). For cross-platform needs, use `npx kill-port 5173 8787` instead
+
 ## Internal/Private Scripts
 
 Prefix with `_` for scripts not meant to be called directly:
@@ -157,7 +192,6 @@ Prefix with `_` for scripts not meant to be called directly:
 ```json
 {
   "// ── Internal & utilities ────────────────────────": "",
-  "_prepare": "rm -rf public && mkdir -p public && rsync -a static/ public/",
-  "_kill-port": "lsof -ti:3000 | xargs kill -9 2>/dev/null || true"
+  "_prepare": "rm -rf public && mkdir -p public && rsync -a static/ public/"
 }
 ```

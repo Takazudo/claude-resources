@@ -7,12 +7,14 @@ description: >
   shell scripts, (4) Setting up multi-environment dev commands (local/preview/production), (5)
   Handling pnpm "Ignored build scripts" warnings or evaluating dependency build scripts, (6)
   Configuring .npmrc security settings (strictDepBuilds, allowBuilds, ignoredBuilds), (7) Managing
-  pnpm versions via corepack and packageManager field, (8) User mentions 'organize package.json',
-  'package.json readability', 'script sections', 'multi-process dev script', 'build scripts
-  warning', 'npmrc', 'allowBuilds', 'ignoredBuilds', 'supply chain security', 'corepack',
-  'packageManager', 'pnpm version', or 'pnpm self-update'. Keywords: package.json, npm scripts,
-  organize, separator, shell script, multi-process, dev environment, .npmrc, pnpm, build scripts,
-  security, supply chain, allowBuilds, ignoredBuilds, corepack, packageManager, version pinning.
+  pnpm versions via corepack and packageManager field, (8) Adding predev port cleanup to kill stale
+  processes before dev server starts, (9) User mentions 'organize package.json', 'package.json
+  readability', 'script sections', 'multi-process dev script', 'build scripts warning', 'npmrc',
+  'allowBuilds', 'ignoredBuilds', 'supply chain security', 'corepack', 'packageManager', 'pnpm
+  version', 'pnpm self-update', 'predev', 'kill port', or 'port in use'. Keywords: package.json, npm
+  scripts, organize, separator, shell script, multi-process, dev environment, .npmrc, pnpm, build
+  scripts, security, supply chain, allowBuilds, ignoredBuilds, corepack, packageManager, version
+  pinning, predev, port cleanup, kill port, port in use.
 ---
 
 # package.json & npm Config Management
@@ -40,7 +42,29 @@ Add visual section dividers using unused JSON keys:
 
 Format: `"// ── Section Name ──────..."` with `─` padding to ~50 chars, value `""`.
 
-### Technique 2: External Shell Scripts for Multi-Process Commands
+### Technique 2: Predev Port Cleanup
+
+Add a `predev` script that kills stale processes on dev server ports before starting. This prevents "port already in use" errors that commonly occur after crashes, orphaned processes, or forgotten terminal sessions.
+
+```json
+{
+  "scripts": {
+    "predev": "lsof -ti :5173,:8787 | xargs kill 2>/dev/null; true",
+    "dev": "next dev"
+  }
+}
+```
+
+How it works:
+- `lsof -ti :PORT` — finds PIDs listening on specified ports (`-t` = terse/PID-only, `-i` = internet addresses)
+- Comma-separated ports: `:5173,:8787` checks multiple ports at once
+- `xargs kill` — sends SIGTERM (graceful) to found processes
+- `2>/dev/null; true` — silently succeeds when no processes are found
+- npm/pnpm auto-runs `predev` before `dev` (lifecycle hook convention)
+
+Adapt port numbers to match your project's dev servers (e.g., `:3000,:8080` for a typical Node.js + API setup).
+
+### Technique 3: External Shell Scripts for Multi-Process Commands
 
 When a command starts 2+ background processes, extract to `scripts/*.sh`.
 

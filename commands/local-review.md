@@ -255,6 +255,14 @@ After applying fixes:
 2. Create a descriptive commit message listing all fixes
 3. Use the standard commit format with footer
 
+### Step 7: Revise PR (PR mode only)
+
+If this was a PR review (Mode A) and fixes were committed:
+
+1. Invoke `/pr-revise` to update the PR title and description
+2. This ensures the PR metadata reflects the full implementation including the review fixes
+3. Skip this step if no fixes were applied or if running in full project mode (Mode B)
+
 ## Important Notes
 
 - **CRITICAL:** All reviews MUST be launched in parallel in a single message using Opus model

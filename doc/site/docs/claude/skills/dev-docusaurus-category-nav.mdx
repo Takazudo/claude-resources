@@ -14,7 +14,7 @@ Add a `<CategoryNav />` component to Docusaurus category index pages that auto-g
 ## Prerequisites
 
 - `gray-matter` npm dependency
-- `generate-category-nav.js` script (see Step 2)
+- `generate-category-nav.js` script (see Step 3)
 - `generate` npm script wired into `start`/`build`
 
 ## Step 1: Detect Docusaurus Root
@@ -29,6 +29,13 @@ Ask the user what heading to use above the CategoryNav component. Default: `Docu
 
 Create `{DOCUSAURUS_ROOT}/scripts/generate-category-nav.js`:
 
+### CATEGORY_STRUCTURE config
+
+Each subcategory supports two modes:
+
+- **`dir`**: Auto-discover `.md`/`.mdx` files from a directory. New files are picked up automatically. `index.*` and `CLAUDE.md` are excluded. Sorted by `sidebar_position` frontmatter, then alphabetically.
+- **`items`**: Hardcoded list of doc IDs. Use for flat directory structures where files are grouped by naming convention (not subdirectories), or for small fixed lists.
+
 ```js
 #!/usr/bin/env node
 const fs = require('fs');
@@ -38,18 +45,38 @@ const matter = require('gray-matter');
 const DOCS_DIR = path.join(__dirname, '../docs');
 const OUTPUT_FILE = path.join(__dirname, '../src/data/category-nav.json');
 
-// Customize per project: 'auto' = auto-detect subdirs, [] = flat (no subdirs)
 const CATEGORY_STRUCTURE = {
-  // example: 'auto',
-  // knowledge: [],
+  // Auto-discover: new files in reports/proposal/ are automatically included
+  reports: {
+    subcategories: [
+      { key: 'proposals', label: 'Proposals', dir: 'reports/proposal' },
+    ],
+  },
+  // Hardcoded: flat structure where grouping is by naming convention
+  legacy: {
+    subcategories: [
+      {
+        key: 'basics',
+        label: 'Basics',
+        items: ['legacy/intro', 'legacy/overview'],
+      },
+    ],
+  },
 };
 ```
 
-The script scans each category directory for `.md`/`.mdx` files, extracts titles from frontmatter or H1 headings, reads `sidebar_position` for sorting, and outputs `src/data/category-nav.json`.
+**IMPORTANT: Prefer `dir` over `items` whenever possible.** Only use `items` when files are in a flat directory and grouped by naming convention rather than subdirectories. Hardcoded `items` lists create a maintenance trap — new files must be manually added to both `sidebars.ts` and `generate-category-nav.js`.
 
-Key functions needed: `findSubdirectories`, `findMarkdownFiles`, `extractTitle`, `extractSidebarPosition`, `getDocId`, `isIndexFile`, `getPagesForDirectory`, `getCategoryLabel`, `getCategoryPosition`, `getIndexInfo`.
+### Key functions needed
 
-Output format:
+- `extractTitle(filePath)`: Extract title from frontmatter or first H1 heading
+- `extractSidebarPosition(filePath)`: Extract sidebar_position from frontmatter (default: Infinity)
+- `getMarkdownPath(docId)`: Resolve doc ID to `.md` or `.mdx` file path
+- `getPageInfo(docId, position)`: Get page info (docId, title, position) for a doc ID
+- `discoverDocIds(dirRelPath)`: Scan directory for `.md`/`.mdx` files, excluding `index.*` and `CLAUDE.md`, sorted by sidebar_position then alphabetically
+
+### Output format
+
 ```json
 {
   "categoryName": {
@@ -57,8 +84,7 @@ Output format:
     "subcategories": [{
       "key": "subdir",
       "title": "Subdir Title",
-      "docId": "cat/subdir/index",
-      "hasIndex": true,
+      "docId": "cat/subdir/first-page",
       "position": 1,
       "pages": [...]
     }]
@@ -86,6 +112,13 @@ export default function CategoryNav({ category }: { category: CategoryKey }): Re
   // If subcategory hasIndex, render as link; otherwise plain <span>
 }
 ```
+
+**CRITICAL**: The `useBaseUrl` argument MUST match the docs `routeBasePath` in `docusaurus.config`. Check the config first:
+
+- If `routeBasePath: '/docs'` → use `useBaseUrl('/docs/')`
+- If `routeBasePath: '/'` → use `useBaseUrl('/')`
+
+Using the wrong base URL will cause all CategoryNav links to 404.
 
 ### CI compatibility: generate data before quality checks
 
@@ -124,16 +157,20 @@ import CategoryNav from '@site/src/components/CategoryNav';
 <CategoryNav category="CATEGORY_NAME" />
 ```
 
-Replace the `## Documents in this category` heading with whatever the user chose in Step 1.
+Replace the `## Documents in this category` heading with whatever the user chose in Step 2.
 
 ## Step 6: Wire up scripts and gitignore
 
 In `package.json`, add:
 ```json
-"generate:category-nav": "node scripts/generate-category-nav.js"
+"generate-category-nav": "node scripts/generate-category-nav.js"
 ```
 
-Ensure `generate` script calls it, and `start`/`build` call `generate` first.
+Ensure `start`/`build` scripts call `generate-category-nav` before docusaurus. Example:
+```json
+"start": "node scripts/generate-category-nav.js && docusaurus start",
+"build": "node scripts/generate-category-nav.js && docusaurus build"
+```
 
 Add to `.gitignore`:
 ```
@@ -144,5 +181,5 @@ Install `gray-matter` if not already present.
 
 ## Step 7: Verify
 
-Run `pnpm run generate` and check that `src/data/category-nav.json` is created. Then run `pnpm run build` to verify no errors.
+Run the generate script and check that `src/data/category-nav.json` is created. Then run the build to verify no errors.
 
