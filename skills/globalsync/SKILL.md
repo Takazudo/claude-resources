@@ -16,8 +16,6 @@ Sync all personal repos across machines by running git pull & push on each repo 
 Work resources (`$HOME/repos/w/`):
 - `cg` - CodeGrid writing (Docusaurus)
 - `esa` - esa writing (Docusaurus)
-- `message` - Message writing helper (Docusaurus)
-- `zpaper` - Personal blog & writing (Next.js + Docusaurus)
 
 Standalone:
 - `~/.claude` - Claude Code settings, skills, agents, commands

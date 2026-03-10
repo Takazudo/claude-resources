@@ -1,1 +1,0 @@
-From now on, push to the remote automatically after committing during development. You don't need to ask for confirmation before pushing — just push right away after each commit.

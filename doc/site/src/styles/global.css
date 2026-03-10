@@ -1,0 +1,426 @@
+@import "tailwindcss/preflight";
+@import "tailwindcss/utilities";
+
+/* ========================================
+ * Design Token System
+ *
+ * Tight token strategy: import preflight + utilities only (no default theme).
+ * Only project-specific tokens are available.
+ *
+ * Raw palette: --zd-0 to --zd-15 + bg/fg/sel (injected by ColorSchemeProvider)
+ * Tailwind tokens: registered below via @theme
+ *
+ * Palette slots (standard ANSI mapping):
+ *   0/8:  black / bright-black (surfaces, muted text, borders)
+ *   1/9:  red / bright-red
+ *   2/10: green / bright-green
+ *   3/11: yellow / bright-yellow
+ *   4/12: blue / bright-blue
+ *   5/13: magenta / bright-magenta
+ *   6/14: cyan / bright-cyan
+ *   7/15: white / bright-white
+ * ======================================== */
+
+@theme {
+  /* ========================================
+   * Colors — Three-tier token system
+   * ======================================== */
+
+  /* ── Base ── */
+  --color-bg: var(--zd-bg);
+  --color-fg: var(--zd-fg);
+  --color-sel-bg: var(--zd-sel-bg);
+  --color-sel-fg: var(--zd-sel-fg);
+
+  /* ── Raw palette (p0–p15) ── */
+  --color-p0: var(--zd-0);
+  --color-p1: var(--zd-1);
+  --color-p2: var(--zd-2);
+  --color-p3: var(--zd-3);
+  --color-p4: var(--zd-4);
+  --color-p5: var(--zd-5);
+  --color-p6: var(--zd-6);
+  --color-p7: var(--zd-7);
+  --color-p8: var(--zd-8);
+  --color-p9: var(--zd-9);
+  --color-p10: var(--zd-10);
+  --color-p11: var(--zd-11);
+  --color-p12: var(--zd-12);
+  --color-p13: var(--zd-13);
+  --color-p14: var(--zd-14);
+  --color-p15: var(--zd-15);
+
+  /* ── Semantic aliases ── */
+  --color-surface: var(--zd-surface);
+  --color-muted: var(--zd-muted);
+  --color-accent: var(--zd-accent);
+  --color-accent-hover: var(--zd-accent-hover);
+  --color-code-bg: var(--zd-code-bg);
+  --color-code-fg: var(--zd-code-fg);
+  --color-success: var(--zd-success);
+  --color-danger: var(--zd-danger);
+  --color-warning: var(--zd-warning);
+  --color-info: var(--zd-info);
+
+  /* ========================================
+   * Spacing — hsp (horizontal) + vsp (vertical)
+   * ======================================== */
+  --spacing-0: 0;
+  --spacing-px: 1px;
+
+  /* Horizontal spacing (7 steps) */
+  --spacing-hsp-2xs: 0.125rem;   /* 2px  — tight inline */
+  --spacing-hsp-xs: 0.375rem;   /* 6px  — compact inline */
+  --spacing-hsp-sm: 0.5rem;     /* 8px  — small padding */
+  --spacing-hsp-md: 0.75rem;    /* 12px — default gaps */
+  --spacing-hsp-lg: 1rem;       /* 16px — standard padding */
+  --spacing-hsp-xl: 1.5rem;     /* 24px — generous padding */
+  --spacing-hsp-2xl: 2rem;      /* 32px — large padding */
+
+  /* Vertical spacing (7 steps) */
+  --spacing-vsp-2xs: 0.4375rem;   /* 7px — tight gap */
+  --spacing-vsp-xs: 0.875rem;    /* 14px — small gap */
+  --spacing-vsp-sm: 1.25rem;     /* 20px — compact gap */
+  --spacing-vsp-md: 1.5rem;      /* 24px — standard gap */
+  --spacing-vsp-lg: 1.75rem;     /* 28px — section gap */
+  --spacing-vsp-xl: 2.5rem;      /* 40px — large section gap */
+  --spacing-vsp-2xl: 3.5rem;     /* 56px — page-level gap */
+
+  /* ========================================
+   * Typography
+   * ======================================== */
+
+  /* Font sizes (6 steps) */
+  --text-caption: 0.875rem;      /* 14px — labels, timestamps */
+  --text-small: 1rem;            /* 16px — secondary text, nav items */
+  --text-body: 1.2rem;           /* 19.2px — paragraphs, default */
+  --text-subheading: 1.4rem;     /* 22.4px — card titles, section labels */
+  --text-heading: 3rem;          /* 48px — page headings */
+  --text-display: 3.75rem;       /* 60px — hero text */
+
+  /* Font families */
+  --font-sans: 'Noto Sans', 'Noto Sans JP', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', Meiryo, sans-serif;
+  --font-futura: Futura, var(--font-sans);
+  --font-mono: ui-monospace, monospace;
+
+  /* Font weights (4 steps) */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line heights (4 steps) */
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* ========================================
+   * Border radius (3 steps)
+   * ======================================== */
+  --radius-DEFAULT: 0.25rem;    /* 4px — rounded */
+  --radius-lg: 0.5rem;          /* 8px — rounded-lg */
+  --radius-full: 9999px;        /* rounded-full */
+
+  /* ========================================
+   * Breakpoints (3 steps)
+   * ======================================== */
+  --breakpoint-sm: 640px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+}
+
+/* ========================================
+ * Base styles
+ * ======================================== */
+
+[id] {
+  scroll-margin-top: 80px;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background-color: var(--color-sel-bg);
+  color: var(--color-sel-fg);
+}
+
+@layer base {
+  a {
+    text-underline-offset: 4px;
+  }
+  button {
+    cursor: pointer;
+  }
+}
+
+/* ========================================
+ * Content typography (.content)
+ *
+ * Direct element styling — no prose plugin.
+ * Uses :where() for zero specificity (easy to override).
+ * ======================================== */
+
+.content {
+  color: var(--color-fg);
+  font-size: var(--text-body);
+  line-height: var(--leading-relaxed);
+}
+
+/* ── Flow spacing (vertical rhythm) ── */
+
+.content :where(> * + *) {
+  margin-top: var(--spacing-vsp-md);
+}
+
+/* ── Headings ── */
+
+.content :where(h1) {
+  font-family: var(--font-futura);
+  font-size: var(--text-heading);
+  line-height: var(--leading-tight);
+  margin-bottom: var(--spacing-vsp-md);
+}
+
+.content :where(h2) {
+  font-family: var(--font-futura);
+  font-size: var(--text-subheading);
+  line-height: var(--leading-tight);
+  margin-top: var(--spacing-vsp-2xl);
+  margin-bottom: var(--spacing-vsp-xs);
+  padding-top: var(--spacing-vsp-sm);
+  border-top: 3px solid transparent;
+  border-image: linear-gradient(to right, var(--color-fg), transparent) 1;
+}
+
+.content :where(h3) {
+  font-family: var(--font-futura);
+  font-size: var(--text-body);
+  line-height: var(--leading-snug);
+  margin-top: var(--spacing-vsp-xl);
+  margin-bottom: var(--spacing-vsp-xs);
+  padding-top: var(--spacing-vsp-xs);
+  border-top: 2px solid transparent;
+  border-image: linear-gradient(to right, var(--color-muted), transparent) 1;
+}
+
+.content :where(h4) {
+  font-family: var(--font-futura);
+  font-size: var(--text-body);
+  line-height: var(--leading-snug);
+  margin-top: var(--spacing-vsp-lg);
+  margin-bottom: var(--spacing-vsp-xs);
+  padding-top: var(--spacing-vsp-xs);
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(to right, var(--color-muted), transparent) 1;
+}
+
+.content :where(h5, h6) {
+  font-family: var(--font-futura);
+  font-size: var(--text-small);
+  line-height: var(--leading-snug);
+  margin-top: var(--spacing-vsp-md);
+  margin-bottom: var(--spacing-vsp-2xs);
+}
+
+/* Tighten spacing after headings */
+.content :where(h2 + *, h3 + *, h4 + *, h5 + *, h6 + *) {
+  margin-top: 0;
+}
+
+/* ── Paragraphs ── */
+
+.content :where(p) {
+  margin-top: 0;
+  margin-bottom: var(--spacing-vsp-md);
+}
+
+/* ── Links ── */
+
+.content :where(a:not(.block)) {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.content :where(a:not(.block):hover) {
+  color: var(--color-accent-hover);
+}
+
+/* ── Bold / Strong ── */
+
+.content :where(strong) {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-fg);
+}
+
+/* ── Lists ── */
+
+.content :where(ul) {
+  list-style-type: disc;
+  padding-left: var(--spacing-hsp-xl);
+  margin-bottom: var(--spacing-vsp-md);
+}
+
+.content :where(ol) {
+  list-style-type: decimal;
+  padding-left: var(--spacing-hsp-xl);
+  margin-bottom: var(--spacing-vsp-md);
+}
+
+.content :where(li) {
+  margin-bottom: var(--spacing-vsp-xs);
+}
+
+.content :where(li::marker) {
+  color: var(--color-muted);
+}
+
+.content :where(li > ul, li > ol) {
+  margin-top: var(--spacing-vsp-xs);
+  margin-bottom: 0;
+}
+
+/* ── Blockquotes ── */
+
+.content :where(blockquote) {
+  border-left: 3px solid var(--color-muted);
+  padding-left: var(--spacing-hsp-lg);
+  color: var(--color-muted);
+  font-style: italic;
+  margin-bottom: var(--spacing-vsp-md);
+}
+
+.content :where(blockquote p) {
+  margin-bottom: var(--spacing-vsp-xs);
+}
+
+/* ── Inline code ── */
+
+.content :where(code:not(pre code)) {
+  font-size: var(--text-small);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-mono);
+  background-color: var(--color-code-bg);
+  color: var(--color-code-fg);
+  border: 1px solid var(--color-muted);
+  border-radius: var(--radius-DEFAULT);
+  padding: 2px var(--spacing-hsp-xs);
+}
+
+/* ── Code blocks (pre) ── */
+
+.content :where(pre) {
+  font-size: var(--text-small);
+  line-height: var(--leading-relaxed);
+  border: 1px solid var(--color-muted);
+  padding: var(--spacing-vsp-sm) var(--spacing-hsp-lg);
+  margin-bottom: var(--spacing-vsp-md);
+  overflow-x: auto;
+}
+
+.content :where(pre code) {
+  background: transparent;
+  padding: 0;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+}
+
+/* ── Tables ── */
+
+.content :where(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-small);
+  margin-bottom: var(--spacing-vsp-md);
+}
+
+.content :where(th) {
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  padding: var(--spacing-vsp-xs) var(--spacing-hsp-md);
+  border-bottom: 2px solid var(--color-muted);
+}
+
+.content :where(td) {
+  padding: var(--spacing-vsp-xs) var(--spacing-hsp-md);
+  border-bottom: 1px solid var(--color-muted);
+}
+
+/* ── Horizontal rules ── */
+
+.content :where(hr) {
+  border: none;
+  border-top: 1px solid var(--color-muted);
+  margin: var(--spacing-vsp-xl) 0;
+}
+
+/* ── Images ── */
+
+.content :where(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── Definition lists ── */
+
+.content :where(dt) {
+  font-weight: var(--font-weight-semibold);
+  margin-top: var(--spacing-vsp-md);
+}
+
+.content :where(dd) {
+  padding-left: var(--spacing-hsp-xl);
+  margin-bottom: var(--spacing-vsp-xs);
+}
+
+/* ========================================
+ * Doc History Diff Viewer (side-by-side)
+ * ======================================== */
+
+.diff-row {
+  border-bottom: 1px solid color-mix(in oklch, var(--color-muted) 30%, transparent);
+}
+
+.diff-line-num {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  padding: 0 var(--spacing-hsp-xs);
+  text-align: right;
+  color: var(--color-muted);
+  user-select: none;
+  vertical-align: top;
+  border-right: 1px solid color-mix(in oklch, var(--color-muted) 30%, transparent);
+}
+
+.diff-line-content {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  padding: 0 var(--spacing-hsp-sm);
+  white-space: pre-wrap;
+  word-break: break-all;
+  vertical-align: top;
+}
+
+/* Left column right border to separate the two sides */
+.diff-row td:nth-child(2) {
+  border-right: 2px solid var(--color-muted);
+}
+
+.diff-line-added {
+  background-color: color-mix(in oklch, var(--color-success) 15%, transparent);
+}
+
+.diff-line-removed {
+  background-color: color-mix(in oklch, var(--color-danger) 15%, transparent);
+}
+
+.diff-line-empty {
+  background-color: color-mix(in oklch, var(--color-muted) 8%, transparent);
+}

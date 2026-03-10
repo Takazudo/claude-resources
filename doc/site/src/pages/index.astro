@@ -1,0 +1,45 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/layout.astro";
+
+const commands = await getCollection("claudeCommands");
+const skills = await getCollection("claudeSkills");
+const agents = await getCollection("claudeAgents");
+const claudeMds = await getCollection("claudeMd");
+---
+
+<Layout title="Overview" currentPath="/">
+  <article class="content">
+    <h1>Claude Code Resources</h1>
+    <p>Global Claude Code configuration from <code>~/.claude/</code>.</p>
+
+    <div class="grid grid-cols-1 gap-hsp-lg sm:grid-cols-2 mt-vsp-lg">
+      {claudeMds.length > 0 && (
+        <a href="/claudemd/" class="block border border-muted rounded-lg p-hsp-lg hover:border-accent bg-surface no-underline">
+          <div class="text-subheading font-semibold text-accent">CLAUDE.md</div>
+          <div class="text-muted text-caption mt-vsp-2xs">{claudeMds.length} files -- project instructions</div>
+        </a>
+      )}
+      <a href="/commands/" class="block border border-muted rounded-lg p-hsp-lg hover:border-accent bg-surface no-underline">
+        <div class="text-subheading font-semibold text-accent">Commands</div>
+        <div class="text-muted text-caption mt-vsp-2xs">{commands.length} commands -- custom slash commands</div>
+      </a>
+      <a href="/skills/" class="block border border-muted rounded-lg p-hsp-lg hover:border-accent bg-surface no-underline">
+        <div class="text-subheading font-semibold text-accent">Skills</div>
+        <div class="text-muted text-caption mt-vsp-2xs">{skills.length} skills -- specialized capabilities</div>
+      </a>
+      <a href="/agents/" class="block border border-muted rounded-lg p-hsp-lg hover:border-accent bg-surface no-underline">
+        <div class="text-subheading font-semibold text-accent">Agents</div>
+        <div class="text-muted text-caption mt-vsp-2xs">{agents.length} agents -- custom subagents</div>
+      </a>
+    </div>
+
+    <h2>Directory Structure</h2>
+    <pre><code>~/.claude/
+├── CLAUDE.md       # Global instructions
+├── commands/       # Custom slash commands ({commands.length} files)
+├── skills/         # Skill packages ({skills.length} dirs)
+├── agents/         # Subagent definitions ({agents.length} files)
+└── settings.json   # Claude Code settings</code></pre>
+  </article>
+</Layout>

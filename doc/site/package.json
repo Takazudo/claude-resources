@@ -2,35 +2,33 @@
   "name": "claude-code-doc-site",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "docusaurus": "docusaurus",
-    "generate-docs": "node scripts/generate-docs.js",
-    "generate": "pnpm run generate-docs",
-    "start": "node scripts/start-dev.js --port 9987 --host claude.localhost",
-    "start:silent": "node scripts/start-dev.js --port 9987 --host claude.localhost --no-open",
-    "build": "pnpm run generate && docusaurus build",
-    "clear": "docusaurus clear",
-    "serve": "docusaurus serve --port 9987 --host claude.localhost"
+    "dev": "astro dev",
+    "start": "astro dev --port 9987",
+    "start:silent": "astro dev --port 9987 --host claude.localhost --no-open",
+    "build": "astro build",
+    "check": "astro check"
   },
   "dependencies": {
-    "@docusaurus/core": "3.9.2",
-    "@docusaurus/plugin-content-docs": "^3.9.2",
-    "@docusaurus/preset-classic": "3.9.2",
-    "@docusaurus/theme-common": "^3.9.2",
-    "@docusaurus/theme-mermaid": "^3.9.2",
-    "@mdx-js/react": "^3.1.1",
-    "clsx": "^2.1.1",
-    "prism-react-renderer": "^2.4.1",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "remark-breaks": "^4.0.0"
-  },
-  "devDependencies": {
-    "@docusaurus/module-type-aliases": "3.9.2",
-    "@docusaurus/types": "3.9.2",
-    "gray-matter": "^4.0.3"
+    "@astrojs/react": "^5.0.0",
+    "@tailwindcss/vite": "^4.1.10",
+    "astro": "^5.18.0",
+    "diff": "^8.0.3",
+    "gray-matter": "^4.0.3",
+    "minisearch": "^7.2.0",
+    "marked": "^17.0.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.1.10"
   },
   "engines": {
     "node": ">=20.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.7",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3"
   }
 }

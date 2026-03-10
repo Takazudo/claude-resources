@@ -1,0 +1,68 @@
+---
+import "@/styles/global.css";
+import ColorSchemeProvider from "@/components/color-scheme-provider.astro";
+import Sidebar from "@/components/sidebar.astro";
+import SidebarToggle from "@/components/sidebar-toggle";
+import Search from "@/components/search.astro";
+import { Toc } from "@/components/toc";
+import { DocHistory } from "@/components/doc-history";
+import type { Heading } from "@/types/heading";
+import { ClientRouter } from "astro:transitions";
+
+interface Props {
+  title: string;
+  currentPath?: string;
+  headings?: Heading[];
+}
+
+const { title, currentPath = "", headings = [] } = Astro.props;
+const historySlug = currentPath.replace(/^\//, "");
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <title>{title} | ccdoc</title>
+    <ColorSchemeProvider />
+    <ClientRouter />
+  </head>
+  <body class="min-h-screen antialiased">
+    <header class="sticky top-0 z-10 border-b border-muted bg-bg h-[3.5rem] flex items-center px-hsp-lg">
+      <SidebarToggle client:load>
+        <Sidebar currentPath={currentPath} />
+      </SidebarToggle>
+      <a href="/" class="text-subheading font-bold text-accent hover:text-accent-hover">ccdoc</a>
+      <div class="ml-auto flex items-center">
+        <Search />
+      </div>
+    </header>
+
+    <div class="flex min-h-[calc(100vh-3.5rem)]">
+      <!-- Desktop sidebar -->
+      <aside
+        class="hidden lg:block w-[clamp(14rem,20vw,22rem)] shrink-0 border-r border-muted sticky top-[3.5rem] h-[calc(100vh-3.5rem)] overflow-y-auto"
+      >
+        <Sidebar currentPath={currentPath} />
+      </aside>
+
+      <!-- Content + TOC wrapper -->
+      <div class="flex-1 min-w-0 flex justify-center">
+        <div class="flex w-full max-w-[clamp(50rem,75vw,90rem)] gap-[clamp(1.5rem,3vw,4rem)]">
+          <!-- Main content -->
+          <main class="flex-1 min-w-0 px-hsp-xl py-vsp-xl lg:px-hsp-2xl lg:py-vsp-2xl" transition:animate="fade">
+            <slot />
+          </main>
+
+          <!-- Table of contents -->
+          <Toc headings={headings} client:load />
+        </div>
+      </div>
+    </div>
+
+    {historySlug && <DocHistory slug={historySlug} client:load />}
+  </body>
+</html>

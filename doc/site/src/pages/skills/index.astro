@@ -1,0 +1,28 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/layout.astro";
+
+const skills = await getCollection("claudeSkills");
+skills.sort((a, b) => a.id.localeCompare(b.id));
+---
+
+<Layout title="Skills" currentPath="/skills">
+  <article class="content">
+    <h1>Skills ({skills.length})</h1>
+    <p>Global Claude Code skills from <code>~/.claude/skills/</code>.</p>
+    <ul>
+      {skills.map((skill) => (
+        <li>
+          <a href={`/skills/${skill.id}`}>{skill.data.name || skill.id}</a>
+          {skill.data.description && (
+            <span class="text-muted">
+              {" "}-- {typeof skill.data.description === "string" && skill.data.description.length > 100
+                ? skill.data.description.substring(0, 100) + "..."
+                : skill.data.description}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  </article>
+</Layout>

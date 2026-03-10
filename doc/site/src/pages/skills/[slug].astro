@@ -1,0 +1,34 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/layout.astro";
+import { renderMarkdown } from "@/utils/render-markdown";
+import { extractHeadings } from "@/utils/extract-headings";
+
+export async function getStaticPaths() {
+  const skills = await getCollection("claudeSkills");
+  return skills.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const html = renderMarkdown(entry.body);
+const headings = extractHeadings(entry.body || "");
+const title = entry.data.name || entry.id;
+---
+
+<Layout title={title} currentPath={`/skills/${entry.id}`} headings={headings}>
+  <article class="content">
+    <h1>{title}</h1>
+    {entry.data.description && (
+      <p class="text-muted">{
+        typeof entry.data.description === "string" && entry.data.description.length > 200
+          ? entry.data.description.substring(0, 200) + "..."
+          : entry.data.description
+      }</p>
+    )}
+    <hr />
+    <div set:html={html} />
+  </article>
+</Layout>

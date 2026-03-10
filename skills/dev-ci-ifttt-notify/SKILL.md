@@ -1,6 +1,9 @@
 ---
 name: dev-ci-ifttt-notify
-description: Add IFTTT webhook notification to a GitHub Actions CI/CD workflow. Use when: (1) User wants CI deploy notifications via IFTTT, (2) User says 'add IFTTT notify', 'CI notification', or 'deploy notification', (3) User wants webhook notifications for build/deploy status
+description: >-
+  Add IFTTT webhook notification to a GitHub Actions CI/CD workflow. Use when: (1) User wants CI
+  deploy notifications via IFTTT, (2) User says 'add IFTTT notify', 'CI notification', or 'deploy
+  notification', (3) User wants webhook notifications for build/deploy status
 argument-hint: <IFTTT_WEBHOOK_URL>
 ---
 

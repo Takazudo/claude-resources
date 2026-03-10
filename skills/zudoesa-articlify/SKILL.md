@@ -59,11 +59,12 @@ The brief should be written so that someone with zero context could write the fu
 
 ### Step 3: Delegate to subagent
 
-Use the Task tool to spawn the `zudoesa-writer` subagent:
+Use the Agent tool to spawn the `zudoesa-writer` subagent with `run_in_background: true` so the user is not blocked during writing:
 
 ```
-Task tool:
+Agent tool:
   subagent_type: zudoesa-writer
+  run_in_background: true
   prompt: [the detailed writing brief from Step 2]
 ```
 

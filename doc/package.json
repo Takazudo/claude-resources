@@ -10,6 +10,13 @@
     "app:build": "pnpm --filter claude-code-doc-app build"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "electron"
+    ]
   }
 }

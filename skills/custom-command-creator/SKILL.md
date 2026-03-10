@@ -188,7 +188,7 @@ allowed-tools: Bash(git:*), Read
 Clear instructions for what Claude should do.
 
 ## Context (if using bash execution)
-- Dynamic info: !`shell command here`
+- Dynamic info: !`git status --short`
 
 ## Task
 What to accomplish with $ARGUMENTS.

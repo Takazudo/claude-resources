@@ -1,0 +1,25 @@
+---
+import { getCollection, render } from "astro:content";
+import Layout from "@/layouts/layout.astro";
+
+export async function getStaticPaths() {
+  const commands = await getCollection("claudeCommands");
+  return commands.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const title = `/${entry.data.name || entry.id}`;
+---
+
+<Layout title={title} currentPath={`/commands/${entry.id}`} headings={headings}>
+  <article class="content">
+    <h1>{title}</h1>
+    {entry.data.description && <p class="text-muted">{entry.data.description}</p>}
+    <hr />
+    <Content />
+  </article>
+</Layout>

@@ -1,7 +1,7 @@
 const { BrowserWindow, shell } = require("electron");
 const path = require("path");
 const {
-  DEV_SERVER_URL,
+  SERVER_URL,
   MAIN_WINDOW,
   SPLASH_WINDOW,
 } = require("./constants");
@@ -44,7 +44,7 @@ function closeSplashWindow() {
 }
 
 /**
- * Create and show a main window that loads the Docusaurus dev server directly
+ * Create and show a main window that loads the static site
  * @returns {BrowserWindow}
  */
 function createMainWindow() {
@@ -59,7 +59,7 @@ function createMainWindow() {
     },
   });
 
-  win.loadURL(DEV_SERVER_URL);
+  win.loadURL(SERVER_URL);
 
   win.once("ready-to-show", () => {
     win.show();
@@ -90,6 +90,17 @@ function createNewWindow() {
 }
 
 /**
+ * Reload all open windows (after content rebuild)
+ */
+function reloadAllWindows() {
+  for (const win of windows) {
+    if (!win.isDestroyed()) {
+      win.reload();
+    }
+  }
+}
+
+/**
  * Check if any windows are open
  * @returns {boolean}
  */
@@ -102,5 +113,6 @@ module.exports = {
   closeSplashWindow,
   createMainWindow,
   createNewWindow,
+  reloadAllWindows,
   hasWindows,
 };

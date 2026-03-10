@@ -1,0 +1,26 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/layout.astro";
+
+const claudeMds = await getCollection("claudeMd");
+// Sort: root first, then alphabetically
+claudeMds.sort((a, b) => {
+  if (a.id === "root") return -1;
+  if (b.id === "root") return 1;
+  return a.data.displayPath.localeCompare(b.data.displayPath);
+});
+---
+
+<Layout title="CLAUDE.md" currentPath="/claudemd">
+  <article class="content">
+    <h1>CLAUDE.md ({claudeMds.length})</h1>
+    <p>CLAUDE.md files provide project-specific instructions to Claude Code.</p>
+    <ul>
+      {claudeMds.map((md) => (
+        <li>
+          <a href={`/claudemd/${md.id}`}><code>{md.data.displayPath}</code></a>
+        </li>
+      ))}
+    </ul>
+  </article>
+</Layout>

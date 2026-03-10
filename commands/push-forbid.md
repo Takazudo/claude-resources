@@ -1,1 +1,0 @@
-From now on, do NOT push to the remote automatically. Even if you commit changes, never push unless I explicitly ask you to. This is typically used during sequential large development or to save CI costs.

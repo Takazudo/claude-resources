@@ -1,0 +1,5 @@
+node_modules/
+dist/
+site/.astro/
+site/.doc-history-cache/
+*.log

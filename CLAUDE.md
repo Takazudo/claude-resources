@@ -19,6 +19,13 @@
 - Before writing non-trivial CSS, invoke `/css-wisdom <topic>` to look up best practices
 - This covers: layout, typography, spacing, color, shadows, responsive, transitions, modern CSS
 
+## Dropbox
+
+When asked to put files in Dropbox, use the screenshots directory:
+
+- **Mac**: `$HOME/Library/CloudStorage/Dropbox/screenshots`
+- **Windows (WSL2)**: `/mnt/c/Users/takaz/Dropbox/screenshots`
+
 ## Safety
 
 - `rm -rf`: relative paths only (`./path`, never `/absolute/path`)

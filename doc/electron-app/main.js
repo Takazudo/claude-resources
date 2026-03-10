@@ -7,12 +7,15 @@ const {
   createMainWindow,
   createNewWindow,
   hasWindows,
+  reloadAllWindows,
 } = require("./src/windows");
 const {
-  startDevServer,
-  stopDevServer,
-  isDevServerRunning,
-} = require("./src/devServer");
+  buildSite,
+  startStaticServer,
+  startWatcher,
+  stopServer,
+  isServerRunning,
+} = require("./src/buildServer");
 
 /**
  * Initialize the application
@@ -40,8 +43,17 @@ async function initialize() {
       return;
     }
 
-    // Start the dev server (generates docs + docusaurus start with hot reload)
-    await startDevServer(projectRoot);
+    // Build the site (static HTML)
+    await buildSite(projectRoot);
+
+    // Serve the built files
+    await startStaticServer(projectRoot);
+
+    // Watch for content changes and rebuild on demand
+    startWatcher(() => {
+      console.log("[main] Rebuild complete, reloading windows");
+      reloadAllWindows();
+    });
 
     // Close splash and show main window
     closeSplashWindow();
@@ -60,7 +72,7 @@ app.whenReady().then(initialize);
 app.on("activate", async () => {
   // On macOS, re-create window when dock icon is clicked
   if (!hasWindows()) {
-    if (isDevServerRunning()) {
+    if (isServerRunning()) {
       createMainWindow();
     } else {
       // Server not running, reinitialize
@@ -76,16 +88,16 @@ app.on("window-all-closed", () => {
 });
 
 app.on("will-quit", () => {
-  stopDevServer();
+  stopServer();
 });
 
 // Handle process termination signals
 process.on("SIGINT", () => {
-  stopDevServer();
+  stopServer();
   app.quit();
 });
 
 process.on("SIGTERM", () => {
-  stopDevServer();
+  stopServer();
   app.quit();
 });

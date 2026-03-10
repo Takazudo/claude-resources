@@ -1,0 +1,22 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/layout.astro";
+
+const commands = await getCollection("claudeCommands");
+commands.sort((a, b) => a.id.localeCompare(b.id));
+---
+
+<Layout title="Commands" currentPath="/commands">
+  <article class="content">
+    <h1>Commands ({commands.length})</h1>
+    <p>Global Claude Code custom commands from <code>~/.claude/commands/</code>.</p>
+    <ul>
+      {commands.map((cmd) => (
+        <li>
+          <a href={`/commands/${cmd.id}`}>/{cmd.data.name || cmd.id}</a>
+          {cmd.data.description && <span class="text-muted"> -- {cmd.data.description}</span>}
+        </li>
+      ))}
+    </ul>
+  </article>
+</Layout>
