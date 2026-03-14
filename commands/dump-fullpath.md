@@ -23,8 +23,8 @@ Output the absolute path on a single line with no additional text:
 
 ## Example
 
-If the previous message mentioned creating `__inbox/_0113-report.md` in `$HOME/repos/work/my-project/`:
+If the previous message mentioned creating `0314_1430-reviewer-auth.md` via save-file.js:
 
 ```
-$HOME/repos/work/my-project/__inbox/_0113-report.md
+/Users/username/cclogs/my-project/0314_1430-reviewer-auth.md
 ```

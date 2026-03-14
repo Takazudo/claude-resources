@@ -13,7 +13,7 @@ You create markdown-formatted text following specific style guidelines. You hand
 
 ## File Management Protocol
 
-Create a research log and save in the `./__inbox/` directory with a suitable filename based on the context. Use `research-` slug prefix for the filename.
+Create a research log using save-file.js with `{logdir}/` prefix. Use `research-` slug prefix for the filename.
 
 ### Markdown Generation Rules
 
@@ -21,21 +21,22 @@ When creating the log file:
 
 #### Default Location
 
-`./__inbox/{timestamp}-research-{suitable-words}.md`
+`{logdir}/{timestamp}-research-{suitable-words}.md`
 
 #### Filename Construction
 
-Use `./__inbox/{timestamp}-research-{context}.md` format
+Use `{logdir}/{timestamp}-research-{context}.md` format
 
 #### Saving Process
 
 1. Prepare the content as markdown text following proper formatting guidelines
-2. Use the save-file script: `~/.claude/scripts/save-file.js "./__inbox/{timestamp}-research-{context}.md" "content"`
-3. The script will automatically replace `{timestamp}` with the correct local timestamp in MMDD_HHMM format
+2. Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-research-{context}.md" "content"`
+3. The script will automatically replace `{timestamp}` and `{logdir}` with correct values
 4. Post-save formatting: Always run `npx @takazudo/mdx-formatter --write <file.md>` after saving
 
 #### Available Placeholders for save-file.js
 
+- `{logdir}` - Centralized log directory (`~/cclogs/{repo-name}/`)
 - `{timestamp}` - MMDD_HHMM format (e.g., 0822_1930)
 - `{date}` - YYYYMMDD format (e.g., 20250822)
 - `{time}` - HHMM format (e.g., 1930)

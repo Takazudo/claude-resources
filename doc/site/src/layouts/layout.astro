@@ -44,6 +44,8 @@ const historySlug = currentPath.replace(/^\//, "");
     <div class="flex min-h-[calc(100vh-3.5rem)]">
       <!-- Desktop sidebar -->
       <aside
+        id="desktop-sidebar"
+        transition:persist
         class="hidden lg:block w-[clamp(14rem,20vw,22rem)] shrink-0 border-r border-muted sticky top-[3.5rem] h-[calc(100vh-3.5rem)] overflow-y-auto"
       >
         <Sidebar currentPath={currentPath} />
@@ -64,5 +66,16 @@ const historySlug = currentPath.replace(/^\//, "");
     </div>
 
     {historySlug && <DocHistory slug={historySlug} client:load />}
+    <script>
+      let _sidebarScrollTop = 0;
+      document.addEventListener("astro:before-swap", () => {
+        const el = document.getElementById("desktop-sidebar");
+        if (el) _sidebarScrollTop = el.scrollTop;
+      });
+      document.addEventListener("astro:after-swap", () => {
+        const el = document.getElementById("desktop-sidebar");
+        if (el) el.scrollTop = _sidebarScrollTop;
+      });
+    </script>
   </body>
 </html>

@@ -5,11 +5,36 @@ description: >-
   project', 'copy from project', or 'look at another repo', (2) User wants to reference patterns or
   setup from another codebase, (3) User needs to learn from another project's structure without
   leaking private data.
+argument-hint: <slug|path> [slug2 ...] — repo slug (e.g. zmod) or full path
 ---
 
 # Refer Another Project Command
 
 Use this command when you need to reference, copy, or learn from another project's setup, structure, or patterns.
+
+## Resolving Project Paths
+
+Arguments can be **slugs** (short names) or **full paths**. Multiple slugs/paths can be provided, space-separated.
+
+**Slug resolution rule:**
+
+For each slug argument (any argument that is NOT an absolute path starting with `/`):
+
+1. Search for matching directories at `~/repos/*/{slug}` (one level of category directories)
+2. If exactly one match is found, use it as the project path
+3. If no match is found, **stop and report the error** to the user — do not guess or continue
+4. If multiple matches are found, list them and ask the user to clarify
+
+**Examples:**
+
+- `/refer-another-project zmod` → resolves `~/repos/*/zmod` → e.g. `~/repos/zp/zmod`
+- `/refer-another-project zmod dotfiles` → resolves both slugs independently
+- `/refer-another-project ~/repos/zp/zmod` → uses full path directly
+
+```bash
+# Resolution command for each slug
+ls -d ~/repos/*/{slug} 2>/dev/null
+```
 
 ## Critical Security Warning
 

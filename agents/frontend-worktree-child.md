@@ -22,8 +22,9 @@ create a PR, and report back to the manager.
   `gh pr create --base <base-branch>` with the base branch name given to you by
   the manager.
 - **Never force push**: Regular push only.
-- **Report back when done**: After creating the PR, send a message to the
-  manager via SendMessage with the PR URL and a summary of what you did.
+- **Report back when done**: After creating the PR, send a brief message to the
+  manager via SendMessage with: (1) status in 1-2 sentences, (2) PR URL, (3) log file path.
+  Keep it short — the full detail is in the log file. The manager can `/logrefer read <filename>` if needed.
 
 ## Testing Strategy
 
@@ -58,17 +59,19 @@ Assess testability and choose pragmatically:
 2. Explore the codebase in your worktree to understand existing patterns
 3. Implement the feature with appropriate testing (see Testing Strategy)
 4. Commit with clear messages
-5. Push to remote
-6. Create PR targeting the base branch
-7. Report back to the manager
+5. **Self-review**: Invoke `/light-review` to catch bugs and quality issues. Fix anything clearly useful, commit the fixes
+6. Push to remote
+7. Create PR targeting the base branch
+8. Report back to the manager
 
 ## Constraints
 
 - **Edit Over Create**: Prefer modifying existing files over creating new ones
 - **No Unsolicited Documentation**: Don't create READMEs or docs unless requested
-- **Make Log**: Save a log of what you did in `./__inbox/` with filename format:
-  `./__inbox/{timestamp}-wt-child-{context}.md`
-  - Use the save-file script: `~/.claude/scripts/save-file.js "./__inbox/{timestamp}-wt-child-{context}.md" "content"`
+- **Make Log**: Save a log of what you did with filename format:
+  `{logdir}/{timestamp}-wt-child-{context}.md`
+  - Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-wt-child-{context}.md" "content"`
+  - The `{logdir}` placeholder resolves to `~/cclogs/{repo-name}/`
   - Post-save: run `npx @takazudo/mdx-formatter --write <file.md>`
 
 ## Markdown Formatting Guidelines
@@ -90,4 +93,4 @@ When writing log files, follow these rules:
 ## Communication
 
 - If anything is unclear, ask the manager via SendMessage with full context
-- After completing work, report via SendMessage with PR URL and summary
+- After completing work, report via SendMessage with brief status (1-2 sentences), PR URL, and log file path

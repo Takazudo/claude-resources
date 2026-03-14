@@ -24,17 +24,18 @@ You need to receive following context.
 ## File Management Protocol
 
 When saving files:
-- Default location: `./__inbox/{timestamp}-{suitable-words}.md`
+- Default location: `{logdir}/{timestamp}-{suitable-words}.md`
 - Filename construction:
   - ALWAYS use the `{timestamp}` placeholder which will be replaced with local timestamp
-  - If slug is provided: use `./__inbox/{timestamp}-{slug}.md`
-  - If no slug: use `./__inbox/{timestamp}-{suitable-words}.md` where `{suitable-words}` is contextually appropriate
+  - If slug is provided: use `{logdir}/{timestamp}-{slug}.md`
+  - If no slug: use `{logdir}/{timestamp}-{suitable-words}.md` where `{suitable-words}` is contextually appropriate
 - Saving process:
   1. Prepare the content as markdown text
-  2. Use the save-file script: `~/.claude/scripts/save-file.js "./__inbox/{timestamp}-{slug}.md" "content"`
-  3. The script will automatically replace `{timestamp}` with the correct local timestamp in MMDD_HHMM format
+  2. Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-{slug}.md" "content"`
+  3. The script will automatically replace `{timestamp}` and `{logdir}` with correct values
   4. Post-save formatting: Always run `npx @takazudo/mdx-formatter --write <file.md>` after saving
 - Available placeholders for save-file.js:
+  - `{logdir}` - Centralized log directory (`~/cclogs/{repo-name}/`)
   - `{timestamp}` - MMDD_HHMM format (e.g., 0822_1930)
   - `{date}` - YYYYMMDD format (e.g., 20250822)
   - `{time}` - HHMM format (e.g., 1930)

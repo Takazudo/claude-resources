@@ -4,7 +4,7 @@ description: >-
   Fetch transcript/caption text from YouTube videos using youtube-transcript-api Python package. Use
   when: (1) User wants to get text from a YouTube video, (2) User provides YouTube URLs and needs
   transcript data, (3) User says 'fetch youtube text', 'get captions', 'youtube transcript'. Outputs
-  plain text transcript saved to __inbox/.
+  plain text transcript saved to ~/cclogs/{slug}/.
 user_invocable: true
 argument_description: YouTube URL(s) — space-separated if multiple
 ---
@@ -59,9 +59,16 @@ for s in snippets:
 
 ### 3. Save Output
 
-Save each transcript to `__inbox/youtube-<VIDEO_ID>.txt`.
+Determine the log directory first:
 
-If multiple videos are provided, also create a combined file `__inbox/youtube-combined.txt` with clear separators between each video's transcript.
+```bash
+LOGDIR=$(node ~/.claude/scripts/get-logdir.js)
+mkdir -p "$LOGDIR"
+```
+
+Save each transcript to `$LOGDIR/youtube-<VIDEO_ID>.txt`.
+
+If multiple videos are provided, also create a combined file `$LOGDIR/youtube-combined.txt` with clear separators between each video's transcript.
 
 ### 4. Report
 

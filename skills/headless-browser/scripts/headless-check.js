@@ -24,6 +24,8 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import os from 'os';
+import { getLogDir } from '../../../scripts/get-logdir.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -250,7 +252,7 @@ async function checkUrl(url, config) {
       });
 
       // Save to temp file in current working directory
-      const tempDir = path.join(process.cwd(), '__inbox/headless-screenshots');
+      const tempDir = path.join(getLogDir(), 'headless-screenshots');
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }

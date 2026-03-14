@@ -73,7 +73,11 @@ PRIMARY FOCUS:
 3. Incorrect API usage, broken functionality
 4. Error handling issues
 
-Provide specific, actionable feedback with code examples.
+REPORTING: Save your FULL findings to the log file (as per your log generation rules).
+Then return to the caller ONLY:
+- A bullet list of high-priority findings (1 sentence each, max 5 items)
+- The log file path
+Do NOT return the full analysis — it is in the log file.
 ```
 
 **Reviewer 2: Structure & Refactoring**
@@ -90,7 +94,11 @@ PRIMARY FOCUS:
 6. File organization and naming
 7. Better abstractions or patterns
 
-Provide specific, actionable feedback with code examples.
+REPORTING: Save your FULL findings to the log file (as per your log generation rules).
+Then return to the caller ONLY:
+- A bullet list of high-priority findings (1 sentence each, max 5 items)
+- The log file path
+Do NOT return the full analysis — it is in the log file.
 ```
 
 **Reviewer 3: Quality & Best Practices**
@@ -108,7 +116,11 @@ PRIMARY FOCUS:
 SECONDARY:
 - Security issues (XSS, injection, validation)
 
-Provide specific, actionable feedback with code examples.
+REPORTING: Save your FULL findings to the log file (as per your log generation rules).
+Then return to the caller ONLY:
+- A bullet list of high-priority findings (1 sentence each, max 5 items)
+- The log file path
+Do NOT return the full analysis — it is in the log file.
 ```
 
 **CRITICAL: Launch all 3 code-reviewer subagents in PARALLEL in a single message using Opus model**
@@ -149,6 +161,12 @@ Review the ENTIRE project codebase for bugs and logic errors:
 6. Dead code that hides bugs
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and fix suggestions.
+
+REPORTING: Save your FULL findings to the log file (as per your log generation rules).
+Then return to the caller ONLY:
+- A bullet list of high-priority findings (1 sentence each, max 5 items)
+- The log file path
+Do NOT return the full analysis — it is in the log file.
 ```
 
 **Reviewer 2: Architecture & Structure**
@@ -165,6 +183,12 @@ Review the ENTIRE project codebase for architectural and structural issues:
 7. Naming inconsistencies (files, functions, variables)
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and improvement suggestions.
+
+REPORTING: Save your FULL findings to the log file (as per your log generation rules).
+Then return to the caller ONLY:
+- A bullet list of high-priority findings (1 sentence each, max 5 items)
+- The log file path
+Do NOT return the full analysis — it is in the log file.
 ```
 
 **Reviewer 3: Code Quality & Refactoring**
@@ -181,6 +205,12 @@ Review the ENTIRE project codebase for refactoring opportunities:
 7. Functions/methods that are too long
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and refactoring suggestions.
+
+REPORTING: Save your FULL findings to the log file (as per your log generation rules).
+Then return to the caller ONLY:
+- A bullet list of high-priority findings (1 sentence each, max 5 items)
+- The log file path
+Do NOT return the full analysis — it is in the log file.
 ```
 
 **Reviewer 4: Type Safety & Correctness**
@@ -196,6 +226,12 @@ Review the ENTIRE project codebase for type safety and correctness:
 6. Data flow issues (wrong data passed between components)
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and fix suggestions.
+
+REPORTING: Save your FULL findings to the log file (as per your log generation rules).
+Then return to the caller ONLY:
+- A bullet list of high-priority findings (1 sentence each, max 5 items)
+- The log file path
+Do NOT return the full analysis — it is in the log file.
 ```
 
 **Reviewer 5: Performance & Resource Management**
@@ -212,6 +248,12 @@ Review the ENTIRE project codebase for performance issues:
 7. Inefficient algorithms or data structures
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and optimization suggestions.
+
+REPORTING: Save your FULL findings to the log file (as per your log generation rules).
+Then return to the caller ONLY:
+- A bullet list of high-priority findings (1 sentence each, max 5 items)
+- The log file path
+Do NOT return the full analysis — it is in the log file.
 ```
 
 **Reviewer 6: Security & Robustness**
@@ -229,6 +271,12 @@ Review the ENTIRE project codebase for security and robustness issues:
 8. Dependency vulnerabilities
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and fix suggestions.
+
+REPORTING: Save your FULL findings to the log file (as per your log generation rules).
+Then return to the caller ONLY:
+- A bullet list of high-priority findings (1 sentence each, max 5 items)
+- The log file path
+Do NOT return the full analysis — it is in the log file.
 ```
 
 **CRITICAL: Launch all 6 code-reviewer subagents in PARALLEL in a single message using Opus model**
@@ -239,16 +287,17 @@ Explore all source files thoroughly. Provide specific findings with file paths, 
 
 ### Step 3: Synthesize Review Results
 
-After receiving ALL review results from code-reviewer subagents:
+After receiving review results from code-reviewer subagents (each returns high-priority items + log path):
 
-1. **Merge and deduplicate findings** from all reviewers
+1. **Merge and deduplicate findings** from all reviewers' brief returns
 2. **Categorize all findings by priority**
-3. **Identify useful fixes** that can be implemented
-4. **Note reviewer consensus** (findings flagged by multiple reviewers are higher priority)
+3. **Note reviewer consensus** (findings flagged by multiple reviewers are higher priority)
+4. **If more detail is needed** on a specific finding, read the reviewer's log file via the returned path
+5. **Collect all log file paths** for reference
 
 ### Step 4: Present Findings to User
 
-Present a clear summary synthesized from all reviewers.
+Present a clear summary synthesized from all reviewers. Include log file paths so the user (or a future session via `/logrefer`) can access the full analysis.
 
 ### Step 5: Apply Fixes
 

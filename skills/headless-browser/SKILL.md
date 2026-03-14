@@ -87,7 +87,7 @@ JSON with:
   "hasErrors": false,
   "console": { "entries": [], "total": 0 },
   "pageErrors": [],
-  "screenshot": { "path": "__inbox/headless-screenshots/screenshot-2025-01-28.png" }
+  "screenshot": { "path": "/Users/you/cclogs/my-project/headless-screenshots/screenshot-2025-01-28.png" }
 }
 ```
 
@@ -235,6 +235,6 @@ pnpm dlx @playwright/cli@latest --session todo close
 - **Resource blocking:** By default, Tier 1 blocks images/fonts for speed. Use `--no-block-resources` for accurate error detection (fonts/images will load, catching real failures)
 - Tier 2 uses `pnpm dlx` - no global install needed, always runs latest version
 - Tier 2 is headless by default, use `--headed` to see browser
-- Screenshots saved to `__inbox/headless-screenshots/` (Tier 1) or current directory (Tier 2)
+- Screenshots saved to `~/cclogs/{repo-name}/headless-screenshots/` (Tier 1) or current directory (Tier 2)
 - Both tiers are more token-efficient than MCP Playwright
 - First `pnpm dlx` call may be slower (downloads package), subsequent calls are cached

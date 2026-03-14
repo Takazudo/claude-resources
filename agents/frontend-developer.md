@@ -43,9 +43,10 @@ Assess testability and choose pragmatically:
   explicitly instructed
 - **Edit Over Create**: Prefer modifying existing files over creating new ones
 - **No Unsolicited Documentation**: Don't create READMEs or docs unless requested
-- **Make Log**: Save a log of what you did in `./__inbox/` with filename format:
-  `./__inbox/{timestamp}-frontend-dev-{context}.md`
-  - Use the save-file script: `~/.claude/scripts/save-file.js "./__inbox/{timestamp}-frontend-dev-{context}.md" "content"`
+- **Make Log**: Save a log of what you did with filename format:
+  `{logdir}/{timestamp}-frontend-dev-{context}.md`
+  - Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-frontend-dev-{context}.md" "content"`
+  - The `{logdir}` placeholder resolves to `~/cclogs/{repo-name}/`
   - Post-save: run `npx @takazudo/mdx-formatter --write <file.md>`
 
 ## Markdown Formatting Guidelines
@@ -67,5 +68,5 @@ When writing log files, follow these rules:
 ## Communication
 
 - If anything is unclear, ask with full context (what you found, what you propose, why)
-- After completing work, summarize what was done and any decisions made
+- After completing work, briefly state what was done (1-2 sentences) and provide the log file path for detail
 - When a GitHub URL is provided, use `gh` CLI to access it

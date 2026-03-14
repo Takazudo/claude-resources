@@ -1,0 +1,242 @@
+---
+title: "dev-electron"
+description: "Electron app development patterns for thin wrapper apps around dev servers.
+Use when: (1) Building Electron apps as thin wrappers around web apps,
+(2) Managing dev server processes in Electron,
+(3) Ha..."
+---
+
+# dev-electron
+
+
+:::info Bundled Resources
+This skill includes: [references](#references)
+:::
+
+
+# Electron Development
+
+## Common Pattern: Thin Wrapper App
+
+Electron as thin wrapper around a dev server (e.g., Vite, Docusaurus):
+
+1. Show splash screen
+2. Spawn dev server as background process
+3. Wait for server ready
+4. Show BrowserWindow pointing to localhost URL
+5. Clean up server on quit
+
+See [references/background-process.md](references/background-process.md) for implementation.
+
+### BrowserWindow Setup
+
+Load the dev server URL directly in BrowserWindow (no webview, no tabs):
+
+```javascript
+const { BrowserWindow, shell } = require("electron");
+
+function createMainWindow(devServerUrl) {
+  const win = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    title: "My App",
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  win.loadURL(devServerUrl);
+  win.once("ready-to-show", () => win.show());
+
+  // Open external links in default browser
+  const devServerOrigin = new URL(devServerUrl).origin;
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return { action: "deny" };
+      }
+      if (parsed.origin !== devServerOrigin) {
+        shell.openExternal(url);
+        return { action: "deny" };
+      }
+    } catch {
+      // Invalid URL
+    }
+    return { action: "deny" };
+  });
+
+  return win;
+}
+```
+
+Key points:
+- Use `nodeIntegration: false` + `contextIsolation: true` (secure defaults)
+- Standard `{ role: "reload" }` menu items work correctly (they reload the BrowserWindow content directly)
+- No need for custom IPC, globalShortcut, or webview tags
+
+### Menu
+
+Use standard Electron menu roles. No custom IPC needed:
+
+```javascript
+const template = [
+  {
+    label: "View",
+    submenu: [
+      { role: "reload" },
+      { role: "forceReload" },
+      { role: "toggleDevTools" },
+    ],
+  },
+  {
+    label: "Edit",
+    submenu: [
+      { role: "undo" }, { role: "redo" },
+      { type: "separator" },
+      { role: "cut" }, { role: "copy" }, { role: "paste" },
+      { role: "selectAll" },
+    ],
+  },
+  {
+    label: "Window",
+    submenu: [
+      { role: "minimize" },
+      { role: "close" },
+    ],
+  },
+];
+```
+
+## Packaging & Build
+
+### electron-builder: Keep as devDependency (DO NOT use pnpm dlx)
+
+**electron-builder has 300+ sub-dependencies.** Using `pnpm dlx` downloads them all on every invocation, making builds extremely slow. Always install it as a devDependency:
+
+```json
+{
+  "devDependencies": {
+    "electron": "^35.7.5",
+    "electron-builder": "^26.8.0"
+  },
+  "scripts": {
+    "build": "electron-builder --mac",
+    "build:dir": "electron-builder --mac --dir"
+  }
+}
+```
+
+### Shared Modules: Use extraResources, NOT files glob
+
+```json
+// WRONG - shared module won't be in the asar
+"files": ["main.js", "../../../shared/module/**/*"]
+
+// CORRECT - copies to app's Resources directory
+"extraResources": [{ "from": "../../../shared/module", "to": "module" }]
+```
+
+Then resolve dynamically in main.js:
+
+```javascript
+function getSharedCorePath() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'electron-app-core');
+  }
+  return path.join(__dirname, '..', '..', '..', 'shared', 'electron-app-core');
+}
+```
+
+### Dynamic Project Root (Don't Hardcode Paths)
+
+Walk up from `app.getPath("exe")` checking each directory for `package.json` with the expected project name. This is robust against repo moves and directory restructuring — no fragile `..` counting.
+
+```javascript
+function findProjectRootFromExePath() {
+  let dir = path.dirname(app.getPath("exe"));
+  const root = path.parse(dir).root;
+  while (dir !== root) {
+    if (isProjectRoot(dir)) return dir;
+    dir = path.dirname(dir);
+  }
+  return null;
+}
+```
+
+See [references/packaging.md](references/packaging.md) for full pattern including `isProjectRoot` helper.
+
+## Critical Pitfalls
+
+### Open External Links in Default Browser (Cmd+Click)
+
+Electron doesn't open links in the system browser by default. Use `setWindowOpenHandler` to intercept Cmd+click and route external URLs to the default browser via `shell.openExternal`. See BrowserWindow Setup above.
+
+Validate URL protocol (allow only `http:` and `https:`) to prevent `javascript:` or other protocol injection.
+
+### Dev Server: Kill Stale Port Before Start
+
+When the app crashes or is force-quit, the old dev server process may survive and hold the port. On next launch the new server can't bind, causing a timeout. Kill any existing process on the port before spawning:
+
+```javascript
+const { execSync } = require("child_process");
+
+function killProcessOnPort(port) {
+  try {
+    const output = execSync(`lsof -ti tcp:${port}`, { encoding: "utf-8" });
+    const pids = output.trim().split("\n").filter(Boolean);
+    for (const pid of pids) {
+      process.kill(Number(pid), "SIGKILL");
+    }
+  } catch {
+    // No process on port - fine
+  }
+}
+```
+
+### Dev Server: Health Check Must Not Require HTTP 200
+
+When the dev server framework uses a non-root `baseUrl` (e.g., Docusaurus with `baseUrl: "/pj/app/doc/"`), the root path `/` returns 404. **Accept any HTTP response** as proof the server is alive:
+
+```javascript
+// WRONG - breaks when baseUrl is not "/"
+(res) => resolve(res.statusCode === 200)
+
+// CORRECT - any response means server is up
+(res) => resolve(res.statusCode > 0)
+```
+
+### Dev Server: Default URL Must Include baseUrl
+
+When the framework uses a non-root `baseUrl`, the default URL must include the full path. Otherwise the app opens to a 404 page:
+
+```javascript
+// WRONG - opens to 404 when baseUrl is "/pj/app/doc/"
+const defaultUrl = "http://localhost:3000";
+
+// CORRECT - include the full baseUrl path
+const defaultUrl = "http://localhost:3000/pj/app/doc/";
+```
+
+### Dev Server: Avoid Transient Errors During File Regeneration
+
+When regenerating files that a running dev server watches, **write new files before deleting stale ones**. If you delete first, the dev server sees missing files and shows errors. See the dev-docusaurus skill for the `removeStaleItems` pattern.
+
+### nodenv/anyenv PATH Issues
+
+Spawned processes don't inherit version managers. Source shell profile first. See [references/background-process.md](references/background-process.md).
+
+## Detailed References
+
+- **Packaging & build**: [references/packaging.md](references/packaging.md) - pnpm dlx, extraResources, dynamic project root
+- **Background process & dev server**: [references/background-process.md](references/background-process.md) - Spawn, wait, cleanup
+
+
+## References
+
+- [Background Process & Dev Server](./background-process.mdx)
+- [Packaging & Build](./packaging.mdx)
+- [BrowserWindow Patterns](./webview.mdx)
+

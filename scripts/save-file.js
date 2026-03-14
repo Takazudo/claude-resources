@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { getLogDir } from './get-logdir.js';
 
 // Get arguments
-const [,, filePath, content] = process.argv;
+const [, , filePath, content] = process.argv;
 
 if (!filePath || !content) {
   console.error('Usage: save-file.js <filepath> <content>');
@@ -14,21 +15,30 @@ if (!filePath || !content) {
 // Replace placeholders
 const now = new Date();
 const replacements = {
-  '{timestamp}': now.toLocaleString('en-US', { 
-    month: '2-digit', 
-    day: '2-digit', 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    hour12: false 
-  }).replace(/[/:]/g, '').replace(', ', '_').replace(' ', ''),
+  '{timestamp}': now
+    .toLocaleString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    .replace(/[/:]/g, '')
+    .replace(', ', '_')
+    .replace(' ', ''),
   '{date}': now.toISOString().split('T')[0].replace(/-/g, ''),
   '{time}': now.toTimeString().split(' ')[0].substring(0, 5).replace(':', ''),
-  '{datetime}': now.toISOString().replace(/[-:T]/g, '').split('.')[0]
+  '{datetime}': now.toISOString().replace(/[-:T]/g, '').split('.')[0],
 };
+
+// Lazy: only compute logdir when the placeholder is actually used
+if (filePath.includes('{logdir}')) {
+  replacements['{logdir}'] = getLogDir();
+}
 
 let processedPath = filePath;
 for (const [placeholder, value] of Object.entries(replacements)) {
-  processedPath = processedPath.replace(placeholder, value);
+  processedPath = processedPath.replaceAll(placeholder, value);
 }
 
 // Ensure directory exists

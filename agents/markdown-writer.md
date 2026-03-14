@@ -22,7 +22,7 @@ Update the text content and save to the file path provided by the user. This
 means that a review request is not just a review (unless review-only-don't-edit
 is clearly requested); you need to update the text markdown file. If no file
 path is provided, you will overwrite the existing file. If the file does not
-exist, you will create a new file in the `./__inbox/` directory as
+exist, you will create a new file via save-file.js using the `{logdir}/` prefix as
 specified below.
 
 Your job is to clean up the text while preserving the author's original voice,
@@ -74,17 +74,17 @@ markdown file. The filename must follow the rules described below.
 
 ## File Management Protocol
 
-The final result text file should be saved in the `./__inbox/`
+The final result text file should be saved in the `{logdir}/`
 directory with a filename that reflects the current date and context. For this
 file saving, use markdown-generator subagent to generate the markdown file. The
 filename must follow these rules:
 
 This file should be generated via markdown-generator subagent and saved in the
-`./__inbox/` directory with a suitable filename based on the context.
+`{logdir}/` directory with a suitable filename based on the context.
 Use `writer-` slug prefix for the filename. CRITICAL: When calling
 the markdown-generator subagent, ensure it uses the current date and time for
 the filename timestamp, not any example or previous timestamp. Ex:
-`./__inbox/{current-MMDD}_{current-HHMM}-writer-implement-feature.md`
+`{logdir}/{current-MMDD}_{current-HHMM}-writer-implement-feature.md`
 
 ## Writing Style Specifications
 

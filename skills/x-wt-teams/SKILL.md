@@ -331,8 +331,10 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (pushing is deferred to Step 9)
-4. (If issue tracking is active) Comment on the tracking issue with a completion report
-5. Report back when done
+4. **Run `/light-review`** to self-review their work — fix any clearly useful findings and commit
+5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
+6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
+7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, and log file path. Do NOT send full summaries — the log file has the detail. The manager can read it via `/logrefer` if needed
 
 ### Step 6: Review and Merge Topic Branches Locally
 
@@ -362,23 +364,39 @@ git fetch origin base/<project-name>
 git merge origin/base/<project-name>
 ```
 
-### Step 8: Quality Assurance (Local Review)
+After syncing, **re-read the issue TODO** to confirm the next step:
 
-**This step is mandatory — do NOT skip it.** After all topics are merged into the base branch locally, you MUST invoke `/local-review` to perform a code quality review on the combined result. Do NOT do a manual review as a substitute — always use the skill.
+```bash
+gh issue view "$ISSUE_NUMBER"
+```
 
-**CRITICAL: You MUST use the Skill tool to invoke `local-review` here.** Example:
+The next step is **Step 8: Local Review**. You MUST run it before pushing. Do NOT skip ahead to pushing.
+
+---
+
+### !! MANDATORY CHECKPOINT: Step 8 — Local Review !!
+
+**STOP. Before you push ANYTHING, you MUST run `/local-review`.** This step is the most commonly skipped step in long workflows because the context gets long after managing multiple child agents. **Read this carefully and execute it.**
+
+1. **Invoke `/local-review` using the Skill tool** — not a manual review, not a summary, the actual skill:
 
 ```
 Skill tool: skill="local-review"
 ```
 
-This will spawn 3 parallel code reviewers that analyze the full diff for bugs, structure, and quality issues. After receiving results, fix issues and commit locally (do NOT push yet).
+2. **Wait for all 3 reviewers to complete** and read their findings
+3. **Fix issues** found by the reviewers and commit locally (do NOT push yet)
+4. **Only after `/local-review` has been invoked and findings addressed**, proceed to Step 9
 
-Do NOT proceed to Step 9 until `/local-review` has been invoked and its findings addressed.
+If you are about to run `git push` and you have NOT yet invoked the `local-review` skill in this session, **STOP and go back to this step.**
+
+---
 
 ### Step 9: Push All Changes to Remote
 
-Now that implementation is complete and reviewed, push everything to remote **in one batch**. This is the first time anything is pushed after the initial empty commit — saving CI resources by avoiding intermediate pushes.
+**Pre-push gate**: Before pushing, confirm you have already run `/local-review` (Step 8). If you skipped it, go back now.
+
+Push everything to remote **in one batch**. This is the first time anything is pushed after the initial empty commit — saving CI resources by avoiding intermediate pushes.
 
 ```bash
 # Push the base branch (contains all merged topic work + review fixes)
@@ -436,9 +454,42 @@ gh pr ready <root-pr-number>
 
 ---
 
+### Step 11.5: Session Report
+
+Generate a structured session report. This report serves two purposes: (1) a log for future Claude Code sessions to reference via `/logrefer`, and (2) a GitHub issue comment for human visibility.
+
+#### Report Content
+
+Write a markdown report summarizing:
+
+- Project name and scope
+- Topics implemented (one bullet per topic with brief summary of what each child agent did)
+- Key decisions and architectural choices
+- Review findings and fixes applied (from `/local-review`)
+- CI status (pass/fail/skipped)
+- Root PR URL and topic PR URLs
+
+#### Save to Log Directory
+
+```bash
+~/.claude/scripts/save-file.js "{logdir}/{timestamp}-x-wt-teams-{slug}.md" "<report content>"
+```
+
+Where `{slug}` is derived from the project name (e.g., `marker-fix`).
+
+#### Post to GitHub Issue
+
+If a GitHub issue is linked (`ISSUE_NUMBER` is set), post the report as an issue comment:
+
+```bash
+gh issue comment "$ISSUE_NUMBER" --body "<report content>"
+```
+
+---
+
 ### STOP — WORKFLOW ENDS HERE
 
-**After Step 11, the automated workflow is DONE.** Report the root PR URL and stop.
+**After Step 11.5, the automated workflow is DONE.** Report the root PR URL and stop.
 
 **CRITICAL RULES at this point:**
 - **Stay on `base/<project-name>`.** Do NOT checkout `main`, the parent branch, or any other branch.

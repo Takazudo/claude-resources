@@ -79,20 +79,21 @@ Structure your review as follows:
 4. **Suggestions**: Improvements for code quality, performance, or maintainability
 5. **Questions**: Clarifications needed about design decisions or implementation choices
 6. **Minor Issues**: Style, formatting, or naming convention violations
-7. **Log Generation**: Create a review log and save in the `./__inbox/` directory with a suitable filename based on the context. Use `reviewer-` slug prefix for the filename.
+7. **Log Generation**: Create a review log using save-file.js with `{logdir}/` prefix. Use `reviewer-` slug prefix for the filename.
 
 ### Markdown Generation Rules
 
 When creating the log file:
 
-- **Default location**: `./__inbox/{timestamp}-reviewer-{suitable-words}.md`
-- **Filename construction**: Use `./__inbox/{timestamp}-reviewer-{context}.md` format
+- **Default location**: `{logdir}/{timestamp}-reviewer-{suitable-words}.md`
+- **Filename construction**: Use `{logdir}/{timestamp}-reviewer-{context}.md` format
 - **Saving process**:
   1. Prepare the content as markdown text following proper formatting guidelines
-  2. Use the save-file script: `~/.claude/scripts/save-file.js "./__inbox/{timestamp}-reviewer-{context}.md" "content"`
-  3. The script will automatically replace `{timestamp}` with the correct local timestamp in MMDD_HHMM format
+  2. Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-reviewer-{context}.md" "content"`
+  3. The script will automatically replace `{timestamp}` and `{logdir}` with correct values
   4. Post-save formatting: Always run `npx @takazudo/mdx-formatter --write <file.md>` after saving
 - **Available placeholders for save-file.js**:
+  - `{logdir}` - Centralized log directory (`~/cclogs/{repo-name}/`), resolved by get-logdir.js
   - `{timestamp}` - MMDD_HHMM format (e.g., 0822_1930)
   - `{date}` - YYYYMMDD format (e.g., 20250822)
   - `{time}` - HHMM format (e.g., 1930)

@@ -1,0 +1,106 @@
+---
+title: "dev-repo-bigbang-move"
+description: "Big-bang migrate a repo to a new location, discarding all commit history for a clean start. Copies files (excluding node_modules, dist, caches), commits, pushes, and updates the old repo's remote. Use..."
+---
+
+# dev-repo-bigbang-move
+
+
+
+# Big-Bang Repo Move
+
+Move a repository to a new location with a clean start (no commit history), removing private/confidential information in the process.
+
+## Arguments
+
+- `--purge` (optional): Run `/purge-private-info` after copying files
+- `$1` (optional): Source repo path (defaults to current working directory)
+- `$2` (optional): Destination repo path (ask user if not provided)
+
+## Workflow
+
+### 1. Validate
+
+- Confirm source repo exists and is a git repo
+- Confirm destination repo exists (must be pre-created with `git init` or cloned from GitHub)
+- Check destination has a remote configured
+- Show source remote, destination remote, and ask user to confirm before proceeding
+
+### 2. Ensure Destination Has Initial Commit
+
+If destination has no commits yet, create one:
+
+```bash
+cd <dest> && git commit --allow-empty -m "Initial commit"
+```
+
+### 3. Copy Files
+
+Copy all files from source to destination, excluding `.git` and common generated/cache directories:
+
+```bash
+rsync -av \
+  --exclude='.git' \
+  --exclude='node_modules' \
+  --exclude='dist' \
+  --exclude='build' \
+  --exclude='.next' \
+  --exclude='out' \
+  --exclude='.cache' \
+  --exclude='.docusaurus' \
+  --exclude='.turbo' \
+  --exclude='.parcel-cache' \
+  --exclude='coverage' \
+  --exclude='.nyc_output' \
+  --exclude='*.tsbuildinfo' \
+  --exclude='.DS_Store' \
+  <source>/ <dest>/
+```
+
+### 4. Purge Private Info (only with `--purge`)
+
+**Skip this step unless `--purge` was passed.**
+
+If `--purge` is present, run `/purge-private-info` on the destination repo to scan and remove:
+
+- Client/corporate names in files and filenames
+- Passwords, API keys, secrets
+- Personal SNS accounts and blog URLs
+- Email addresses of external contacts
+
+Follow the purge-private-info skill's full scan process. Ask the user about uncertain items.
+
+### 5. Commit and Push
+
+Stage all files, commit with message describing the migration, and push:
+
+```
+feat: initial codebase migration from private repo
+```
+
+### 6. Update Old Repo Remote
+
+Change the old repo's origin to point to the new repo's remote:
+
+```bash
+cd <source> && git remote set-url origin <new-remote-url>
+```
+
+Do NOT modify any files in the old repo. Only change the remote URL.
+
+### 7. Report
+
+Summarize:
+
+- Files copied
+- Private info found and removed
+- New repo URL
+- Old repo remote updated
+
+## Important Notes
+
+- **Never delete the old repo** - leave it untouched as an archive
+- **Commit history is intentionally lost** - this is a clean start
+- **purge-private-info is opt-in** — only runs when `--purge` is passed
+- The destination repo must be pre-created (on GitHub or locally)
+

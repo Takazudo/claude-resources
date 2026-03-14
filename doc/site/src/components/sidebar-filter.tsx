@@ -34,6 +34,18 @@ function connectorLeft(depth: number): string {
   return `calc(${depth} * ${INDENT} + ${CONNECTOR_OFFSET})`;
 }
 
+/** Track current pathname, updating on View Transition navigations */
+function useCurrentPath(initial: string): string {
+  const [path, setPath] = useState(initial);
+  useEffect(() => {
+    setPath(window.location.pathname);
+    const handler = () => setPath(window.location.pathname);
+    document.addEventListener("astro:after-swap", handler);
+    return () => document.removeEventListener("astro:after-swap", handler);
+  }, []);
+  return path;
+}
+
 function getOpenSet(): Set<string> {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -59,6 +71,7 @@ export default function SidebarFilter({
   sections,
   currentPath = "",
 }: SidebarFilterProps) {
+  const activePath = useCurrentPath(currentPath);
   const [query, setQuery] = useState("");
 
   const filteredSections = useMemo(() => {
@@ -107,7 +120,7 @@ export default function SidebarFilter({
         <a
           href="/"
           className={`block py-[calc(var(--spacing-vsp-xs)+0.15rem)] text-small font-semibold ${
-            currentPath === "/"
+            activePath === "/"
               ? "bg-fg text-bg"
               : "text-fg hover:underline focus:underline"
           }`}
@@ -122,7 +135,7 @@ export default function SidebarFilter({
         <CollapsibleSection
           key={section.key}
           section={section}
-          currentPath={currentPath}
+          currentPath={activePath}
           forceOpen={!!query}
         />
       ))}
@@ -178,6 +191,16 @@ function CollapsibleSection({
       setOpen(true);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-open section when navigation lands on an item inside it
+  useEffect(() => {
+    if (section.items.some((item) => item.href === currentPath) && !open) {
+      setOpen(true);
+      const stored = getOpenSet();
+      stored.add(section.key);
+      saveOpenSet(stored);
+    }
+  }, [currentPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (open) {

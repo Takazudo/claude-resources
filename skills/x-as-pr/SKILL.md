@@ -10,9 +10,9 @@ description: >-
   comments. Use when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix
   development with a PR-first workflow, (3) User wants to set up a branch and draft PR before
   coding, (4) User has already implemented changes on a branch and wants to create a PR for them,
-  (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' to create an issue
-  first.
-argument-hint: "[--make-issue] [--stay] [issue-url-or-number] [branch-name] [base-branch]"
+  (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' or '--issue' to
+  create an issue first.
+argument-hint: "[--make-issue|--issue] [--stay] [issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
@@ -23,7 +23,7 @@ Start a development workflow by creating a branch and draft PR before implementa
 
 Parse `$ARGUMENTS` to extract:
 
-- **`--make-issue` flag**: If present, create a GitHub issue before starting (see "Issue Creation Mode" below)
+- **`--make-issue` or `--issue` flag**: If present, create a GitHub issue before starting (see "Issue Creation Mode" below)
 - **`--stay` flag**: If present, stay on the current branch instead of creating a new one (see "Stay Mode" below)
 - **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
 - **Branch name**: Explicit branch name if provided (look for words like `branch:` or a slash-containing name like `topic/foo`)
@@ -86,9 +86,9 @@ Use **Fresh-Start Mode** in all other cases (on the default branch, no extra com
 
 ---
 
-## Issue Creation Mode (`--make-issue`)
+## Issue Creation Mode (`--make-issue` / `--issue`)
 
-When `--make-issue` is present in `$ARGUMENTS`:
+When `--make-issue` or `--issue` is present in `$ARGUMENTS`:
 
 ### Step 1: Understand the Task
 
@@ -548,9 +548,42 @@ Do NOT run PR revision if:
 
 ---
 
+## Post-Implementation: Session Report
+
+After all post-implementation steps are complete, generate a structured session report. This report serves two purposes: (1) a log for future Claude Code sessions to reference via `/logrefer`, and (2) a GitHub issue comment for human visibility.
+
+### Report Content
+
+Write a markdown report summarizing:
+
+- What was implemented (feature/fix description)
+- Key decisions made during implementation
+- Files changed (summary, not full list)
+- Review findings and fixes applied (if `/local-review` was run)
+- CI status (pass/fail/skipped)
+- PR URL and status
+
+### Save to Log Directory
+
+```bash
+~/.claude/scripts/save-file.js "{logdir}/{timestamp}-x-as-pr-{slug}.md" "<report content>"
+```
+
+Where `{slug}` is derived from the branch name or PR title (e.g., `add-dark-mode-support`).
+
+### Post to GitHub Issue
+
+If a GitHub issue is linked (`ISSUE_NUM` is set), post the report as an issue comment:
+
+```bash
+gh issue comment "$ISSUE_NUM" --body "<report content>"
+```
+
+---
+
 ## STOP — WORKFLOW ENDS HERE
 
-**After the last post-implementation step completes, the workflow is DONE.** Report the PR URL and stop.
+**After the session report is saved, the workflow is DONE.** Report the PR URL and stop.
 
 **CRITICAL RULES:**
 - **Stay on `<BRANCH_NAME>`.** Do NOT checkout `main`, the parent branch, or any other branch.

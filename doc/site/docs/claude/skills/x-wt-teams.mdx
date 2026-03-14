@@ -1,0 +1,408 @@
+---
+title: "x-wt-teams"
+description: "Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentio..."
+---
+
+# x-wt-teams
+
+
+
+# Git Worktree Multi-Topic Development
+
+Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and Claude Code agent teams. **This is fully automated** — you (the manager) create the infrastructure and spawn child agents to do the work. Never ask the user to manually start sessions in worktrees.
+
+## GitHub Issue Tracking (Default)
+
+By default, create a GitHub issue at the start to track progress. The manager and child agents comment on this issue at the end of each step, providing a running log of progress.
+
+- **`--no-issue`**: Skip issue creation. Also skip if the user explicitly says not to create an issue.
+- **Existing issue provided**: If the user provides an existing issue (number or URL), read it first with `gh issue view &lt;number&gt;`. The issue body typically contains implementation instructions or a prompt — use it as the primary input for planning topics and development. Reuse this issue for progress logging instead of creating a new one.
+- The issue number is passed to all child agents so they can comment on it too.
+- Comments should be concise step reports (what was done, outcome, any issues encountered).
+
+## Architecture
+
+```
+<parent-branch> (the branch you branch from — could be main, develop, or a feature branch)
+  └── base/<project-name>  (base branch, created by manager)
+        ├── <project-name>/topicA  (child branch → PR into base)
+        ├── <project-name>/topicB  (child branch → PR into base)
+        └── <project-name>/topicC  (child branch → PR into base)
+
+worktrees/
+  ├── <topicA>/  (worktree for topicA, child agent works here)
+  ├── <topicB>/  (worktree for topicB, child agent works here)
+  └── <topicC>/  (worktree for topicC, child agent works here)
+```
+
+Each topic gets its own worktree directory, its own branch, and its own PR targeting the base branch. The manager merges topic PRs into the base branch, then creates one root PR from base into the parent branch.
+
+## Fully Automated Workflow
+
+**IMPORTANT**: You are the manager. You handle ALL steps automatically:
+1. Resolve GitHub tracking issue (read existing, create new, or skip)
+2. Create base branch + root PR
+3. Create worktrees for each topic
+4. Set up environment in worktrees
+5. Use TeamCreate + Task tool to spawn child agents in worktrees (NO pushing during implementation — commit only)
+6. Monitor child agents, review their PRs, merge into base
+7. Sync local base branch
+8. Quality assurance: local review (`/local-review`)
+9. Push all changes to remote
+10. CI watch: verify CI passes on root PR (invoke `/watch-ci`, fix if red)
+11. Update root PR and mark ready
+12. Clean up worktrees and branches
+
+**PUSH-FORBID DURING WORK**: To save CI resources, child agents must **NOT push** during implementation. They commit locally only. All pushing happens in Step 9 after local review is complete. This prevents CI from running on every intermediate commit.
+
+**Never ask the user to manually cd into worktrees or start Claude sessions.** Use the Task tool to spawn agents that work in each worktree directory.
+
+### Step 1: Resolve GitHub Tracking Issue
+
+There are three modes depending on user input:
+
+#### 1a: Existing issue provided
+
+If the user provides an existing issue number or URL, **read it first** — it usually contains implementation instructions or a prompt:
+
+```bash
+gh issue view <number>
+```
+
+Use the issue body as the primary input for planning topics and the development approach. Set `ISSUE_NUMBER=&lt;number&gt;` and reuse this issue for progress logging (no new issue needed).
+
+**Add a TODO checklist** to the existing issue body (use `gh issue edit` to append) with the same step checklist as in 1b. This ensures the "re-read and check what's next" pattern works with existing issues too.
+
+#### 1b: Create new issue (default)
+
+Unless `--no-issue` is passed or the user explicitly says not to create an issue, create a new GitHub issue to track progress. **Include a TODO checklist** of all workflow steps so you can track where you are:
+
+```bash
+ISSUE_URL=$(gh issue create \
+  --title "<project-name>: development tracking" \
+  --body "$(cat <<'EOF'
+## Development Tracking
+
+This issue tracks the progress of the `<project-name>` multi-topic development.
+
+### Topics
+(to be updated as work progresses)
+
+### TODO
+- [ ] Step 1: Resolve GitHub tracking issue
+- [ ] Step 2: Create base branch and root PR
+- [ ] Step 3: Create worktrees
+- [ ] Step 4: Environment setup
+- [ ] Step 5: Spawn child agents (implementation)
+- [ ] Step 6: Review and merge topic PRs
+- [ ] Step 7: Sync local base branch
+- [ ] Step 8: Quality assurance (local review)
+- [ ] Step 9: Push all changes to remote
+- [ ] Step 10: CI watch (verify CI passes)
+- [ ] Step 11: Update root PR and mark ready
+- [ ] Step 12: Cleanup
+
+### Progress Log
+Comments below contain step-by-step progress reports from the manager and child agents.
+EOF
+)")
+ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
+```
+
+#### 1c: No issue (`--no-issue`)
+
+Skip issue creation entirely. All `gh issue comment` calls throughout the workflow are skipped.
+
+---
+
+Save `ISSUE_NUMBER` (from 1a or 1b) — it will be passed to all child agents and used for progress comments throughout the workflow.
+
+**Progress reporting pattern**: At the end of each subsequent step:
+
+1. **Check off the completed step** in the issue body's TODO checklist (use `gh issue edit` to update the body, changing `- [ ]` to `- [x]` for the completed step)
+2. **Comment** on the issue with a brief report:
+
+```bash
+gh issue comment "$ISSUE_NUMBER" --body "$(cat <<'EOF'
+### Step N: <step name> — completed
+
+<concise summary of what was done, outcome, any issues>
+EOF
+)"
+```
+
+3. **Re-read the issue** to check the TODO list and confirm what comes next:
+
+```bash
+gh issue view "$ISSUE_NUMBER"
+```
+
+This re-read step is **critical** — it prevents losing track of remaining steps during long workflows with many interactions. Always check the TODO list to determine "What's next?" before proceeding.
+
+### Step 2: Create Base Branch and Root PR
+
+The base branch is created from whichever branch is the "parent" — this is often `main` or `develop`, but can also be a feature branch.
+
+**Determine `&lt;parent-branch&gt;`**: If the user specified a parent/base branch, use it. Otherwise, **default to the branch that was checked out when the command was invoked** (`INVOCATION_BRANCH`). For example, if invoked on `topic/foobar`, the parent branch is `topic/foobar`, not `main`.
+
+```bash
+INVOCATION_BRANCH=$(git branch --show-current)  # Record before any checkout
+```
+
+**CRITICAL**: Create the root PR immediately with an empty commit. This locks in the correct parent branch from the start.
+
+```bash
+# Ensure parent branch is up to date
+git checkout <parent-branch>
+git pull origin <parent-branch>
+
+# Create the base branch
+git checkout -b base/<project-name>
+
+# Create empty start commit and push
+git commit --allow-empty -m "= start <project-name> dev ="
+git push -u origin base/<project-name>
+
+# Create the root PR immediately (draft, targeting parent branch)
+gh pr create \
+  --base <parent-branch> \
+  --title "<project-name>: root PR title" \
+  --body "$(cat <<'EOF'
+## Summary
+(in progress)
+
+## Topic PRs
+(to be added as topics are completed)
+EOF
+)" \
+  --draft
+```
+
+Save the root PR number — you will update it as topics are merged.
+
+### Step 3: Create Worktrees
+
+For each topic:
+
+```bash
+# Create worktree with a topic branch based on the base branch
+git worktree add worktrees/<topic-name> -b <project-name>/<topic-name> base/<project-name>
+```
+
+Example with 3 topics:
+```bash
+git worktree add worktrees/topicA -b marker-fix/topicA base/marker-fix
+git worktree add worktrees/topicB -b marker-fix/topicB base/marker-fix
+git worktree add worktrees/topicC -b marker-fix/topicC base/marker-fix
+```
+
+### Step 4: Environment Setup (if needed)
+
+If the project has environment files, symlink them into each worktree:
+
+```bash
+for wt in worktrees/*/; do
+  ln -sf "$(pwd)/.env" "$wt/.env" 2>/dev/null
+  # Add project-specific symlinks as needed (e.g., metadata, generated files)
+done
+```
+
+If using pnpm workspaces, install dependencies in each worktree:
+
+```bash
+for wt in worktrees/*/; do
+  (cd "$wt" && pnpm install)
+done
+```
+
+### Step 5: Spawn Child Agents via Teams
+
+Use TeamCreate to create a team, then use the Task tool to spawn child agents — one per topic. Each agent works in its own worktree directory.
+
+```
+1. TeamCreate with team_name: "<project-name>"
+2. TaskCreate for each topic (implementation tasks)
+3. Task tool to spawn agents with:
+   - subagent_type: "frontend-worktree-child" (or "general-purpose" for non-frontend topics)
+   - team_name: "<project-name>"
+   - name: "topic-<name>"  (e.g., "topic-topicA")
+   - prompt: Detailed instructions including:
+     a. The worktree absolute path to work in
+     b. What to implement for this topic
+     c. Branch name: <project-name>/<topic-name>
+     d. Base branch: base/<project-name>
+     e. **COMMIT ONLY — DO NOT PUSH.** All commits stay local. Pushing happens later (Step 9) to save CI resources.
+     f. (If issue tracking is active) The ISSUE_NUMBER and instruction to comment on it when done:
+        `gh issue comment <ISSUE_NUMBER> --body "### topic-<name> — completed\n\n<summary of work done>"`
+```
+
+**Spawn all child agents in parallel** using multiple Task tool calls in a single message. Each agent should:
+1. Work in its assigned worktree directory
+2. Implement the topic
+3. **Commit changes locally only — DO NOT push** (pushing is deferred to Step 9)
+4. (If issue tracking is active) Comment on the tracking issue with a completion report
+5. Report back when done
+
+### Step 6: Review and Merge Topic Branches Locally
+
+Since child agents committed locally without pushing, merge their topic branches into the base branch **locally** using git:
+
+```bash
+git checkout base/<project-name>
+
+# Merge each topic branch into base (regular merge, not squash)
+git merge <project-name>/topicA
+git merge <project-name>/topicB
+git merge <project-name>/topicC
+```
+
+Review the combined diff to make sure everything looks right:
+
+```bash
+git diff <parent-branch>...base/<project-name> --stat
+```
+
+### Step 7: Sync Local Base Branch
+
+Ensure the base branch is up to date with any remote changes (e.g., if the root PR's empty commit was pushed in Step 2):
+
+```bash
+git fetch origin base/<project-name>
+git merge origin/base/<project-name>
+```
+
+### Step 8: Quality Assurance (Local Review)
+
+**This step is mandatory — do NOT skip it.** After all topics are merged into the base branch locally, run `/local-review` to perform a code quality review on the combined result.
+
+Review the diff between the parent branch and the base branch:
+
+```bash
+git diff <parent-branch>...base/<project-name>
+```
+
+Use Task tool with `subagent_type: "code-reviewer"` and `model: "opus"` to launch **3 parallel reviewers** (same approach as `/local-review` PR mode), each analyzing the full diff:
+
+- **Reviewer 1: Bugs & Logic** — silly mistakes, logic errors, broken functionality from merged topics interacting
+- **Reviewer 2: Structure & Refactoring** — code duplication across topics, inconsistent patterns, structural issues
+- **Reviewer 3: Quality & Best Practices** — type safety, performance, accessibility, integration issues between topics
+
+After receiving all review results:
+
+1. Synthesize and deduplicate findings
+2. Fix **High Priority** issues automatically (bugs, broken logic)
+3. Fix **Medium Priority** issues if clearly useful and safe
+4. Skip or ask about **Low Priority** issues
+5. **Commit fixes locally** (do NOT push yet)
+
+### Step 9: Push All Changes to Remote
+
+Now that implementation is complete and reviewed, push everything to remote **in one batch**. This is the first time anything is pushed after the initial empty commit — saving CI resources by avoiding intermediate pushes.
+
+```bash
+# Push the base branch (contains all merged topic work + review fixes)
+git push origin base/<project-name>
+
+# Push topic branches so PRs can be created for documentation
+for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
+  git push origin "$branch"
+done
+```
+
+After pushing, create topic PRs for documentation/tracking purposes and merge them:
+
+```bash
+# For each topic branch, create PR and merge it
+for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
+  gh pr create --base base/<project-name> --head "$branch" --title "<topic> implementation" --body "Part of <project-name> development" --fill
+  # These can be merged immediately since they're already merged locally
+  PR_NUM=$(gh pr list --head "$branch" --json number -q '.[0].number')
+  gh pr close "$PR_NUM" --comment "Already merged into base branch locally"
+done
+```
+
+### Step 10: CI Watch (Verify CI Passes)
+
+**Only perform this step if the project has CI configured.** Check with `gh pr checks &lt;root-pr-number&gt;` — if no checks exist, skip to Step 11.
+
+Invoke `/watch-ci` on the root PR to monitor CI:
+
+```bash
+RESULT=$(bash ~/.claude/skills/watch-ci/scripts/check-ci.sh <root-pr-number>)
+echo "$RESULT"
+# Poll every 20 seconds until terminal state
+```
+
+- **If CI passes**: Proceed to Step 11
+- **If CI fails**: Investigate and fix
+  - Fetch failed run logs: `gh run view &lt;run-id&gt; --log-failed`
+  - Fix the issue, commit, push, and re-watch CI
+  - **IMPORTANT**: Only attempt CI fixes if the failure is related to the changes made (not pre-existing failures or infrastructure issues)
+- **If CI still fails after a fix attempt**: Stop and ask the user for guidance. Explain what failed, what was tried, and why it could not be resolved automatically
+
+If the task is intentionally CI-breaking (e.g., adding new linting rules, migrating frameworks), **skip CI verification** and inform the user.
+
+### Step 11: Update Root PR and Mark Ready
+
+Invoke `/pr-revise` to analyze the full diff between the parent branch and `base/&lt;project-name&gt;`, and update the root PR title and description to accurately reflect all combined changes from the merged topics.
+
+After `/pr-revise` completes, mark the PR as ready:
+
+```bash
+# Mark ready for review (remove draft status)
+gh pr ready <root-pr-number>
+```
+
+### Step 12: Shutdown Team and Cleanup
+
+After the root PR is merged:
+
+```bash
+# Send shutdown to all agents, then TeamDelete
+
+# Remove worktrees
+for wt in worktrees/*/; do
+  git worktree remove "$wt"
+done
+
+# Delete local and remote topic branches
+git branch -d <project-name>/topicA <project-name>/topicB <project-name>/topicC
+git push origin --delete <project-name>/topicA <project-name>/topicB <project-name>/topicC
+
+# Delete base branch
+git branch -d base/<project-name>
+git push origin --delete base/<project-name>
+```
+
+## Branch Naming Conventions
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| Base branch | `base/&lt;project&gt;` | `base/marker-fix` |
+| Topic branch | `&lt;project&gt;/&lt;topic&gt;` | `marker-fix/bogaudio-knobs` |
+| Worktree dir | `worktrees/&lt;topic&gt;` | `worktrees/bogaudio-knobs` |
+
+## Important Rules
+
+1. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents
+2. **Stay on the working branch when done** — after Step 11, remain on `base/&lt;project-name&gt;`. Do NOT checkout `main` or the parent branch. The user expects to be on the branch they were working on. Step 12 (cleanup) only runs later when the PR is merged — even then, do not switch to a different branch without asking
+3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts
+4. **Create the root PR immediately in Step 2** — an empty commit + draft PR locks in the correct parent branch
+5. **Never force push** — regular merge only, preserves history
+6. **Push-forbid during work** — child agents commit locally only. All pushing happens in Step 9 after local review. This saves CI resources
+7. **Topic branches merge locally first** — the manager merges topic branches into base via `git merge`, not GitHub PR merge. Topic branches are pushed later for documentation only
+8. **Root PR targets the parent branch** — this is handled automatically by creating it in Step 2
+9. **worktrees/ must be in .gitignore** — worktrees are local only
+10. **Manager stays at repo root** — never cd into worktrees for git ops
+11. **Each child agent works in its worktree** — git ops affect that branch only
+12. **Quality assurance before pushing** — always run `/local-review` after merging all topics (Step 8). This is mandatory, never skip it
+13. **CI watch after pushing** — if the project has CI, invoke `/watch-ci` on the root PR (Step 10). If CI fails, fix and re-push
+14. **Re-read the issue TODO after every step** — use `gh issue view` to check the TODO checklist and confirm what comes next. This prevents forgetting steps during long workflows
+15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. Skip with `--no-issue` or if the user says not to. Close the issue when the root PR is merged
+
+## Prerequisites
+
+- `worktrees/` in `.gitignore`
+- `gh` CLI authenticated
+- `git` version 2.15+ (worktree support)
+
