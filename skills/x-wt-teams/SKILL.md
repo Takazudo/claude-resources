@@ -105,6 +105,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 4. Set up environment in worktrees
 5. Use TeamCreate + Task tool to spawn child agents in worktrees (NO pushing during implementation — commit only)
 6. Monitor child agents, review their PRs, merge into base
+6.5. Shut down child agents — close tmux panes, TeamDelete
 7. Sync local base branch
 8. Quality assurance: local review (`/local-review`)
 9. Push all changes to remote
@@ -163,6 +164,7 @@ ISSUE_URL=$(gh issue create \
 - [ ] Step 4: Environment setup
 - [ ] Step 5: Spawn child agents (implementation)
 - [ ] Step 6: Review and merge topic PRs
+- [ ] Step 6.5: Shut down child agents
 - [ ] Step 7: Sync local base branch
 - [ ] Step 8: Quality assurance (local review)
 - [ ] Step 9: Push all changes to remote
@@ -355,6 +357,24 @@ Review the combined diff to make sure everything looks right:
 git diff <parent-branch>...base/<project-name> --stat
 ```
 
+### Step 6.5: Shut Down Child Agents
+
+All child agents are done and their branches have been merged. Shut down the team to close their tmux panes and free resources.
+
+1. **Send shutdown to all agents** via broadcast:
+
+```
+SendMessage: to="*", message={type: "shutdown_request", reason: "All topics merged into base branch. Work complete."}
+```
+
+2. **Wait for shutdown confirmations**, then **delete the team**:
+
+```
+TeamDelete
+```
+
+This closes the tmux panes for all child agents. The rest of the workflow (review, push, CI) is handled by the manager alone.
+
 ### Step 7: Sync Local Base Branch
 
 Ensure the base branch is up to date with any remote changes (e.g., if the root PR's empty commit was pushed in Step 2):
@@ -506,7 +526,7 @@ The user will review the PR, merge it, and may later ask you to run Step 12 for 
 **NEVER run this step automatically.** Only run when the user explicitly asks to clean up after the root PR has been merged.
 
 ```bash
-# Send shutdown to all agents, then TeamDelete
+# (Team was already shut down in Step 6.5)
 
 # Remove worktrees
 for wt in worktrees/*/; do
