@@ -1,6 +1,7 @@
 ---
 name: dump-fullpath
 description: Output the full absolute path of a file mentioned in the previous message.
+disable-model-invocation: true
 ---
 
 # Dump Full Path

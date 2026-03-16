@@ -47,6 +47,17 @@ if (!fs.existsSync(dir)) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+// Avoid collisions: if file exists, append -2, -3, etc. before the extension
+if (fs.existsSync(processedPath)) {
+  const ext = path.extname(processedPath);
+  const base = processedPath.slice(0, -ext.length || undefined);
+  let counter = 2;
+  while (fs.existsSync(`${base}-${counter}${ext}`)) {
+    counter++;
+  }
+  processedPath = `${base}-${counter}${ext}`;
+}
+
 // Write the file
 fs.writeFileSync(processedPath, content, 'utf8');
 console.log(`File saved to: ${processedPath}`);

@@ -2,10 +2,10 @@
 name: ss
 description: >-
   Load screenshot images from Dropbox screenshots directory. Use when user invokes /ss directly.
-  Supports /ss 2 (latest 2 images), /ss latest3, /ss filename.png, /ss full-path.
+  Supports /ss 2 (latest 2 images), /ss latest3, /ss filename.png (exact or substring match), /ss full-path.
 disable-model-invocation: true
 argument-hint: "[N | latestN | filename]"
-allowed-tools: Read, Bash(ls *), Bash(find *), Bash(for *)
+allowed-tools: Read, Bash(ls *), Bash(find *), Bash(for *), Bash(stat *)
 ---
 
 # Screenshot Loader
@@ -16,31 +16,57 @@ Load screenshot images from the Dropbox screenshots directory and present them i
 
 Use `$DROPBOX_SCREENSHOTS_DIR` env var (set in `.zshrc` for both macOS and WSL2).
 
+## Invocation timestamp
+
+The following epoch was captured at the moment this command was invoked:
+
+**Invocation epoch:** !`date +%s`
+
+Use this as a cutoff for "Latest N" mode — only consider image files whose modification time is **<= this epoch**. This prevents picking up screenshots that appeared after the user typed `/ss`.
+
 ## Parse arguments
 
 `$ARGUMENTS` determines which files to load:
 
 | Pattern | Meaning | Example |
 | --- | --- | --- |
-| Bare number (`2`, `3`) | Latest N images | `/ss 2` |
-| `latestN` | Latest N images | `/ss latest3` |
+| Bare number (`2`, `3`) | Latest N images at invocation time | `/ss 2` |
+| `latestN` | Latest N images at invocation time | `/ss latest3` |
 | Full path starting with `/` | Exact file | `/ss '/Users/.../file.png'` |
-| Other string | Filename in screenshots dir | `/ss Screenshot 2026-03-14 at 3.27.17.png` |
+| Other string (exact) | Exact filename in screenshots dir | `/ss Screenshot 2026-03-14 at 3.27.17.png` |
+| Other string (partial) | Substring search in filenames | `/ss foo-bar-moo.png` |
 | (empty) | Latest 1 image | `/ss` |
 
 ## Find files
 
-### Latest N images
+### Latest N images (with timestamp cutoff)
 
-List all image files (png, jpg, jpeg, gif, webp, tiff) in the screenshots directory, sort by modification time descending, take the first N.
+List all image files (png, jpg, jpeg, gif, webp, tiff) in the screenshots directory, filter to only those with modification time <= the invocation epoch, sort by modification time descending, take the first N.
 
 ```bash
-ls -t "$DROPBOX_SCREENSHOTS_DIR"/*.{png,jpg,jpeg,gif,webp,tiff} 2>/dev/null | head -n $N
+CUTOFF=<invocation_epoch>
+ls -t "$DROPBOX_SCREENSHOTS_DIR"/*.{png,jpg,jpeg,gif,webp,tiff} 2>/dev/null | while IFS= read -r f; do
+  [ "$(stat -f %m "$f")" -le "$CUTOFF" ] && echo "$f"
+done | head -n $N
 ```
+
+This ensures that even if new screenshots appear while Claude is processing, only files that existed at invocation time are selected.
 
 ### Specific filename
 
-Construct the full path: `$DROPBOX_SCREENSHOTS_DIR/<filename>`.
+1. First, try exact match: `$DROPBOX_SCREENSHOTS_DIR/<filename>`
+2. If the exact file does not exist, perform a **substring search** across all image files in the screenshots directory:
+   - Strip the extension from the argument to get the search term (e.g., `foo-bar-moo.png` → `foo-bar-moo`)
+   - Search filenames (case-insensitive) that contain the search term as a substring
+   - Also try **plural/singular variants**: if the search term contains a word, try both its singular and plural forms (e.g., `screenshot` ↔ `screenshots`, `image` ↔ `images`)
+   - If multiple files match, pick the most recently modified one
+   - If no matches found, proceed to the "Wait for file" step using the exact path
+
+```bash
+# Substring search example
+SEARCH="foo-bar-moo"
+find "$DROPBOX_SCREENSHOTS_DIR" -maxdepth 1 -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.webp" -o -iname "*.tiff" \) -iname "*${SEARCH}*" -print0 | xargs -0 ls -t 2>/dev/null | head -n 1
+```
 
 ### Full path
 
@@ -52,7 +78,7 @@ The user is confident the file exists or is being created (e.g., just took a scr
 
 1. Poll every 5 seconds using `ls` to check if the file appears
 2. Continue polling for up to 5 minutes (60 attempts)
-3. For "latest N" mode, also retry if the directory has fewer than N image files
+3. For "latest N" mode, also retry if fewer than N image files have modification time <= the cutoff
 4. If the file appears during polling, proceed normally
 5. If timeout is reached, report that the file was not found
 

@@ -2,11 +2,11 @@
 name: headless-browser
 description: >-
   Browser automation skill with two efficiency tiers. Tier 1: lightweight headless-check.js for
-  quick checks, screenshots, error detection. Tier 2: playwright-cli for interactions (click, fill,
-  navigate). Use when: (1) Quick webpage health checks, (2) Taking screenshots, (3) Checking
-  console/network errors, (4) Simple interactions like clicking buttons or filling forms, (5)
-  Multi-step browser automation. Use MCP Playwright only for complex scenarios requiring persistent
-  context or rich introspection.
+  quick checks, screenshots, error detection. Tier 2: custom Playwright scripts for interactions
+  (click, fill, navigate). Use when: (1) Quick webpage health checks, (2) Taking screenshots, (3)
+  Checking console/network errors, (4) Simple interactions like clicking buttons or filling forms,
+  (5) Multi-step browser automation. Use MCP Playwright only for complex scenarios requiring
+  persistent context or rich introspection.
 ---
 
 # Headless Browser Skill
@@ -22,7 +22,7 @@ Need browser automation?
     |       --> Tier 1: headless-check.js (fastest, lowest tokens)
     |
     +-- Need to interact (click, fill, navigate)?
-    |       --> Tier 2: playwright-cli (medium tokens)
+    |       --> Tier 2: custom Playwright script (medium tokens)
     |
     +-- Need persistent context, rich introspection, or very complex scenarios?
             --> MCP Playwright (highest capability, higher tokens)
@@ -93,109 +93,85 @@ JSON with:
 
 ---
 
-## Tier 2: Interactive Operations (playwright-cli)
+## Tier 2: Interactive Operations (custom Playwright scripts)
 
 **Best for:** Clicking, form filling, navigation, multi-step automation
 
-**No installation required** - uses `pnpm dlx` to run latest version on-demand.
+**Prerequisite:** Playwright is installed in `~/.claude/node_modules/`. Scripts must run from `~/.claude/` or a subdirectory so Node resolves the module.
 
-### Command Pattern
+### How to Use
 
-All commands use this pattern:
-```bash
-pnpm dlx @playwright/cli@latest <command> [options]
+Write a temporary `.mjs` script, save it under `~/.claude/`, and run it with `node`.
+
+### Script Template
+
+```javascript
+// Save as ~/.claude/tmp-browser-check.mjs
+import { chromium } from 'playwright';
+
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+
+await page.goto('http://localhost:4321/some/page', { waitUntil: 'networkidle' });
+
+// Interact
+await page.locator('button:has-text("Submit")').click();
+await page.waitForTimeout(500);
+
+// Screenshot
+const path = `${process.env.HOME}/cclogs/REPO/headless-screenshots/result.png`;
+await page.screenshot({ path });
+console.log('Screenshot:', path);
+
+// Evaluate
+const result = await page.evaluate(() => document.title);
+console.log('Title:', result);
+
+await browser.close();
 ```
 
-### Core Commands
+### Running
 
 ```bash
-# Navigation
-pnpm dlx @playwright/cli@latest open <url>           # Open URL (headless)
-pnpm dlx @playwright/cli@latest open <url> --headed  # Open with visible browser
-pnpm dlx @playwright/cli@latest close                # Close page
-pnpm dlx @playwright/cli@latest go-back              # Navigate back
-pnpm dlx @playwright/cli@latest go-forward           # Navigate forward
-pnpm dlx @playwright/cli@latest reload               # Reload page
-
-# Get Element References (IMPORTANT: run this first!)
-pnpm dlx @playwright/cli@latest snapshot             # Get element refs
-
-# Interactions (use refs from snapshot)
-pnpm dlx @playwright/cli@latest click <ref>          # Click element
-pnpm dlx @playwright/cli@latest dblclick <ref>       # Double-click
-pnpm dlx @playwright/cli@latest fill <ref> <text>    # Fill input field
-pnpm dlx @playwright/cli@latest type <text>          # Type into focused element
-pnpm dlx @playwright/cli@latest select <ref> <val>   # Select dropdown option
-pnpm dlx @playwright/cli@latest check <ref>          # Check checkbox
-pnpm dlx @playwright/cli@latest uncheck <ref>        # Uncheck checkbox
-pnpm dlx @playwright/cli@latest hover <ref>          # Hover over element
-pnpm dlx @playwright/cli@latest drag <start> <end>   # Drag and drop
-
-# Screenshots & Output
-pnpm dlx @playwright/cli@latest screenshot           # Capture viewport
-pnpm dlx @playwright/cli@latest screenshot <ref>     # Capture specific element
-pnpm dlx @playwright/cli@latest pdf                  # Save as PDF
-
-# Keyboard & Mouse
-pnpm dlx @playwright/cli@latest press <key>          # Press key (Enter, Tab, etc.)
-pnpm dlx @playwright/cli@latest keydown <key>        # Key down
-pnpm dlx @playwright/cli@latest keyup <key>          # Key up
-
-# Debugging
-pnpm dlx @playwright/cli@latest console              # View console messages
-pnpm dlx @playwright/cli@latest console error        # View only errors
-pnpm dlx @playwright/cli@latest network              # List network requests
-
-# Tabs
-pnpm dlx @playwright/cli@latest tab-list             # List tabs
-pnpm dlx @playwright/cli@latest tab-new <url>        # Open new tab
-pnpm dlx @playwright/cli@latest tab-select <idx>     # Switch tab
-pnpm dlx @playwright/cli@latest tab-close            # Close current tab
-
-# JavaScript
-pnpm dlx @playwright/cli@latest eval "() => document.title"  # Evaluate JS
+node ~/.claude/tmp-browser-check.mjs
 ```
 
-### Session Management
+### Common Operations
 
-For persistent browser sessions across commands (REQUIRED for multi-step workflows):
+```javascript
+// Click by selector
+await page.locator('.my-button').click();
 
-```bash
-# Use named session - browser stays open between commands
-pnpm dlx @playwright/cli@latest --session mytest open https://example.com
-pnpm dlx @playwright/cli@latest --session mytest snapshot
-pnpm dlx @playwright/cli@latest --session mytest click ref123
-pnpm dlx @playwright/cli@latest --session mytest screenshot
+// Click by text
+await page.locator('button:has-text("Save")').click();
 
-# List/manage sessions
-pnpm dlx @playwright/cli@latest session-list
-pnpm dlx @playwright/cli@latest session-stop mytest
-pnpm dlx @playwright/cli@latest session-stop-all
-pnpm dlx @playwright/cli@latest session-delete mytest
+// Fill an input
+await page.locator('input[name="email"]').fill('test@example.com');
+
+// Press a key
+await page.keyboard.press('Enter');
+
+// Wait for element
+await page.locator('.result').waitFor({ state: 'visible', timeout: 5000 });
+
+// Get computed style / check z-index
+const zIndex = await page.evaluate(() => {
+  return window.getComputedStyle(document.querySelector('.panel')).zIndex;
+});
+
+// Scroll to bottom
+await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+// Full page screenshot
+await page.screenshot({ path: 'full.png', fullPage: true });
 ```
 
-### Workflow Example
+### Cleanup
+
+Delete the temporary script after use:
 
 ```bash
-# 1. Open page with session (keeps browser open)
-pnpm dlx @playwright/cli@latest --session todo open https://demo.playwright.dev/todomvc --headed
-
-# 2. Get element references
-pnpm dlx @playwright/cli@latest --session todo snapshot
-# Output shows refs like: [ref=e5] input.new-todo
-
-# 3. Interact using refs
-pnpm dlx @playwright/cli@latest --session todo fill e5 "Buy groceries"
-pnpm dlx @playwright/cli@latest --session todo press Enter
-
-# 4. Verify
-pnpm dlx @playwright/cli@latest --session todo snapshot
-
-# 5. Screenshot result
-pnpm dlx @playwright/cli@latest --session todo screenshot
-
-# 6. Cleanup
-pnpm dlx @playwright/cli@latest --session todo close
+rm -f ~/.claude/tmp-browser-check.mjs
 ```
 
 ---
@@ -222,19 +198,17 @@ pnpm dlx @playwright/cli@latest --session todo close
 ## Best Practices
 
 1. **Start with Tier 1** - If you just need to check if a page works, use headless-check.js
-2. **Escalate to Tier 2** - When interactions are needed, use playwright-cli
-3. **Use sessions** - For multi-step workflows, use `--session` to maintain state
-4. **Get refs first** - Always run `snapshot` before interacting to get current element refs
-5. **Use --headed for debugging** - See what's happening in the browser
+2. **Escalate to Tier 2** - When interactions are needed, write a custom Playwright script
+3. **Save scripts under `~/.claude/`** - This is where `playwright` is installed as a node_module
+4. **Clean up temp scripts** - Delete `~/.claude/tmp-*.mjs` after use
+5. **Use `waitForTimeout` between actions** - Gives the page time to settle after interactions
 
 ---
 
 ## Technical Notes
 
-- Tier 1 script uses headless Chromium
-- **Resource blocking:** By default, Tier 1 blocks images/fonts for speed. Use `--no-block-resources` for accurate error detection (fonts/images will load, catching real failures)
-- Tier 2 uses `pnpm dlx` - no global install needed, always runs latest version
-- Tier 2 is headless by default, use `--headed` to see browser
-- Screenshots saved to `~/cclogs/{repo-name}/headless-screenshots/` (Tier 1) or current directory (Tier 2)
+- Both tiers use Playwright's headless Chromium (installed in `~/.claude/node_modules/`)
+- **Resource blocking:** By default, Tier 1 blocks images/fonts for speed. Use `--no-block-resources` for accurate error detection
+- Tier 2 scripts must be saved under `~/.claude/` (or any ancestor directory of the `node_modules/playwright` install) so Node module resolution can find the package
+- Screenshots saved to `~/cclogs/{repo-name}/headless-screenshots/` (Tier 1) or custom path (Tier 2)
 - Both tiers are more token-efficient than MCP Playwright
-- First `pnpm dlx` call may be slower (downloads package), subsequent calls are cached

@@ -1,5 +1,6 @@
 ---
 description: Queue the next task to do after the current one finishes
+disable-model-invocation: true
 argument-hint:
   - task description
 ---

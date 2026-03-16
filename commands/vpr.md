@@ -1,6 +1,7 @@
 ---
 name: vpr
 description: Open the current PR in the web browser.
+disable-model-invocation: true
 ---
 
 # View PR in Browser

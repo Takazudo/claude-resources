@@ -398,6 +398,8 @@ The next step is **Step 8: Local Review**. You MUST run it before pushing. Do NO
 
 **STOP. Before you push ANYTHING, you MUST run `/local-review`.** This step is the most commonly skipped step in long workflows because the context gets long after managing multiple child agents. **Read this carefully and execute it.**
 
+**CRITICAL: The review MUST run on the base branch in the main repo directory** (NOT in a worktree or isolated context). At this point, topic branches have been merged locally but NOT pushed — the merged commits only exist in the local base branch. Reviewers spawned with `isolation: "worktree"` or in separate worktrees will NOT see the unpushed merged changes and will report "no code to review." Always run `/local-review` from the main repo root on `base/<project-name>`.
+
 1. **Invoke `/local-review` using the Skill tool** — not a manual review, not a summary, the actual skill:
 
 ```
@@ -509,15 +511,47 @@ gh issue comment "$ISSUE_NUMBER" --body "<report content>"
 
 ### STOP — WORKFLOW ENDS HERE
 
-**After Step 11.5, the automated workflow is DONE.** Report the root PR URL and stop.
+**After Step 11.5, the automated workflow is DONE.** Report the root PR URL and wait for user response.
 
 **CRITICAL RULES at this point:**
+
 - **Stay on `base/<project-name>`.** Do NOT checkout `main`, the parent branch, or any other branch.
 - **Do NOT run Step 12.** Step 12 is cleanup that only happens later, after the user has reviewed and merged the PR.
 - **Do NOT delete any branches** (local or remote) — topic branches, base branch, all stay.
 - **Do NOT do anything else** unless the user asks.
 
-The user will review the PR, merge it, and may later ask you to run Step 12 for cleanup.
+The user will review the PR and may:
+
+1. **Provide feedback** — see "Feedback Loop" below. Handle it automatically.
+2. **Merge the PR** — then Step 12 can be run if the user asks.
+
+---
+
+### Feedback Loop: Iterating on User Feedback
+
+After you report the root PR, the user often replies with feedback — requests for changes, fixes, or improvements. This feedback can range from small single-file tweaks to substantial multi-area rework.
+
+**When user feedback is received, re-run Steps 3–11.5 using `--stay` semantics on the existing base branch.** This spins up new agent teams to implement the fixes, following the same structured workflow. The base branch and root PR already exist — no need to recreate them.
+
+#### How it works
+
+1. **Analyze the feedback** — break it into discrete topics. Each heading, bullet group, or distinct concern becomes a separate topic. If there's only one small concern, a single topic is fine.
+2. **Create new worktrees and topic branches** off the existing base branch (Step 3)
+3. **Spawn new child agent teams** (Steps 4–5):
+  - Use `TeamCreate` with an incremented team name: `<project-name>-v2`, `<project-name>-v3`, etc.
+  - New topic branches: `<project-name>/<new-topic-name>`
+  - New worktrees: `worktrees/<new-topic-name>`
+  - Include the user's feedback verbatim in child agent prompts so they have full context
+4. **Follow the same workflow**: merge topics → shut down agents → sync → local review → push → CI watch → update PR (Steps 6–11.5)
+5. **Report back** and wait for the next round of feedback
+
+#### Key points
+
+- **No new base branch or root PR** — reuse what already exists. The root PR accumulates all iterations.
+- **New team name per iteration** — `<project-name>-v2`, `-v3`, etc. to avoid team name collisions.
+- **Issue tracking continues** — if `ISSUE_NUMBER` is set, comment on the issue with the feedback iteration progress.
+- **Repeat as needed** — each round of feedback triggers a new iteration. The loop continues until the user is satisfied and merges the PR.
+- **Small feedback** still uses this pattern — even a single-topic fix benefits from the structured workflow (worktree isolation, review, CI check).
 
 ---
 

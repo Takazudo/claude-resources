@@ -1,6 +1,7 @@
 ---
 name: cpwd
 description: Copy current working directory to clipboard using pbcopy.
+disable-model-invocation: true
 ---
 
 # Copy Working Directory

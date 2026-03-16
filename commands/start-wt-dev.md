@@ -1,6 +1,7 @@
 ---
 name: start-wt-dev
 description: Prepare a git worktree for development on a GitHub issue.
+disable-model-invocation: true
 ---
 
 # Start Worktree Development

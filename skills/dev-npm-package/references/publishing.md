@@ -212,6 +212,20 @@ npm install /path/to/mypackage-1.0.0.tgz
 
 ### Scoped Packages
 
+Scoped packages (`@myorg/utils`) are private by default. To publish publicly, configure access in one of two ways:
+
+**Option A: `.npmrc` file (recommended)**
+
+Create a `.npmrc` file in the project root:
+
+```
+access=public
+```
+
+This keeps package.json clean and works automatically with `npm publish`.
+
+**Option B: `publishConfig` in package.json**
+
 ```json
 {
   "name": "@myorg/utils",
@@ -221,7 +235,7 @@ npm install /path/to/mypackage-1.0.0.tgz
 }
 ```
 
-Publishing a scoped package as public:
+**Option C: CLI flag**
 
 ```bash
 npm publish --access public

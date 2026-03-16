@@ -3,10 +3,11 @@ name: dev-npm-package
 description: |
   Develop npm packages with Node.js and TypeScript following modern best practices.
   Use when: (1) Creating a new npm package from scratch, (2) Setting up package.json exports
-  for dual ESM/CJS, (3) Configuring TypeScript for library authoring, (4) Building and
-  publishing npm packages, (5) Creating CLI tools with bin field, (6) Setting up testing
-  with vitest, (7) Configuring CI/CD for npm publishing, (8) Troubleshooting ESM/CJS
-  interop issues, (9) User mentions 'npm package', 'publish to npm', 'library development',
+  for dual ESM/CJS or ESM-only, (3) Configuring TypeScript for library authoring (Bundler or
+  Node16 moduleResolution), (4) Building and publishing npm packages (tsup or tsc-only),
+  (5) Creating CLI tools with bin field, (6) Setting up testing with vitest,
+  (7) Configuring CI/CD for npm publishing, (8) Troubleshooting ESM/CJS interop issues,
+  (9) User mentions 'npm package', 'publish to npm', 'library development',
   or 'create npm module'.
 ---
 
@@ -14,10 +15,10 @@ description: |
 
 ## Quick Start: Recommended Stack
 
-- **Build**: tsup (esbuild-powered, zero-config, dual CJS/ESM)
+- **Build**: tsup (esbuild-powered, zero-config, dual CJS/ESM) or tsc alone (for ESM-only packages)
 - **Test**: vitest (native ESM/TS, Jest-compatible API)
 - **Lint**: Biome (all-in-one linter+formatter) or ESLint flat config + Prettier
-- **Types**: TypeScript with `moduleResolution: "Bundler"`
+- **Types**: TypeScript with `moduleResolution: "Bundler"` (with tsup) or `"Node16"` (with tsc alone)
 - **Dev**: tsx for running TS, tsup --watch for rebuilding
 - **Publish validation**: publint + @arethetypeswrong/cli (attw)
 
@@ -132,6 +133,69 @@ my-library/
   README.md
 ```
 
+## ESM-Only Library Setup
+
+For packages targeting modern Node.js (>=18) without CJS compatibility needs. Simpler than dual publishing.
+
+### Minimal package.json
+
+```json
+{
+  "name": "@myorg/my-library",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "tsc && vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.7",
+    "vitest": "^3.0"
+  }
+}
+```
+
+### tsconfig.json (Node16, no bundler)
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+**Important**: With `Node16` resolution, all relative imports must include the `.js` extension (even for `.ts` source files): `import { foo } from './utils.js'`.
+
+### When to choose ESM-only over dual CJS/ESM
+
+- Your package targets Node.js >=18 (or >=22 where CJS can `require()` ESM natively)
+- You don't need CJS consumers
+- You want the simplest possible setup with `tsc` only (no bundler)
+
 ## CLI Setup
 
 ### package.json (CLI-specific fields)
@@ -145,7 +209,7 @@ my-library/
 }
 ```
 
-**Important**: bin paths must NOT have a `./` prefix. npm will auto-correct and warn on publish, and may remove the bin entry entirely. Use `"dist/cli.js"` not `"./dist/cli.js"`. Run `npm pkg fix` to check for issues.
+**Note**: npm recommends bin paths without a `./` prefix (`"dist/cli.js"` not `"./dist/cli.js"`). Modern npm normalizes this automatically, but omitting `./` avoids warnings in older npm versions. Run `npm pkg fix` to check for issues.
 
 ### Entry file (src/cli.ts)
 
@@ -184,10 +248,26 @@ Always use `files` as a whitelist (not `.npmignore`). Set to `["dist"]` to publi
 
 ### prepublishOnly
 
-Always include a `prepublishOnly` script to build before publishing:
+Always include a `prepublishOnly` script to build (and ideally test) before publishing:
 
 ```json
-{ "prepublishOnly": "npm run build" }
+{ "prepublishOnly": "npm run build && npm test" }
+```
+
+For tsc-only projects, you can call commands directly: `"prepublishOnly": "tsc && vitest run"`.
+
+### Scoped Packages
+
+For scoped packages (`@myorg/pkg`), configure public access via `.npmrc` in the project root:
+
+```
+access=public
+```
+
+Alternatively, use `publishConfig` in `package.json`:
+
+```json
+{ "publishConfig": { "access": "public" } }
 ```
 
 ### sideEffects

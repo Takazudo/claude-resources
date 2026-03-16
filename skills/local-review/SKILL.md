@@ -73,6 +73,8 @@ PRIMARY FOCUS:
 3. Incorrect API usage, broken functionality
 4. Error handling issues
 
+LOG FILENAME: Use 'bugs' as your log filename slug (e.g., reviewer-bugs-{pr-context}).
+
 REPORTING: Save your FULL findings to the log file (as per your log generation rules).
 Then return to the caller ONLY:
 - A bullet list of high-priority findings (1 sentence each, max 5 items)
@@ -93,6 +95,8 @@ PRIMARY FOCUS:
 5. State management problems
 6. File organization and naming
 7. Better abstractions or patterns
+
+LOG FILENAME: Use 'structure' as your log filename slug (e.g., reviewer-structure-{pr-context}).
 
 REPORTING: Save your FULL findings to the log file (as per your log generation rules).
 Then return to the caller ONLY:
@@ -115,6 +119,8 @@ PRIMARY FOCUS:
 
 SECONDARY:
 - Security issues (XSS, injection, validation)
+
+LOG FILENAME: Use 'quality' as your log filename slug (e.g., reviewer-quality-{pr-context}).
 
 REPORTING: Save your FULL findings to the log file (as per your log generation rules).
 Then return to the caller ONLY:
@@ -162,6 +168,8 @@ Review the ENTIRE project codebase for bugs and logic errors:
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and fix suggestions.
 
+LOG FILENAME: Use 'bugs' as your log filename slug (e.g., reviewer-bugs-{project-context}).
+
 REPORTING: Save your FULL findings to the log file (as per your log generation rules).
 Then return to the caller ONLY:
 - A bullet list of high-priority findings (1 sentence each, max 5 items)
@@ -183,6 +191,8 @@ Review the ENTIRE project codebase for architectural and structural issues:
 7. Naming inconsistencies (files, functions, variables)
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and improvement suggestions.
+
+LOG FILENAME: Use 'architecture' as your log filename slug (e.g., reviewer-architecture-{project-context}).
 
 REPORTING: Save your FULL findings to the log file (as per your log generation rules).
 Then return to the caller ONLY:
@@ -206,6 +216,8 @@ Review the ENTIRE project codebase for refactoring opportunities:
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and refactoring suggestions.
 
+LOG FILENAME: Use 'refactoring' as your log filename slug (e.g., reviewer-refactoring-{project-context}).
+
 REPORTING: Save your FULL findings to the log file (as per your log generation rules).
 Then return to the caller ONLY:
 - A bullet list of high-priority findings (1 sentence each, max 5 items)
@@ -226,6 +238,8 @@ Review the ENTIRE project codebase for type safety and correctness:
 6. Data flow issues (wrong data passed between components)
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and fix suggestions.
+
+LOG FILENAME: Use 'types' as your log filename slug (e.g., reviewer-types-{project-context}).
 
 REPORTING: Save your FULL findings to the log file (as per your log generation rules).
 Then return to the caller ONLY:
@@ -249,6 +263,8 @@ Review the ENTIRE project codebase for performance issues:
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and optimization suggestions.
 
+LOG FILENAME: Use 'performance' as your log filename slug (e.g., reviewer-performance-{project-context}).
+
 REPORTING: Save your FULL findings to the log file (as per your log generation rules).
 Then return to the caller ONLY:
 - A bullet list of high-priority findings (1 sentence each, max 5 items)
@@ -271,6 +287,8 @@ Review the ENTIRE project codebase for security and robustness issues:
 8. Dependency vulnerabilities
 
 Explore all source files thoroughly. Provide specific findings with file paths, line numbers, and fix suggestions.
+
+LOG FILENAME: Use 'security' as your log filename slug (e.g., reviewer-security-{project-context}).
 
 REPORTING: Save your FULL findings to the log file (as per your log generation rules).
 Then return to the caller ONLY:

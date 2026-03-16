@@ -1,6 +1,7 @@
 ---
 name: bambulab-height-calculation
 description: Calculate Z coordinates for stacking/merging objects in Bambu Studio.
+disable-model-invocation: true
 ---
 
 # Bambu Lab Object Stacking Height Calculator
@@ -21,14 +22,14 @@ Calculate Z coordinates for stacking/merging objects in Bambu Studio.
    ```
 
 2. **Calculate center-based Z positions** using this formula:
-  - Bambu Studio uses **center of object** for Z position, not bottom
-  - For each object: `Z = (sum of all previous heights) + (current height / 2)`
+- Bambu Studio uses **center of object** for Z position, not bottom
+- For each object: `Z = (sum of all previous heights) + (current height / 2)`
 
 3. **Return a table** with:
-  - Object number
-  - Height
-  - Bottom position
-  - **Center Z (the value to enter in Bambu Studio)**
+- Object number
+- Height
+- Bottom position
+- **Center Z (the value to enter in Bambu Studio)**
 
 ## Calculation Example
 
