@@ -146,6 +146,38 @@ def scale_path_data(d_attr, factor):
     return " ".join(result)
 
 
+def scale_points_data(points_attr, factor):
+    """Scale all coordinate values in SVG points attribute (polygon/polyline)."""
+    if factor == 1.0:
+        return points_attr
+    nums = re.findall(r"-?\d*\.?\d+(?:[eE][+-]?\d+)?", points_attr)
+    scaled = [str(round(float(n) * factor, 4)) for n in nums]
+    return " ".join(scaled)
+
+
+# SVG shape attributes that contain coordinate/length values to scale
+_SCALE_ATTRS = {
+    "rect": ["x", "y", "width", "height", "rx", "ry"],
+    "circle": ["cx", "cy", "r"],
+    "ellipse": ["cx", "cy", "rx", "ry"],
+    "line": ["x1", "y1", "x2", "y2"],
+}
+
+
+def _scale_shape_attrs(elem, tag, factor):
+    """Scale coordinate attributes on basic SVG shapes (rect, circle, etc.)."""
+    if factor == 1.0:
+        return
+    attrs = _SCALE_ATTRS.get(tag, [])
+    for attr in attrs:
+        val = elem.get(attr)
+        if val:
+            num = re.match(r"(-?\d*\.?\d+(?:[eE][+-]?\d+)?)(.*)", val)
+            if num:
+                scaled = round(float(num.group(1)) * factor, 4)
+                elem.set(attr, f"{scaled}{num.group(2)}")
+
+
 def fix_svg(input_path, output_path, scale_factor):
     """Process SVG: split compound paths, scale, clean up for KiCad."""
     tree = ET.parse(input_path)
@@ -155,14 +187,19 @@ def fix_svg(input_path, output_path, scale_factor):
     for defs in root.findall(f"{{{SVG_NS}}}defs"):
         root.remove(defs)
 
-    # Collect all path elements
+    # Collect all shape elements
     paths_to_process = []
+    shapes_to_process = []
     for parent in root.iter():
         for child in list(parent):
             tag = child.tag.replace(f"{{{SVG_NS}}}", "")
             if tag == "path":
                 paths_to_process.append((parent, child))
+            elif tag in ("polygon", "polyline", "rect", "circle", "ellipse", "line"):
+                shapes_to_process.append((parent, child, tag))
 
+    # Process <path> elements
+    compound_count = 0
     for parent, path_elem in paths_to_process:
         d = path_elem.get("d", "")
         subpaths = split_subpaths(d)
@@ -174,6 +211,7 @@ def fix_svg(input_path, output_path, scale_factor):
             _clean_path_attrs(path_elem)
         else:
             # Compound path — split into separate elements
+            compound_count += 1
             idx = list(parent).index(path_elem)
             parent.remove(path_elem)
 
@@ -184,6 +222,16 @@ def fix_svg(input_path, output_path, scale_factor):
                 # Maintain order
                 parent.remove(new_path)
                 parent.insert(idx + j, new_path)
+
+    # Process polygon, polyline, rect, circle, ellipse, line
+    for parent, elem, tag in shapes_to_process:
+        if tag in ("polygon", "polyline"):
+            points = elem.get("points", "")
+            if points:
+                elem.set("points", scale_points_data(points, scale_factor))
+        else:
+            _scale_shape_attrs(elem, tag, scale_factor)
+        _clean_path_attrs(elem)
 
     # Scale viewBox if present
     viewbox = root.get("viewBox")
@@ -202,10 +250,13 @@ def fix_svg(input_path, output_path, scale_factor):
                 scaled_val = round(float(num.group(1)) * scale_factor, 4)
                 root.set(attr, f"{scaled_val}{num.group(2)}")
 
+    shape_count = len(paths_to_process) + len(shapes_to_process)
     tree.write(output_path, xml_declaration=True, encoding="UTF-8")
     print(f"Fixed SVG written to: {output_path}")
     print(f"  Scale factor: {scale_factor}")
-    print(f"  Paths split: {sum(len(split_subpaths(p.get('d',''))) for _, p in paths_to_process if len(split_subpaths(p.get('d',''))) > 1)} compound → separate")
+    print(f"  Elements processed: {shape_count} (paths: {len(paths_to_process)}, shapes: {len(shapes_to_process)})")
+    if compound_count:
+        print(f"  Compound paths split: {compound_count}")
 
 
 def _clean_path_attrs(elem):
