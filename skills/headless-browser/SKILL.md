@@ -195,6 +195,46 @@ rm -f ~/.claude/tmp-browser-check.mjs
 
 ---
 
+## CSS/Style Verification Guidelines
+
+**For CSS/style verification, prefer `/verify-ui` which provides deterministic computed style checks before visual analysis.** The guidelines below apply when using `/headless-browser` directly for CSS checks.
+
+### Theme Awareness
+
+The target website may support light/dark themes. When checking CSS/style-related changes, capture screenshots in **both** color schemes. Use Playwright's `colorScheme` option:
+
+```javascript
+// Capture in both themes
+for (const scheme of ['light', 'dark']) {
+  const page = await browser.newPage({
+    viewport: { width: 1280, height: 800 },
+    colorScheme: scheme,
+  });
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.screenshot({ path: `${ssDir}/check-${scheme}.png` });
+  await page.close();
+}
+```
+
+### Responsive Width Variations
+
+When checking layout or fluid design, capture at multiple viewport widths to cover the design's breakpoints. The number and values of widths depend on the project — check the project's CSS/config for actual breakpoints (e.g., `@theme` breakpoints, Tailwind config, media queries) and capture at widths that test each transition point. For example, a project with `sm: 640px`, `lg: 1024px`, `xl: 1280px` breakpoints needs captures at widths like 400px, 700px, 1100px, and 1300px to verify behavior on each side of each breakpoint.
+
+If the project's breakpoints are unclear, ask the user which width variations matter for the layout being checked.
+
+### Mandatory Visual Verification
+
+**CRITICAL**: After capturing screenshots, you MUST read and carefully examine every captured PNG file using the Read tool. Do NOT report success without visually verifying the screenshots show the expected result.
+
+Workflow:
+1. Capture screenshots
+2. **Read each screenshot with the Read tool**
+3. **Carefully inspect** — check borders, spacing, alignment, color, contrast
+4. Compare against what was requested
+5. Only then report the result
+
+Screenshots that are captured but not visually inspected are worthless. If you skip verification, you will miss problems and the user will have to point them out repeatedly.
+
 ## Best Practices
 
 1. **Start with Tier 1** - If you just need to check if a page works, use headless-check.js
@@ -202,6 +242,9 @@ rm -f ~/.claude/tmp-browser-check.mjs
 3. **Save scripts under `~/.claude/`** - This is where `playwright` is installed as a node_module
 4. **Clean up temp scripts** - Delete `~/.claude/tmp-*.mjs` after use
 5. **Use `waitForTimeout` between actions** - Gives the page time to settle after interactions
+6. **Capture both themes** - When checking CSS, use `colorScheme: 'light'` and `colorScheme: 'dark'`
+7. **Capture at project breakpoints** - When checking layout, read the project's breakpoint config and capture widths that cover each transition
+8. **Always visually verify** - Read every captured PNG with the Read tool before reporting
 
 ---
 
