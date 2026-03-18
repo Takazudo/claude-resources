@@ -1,0 +1,17 @@
+---
+interface Props {
+  title?: string;
+}
+const { title = "Details" } = Astro.props;
+---
+
+<details class="my-vsp-md border border-muted rounded-lg overflow-hidden">
+  <summary
+    class="cursor-pointer px-hsp-lg py-vsp-sm bg-surface font-medium text-fg select-none hover:text-accent"
+  >
+    {title}
+  </summary>
+  <div class="px-hsp-lg py-vsp-sm zd-content">
+    <slot />
+  </div>
+</details>

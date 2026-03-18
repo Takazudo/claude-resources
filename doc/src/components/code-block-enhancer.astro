@@ -1,0 +1,144 @@
+<!-- Enhances Shiki-rendered code blocks with copy and word-wrap toggle buttons. --><!-- Include once in the layout — it self-initializes via a <script> tag. -->
+<div class="code-block-sr-announce" aria-live="polite"></div>
+
+<script>
+  // Single shared ResizeObserver for all code blocks
+  const wrapButtons = new Map<Element, HTMLButtonElement>();
+  const resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const btn = wrapButtons.get(entry.target);
+      if (btn) updateWrapVisibility(entry.target as HTMLPreElement, btn);
+    }
+  });
+
+  function enhanceCodeBlocks() {
+    const pres = document.querySelectorAll<HTMLPreElement>("pre.astro-code");
+
+    for (const pre of pres) {
+      if (pre.dataset.enhanced) continue;
+      pre.dataset.enhanced = "true";
+
+      const codeEl = pre.querySelector("code");
+      if (!codeEl) continue;
+      const rawCode = codeEl.textContent ?? "";
+
+      // Wrap <pre> in a container so buttons stay fixed during horizontal scroll
+      const wrapper = document.createElement("div");
+      wrapper.className = "code-block-wrapper";
+      const parent = pre.parentNode;
+      if (!parent) continue;
+      parent.insertBefore(wrapper, pre);
+      wrapper.appendChild(pre);
+
+      // Button group (appended to wrapper, not pre)
+      const group = document.createElement("div");
+      group.className = "code-buttons";
+
+      // Word wrap toggle (only shown when content overflows)
+      const wrapBtn = createWrapButton(pre);
+      group.appendChild(wrapBtn);
+
+      // Copy button
+      const copyBtn = createCopyButton(rawCode);
+      group.appendChild(copyBtn);
+
+      wrapper.appendChild(group);
+
+      // Track and observe for overflow changes
+      wrapButtons.set(pre, wrapBtn);
+      updateWrapVisibility(pre, wrapBtn);
+      resizeObserver.observe(pre);
+    }
+  }
+
+  function createCopyButton(code: string): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "code-btn code-btn-copy";
+    btn.setAttribute("aria-label", "Copy code");
+    btn.innerHTML = `
+      <svg class="code-icon code-icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+      <svg class="code-icon code-icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    `;
+
+    let copyTimeout: ReturnType<typeof setTimeout>;
+    const announce = document.querySelector(".code-block-sr-announce");
+
+    btn.addEventListener("click", async () => {
+      let success = true;
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch {
+        // Fallback for older browsers
+        const textarea = document.createElement("textarea");
+        textarea.value = code;
+        textarea.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+        document.body.appendChild(textarea);
+        textarea.select();
+        success = document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      if (success) {
+        btn.classList.add("copied");
+        if (announce) announce.textContent = "Copied!";
+        clearTimeout(copyTimeout);
+        copyTimeout = setTimeout(() => {
+          btn.classList.remove("copied");
+          if (announce) announce.textContent = "";
+        }, 1500);
+      }
+    });
+
+    return btn;
+  }
+
+  function createWrapButton(pre: HTMLPreElement): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "code-btn code-btn-wrap";
+    btn.setAttribute("aria-label", "Toggle word wrap");
+    btn.setAttribute("aria-pressed", "false");
+    btn.innerHTML = `
+      <svg class="code-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="17 10 21 6 17 2" />
+        <path d="M3 6h18" />
+        <path d="M21 18H7" />
+        <polyline points="11 22 7 18 11 14" />
+      </svg>
+    `;
+
+    btn.addEventListener("click", () => {
+      const isWrapped = pre.classList.toggle("word-wrap");
+      btn.classList.toggle("active", isWrapped);
+      btn.setAttribute("aria-pressed", String(isWrapped));
+    });
+
+    return btn;
+  }
+
+  function updateWrapVisibility(pre: HTMLPreElement, btn: HTMLButtonElement) {
+    // Keep visible when active (user needs to toggle back)
+    const isActive = btn.classList.contains("active");
+    btn.style.display =
+      isActive || pre.scrollWidth > pre.clientWidth ? "" : "none";
+  }
+
+  // Clean up stale references before page swap (Astro view transitions)
+  document.addEventListener("astro:before-swap", () => {
+    for (const [el] of wrapButtons) {
+      resizeObserver.unobserve(el);
+    }
+    wrapButtons.clear();
+  });
+
+  // Run on initial load
+  enhanceCodeBlocks();
+
+  // Support Astro view transitions
+  document.addEventListener("astro:page-load", enhanceCodeBlocks);
+</script>

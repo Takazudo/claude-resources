@@ -1,0 +1,38 @@
+---
+import HtmlPreview from "./html-preview/html-preview";
+import { settings } from "@/config/settings";
+
+interface Props {
+  html: string;
+  css?: string;
+  head?: string;
+  js?: string;
+  title?: string;
+  height?: number;
+  defaultOpen?: boolean;
+}
+
+const { html, css, head, js, title, height, defaultOpen } = Astro.props;
+
+const globalConfig = settings.htmlPreview;
+
+const mergedHead =
+  [globalConfig?.head, head].filter(Boolean).join("\n") || undefined;
+const mergedCss =
+  [globalConfig?.css, css].filter(Boolean).join("\n") || undefined;
+const mergedJs = [globalConfig?.js, js].filter(Boolean).join("\n") || undefined;
+---
+
+<HtmlPreview
+  client:visible
+  html={html}
+  css={mergedCss}
+  head={mergedHead}
+  js={mergedJs}
+  title={title}
+  height={height}
+  defaultOpen={defaultOpen}
+  componentCss={css}
+  componentHead={head}
+  componentJs={js}
+/>

@@ -1,22 +1,44 @@
 {
-  "name": "claude-code-doc",
-  "version": "1.0.0",
+  "name": "doc",
+  "version": "0.0.1",
   "private": true,
-  "description": "Documentation and viewer for Claude Code global commands and skills",
+  "type": "module",
   "scripts": {
-    "start": "pnpm --filter claude-code-doc-site start",
-    "build": "pnpm --filter claude-code-doc-site build",
-    "app": "pnpm --filter claude-code-doc-app start",
-    "app:build": "pnpm --filter claude-code-doc-app build"
+    "dev": "astro dev --port 4891",
+    "dev:stable": "node scripts/dev-stable.js",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
   },
-  "engines": {
-    "node": ">=20.0"
+  "dependencies": {
+    "@astrojs/mdx": "^4.3.0",
+    "@astrojs/react": "^4.4.0",
+    "@shikijs/transformers": "^4.0.0",
+    "astro": "^5.18.0",
+    "clsx": "^2.1.0",
+    "github-slugger": "^2.0.0",
+    "gray-matter": "^4.0.0",
+    "mermaid": "^11.13.0",
+    "minisearch": "^7.2.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "remark-directive": "^4.0.0",
+    "shiki": "^4.0.2",
+    "unist-util-visit": "^5.1.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
-      "sharp",
-      "electron"
+      "sharp"
     ]
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.0",
+    "@tailwindcss/vite": "^4.2.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.0",
+    "pagefind": "^1.4.0",
+    "tailwindcss": "^4.2.0",
+    "typescript": "^5.9.0"
   }
 }

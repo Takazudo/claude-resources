@@ -1,0 +1,66 @@
+---
+import { buildNavTree, flattenTree, loadCategoryMeta } from "@/utils/docs";
+import {
+  defaultLocale,
+  getCollectionName,
+  getContentDir,
+  type Locale,
+} from "@/config/i18n";
+import { getDocsCollection } from "@/utils/get-docs-collection";
+
+interface Props {
+  lang?: Locale;
+}
+
+const { lang = defaultLocale } = Astro.props;
+
+const docs = await getDocsCollection(getCollectionName(lang));
+const contentDir = getContentDir(lang);
+const categoryMeta = loadCategoryMeta(contentDir);
+const tree = buildNavTree(docs, lang, categoryMeta);
+---
+
+<div class="flex flex-col gap-y-vsp-lg">
+  {
+    tree.map((node) => {
+      const leaves = flattenTree(node.children);
+      return (
+        <details class="group border border-muted overflow-hidden" open>
+          <summary class="flex items-center gap-x-hsp-md px-hsp-xl py-vsp-md text-subheading font-bold cursor-pointer select-none bg-surface list-none [&::-webkit-details-marker]:hidden">
+            <span class="inline-block text-caption text-muted transition-transform duration-200 group-open:rotate-90">
+              &#9654;
+            </span>
+            {node.href ? (
+              <a href={node.href} class="hover:underline focus:underline">
+                {node.label}
+              </a>
+            ) : (
+              <span>{node.label}</span>
+            )}
+          </summary>
+          {leaves.length > 0 && (
+            <div class="px-hsp-xl py-vsp-md">
+              <ul class="space-y-vsp-2xs pl-[1.25rem] list-none">
+                {leaves.map((leaf) => (
+                  <li>
+                    <a
+                      href={leaf.href}
+                      class="text-accent hover:underline focus:underline"
+                    >
+                      {leaf.label}
+                    </a>
+                    {leaf.description && (
+                      <span class="ml-hsp-sm text-small text-muted">
+                        {leaf.description}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </details>
+      );
+    })
+  }
+</div>

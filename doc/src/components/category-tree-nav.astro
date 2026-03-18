@@ -1,0 +1,126 @@
+---
+import {
+  buildNavTree,
+  findNode,
+  groupSatelliteNodes,
+  loadCategoryMeta,
+  type NavNode,
+} from "@/utils/docs";
+import { stripBase } from "@/utils/base";
+import {
+  getCollectionName,
+  getContentDir,
+  detectLocaleFromPath,
+  type Locale,
+} from "@/config/i18n";
+import { getDocsCollection } from "@/utils/get-docs-collection";
+
+interface Props {
+  category: string;
+  lang?: Locale;
+}
+
+const currentPath = Astro.url.pathname;
+const pathWithoutBase = stripBase(currentPath);
+const detectedLang: Locale = detectLocaleFromPath(pathWithoutBase);
+const { category, lang = detectedLang } = Astro.props;
+
+const collectionName = getCollectionName(lang);
+const allDocs = await getDocsCollection(collectionName);
+const contentDir = getContentDir(lang);
+const categoryMeta = loadCategoryMeta(contentDir);
+const rawTree = buildNavTree(allDocs, lang, categoryMeta);
+const tree = groupSatelliteNodes(rawTree, [category]);
+
+const categoryNode = findNode(tree, category);
+const children =
+  categoryNode?.children.filter((c) => c.hasPage || c.children.length > 0) ??
+  [];
+---
+
+{
+  children.length > 0 && (
+    <nav aria-label="Category navigation" class="mt-vsp-lg mb-vsp-md">
+      <ul class="list-none m-0 p-0">
+        {children.map((child) => (
+          <li class="m-0 p-0">
+            {child.href ? (
+              <a
+                href={child.href}
+                class="inline-block py-vsp-3xs text-accent hover:underline"
+              >
+                {child.label}
+              </a>
+            ) : (
+              <span class="inline-block py-vsp-3xs text-fg font-medium">
+                {child.label}
+              </span>
+            )}
+            {child.description && (
+              <span class="ml-hsp-sm text-small text-muted">
+                : {child.description}
+              </span>
+            )}
+            {child.children.length > 0 && (
+              <ul class="list-none m-0 p-0 pl-hsp-lg ml-hsp-xs">
+                {child.children
+                  .filter((c: NavNode) => c.hasPage || c.children.length > 0)
+                  .map((grandchild: NavNode) => (
+                    <li class="m-0 p-0">
+                      {grandchild.href ? (
+                        <a
+                          href={grandchild.href}
+                          class="inline-block py-vsp-3xs text-accent hover:underline"
+                        >
+                          {grandchild.label}
+                        </a>
+                      ) : (
+                        <span class="inline-block py-vsp-3xs text-fg font-medium">
+                          {grandchild.label}
+                        </span>
+                      )}
+                      {grandchild.description && (
+                        <span class="ml-hsp-sm text-small text-muted">
+                          : {grandchild.description}
+                        </span>
+                      )}
+                      {grandchild.children.length > 0 && (
+                        <ul class="list-none m-0 p-0 pl-hsp-lg ml-hsp-xs">
+                          {grandchild.children
+                            .filter(
+                              (c: NavNode) =>
+                                c.hasPage || c.children.length > 0,
+                            )
+                            .map((leaf: NavNode) => (
+                              <li class="m-0 p-0">
+                                {leaf.href ? (
+                                  <a
+                                    href={leaf.href}
+                                    class="inline-block py-vsp-3xs text-accent hover:underline"
+                                  >
+                                    {leaf.label}
+                                  </a>
+                                ) : (
+                                  <span class="inline-block py-vsp-3xs text-fg font-medium">
+                                    {leaf.label}
+                                  </span>
+                                )}
+                                {leaf.description && (
+                                  <span class="ml-hsp-sm text-small text-muted">
+                                    : {leaf.description}
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}

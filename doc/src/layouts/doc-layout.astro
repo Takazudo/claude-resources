@@ -1,0 +1,130 @@
+---
+import "@/styles/global.css";
+import Header from "@/components/header.astro";
+import Sidebar from "@/components/sidebar.astro";
+import { Toc } from "@/components/toc";
+import { MobileToc } from "@/components/mobile-toc";
+import ColorSchemeProvider from "@/components/color-scheme-provider.astro";
+import CodeBlockEnhancer from "@/components/code-block-enhancer.astro";
+import TabsInit from "@/components/tabs-init.astro";
+import MermaidInit from "@/components/mermaid-init.astro";
+import PageLoadingOverlay from "@/components/page-loading-overlay.astro";
+import { ClientRouter } from "astro:transitions";
+import { settings } from "@/config/settings";
+import type { Heading } from "@/types/heading";
+import { getNavSectionForSlug } from "@/utils/nav-scope";
+import { defaultLocale, t, type Locale } from "@/config/i18n";
+import { withBase } from "@/utils/base";
+import Footer from "@/components/footer.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+  lang?: Locale;
+  currentSlug?: string;
+  headings?: Heading[];
+  unlisted?: boolean;
+  hideSidebar?: boolean;
+  hideToc?: boolean;
+}
+
+const {
+  title,
+  description,
+  lang = defaultLocale,
+  currentSlug,
+  headings = [],
+  unlisted = false,
+  hideSidebar = false,
+  hideToc = false,
+} = Astro.props;
+const fullTitle = title === settings.siteName ? title : `${title} | ${settings.siteName}`;
+const navSection = currentSlug ? getNavSectionForSlug(currentSlug) : undefined;
+const currentPath = Astro.url.pathname;
+const contentAnim = {
+  old: {
+    name: "contentFadeOut",
+    duration: 0,
+    easing: "ease-in",
+    fillMode: "both",
+  },
+  new: {
+    name: "contentFadeIn",
+    duration: 300,
+    easing: "ease-out",
+    fillMode: "both",
+  },
+};
+const contentTransition = {
+  forwards: contentAnim,
+  backwards: contentAnim,
+};
+---
+
+<html lang={lang} style="color-scheme: dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <meta name="robots" content="noindex, nofollow" />
+    <meta property="og:title" content={fullTitle} />
+    {description && <meta property="og:description" content={description} />}
+    <ColorSchemeProvider />
+    <ClientRouter />
+  </head>
+  <body class="min-h-screen antialiased">
+    <Header lang={lang} currentPath={currentPath}>
+      <Sidebar slot="sidebar" currentSlug={currentSlug} lang={lang} navSection={navSection} />
+    </Header>
+
+    <div class="flex min-h-[calc(100vh-3.5rem)]">
+      {/* Desktop sidebar */}
+      {!hideSidebar && (
+        <aside
+          id="desktop-sidebar"
+          transition:persist={`sidebar-${lang}-${navSection ?? "default"}`}
+          class="hidden lg:block w-[clamp(14rem,20vw,22rem)] shrink-0 border-r border-muted sticky top-[3.5rem] h-[calc(100vh-3.5rem)] overflow-y-auto"
+        >
+          <Sidebar currentSlug={currentSlug} lang={lang} navSection={navSection} />
+        </aside>
+      )}
+
+      {/* Content + TOC wrapper */}
+      <div class="flex-1 min-w-0 flex justify-center">
+        <div class:list={[
+          "flex w-full gap-[clamp(1.5rem,3vw,4rem)]",
+          hideSidebar ? "max-w-[80rem]" : "max-w-[clamp(50rem,75vw,90rem)]",
+        ]}>
+          {/* Main content */}
+          <main class="flex-1 min-w-0 px-hsp-xl py-vsp-xl lg:px-hsp-2xl lg:py-vsp-2xl" transition:animate={contentTransition}>
+            <slot name="breadcrumb" />
+            {!hideToc && <MobileToc headings={headings} title={t("toc.title", lang)} client:load />}
+            <article class="zd-content max-w-none">
+              <slot />
+            </article>
+          </main>
+
+          {/* Table of contents */}
+          {!hideToc && <Toc headings={headings} client:load />}
+        </div>
+      </div>
+    </div>
+    <Footer />
+    <CodeBlockEnhancer />
+    <TabsInit />
+    {settings.mermaid && <MermaidInit />}
+    <PageLoadingOverlay />
+    <script>
+      let _sidebarScrollTop = 0;
+      document.addEventListener("astro:before-swap", () => {
+        const el = document.getElementById("desktop-sidebar");
+        if (el) _sidebarScrollTop = el.scrollTop;
+      });
+      document.addEventListener("astro:after-swap", () => {
+        const el = document.getElementById("desktop-sidebar");
+        if (el) el.scrollTop = _sidebarScrollTop;
+      });
+    </script>
+  </body>
+</html>

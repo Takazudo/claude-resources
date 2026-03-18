@@ -1,0 +1,43 @@
+---
+import { settings } from "@/config/settings";
+import { t, type Locale } from "@/config/i18n";
+
+interface Props {
+  contentDir: string;
+  entryId: string;
+  locale?: Locale;
+}
+
+const { contentDir, entryId, locale = "en" } = Astro.props;
+
+const editUrl = settings.editUrl
+  ? `${(settings.editUrl as string).replace(/\/$/, "")}/${contentDir}/${entryId}`
+  : null;
+---
+
+{
+  editUrl && (
+    <a
+      href={editUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="inline-flex items-center gap-hsp-2xs text-small text-muted hover:text-accent"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-[0.875rem] w-[0.875rem]"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+        />
+      </svg>
+      <span>{t("doc.editPage", locale)}</span>
+    </a>
+  )
+}

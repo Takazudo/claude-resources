@@ -1,0 +1,13 @@
+---
+interface Props {
+  groupId?: string;
+}
+const { groupId } = Astro.props;
+---
+
+<div class="tabs-container my-vsp-md" data-tabs data-group-id={groupId}>
+  <div class="tabs-nav flex border-b border-muted" role="tablist"></div>
+  <div class="tabs-content">
+    <slot />
+  </div>
+</div>

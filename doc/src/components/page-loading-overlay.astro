@@ -1,0 +1,77 @@
+<!--
+  Full-page loading overlay shown during Astro View Transitions.
+  Uses astro:before-preparation / astro:page-load lifecycle events.
+-->
+<div id="page-loading-overlay" class="page-loading-overlay" aria-hidden="true">
+  <span class="page-loading-spinner"></span>
+</div>
+
+<style>
+  .page-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease-out;
+  }
+
+  .page-loading-overlay[data-visible] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .page-loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 5px solid var(--color-fg, #fff);
+    border-bottom-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    box-sizing: border-box;
+    animation: page-loading-spin 1s linear infinite;
+  }
+
+  @media (min-width: 1024px) {
+    .page-loading-spinner {
+      width: 64px;
+      height: 64px;
+      border-width: 6px;
+    }
+  }
+
+  @keyframes page-loading-spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .page-loading-spinner {
+      animation: none;
+      border-bottom-color: var(--color-fg, #fff);
+      opacity: 0.5;
+    }
+  }
+</style>
+
+<script>
+  document.addEventListener("astro:before-preparation", () => {
+    const overlay = document.getElementById("page-loading-overlay");
+    overlay?.setAttribute("data-visible", "");
+    overlay?.setAttribute("aria-hidden", "false");
+  });
+
+  document.addEventListener("astro:page-load", () => {
+    const overlay = document.getElementById("page-loading-overlay");
+    overlay?.removeAttribute("data-visible");
+    overlay?.setAttribute("aria-hidden", "true");
+  });
+</script>

@@ -1,0 +1,13 @@
+---
+import Admonition from "./admonition.astro";
+
+interface Props {
+  title?: string;
+}
+
+const { title } = Astro.props;
+---
+
+<Admonition type="tip" title={title}>
+  <slot />
+</Admonition>

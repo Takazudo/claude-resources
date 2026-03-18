@@ -1,0 +1,110 @@
+---
+import { settings } from "@/config/settings";
+import { docsUrl, versionedDocsUrl } from "@/utils/base";
+import { t, type Locale } from "@/config/i18n";
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const versions = settings.versions || [];
+const defaultDocSlug =
+  settings.headerNav[0]?.path.replace(/^\/docs\//, "") ?? "getting-started";
+---
+
+<h1 class="text-heading font-bold mb-vsp-lg">
+  {t("version.page.title", lang)}
+</h1>
+
+{/* Latest version */}
+<section class="mb-vsp-xl">
+  <h2 class="text-subheading font-bold mb-vsp-xs">
+    {t("version.page.latest.title", lang)}
+  </h2>
+  <p class="text-small text-muted mb-vsp-sm">
+    {t("version.page.latest.description", lang)}
+  </p>
+  <a
+    href={docsUrl(defaultDocSlug, lang)}
+    class="inline-flex items-center gap-hsp-xs text-small text-accent underline hover:text-accent-hover"
+  >
+    {t("version.page.latest.link", lang)}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      class="h-[0.875rem] w-[0.875rem]"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"
+      ></path>
+    </svg>
+  </a>
+</section>
+
+{/* Past versions */}
+{
+  versions.length > 0 && (
+    <section>
+      <h2 class="text-subheading font-bold mb-vsp-xs">
+        {t("version.page.past.title", lang)}
+      </h2>
+      <p class="text-small text-muted mb-vsp-md">
+        {t("version.page.past.description", lang)}
+      </p>
+      <div class="border border-muted rounded overflow-hidden">
+        <table class="w-full text-small">
+          <thead>
+            <tr class="border-b border-muted bg-surface">
+              <th class="px-hsp-lg py-vsp-sm text-left font-medium text-muted">
+                {t("version.switcher.label", lang)}
+              </th>
+              <th class="px-hsp-lg py-vsp-sm text-left font-medium text-muted">
+                {t("version.page.status", lang)}
+              </th>
+              <th class="px-hsp-lg py-vsp-sm text-left font-medium text-muted">
+                {t("version.page.docs", lang)}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {versions.map((v) => {
+              const bannerLabel = v.banner
+                ? t(`version.page.${v.banner}`, lang)
+                : "";
+              return (
+                <tr class="border-b border-muted last:border-b-0">
+                  <td class="px-hsp-lg py-vsp-sm font-medium text-fg">
+                    {v.label}
+                  </td>
+                  <td class="px-hsp-lg py-vsp-sm">
+                    {v.banner === "unmaintained" && (
+                      <span class="inline-block rounded px-hsp-xs py-vsp-3xs text-caption bg-warning/10 text-warning">
+                        {bannerLabel}
+                      </span>
+                    )}
+                    {v.banner === "unreleased" && (
+                      <span class="inline-block rounded px-hsp-xs py-vsp-3xs text-caption bg-info/10 text-info">
+                        {bannerLabel}
+                      </span>
+                    )}
+                  </td>
+                  <td class="px-hsp-lg py-vsp-sm">
+                    <a
+                      href={versionedDocsUrl(defaultDocSlug, v.slug, lang)}
+                      class="text-accent underline hover:text-accent-hover"
+                    >
+                      {t("version.page.docs", lang)}
+                    </a>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}

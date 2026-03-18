@@ -1,0 +1,87 @@
+---
+import {
+  generateCssCustomProperties,
+  generateLightDarkCssProperties,
+} from "@/config/color-scheme-utils";
+import { settings } from "@/config/settings";
+
+const cssProperties = settings.colorMode
+  ? generateLightDarkCssProperties()
+  : generateCssCustomProperties();
+---
+
+<style set:text={cssProperties}></style>
+
+{
+  settings.colorMode ? (
+    <script
+      is:inline
+      define:vars={{
+        defaultMode: settings.colorMode.defaultMode,
+        respectPrefersColorScheme: settings.colorMode.respectPrefersColorScheme,
+      }}
+    >
+      (function () {
+        var STORAGE_KEY = "zudo-doc-theme";
+        function getSystemMode() {
+          return window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+        }
+        function applyTheme(mode) {
+          document.documentElement.setAttribute("data-theme", mode);
+          document.documentElement.style.colorScheme = mode;
+        }
+        function getEffectiveMode(choice) {
+          if (choice === "light" || choice === "dark") return choice;
+          return respectPrefersColorScheme ? getSystemMode() : defaultMode;
+        }
+        var stored = null;
+        try {
+          stored = localStorage.getItem(STORAGE_KEY);
+        } catch (e) {}
+        applyTheme(getEffectiveMode(stored));
+        // Re-apply after View Transition swaps the DOM
+        document.addEventListener("astro:after-swap", function () {
+          var s = null;
+          try {
+            s = localStorage.getItem(STORAGE_KEY);
+          } catch (e) {}
+          applyTheme(getEffectiveMode(s));
+        });
+        // Listen for system preference changes
+        if (respectPrefersColorScheme) {
+          window
+            .matchMedia("(prefers-color-scheme: dark)")
+            .addEventListener("change", function () {
+              var s = null;
+              try {
+                s = localStorage.getItem(STORAGE_KEY);
+              } catch (e) {}
+              if (!s) applyTheme(getSystemMode());
+            });
+        }
+      })();
+    </script>
+  ) : (
+    <script is:inline>
+      (function () {
+        function applyStoredScheme() {
+          var css = localStorage.getItem("zudo-doc-color-scheme-css");
+          if (!css) return;
+          try {
+            var pairs = JSON.parse(css);
+            var root = document.documentElement;
+            for (var i = 0; i < pairs.length; i++) {
+              root.style.setProperty(pairs[i][0], pairs[i][1]);
+            }
+          } catch (e) {
+            localStorage.removeItem("zudo-doc-color-scheme-css");
+          }
+        }
+        applyStoredScheme();
+        document.addEventListener("astro:after-swap", applyStoredScheme);
+      })();
+    </script>
+  )
+}

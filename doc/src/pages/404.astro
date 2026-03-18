@@ -1,0 +1,32 @@
+---
+import "@/styles/global.css";
+import ColorSchemeProvider from "@/components/color-scheme-provider.astro";
+import { ClientRouter } from "astro:transitions";
+import PageLoadingOverlay from "@/components/page-loading-overlay.astro";
+import { settings } from "@/config/settings";
+import { withBase } from "@/utils/base";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page Not Found | {settings.siteName}</title>
+    <meta name="robots" content="noindex" />
+    <ColorSchemeProvider />
+    <ClientRouter />
+  </head>
+  <body
+    class="min-h-screen antialiased flex flex-col items-center justify-center px-hsp-2xl py-vsp-xl"
+  >
+    <h1 class="text-display font-bold mb-vsp-md">404</h1>
+    <p class="text-subheading text-muted mb-vsp-xl">Page not found.</p>
+    <a
+      href={withBase("/")}
+      class="bg-accent px-hsp-lg py-vsp-xs font-medium text-bg hover:bg-accent-hover"
+    >
+      Back to Home
+    </a>
+    <PageLoadingOverlay />
+  </body>
+</html>

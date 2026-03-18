@@ -1,0 +1,46 @@
+---
+import { getCollection } from "astro:content";
+import DocLayout from "@/layouts/doc-layout.astro";
+import Breadcrumb from "@/components/breadcrumb.astro";
+import { toRouteSlug } from "@/utils/slug";
+import { collectTags } from "@/utils/tags";
+import { t } from "@/config/i18n";
+import { withBase } from "@/utils/base";
+
+const allDocs = await getCollection("docs");
+const docs = import.meta.env.PROD
+  ? allDocs.filter((doc) => !doc.data.draft && !doc.data.unlisted)
+  : allDocs.filter((doc) => !doc.data.unlisted);
+const tagMap = collectTags(docs, (id, data) => data.slug ?? toRouteSlug(id));
+const sortedTags = [...tagMap.values()].sort((a, b) =>
+  a.tag.localeCompare(b.tag),
+);
+---
+
+<DocLayout title={t("doc.allTags")} currentSlug="tags">
+  <Breadcrumb
+    slot="breadcrumb"
+    items={[
+      { label: "Docs", href: withBase("/docs") },
+      { label: t("doc.allTags") },
+    ]}
+  />
+  <h1 class="text-heading font-bold mb-vsp-lg">{t("doc.allTags")}</h1>
+  {
+    sortedTags.length === 0 ? (
+      <p class="text-muted">{t("doc.noTags")}</p>
+    ) : (
+      <div class="flex flex-wrap gap-hsp-sm">
+        {sortedTags.map(({ tag, count }) => (
+          <a
+            href={withBase(`/docs/tags/${tag}`)}
+            class="inline-flex items-center gap-hsp-2xs px-hsp-md py-vsp-xs bg-surface border border-muted rounded-full text-fg hover:border-accent hover:text-accent"
+          >
+            <span>{tag}</span>
+            <span class="text-caption text-muted">({count})</span>
+          </a>
+        ))}
+      </div>
+    )
+  }
+</DocLayout>

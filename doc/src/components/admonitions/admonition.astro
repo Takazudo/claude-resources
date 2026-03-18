@@ -1,0 +1,41 @@
+---
+export interface Props {
+  type: "note" | "tip" | "info" | "warning" | "danger";
+  title?: string;
+}
+
+const { type, title } = Astro.props;
+
+// Map admonition types to semantic color tokens
+const config = {
+  note: { label: "Note", icon: "\u{1F4DD}", semanticColor: "accent" },
+  tip: { label: "Tip", icon: "\u{1F4A1}", semanticColor: "success" },
+  info: { label: "Info", icon: "\u{2139}\u{FE0F}", semanticColor: "info" },
+  warning: {
+    label: "Warning",
+    icon: "\u{26A0}\u{FE0F}",
+    semanticColor: "warning",
+  },
+  danger: { label: "Danger", icon: "\u{1F6A8}", semanticColor: "danger" },
+};
+
+const c = config[type];
+const displayTitle = title ?? c.label;
+const borderColor = `var(--color-${c.semanticColor})`;
+const bgColor = `color-mix(in srgb, var(--color-${c.semanticColor}) 12%, var(--color-bg))`;
+const titleColor = `var(--color-${c.semanticColor})`;
+---
+
+<div
+  class="my-vsp-md border-l-[4px] px-hsp-lg pt-vsp-md pb-vsp-2xs"
+  data-admonition={type}
+  style={`border-color: ${borderColor}; background-color: ${bgColor};`}
+>
+  <p class="mb-vsp-2xs font-semibold" style={`color: ${titleColor};`}>
+    <span class="mr-hsp-2xs">{c.icon}</span>
+    {displayTitle}
+  </p>
+  <div class="text-small text-fg [&>p]:my-vsp-2xs">
+    <slot />
+  </div>
+</div>

@@ -1,0 +1,29 @@
+---
+import { t, type Locale, defaultLocale } from "@/config/i18n";
+
+interface Props {
+  type: "unmaintained" | "unreleased";
+  latestUrl: string;
+  lang?: Locale;
+}
+
+const { type, latestUrl, lang = defaultLocale } = Astro.props;
+const message = t(`version.banner.${type}`, lang);
+const linkText = t("version.banner.latestLink", lang);
+---
+
+<div
+  class:list={[
+    "mb-vsp-md border px-hsp-lg py-vsp-sm text-small rounded",
+    type === "unmaintained"
+      ? "border-warning/30 bg-warning/5 text-warning"
+      : "border-info/30 bg-info/5 text-info",
+  ]}
+  role="note"
+>
+  {message}
+  {" "}
+  <a href={latestUrl} class="underline font-medium hover:no-underline">
+    {linkText}
+  </a>
+</div>

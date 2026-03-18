@@ -1,0 +1,119 @@
+<!-- Initializes tab containers: creates tab buttons, handles switching, and syncs grouped tabs via localStorage. --><!-- Include once in the layout — it self-initializes via a <script> tag. -->
+<script>
+  function initTabs() {
+    const containers = document.querySelectorAll<HTMLDivElement>("[data-tabs]");
+
+    for (const container of containers) {
+      if (container.dataset.tabsInit) continue;
+      container.dataset.tabsInit = "true";
+
+      const nav = container.querySelector<HTMLDivElement>(".tabs-nav");
+      const panels = container.querySelectorAll<HTMLDivElement>(".tab-panel");
+      if (!nav || panels.length === 0) continue;
+
+      const groupId = container.dataset.groupId;
+
+      // Determine which tab should be active initially
+      let activeValue: string | null = null;
+
+      // Check localStorage for grouped tabs
+      if (groupId) {
+        const stored = localStorage.getItem(`tabs-group-${groupId}`);
+        // Only use stored value if a panel with that value exists
+        if (
+          stored &&
+          Array.from(panels).some((p) => p.dataset.tabValue === stored)
+        ) {
+          activeValue = stored;
+        }
+      }
+
+      // Fall back to default panel or first panel
+      if (!activeValue) {
+        const defaultPanel = container.querySelector<HTMLDivElement>(
+          ".tab-panel[data-tab-default]",
+        );
+        activeValue = defaultPanel
+          ? defaultPanel.dataset.tabValue!
+          : panels[0].dataset.tabValue!;
+      }
+
+      // Create buttons for each panel
+      for (const panel of panels) {
+        const value = panel.dataset.tabValue!;
+        const label = panel.dataset.tabLabel!;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.role = "tab";
+        btn.textContent = label;
+        btn.dataset.tabBtn = value;
+        btn.className = getButtonClasses(value === activeValue);
+        btn.setAttribute("aria-selected", String(value === activeValue));
+
+        btn.addEventListener("click", () => {
+          activateTab(container, value);
+          if (groupId) {
+            localStorage.setItem(`tabs-group-${groupId}`, value);
+            syncGroup(groupId, value, container);
+          }
+        });
+
+        nav.appendChild(btn);
+      }
+
+      // Show the active panel
+      showPanel(container, activeValue);
+    }
+  }
+
+  function getButtonClasses(isActive: boolean): string {
+    const base =
+      "px-hsp-lg py-vsp-xs text-small font-medium border-b-[5px] -mb-px transition-colors";
+    return isActive
+      ? `${base} text-accent border-accent`
+      : `${base} text-muted border-transparent hover:text-fg`;
+  }
+
+  function activateTab(container: HTMLDivElement, value: string) {
+    // Update buttons
+    const buttons =
+      container.querySelectorAll<HTMLButtonElement>("[data-tab-btn]");
+    for (const btn of buttons) {
+      const isActive = btn.dataset.tabBtn === value;
+      btn.className = getButtonClasses(isActive);
+      btn.setAttribute("aria-selected", String(isActive));
+    }
+
+    // Update panels
+    showPanel(container, value);
+  }
+
+  function showPanel(container: HTMLDivElement, value: string) {
+    const panels = container.querySelectorAll<HTMLDivElement>(".tab-panel");
+    for (const panel of panels) {
+      panel.hidden = panel.dataset.tabValue !== value;
+    }
+  }
+
+  function syncGroup(groupId: string, value: string, source: HTMLDivElement) {
+    const others = document.querySelectorAll<HTMLDivElement>(
+      `[data-tabs][data-group-id="${CSS.escape(groupId)}"]`,
+    );
+    for (const container of others) {
+      if (container === source) continue;
+      // Only sync if the container has a panel with the selected value
+      const hasPanel = container.querySelector(
+        `.tab-panel[data-tab-value="${CSS.escape(value)}"]`,
+      );
+      if (hasPanel) {
+        activateTab(container, value);
+      }
+    }
+  }
+
+  // Run on initial load
+  initTabs();
+
+  // Support Astro view transitions
+  document.addEventListener("astro:page-load", initTabs);
+</script>

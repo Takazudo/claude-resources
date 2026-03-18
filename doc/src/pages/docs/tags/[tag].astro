@@ -1,0 +1,62 @@
+---
+import { getCollection } from "astro:content";
+import DocLayout from "@/layouts/doc-layout.astro";
+import Breadcrumb from "@/components/breadcrumb.astro";
+import { toRouteSlug } from "@/utils/slug";
+import { collectTags } from "@/utils/tags";
+import { t } from "@/config/i18n";
+import { docsUrl, withBase } from "@/utils/base";
+
+export async function getStaticPaths() {
+  const allDocs = await getCollection("docs");
+  const docs = import.meta.env.PROD
+    ? allDocs.filter((doc) => !doc.data.draft && !doc.data.unlisted)
+    : allDocs.filter((doc) => !doc.data.unlisted);
+  const tagMap = collectTags(docs, (id, data) => data.slug ?? toRouteSlug(id));
+
+  return [...tagMap.entries()].map(([tag, info]) => ({
+    params: { tag },
+    props: { tagInfo: info },
+  }));
+}
+
+const { tag } = Astro.params;
+const { tagInfo } = Astro.props;
+const countText =
+  tagInfo.count === 1
+    ? t("doc.pageCountSingle").replace("{count}", String(tagInfo.count))
+    : t("doc.pageCount").replace("{count}", String(tagInfo.count));
+---
+
+<DocLayout title={`${t("doc.taggedWith")}: ${tag}`} currentSlug={`tags/${tag}`}>
+  <Breadcrumb
+    slot="breadcrumb"
+    items={[
+      { label: "Docs", href: withBase("/docs") },
+      { label: t("doc.allTags"), href: withBase("/docs/tags") },
+      { label: tag },
+    ]}
+  />
+  <h1 class="text-heading font-bold mb-vsp-xs">{t("doc.taggedWith")}: {tag}</h1>
+  <p class="text-muted mb-vsp-lg">{countText}</p>
+
+  <nav class="grid grid-cols-1 gap-y-vsp-md">
+    {
+      tagInfo.docs.map((doc) => (
+        <a
+          href={docsUrl(doc.slug, "en")}
+          class="group block border border-muted bg-surface px-hsp-lg py-vsp-md hover:border-accent"
+        >
+          <span class="font-medium text-accent underline group-hover:underline">
+            {doc.title}
+          </span>
+          {doc.description && (
+            <span class="mt-vsp-2xs block text-small text-muted group-hover:underline decoration-muted">
+              {doc.description}
+            </span>
+          )}
+        </a>
+      ))
+    }
+  </nav>
+</DocLayout>

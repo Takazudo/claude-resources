@@ -1,0 +1,33 @@
+---
+import { settings } from "@/config/settings";
+import { t, defaultLocale, type Locale } from "@/config/i18n";
+import { withBase } from "@/utils/base";
+
+interface Props {
+  tags: string[];
+  locale?: Locale;
+}
+
+const { tags, locale = "en" } = Astro.props;
+const show = settings.docTags && tags.length > 0;
+---
+
+{
+  show && (
+    <div class="mt-vsp-md mb-vsp-lg flex flex-wrap items-center gap-hsp-xs">
+      <span class="text-caption text-muted">{t("doc.tags", locale)}:</span>
+      {tags.map((tag) => (
+        <a
+          href={withBase(
+            locale === defaultLocale
+              ? `/docs/tags/${tag}`
+              : `/${locale}/docs/tags/${tag}`,
+          )}
+          class="inline-block px-hsp-sm py-vsp-2xs text-caption bg-surface border border-muted rounded-full text-accent hover:bg-code-bg hover:border-accent"
+        >
+          {tag}
+        </a>
+      ))}
+    </div>
+  )
+}

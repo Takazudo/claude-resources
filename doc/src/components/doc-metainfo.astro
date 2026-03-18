@@ -1,0 +1,84 @@
+---
+import { settings } from "@/config/settings";
+import { getGitInfo, formatDate } from "@/utils/git-info";
+import { t, type Locale } from "@/config/i18n";
+
+interface Props {
+  filePath: string;
+  locale?: Locale;
+}
+
+const { filePath, locale = "en" } = Astro.props;
+
+const show = settings.docMetainfo;
+const gitInfo = show ? getGitInfo(filePath) : null;
+const hasInfo = gitInfo && (gitInfo.createdAt || gitInfo.updatedAt);
+---
+
+{
+  hasInfo && (
+    <div class="flex flex-wrap items-center gap-x-hsp-md gap-y-vsp-2xs text-caption text-fg mb-vsp-md border-t border-fg pt-vsp-xs">
+      {gitInfo.createdAt && (
+        <span class="inline-flex items-center gap-hsp-2xs">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-[0.75rem] w-[0.75rem]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <span>
+            {t("doc.created", locale)} {formatDate(gitInfo.createdAt, locale)}
+          </span>
+        </span>
+      )}
+      {gitInfo.updatedAt && gitInfo.updatedAt !== gitInfo.createdAt && (
+        <span class="inline-flex items-center gap-hsp-2xs">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-[0.75rem] w-[0.75rem]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          <span>
+            {t("doc.updated", locale)} {formatDate(gitInfo.updatedAt, locale)}
+          </span>
+        </span>
+      )}
+      {gitInfo.author && (
+        <span class="inline-flex items-center gap-hsp-2xs">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-[0.75rem] w-[0.75rem]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            />
+          </svg>
+          <span>{gitInfo.author}</span>
+        </span>
+      )}
+    </div>
+  )
+}

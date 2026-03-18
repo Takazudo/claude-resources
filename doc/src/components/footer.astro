@@ -1,0 +1,56 @@
+---
+import { settings } from "@/config/settings";
+import { isExternal, resolveHref } from "@/utils/base";
+
+const footer = settings.footer;
+if (!footer) return;
+
+const { links, copyright } = footer;
+---
+
+<footer class="border-t border-muted bg-surface">
+  <div
+    class="mx-auto max-w-[clamp(50rem,75vw,90rem)] px-hsp-xl py-vsp-xl lg:px-hsp-2xl lg:py-vsp-2xl"
+  >
+    {
+      links.length > 0 && (
+        <div class="grid grid-cols-1 gap-vsp-lg sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
+          {links.map((column) => (
+            <div>
+              <p class="text-small font-semibold text-fg mb-vsp-xs">
+                {column.title}
+              </p>
+              <ul class="list-none p-0">
+                {column.items.map((item) => (
+                  <li class="mb-vsp-2xs">
+                    <a
+                      href={resolveHref(item.href)}
+                      class="text-caption text-muted hover:text-accent hover:underline"
+                      {...(isExternal(item.href)
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
+                    >
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )
+    }
+    {
+      copyright && (
+        <div
+          class:list={[
+            "text-center text-caption text-muted [&_a]:text-accent [&_a]:underline",
+            links.length > 0 && "mt-vsp-lg border-t border-muted pt-vsp-md",
+          ]}
+        >
+          <Fragment set:html={copyright} />
+        </div>
+      )
+    }
+  </div>
+</footer>

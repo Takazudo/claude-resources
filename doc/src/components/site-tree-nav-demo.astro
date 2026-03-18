@@ -1,0 +1,27 @@
+---
+import { buildNavTree, groupSatelliteNodes, isNavVisible } from "@/utils/docs";
+import { loadLocaleDocs } from "@/utils/locale-docs";
+import { stripBase } from "@/utils/base";
+import { detectLocaleFromPath, type Locale } from "@/config/i18n";
+import { settings } from "@/config/settings";
+import SiteTreeNav from "@/components/site-tree-nav.tsx";
+
+const currentPath = Astro.url.pathname;
+const pathWithoutBase = stripBase(currentPath);
+const lang: Locale = detectLocaleFromPath(pathWithoutBase);
+
+const categoryOrder = settings.headerNav
+  .map((n) => n.categoryMatch)
+  .filter((v): v is string => !!v);
+const { allDocs, categoryMeta } = await loadLocaleDocs(lang);
+const navDocs = allDocs.filter(isNavVisible);
+const tree = buildNavTree(navDocs, lang, categoryMeta);
+const groupedTree = groupSatelliteNodes(tree, categoryOrder);
+---
+
+<SiteTreeNav
+  tree={groupedTree}
+  categoryOrder={categoryOrder}
+  categoryIgnore={["inbox"]}
+  client:visible
+/>

@@ -1,0 +1,298 @@
+---
+import { render, type CollectionKey } from "astro:content";
+import { getDocsCollection } from "@/utils/get-docs-collection";
+import DocLayout from "@/layouts/doc-layout.astro";
+import Note from "@/components/admonitions/note.astro";
+import Tip from "@/components/admonitions/tip.astro";
+import Info from "@/components/admonitions/info.astro";
+import Warning from "@/components/admonitions/warning.astro";
+import Danger from "@/components/admonitions/danger.astro";
+import CategoryNav from "@/components/category-nav.astro";
+import CategoryTreeNav from "@/components/category-tree-nav.astro";
+import SiteTreeNavDemo from "@/components/site-tree-nav-demo.astro";
+import Tabs from "@/components/tabs.astro";
+import TabItem from "@/components/tab-item.astro";
+import Details from "@/components/details.astro";
+import HtmlPreview from "@/components/html-preview-wrapper.astro";
+import Breadcrumb from "@/components/breadcrumb.astro";
+import { toRouteSlug } from "@/utils/slug";
+import {
+  buildNavTree,
+  buildBreadcrumbs,
+  flattenTree,
+  findNode,
+  loadCategoryMeta,
+  collectAutoIndexNodes,
+  isNavVisible,
+  type NavNode,
+} from "@/utils/docs";
+import type { Heading } from "@/types/heading";
+import { getNavSectionForSlug, getNavSubtree } from "@/utils/nav-scope";
+import { t } from "@/config/i18n";
+import { settings } from "@/config/settings";
+import { versionedDocsUrl } from "@/utils/base";
+import DocMetainfo from "@/components/doc-metainfo.astro";
+import DocTags from "@/components/doc-tags.astro";
+import EditLink from "@/components/edit-link.astro";
+import type { VersionConfig } from "@/config/settings-types";
+
+export async function getStaticPaths() {
+  if (!settings.versions) return [];
+
+  const paths = [];
+
+  for (const version of settings.versions) {
+    const collectionName = `docs-v-${version.slug}` as CollectionKey;
+    const allDocs = await getDocsCollection(collectionName);
+    const docs = import.meta.env.PROD
+      ? allDocs.filter((doc) => !doc.data.draft)
+      : allDocs;
+
+    const categoryMeta = loadCategoryMeta(version.docsDir);
+    const navDocs = docs.filter(isNavVisible);
+    const tree = buildNavTree(navDocs, "en", categoryMeta);
+
+    // Regular doc pages
+    for (const entry of docs) {
+      const slug = entry.data.slug ?? toRouteSlug(entry.id);
+      const navSection = getNavSectionForSlug(slug);
+      const subtree = getNavSubtree(tree, navSection);
+      const flat = flattenTree(subtree);
+      const idx = flat.findIndex((n) => n.slug === slug);
+
+      let prevNode = idx > 0 ? flat[idx - 1] : null;
+      let nextNode = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
+
+      if (entry.data.pagination_prev !== undefined) {
+        if (entry.data.pagination_prev === null) {
+          prevNode = null;
+        } else {
+          const found = findNode(tree, entry.data.pagination_prev);
+          prevNode = found ?? prevNode;
+        }
+      }
+      if (entry.data.pagination_next !== undefined) {
+        if (entry.data.pagination_next === null) {
+          nextNode = null;
+        } else {
+          const found = findNode(tree, entry.data.pagination_next);
+          nextNode = found ?? nextNode;
+        }
+      }
+
+      paths.push({
+        params: { version: version.slug, slug },
+        props: {
+          entry,
+          version,
+          breadcrumbs: buildBreadcrumbs(tree, slug, "en"),
+          prev: prevNode
+            ? {
+                ...prevNode,
+                href: versionedDocsUrl(prevNode.slug, version.slug),
+              }
+            : null,
+          next: nextNode
+            ? {
+                ...nextNode,
+                href: versionedDocsUrl(nextNode.slug, version.slug),
+              }
+            : null,
+        },
+      });
+    }
+
+    // Auto-generated index pages
+    for (const node of collectAutoIndexNodes(tree)) {
+      paths.push({
+        params: { version: version.slug, slug: node.slug },
+        props: {
+          entry: null,
+          version,
+          autoIndex: {
+            ...node,
+            children: node.children.map((c: NavNode) => ({
+              ...c,
+              href: c.href ? versionedDocsUrl(c.slug, version.slug) : undefined,
+            })),
+          },
+          breadcrumbs: buildBreadcrumbs(tree, node.slug, "en"),
+          prev: null,
+          next: null,
+        },
+      });
+    }
+  }
+
+  return paths;
+}
+
+const { entry, version, breadcrumbs = [], prev, next, autoIndex } = Astro.props;
+const versionConfig = version as VersionConfig;
+
+const components = {
+  Note,
+  Tip,
+  Info,
+  Warning,
+  Danger,
+  CategoryNav,
+  CategoryTreeNav,
+  SiteTreeNavDemo,
+  Tabs,
+  TabItem,
+  Details,
+  HtmlPreview,
+};
+
+let Content: any;
+let headings: Heading[] = [];
+
+if (entry) {
+  const rendered = await render(entry as any);
+  Content = rendered.Content;
+  headings = rendered.headings;
+}
+
+const slug = autoIndex
+  ? autoIndex.slug
+  : (entry!.data.slug ?? toRouteSlug(entry!.id));
+---
+
+<DocLayout
+  title={autoIndex ? autoIndex.label : entry.data.title}
+  description={autoIndex ? autoIndex.description : entry.data.description}
+  currentSlug={slug}
+  headings={autoIndex ? [] : headings}
+  unlisted={entry?.data?.unlisted}
+  hideSidebar={entry?.data?.hide_sidebar}
+  hideToc={entry?.data?.hide_toc}
+  currentVersion={versionConfig.slug}
+  versionBanner={versionConfig.banner || undefined}
+>
+  <Breadcrumb slot="breadcrumb" items={breadcrumbs} />
+  {
+    autoIndex ? (
+      <Fragment>
+        <h1 class="text-heading font-bold mb-vsp-xs">{autoIndex.label}</h1>
+        {autoIndex.description && (
+          <p class="mt-0 mb-vsp-lg text-subheading text-muted">
+            {autoIndex.description}
+          </p>
+        )}
+        <nav class="grid grid-cols-1 gap-x-hsp-lg gap-y-vsp-md sm:grid-cols-2">
+          {autoIndex.children
+            .filter((c: NavNode) => c.hasPage || c.children.length > 0)
+            .map((child: NavNode) => (
+              <a
+                href={
+                  child.href ?? versionedDocsUrl(child.slug, versionConfig.slug)
+                }
+                class="group block border border-muted bg-surface px-hsp-lg py-vsp-md hover:border-accent"
+              >
+                <span class="font-medium text-accent underline group-hover:underline">
+                  {child.label}
+                </span>
+                {child.description && (
+                  <span class="mt-vsp-2xs block text-small text-muted group-hover:underline decoration-muted">
+                    {child.description}
+                  </span>
+                )}
+              </a>
+            ))}
+        </nav>
+      </Fragment>
+    ) : (
+      <Fragment>
+        <h1 class="text-heading font-bold mb-vsp-xs">{entry.data.title}</h1>
+        {settings.docMetainfo && (
+          <DocMetainfo
+            filePath={`${versionConfig.docsDir}/${entry.id}`}
+            locale="en"
+          />
+        )}
+
+        {entry.data.description && (
+          <p class="mt-0 mb-vsp-lg text-subheading text-muted">
+            {entry.data.description}
+          </p>
+        )}
+
+        {entry?.data?.tags && <DocTags tags={entry.data.tags} locale="en" />}
+
+        <Content components={components} />
+
+        {settings.editUrl && entry && (
+          <div class="mt-vsp-xl mb-vsp-md border-t border-muted pt-vsp-md">
+            <EditLink
+              contentDir={versionConfig.docsDir}
+              entryId={entry.id}
+              locale="en"
+            />
+          </div>
+        )}
+
+        <nav class="mt-vsp-2xl grid grid-cols-2 gap-hsp-xl">
+          {prev ? (
+            <a
+              href={prev.href}
+              class="group border border-muted rounded-lg p-hsp-lg hover:border-accent"
+            >
+              <div class="flex items-center gap-hsp-xs text-caption text-muted mb-vsp-2xs">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-[1.125rem] w-[1.125rem]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+                <span class="no-underline">{t("nav.previous", "en")}</span>
+              </div>
+              <p class="text-small font-semibold underline group-hover:text-accent">
+                {prev.label}
+              </p>
+            </a>
+          ) : (
+            <div />
+          )}
+          {next ? (
+            <a
+              href={next.href}
+              class="group border border-muted rounded-lg p-hsp-lg hover:border-accent text-right"
+            >
+              <div class="flex items-center justify-end gap-hsp-xs text-caption text-muted mb-vsp-2xs">
+                <span class="no-underline">{t("nav.next", "en")}</span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-[1.125rem] w-[1.125rem]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </div>
+              <p class="text-small font-semibold underline group-hover:text-accent">
+                {next.label}
+              </p>
+            </a>
+          ) : (
+            <div />
+          )}
+        </nav>
+      </Fragment>
+    )
+  }
+</DocLayout>

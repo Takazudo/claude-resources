@@ -6,6 +6,7 @@ description: >-
   setup from another codebase, (3) User needs to learn from another project's structure without
   leaking private data.
 argument-hint: <slug|path> [slug2 ...] — repo slug (e.g. zmod) or full path
+disable-model-invocation: true
 ---
 
 # Refer Another Project Command
@@ -39,6 +40,15 @@ ls -d ~/repos/*/{slug} 2>/dev/null
 ## Critical Security Warning
 
 When referencing another project, you MUST protect project-specific sensitive information. Never copy concrete content or secrets - only copy patterns, structures, and configurations.
+
+**NEVER leak the referenced project's name or directory path into the current project's artifacts.** This includes:
+
+- Git commit messages
+- PR titles and descriptions
+- GitHub issue titles and comments
+- Log files, TODO comments, or any written output in the working project
+
+The referenced project may belong to a work client. Exposing client names or project identifiers in public or semi-public artifacts (issues, PRs, commits) causes real problems. Always use generic descriptions like "another project" or "reference implementation" instead.
 
 ## What You CAN Copy (Safe)
 

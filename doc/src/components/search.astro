@@ -1,0 +1,431 @@
+---
+/**
+ * Search component using MiniSearch for universal search (dev + build + Electron).
+ * Renders a trigger button (for the header) and a <dialog> modal.
+ * Uses vanilla JS custom element pattern — no React island needed.
+ */
+import { withBase } from "@/utils/base";
+---
+
+<site-search data-base={withBase("/")}>
+  <button
+    data-open-search
+    class="flex items-center justify-center text-muted transition-colors hover:text-fg"
+    aria-label="Search"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="8"></circle>
+      <path d="m21 21-4.3-4.3"></path>
+    </svg>
+  </button>
+
+  <dialog
+    data-search-dialog
+    class="m-0 h-full w-full max-w-none border-none bg-transparent p-0 backdrop:bg-[rgba(0,0,0,0.6)] sm:mx-auto sm:my-[10vh] sm:h-auto sm:max-h-[80vh] sm:max-w-[52rem] sm:rounded-lg"
+  >
+    <div
+      class="flex h-full flex-col overflow-hidden bg-surface sm:rounded-lg sm:border sm:border-muted"
+    >
+      {/* Search input header */}
+      <div
+        class="flex items-center gap-hsp-sm border-b border-muted px-hsp-lg py-vsp-sm"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="shrink-0 text-muted"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.3-4.3"></path>
+        </svg>
+        <input
+          data-search-input
+          type="text"
+          placeholder="Search docs..."
+          class="w-full bg-transparent text-body text-fg outline-none placeholder:text-muted"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button
+          data-close-search
+          class="shrink-0 text-muted hover:text-fg"
+          aria-label="Close search"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18"></path>
+            <path d="m6 6 12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      {/* Results area */}
+      <div
+        class="flex-1 overflow-y-auto px-hsp-lg py-vsp-md"
+        data-search-results
+        aria-live="polite"
+      >
+        <div class="text-small text-muted" data-search-placeholder>
+          <p>Type to search...</p>
+          <p class="mt-vsp-md text-caption">
+            <kbd
+              class="rounded border border-muted bg-bg px-hsp-2xs py-[2px] font-mono text-caption"
+              data-kbd-shortcut></kbd> to open search from anywhere
+          </p>
+        </div>
+      </div>
+    </div>
+  </dialog>
+</site-search>
+
+<script>
+  import MiniSearch from "minisearch";
+
+  interface SearchEntry {
+    id: string;
+    title: string;
+    body: string;
+    url: string;
+    description: string;
+  }
+
+  const PAGE_SIZE = 10;
+
+  function escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function parseQueryTerms(query: string): string[] {
+    return query.trim().split(/\s+/).filter(Boolean);
+  }
+
+  function highlightTerms(text: string, query: string): string {
+    const terms = parseQueryTerms(query).map(escapeRegExp);
+    if (terms.length === 0) return escapeHtml(text);
+    // Sort by length descending so longer terms match before their prefixes
+    terms.sort((a, b) => b.length - a.length);
+    const pattern = new RegExp(`(${terms.join("|")})`, "gi");
+    return text
+      .split(pattern)
+      .map((segment, i) =>
+        i % 2 === 1
+          ? `<mark>${escapeHtml(segment)}</mark>`
+          : escapeHtml(segment),
+      )
+      .join("");
+  }
+
+  function truncateExcerpt(
+    text: string,
+    query: string,
+    maxLength = 200,
+  ): string {
+    if (text.length <= maxLength) return text;
+
+    const terms = parseQueryTerms(query);
+    let firstMatchIndex = -1;
+    const lowerText = text.toLowerCase();
+    for (const term of terms) {
+      const idx = lowerText.indexOf(term.toLowerCase());
+      if (idx !== -1 && (firstMatchIndex === -1 || idx < firstMatchIndex)) {
+        firstMatchIndex = idx;
+      }
+    }
+
+    if (firstMatchIndex === -1) {
+      return text.slice(0, maxLength) + "\u2026";
+    }
+
+    const half = Math.floor(maxLength / 2);
+    let start = Math.max(0, firstMatchIndex - half);
+    let end = start + maxLength;
+
+    if (end > text.length) {
+      end = text.length;
+      start = Math.max(0, end - maxLength);
+    }
+
+    let result = text.slice(start, end);
+    if (start > 0) result = "\u2026" + result;
+    if (end < text.length) result = result + "\u2026";
+    return result;
+  }
+
+  class SiteSearch extends HTMLElement {
+    private dialog!: HTMLDialogElement;
+    private openBtn!: HTMLButtonElement;
+    private closeBtn!: HTMLButtonElement;
+    private searchInput!: HTMLInputElement;
+    private resultsContainer!: HTMLElement;
+    private miniSearch: MiniSearch<SearchEntry> | null = null;
+    private entryMap: Map<string, SearchEntry> = new Map();
+    private loading = false;
+    private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+    private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    private allResults: Array<{ id: string; score: number }> = [];
+    private shownCount = 0;
+    private currentQuery = "";
+    private shortcutLabel = "";
+
+    constructor() {
+      super();
+      this.dialog = this.querySelector("[data-search-dialog]")!;
+      this.openBtn = this.querySelector("[data-open-search]")!;
+      this.closeBtn = this.querySelector("[data-close-search]")!;
+      this.searchInput = this.querySelector("[data-search-input]")!;
+      this.resultsContainer = this.querySelector("[data-search-results]")!;
+    }
+
+    connectedCallback() {
+      // Set platform-appropriate keyboard shortcut label
+      const nav = navigator as Navigator & {
+        userAgentData?: { platform: string };
+      };
+      const isMac = /Mac|iPhone|iPad|iPod/.test(
+        nav.userAgentData?.platform ?? navigator.userAgent,
+      );
+      this.shortcutLabel = isMac ? "\u2318K" : "Ctrl+K";
+      const kbdEl = this.querySelector("[data-kbd-shortcut]");
+      if (kbdEl) {
+        kbdEl.textContent = this.shortcutLabel;
+      }
+
+      this.openBtn.addEventListener("click", () => this.open());
+      this.closeBtn.addEventListener("click", () => this.close());
+
+      // Ensure overflow is restored when dialog closes (including native Escape key)
+      this.dialog.addEventListener("close", () => {
+        document.documentElement.style.overflow = "";
+      });
+
+      // Close on backdrop click
+      this.dialog.addEventListener("click", (e) => {
+        if (e.target === this.dialog) this.close();
+      });
+
+      // Search on input (debounced)
+      this.searchInput.addEventListener("input", () => {
+        if (this.debounceTimer) clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(() => this.handleSearch(), 150);
+      });
+
+      // Keyboard shortcut: Ctrl+K / Cmd+K
+      this.keydownHandler = (e: KeyboardEvent) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+          e.preventDefault();
+          if (this.dialog.open) {
+            this.close();
+          } else {
+            this.open();
+          }
+        }
+      };
+      document.addEventListener("keydown", this.keydownHandler);
+
+      // Preload index during idle time
+      if ("requestIdleCallback" in window) {
+        requestIdleCallback(() => this.loadIndex());
+      } else {
+        setTimeout(() => this.loadIndex(), 2000);
+      }
+    }
+
+    disconnectedCallback() {
+      if (this.keydownHandler) {
+        document.removeEventListener("keydown", this.keydownHandler);
+        this.keydownHandler = null;
+      }
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = null;
+      }
+    }
+
+    open() {
+      this.dialog.showModal();
+      document.documentElement.style.overflow = "hidden";
+      this.loadIndex();
+      requestAnimationFrame(() => this.searchInput.focus());
+    }
+
+    close() {
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = null;
+      }
+      this.dialog.close();
+      document.documentElement.style.overflow = "";
+    }
+
+    private placeholderHtml(): string {
+      const kbd = `<kbd class="rounded border border-muted bg-bg px-hsp-2xs py-[2px] font-mono text-caption">${this.shortcutLabel}</kbd>`;
+      return `<div class="text-small text-muted"><p>Type to search...</p><p class="mt-vsp-md text-caption">${kbd} to open search from anywhere</p></div>`;
+    }
+
+    private async loadIndex() {
+      if (this.miniSearch || this.loading) return;
+      this.loading = true;
+
+      try {
+        const base = this.dataset.base?.replace(/\/+$/, "") ?? "";
+        const res = await fetch(`${base}/search-index.json`);
+        if (!res.ok) throw new Error(`${res.status}`);
+        const entries: SearchEntry[] = await res.json();
+
+        this.miniSearch = new MiniSearch<SearchEntry>({
+          fields: ["title", "body", "description"],
+          storeFields: ["title", "url", "description"],
+          idField: "id",
+          searchOptions: {
+            prefix: true,
+            fuzzy: 0.2,
+            boost: { title: 3, description: 2 },
+          },
+        });
+        this.miniSearch.addAll(entries);
+        this.entryMap = new Map(entries.map((e) => [e.id, e]));
+      } catch {
+        // Index not available — will retry on next open
+        this.loading = false;
+        return;
+      }
+
+      this.loading = false;
+
+      // If user already typed something while loading, search now
+      if (this.searchInput.value.trim()) {
+        this.handleSearch();
+      }
+    }
+
+    private handleSearch() {
+      const query = this.searchInput.value.trim();
+      this.currentQuery = query;
+
+      if (!query) {
+        this.allResults = [];
+        this.shownCount = 0;
+        this.resultsContainer.innerHTML = this.placeholderHtml();
+        return;
+      }
+
+      if (!this.miniSearch) {
+        this.resultsContainer.innerHTML =
+          '<p class="text-small text-muted">Loading search index...</p>';
+        this.loadIndex();
+        return;
+      }
+
+      const results = this.miniSearch.search(query);
+      this.allResults = results.map((r) => ({
+        id: r.id as string,
+        score: r.score,
+      }));
+      this.shownCount = 0;
+
+      if (results.length === 0) {
+        this.resultsContainer.innerHTML =
+          '<p class="text-small text-muted">No results found.</p>';
+        return;
+      }
+
+      this.resultsContainer.innerHTML = "";
+      this.loadMore();
+    }
+
+    private loadMore() {
+      const nextBatch = this.allResults.slice(
+        this.shownCount,
+        this.shownCount + PAGE_SIZE,
+      );
+      if (nextBatch.length === 0) return;
+
+      for (const result of nextBatch) {
+        const entry = this.entryMap.get(result.id);
+        if (!entry) continue;
+        this.resultsContainer.appendChild(this.renderResult(entry));
+      }
+
+      this.shownCount += nextBatch.length;
+
+      // Remove existing "load more" button
+      this.resultsContainer.querySelector("[data-load-more]")?.remove();
+
+      // Add "load more" if there are more results
+      if (this.shownCount < this.allResults.length) {
+        const remaining = this.allResults.length - this.shownCount;
+        const btn = document.createElement("button");
+        btn.setAttribute("data-load-more", "");
+        btn.className =
+          "mt-vsp-md w-full rounded border border-muted bg-surface px-hsp-md py-vsp-xs text-small text-accent hover:border-accent";
+        btn.textContent = `Load more (${remaining} remaining)`;
+        btn.addEventListener("click", () => this.loadMore());
+        this.resultsContainer.appendChild(btn);
+      }
+    }
+
+    private renderResult(entry: SearchEntry): HTMLElement {
+      const article = document.createElement("article");
+      article.className = "border-b border-muted py-vsp-sm";
+
+      // Title link
+      const link = document.createElement("a");
+      link.href = entry.url;
+      link.className = "block font-semibold text-fg hover:text-accent";
+      link.innerHTML = highlightTerms(entry.title, this.currentQuery);
+      article.appendChild(link);
+
+      // Description or body excerpt
+      const text = entry.description || entry.body;
+      if (text) {
+        const excerpt = document.createElement("p");
+        excerpt.className =
+          "mt-vsp-2xs text-caption text-muted leading-relaxed";
+        const truncated = truncateExcerpt(text, this.currentQuery);
+        excerpt.innerHTML = highlightTerms(truncated, this.currentQuery);
+        article.appendChild(excerpt);
+      }
+
+      return article;
+    }
+  }
+
+  customElements.define("site-search", SiteSearch);
+</script>
