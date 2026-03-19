@@ -1,36 +1,123 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::net::TcpStream;
-use std::process::{Child, Command};
+use std::fs;
+use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{env, thread};
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
-/// A running sidecar process with its PID.
+const PORT: u16 = 4892;
+const DOCS_PATH: &str = "/docs/claude";
+
 struct Sidecar {
     child: Child,
     pid: u32,
 }
 
-/// Managed state holding the sidecar process and zoom level.
 struct AppState {
     sidecar: Arc<Mutex<Option<Sidecar>>>,
     zoom: Mutex<f64>,
 }
 
-/// Spawn `pnpm dev:stable` in the doc/ directory as a new process group.
-/// Uses a login shell to inherit the user's PATH (needed when launched from Finder).
-fn spawn_dev_server() -> Child {
-    let doc_dir = env::var("HOME")
-        .map(|h| std::path::PathBuf::from(h).join(".claude").join("doc"))
-        .expect("HOME environment variable not set");
+// ── Helpers ───────────────────────────────────────
 
-    let mut cmd = Command::new("/bin/zsh");
-    cmd.args(["-l", "-c", "pnpm dev:stable"])
-        .current_dir(&doc_dir);
+fn home_dir() -> String {
+    env::var("HOME").expect("HOME not set")
+}
+
+fn log(msg: &str) {
+    use std::io::Write;
+    let path = format!("{}/.claude/app/launch.log", home_dir());
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        let secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let _ = writeln!(f, "[{secs}] {msg}");
+    }
+}
+
+fn doc_dir() -> std::path::PathBuf {
+    std::path::PathBuf::from(home_dir()).join(".claude").join("doc")
+}
+
+// ── Sidecar management ────────────────────────────
+
+fn kill_port() {
+    if let Ok(output) = Command::new("/usr/bin/lsof")
+        .args(["-ti", &format!(":{PORT}")])
+        .output()
+    {
+        let pids = String::from_utf8_lossy(&output.stdout);
+        for line in pids.trim().lines() {
+            if let Ok(pid) = line.trim().parse::<i32>() {
+                log(&format!("kill_port: killing stale pid {pid} on port {PORT}"));
+                unsafe { libc::kill(pid, libc::SIGTERM) };
+            }
+        }
+        if !pids.trim().is_empty() {
+            thread::sleep(Duration::from_millis(500));
+        }
+    }
+}
+
+fn node_binary_path() -> std::path::PathBuf {
+    let exe = std::env::current_exe().expect("Failed to get current exe path");
+    let dir = exe.parent().expect("Failed to get exe directory");
+    // Dev mode: Tauri keeps the target triple in the filename
+    let target_triple = format!("{}-apple-darwin", std::env::consts::ARCH);
+    let dev_path = dir.join(format!("node-{}", target_triple));
+    if dev_path.exists() {
+        return dev_path;
+    }
+    // Production bundle: Tauri strips the target triple
+    dir.join("node")
+}
+
+fn spawn_sidecar() -> Sidecar {
+    kill_port();
+    let dir = doc_dir();
+    let sidecar_log_path = format!("{}/.claude/app/sidecar.log", home_dir());
+
+    log(&format!("spawn_sidecar: dir={} exists={}", dir.display(), dir.exists()));
+
+    let node = node_binary_path();
+    log(&format!("spawn_sidecar: node={} exists={}", node.display(), node.exists()));
+
+    if !node.exists() {
+        let msg = format!(
+            "Node binary not found at {}. Run app/scripts/download-node.sh first.",
+            node.display()
+        );
+        log(&msg);
+        panic!("{msg}");
+    }
+
+    let log_file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&sidecar_log_path)
+        .unwrap_or_else(|e| {
+            log(&format!("Failed to open sidecar log: {e}"));
+            panic!("Failed to open sidecar log at {sidecar_log_path}: {e}");
+        });
+    let log_file_clone = log_file
+        .try_clone()
+        .expect("Failed to clone sidecar log file handle");
+
+    let mut cmd = Command::new(&node);
+    cmd.args(["scripts/dev-stable.js"])
+        .current_dir(&dir)
+        .stdout(Stdio::from(log_file))
+        .stderr(Stdio::from(log_file_clone));
 
     #[cfg(unix)]
     {
@@ -38,114 +125,118 @@ fn spawn_dev_server() -> Child {
         cmd.process_group(0);
     }
 
-    cmd.spawn().expect("Failed to spawn pnpm dev:stable")
+    let child = cmd.spawn().expect("Failed to spawn node sidecar");
+    let pid = child.id();
+    log(&format!("spawn_sidecar: pid={pid}"));
+
+    Sidecar { child, pid }
 }
 
-/// Send SIGTERM to the process group, wait briefly, then SIGKILL if still alive.
-fn shutdown_process_tree(pid: u32, child: &mut Child) {
+fn kill_sidecar(sidecar: &mut Sidecar) {
     #[cfg(unix)]
     {
-        if let Ok(pid_i32) = i32::try_from(pid) {
-            unsafe { libc::kill(-pid_i32, libc::SIGTERM) };
+        if let Ok(pid) = i32::try_from(sidecar.pid) {
+            unsafe { libc::kill(-pid, libc::SIGTERM) };
         }
     }
     thread::sleep(Duration::from_millis(500));
-    match child.try_wait() {
+    match sidecar.child.try_wait() {
         Ok(Some(_)) => {}
         _ => {
-            let _ = child.kill();
-            let _ = child.wait();
+            let _ = sidecar.child.kill();
+            let _ = sidecar.child.wait();
         }
     }
 }
 
-/// Kill the current dev server and start a new one.
-fn restart_sidecar(state: &AppState) {
-    let mut guard = state.sidecar.lock().unwrap();
-    if let Some(mut old) = guard.take() {
-        println!("[tauri] Stopping dev server (pid {})...", old.pid);
-        shutdown_process_tree(old.pid, &mut old.child);
-    }
-    let new_child = spawn_dev_server();
-    let new_pid = new_child.id();
-    println!("[tauri] Started new dev server (pid {new_pid})");
-    *guard = Some(Sidecar {
-        child: new_child,
-        pid: new_pid,
-    });
+/// Check ___ready endpoint via curl. Returns HTTP status code as string.
+fn curl_ready() -> String {
+    Command::new("/usr/bin/curl")
+        .args([
+            "-s", "-o", "/dev/null", "-w", "%{http_code}",
+            &format!("http://localhost:{PORT}/___ready"),
+        ])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "err".to_string())
 }
 
-/// Restart the sidecar and reload the WebView.
+/// Wait until ___ready returns 200, up to timeout.
+fn wait_for_build(timeout: Duration) {
+    log("wait_for_build: start");
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        let code = curl_ready();
+        log(&format!("curl: {code} ({}s)", start.elapsed().as_secs()));
+        if code == "200" {
+            log("wait_for_build: ready");
+            thread::sleep(Duration::from_secs(1));
+            return;
+        }
+        thread::sleep(Duration::from_secs(1));
+    }
+    log("wait_for_build: TIMEOUT");
+}
+
+// ── Refresh ───────────────────────────────────────
+
 fn do_refresh(app_handle: &AppHandle) {
     let state = app_handle.state::<AppState>();
-    restart_sidecar(&state);
-    // dev-stable.js serves loading page while rebuilding, so just navigate there
-    if let Some(window) = app_handle.get_webview_window("main") {
-        let url: tauri::Url = "http://localhost:4892/docs/claude".parse().unwrap();
-        let _ = window.navigate(url);
+
+    // Restart sidecar
+    {
+        let mut guard = state.sidecar.lock().unwrap();
+        if let Some(mut old) = guard.take() {
+            kill_sidecar(&mut old);
+        }
+        *guard = Some(spawn_sidecar());
+    }
+
+    // Wait for server to be listening (not full build — loading page handles the rest)
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(15) {
+        let code = curl_ready();
+        if code != "000" {
+            break;
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+
+    // Navigate — server serves loading page while building
+    if let Some(w) = app_handle.get_webview_window("main") {
+        let url = format!("http://localhost:{PORT}{DOCS_PATH}");
+        let _ = w.navigate(url.parse().unwrap());
     }
 }
 
-/// Set the zoom level and apply it to the WebView.
 fn apply_zoom(app_handle: &AppHandle, level: f64) {
     let state = app_handle.state::<AppState>();
     *state.zoom.lock().unwrap() = level;
-    if let Some(window) = app_handle.get_webview_window("main") {
-        let _ = window.eval(&format!("document.body.style.zoom = '{level}'"));
+    if let Some(w) = app_handle.get_webview_window("main") {
+        let _ = w.eval(&format!("document.body.style.zoom = '{level}'"));
     }
 }
 
-/// Tauri command: restart the dev server and reload the WebView.
 #[tauri::command]
 fn refresh(app_handle: AppHandle) {
     do_refresh(&app_handle);
 }
 
-/// Tauri command: navigate the main window to the docs URL.
-#[tauri::command]
-fn navigate_to_docs(app_handle: AppHandle) {
-    if let Some(window) = app_handle.get_webview_window("main") {
-        let url: tauri::Url = "http://localhost:4892/docs/claude".parse().unwrap();
-        let _ = window.navigate(url);
-    }
-}
-
-/// Tauri command: check if the dev server build is complete.
-#[tauri::command]
-fn check_ready() -> bool {
-    if let Ok(mut stream) = TcpStream::connect("127.0.0.1:4892") {
-        use std::io::{Read, Write};
-        let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-        if stream
-            .write_all(b"GET /___ready HTTP/1.0\r\n\r\n")
-            .is_ok()
-        {
-            let mut buf = [0u8; 256];
-            if let Ok(n) = stream.read(&mut buf) {
-                let s = String::from_utf8_lossy(&buf[..n]);
-                return s.starts_with("HTTP/1.1 200") || s.starts_with("HTTP/1.0 200");
-            }
-        }
-    }
-    false
-}
+// ── Main ──────────────────────────────────────────
 
 fn main() {
-    let child = spawn_dev_server();
-    let pid = child.id();
-
+    let sidecar = spawn_sidecar();
     let app_state = AppState {
-        sidecar: Arc::new(Mutex::new(Some(Sidecar { child, pid }))),
+        sidecar: Arc::new(Mutex::new(Some(sidecar))),
         zoom: Mutex::new(1.0),
     };
-
     let sidecar_for_exit = app_state.sidecar.clone();
 
     tauri::Builder::default()
         .manage(app_state)
-        .invoke_handler(tauri::generate_handler![refresh, check_ready, navigate_to_docs])
+        .invoke_handler(tauri::generate_handler![refresh])
         .setup(|app| {
-            // --- Menu bar ---
+            // ── Menu ──
             let app_menu = SubmenuBuilder::new(app, "Claude Resources")
                 .about(None)
                 .separator()
@@ -162,30 +253,33 @@ fn main() {
                 .select_all()
                 .build()?;
 
-            let refresh_item = MenuItemBuilder::with_id("refresh", "Refresh")
-                .accelerator("CmdOrCtrl+R")
-                .build(app)?;
-            let devtools_item =
-                MenuItemBuilder::with_id("devtools", "Toggle Developer Tools")
-                    .accelerator("CmdOrCtrl+Alt+I")
-                    .build(app)?;
-            let actual_size = MenuItemBuilder::with_id("actual_size", "Actual Size")
-                .accelerator("CmdOrCtrl+0")
-                .build(app)?;
-            let zoom_in = MenuItemBuilder::with_id("zoom_in", "Zoom In")
-                .accelerator("CmdOrCtrl+=")
-                .build(app)?;
-            let zoom_out = MenuItemBuilder::with_id("zoom_out", "Zoom Out")
-                .accelerator("CmdOrCtrl+-")
-                .build(app)?;
-
             let view_menu = SubmenuBuilder::new(app, "View")
-                .item(&refresh_item)
-                .item(&devtools_item)
+                .item(
+                    &MenuItemBuilder::with_id("refresh", "Refresh")
+                        .accelerator("CmdOrCtrl+R")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("devtools", "Toggle Developer Tools")
+                        .accelerator("CmdOrCtrl+Alt+I")
+                        .build(app)?,
+                )
                 .separator()
-                .item(&actual_size)
-                .item(&zoom_in)
-                .item(&zoom_out)
+                .item(
+                    &MenuItemBuilder::with_id("actual_size", "Actual Size")
+                        .accelerator("CmdOrCtrl+0")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("zoom_in", "Zoom In")
+                        .accelerator("CmdOrCtrl+=")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("zoom_out", "Zoom Out")
+                        .accelerator("CmdOrCtrl+-")
+                        .build(app)?,
+                )
                 .build()?;
 
             let menu = MenuBuilder::new(app)
@@ -196,34 +290,38 @@ fn main() {
 
             app.set_menu(menu)?;
 
-            // --- Menu event handler ---
             app.on_menu_event(|app_handle, event| match event.id().as_ref() {
                 "refresh" => do_refresh(app_handle),
                 "devtools" => {
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        if window.is_devtools_open() {
-                            window.close_devtools();
+                    if let Some(w) = app_handle.get_webview_window("main") {
+                        if w.is_devtools_open() {
+                            w.close_devtools();
                         } else {
-                            window.open_devtools();
+                            w.open_devtools();
                         }
                     }
                 }
                 "actual_size" => apply_zoom(app_handle, 1.0),
                 "zoom_in" => {
                     let state = app_handle.state::<AppState>();
-                    let level = (*state.zoom.lock().unwrap() + 0.1).min(3.0);
-                    apply_zoom(app_handle, level);
+                    let z = (*state.zoom.lock().unwrap() + 0.1).min(3.0);
+                    apply_zoom(app_handle, z);
                 }
                 "zoom_out" => {
                     let state = app_handle.state::<AppState>();
-                    let level = (*state.zoom.lock().unwrap() - 0.1).max(0.1);
-                    apply_zoom(app_handle, level);
+                    let z = (*state.zoom.lock().unwrap() - 0.1).max(0.1);
+                    apply_zoom(app_handle, z);
                 }
                 _ => {}
             });
 
-            // --- Window: load bundled loading page, JS polls localhost and redirects ---
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+            // ── Wait for full build, then open window ──
+            wait_for_build(Duration::from_secs(120));
+
+            let url: tauri::Url = format!("http://localhost:{PORT}{DOCS_PATH}")
+                .parse()
+                .unwrap();
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .title("Claude Resources")
                 .inner_size(1200.0, 800.0)
                 .build()?;
@@ -233,19 +331,16 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |app_handle, event| match &event {
-            // Quit the app when the window is closed (macOS: red X only hides the window by default)
             tauri::RunEvent::WindowEvent {
                 event: tauri::WindowEvent::Destroyed,
                 ..
             } => {
-                app_handle.exit(0);
-            }
-            tauri::RunEvent::Exit => {
                 if let Ok(mut g) = sidecar_for_exit.lock() {
                     if let Some(mut s) = g.take() {
-                        shutdown_process_tree(s.pid, &mut s.child);
+                        kill_sidecar(&mut s);
                     }
                 }
+                app_handle.exit(0);
             }
             _ => {}
         });

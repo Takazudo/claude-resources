@@ -18,23 +18,5 @@
   <div class="spinner"></div>
   <div class="text">Building documentation...</div>
   <div class="sub">This takes about 15 seconds on first launch</div>
-  <script>
-    // Use Tauri IPC to check server readiness, then navigate via Rust
-    (function poll() {
-      if (window.__TAURI__) {
-        window.__TAURI__.core.invoke('check_ready').then(function(ready) {
-          if (ready) {
-            window.__TAURI__.core.invoke('navigate_to_docs');
-          } else {
-            setTimeout(poll, 1000);
-          }
-        }).catch(function() {
-          setTimeout(poll, 1000);
-        });
-      } else {
-        setTimeout(poll, 500);
-      }
-    })();
-  </script>
 </body>
 </html>

@@ -28,3 +28,4 @@ Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (s
 - `rm -rf`: relative paths only (`./path`, never `/absolute/path`)
 - Agent logs/artifacts go to `~/cclogs/{repo-name}/` via save-file.js `{logdir}` placeholder
 - Worktree prompt files and truly ephemeral temp files stay in `__inbox/` (gitignored)
+

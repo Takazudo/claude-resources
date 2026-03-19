@@ -1,7 +1,7 @@
 ---
 name: claude-resources-share
 description: >-
-  Publish Claude Code resources (commands, skills, agents, hooks, scripts, doc, CLAUDE.md) from the
+  Publish Claude Code resources (commands, skills, agents, hooks, scripts, doc, app, CLAUDE.md) from the
   private ~/.claude repo to the public claude-resources repo. One-direction copy with a safety gate:
   scans for private info before copying, requires user confirmation. Use when: (1) User says 'share
   resources', 'publish resources', 'sync public repo', (2) User wants to update the public
@@ -27,6 +27,7 @@ One-direction publish from `~/.claude/` (private) to `$HOME/repos/p/claude-resou
 | `~/.claude/hooks/` | `hooks/` |
 | `~/.claude/scripts/` | `scripts/` |
 | `~/.claude/doc/` | `doc/` |
+| `~/.claude/app/` | `app/` |
 | `~/.claude/CLAUDE.md` | `CLAUDE.md` |
 
 ## Excludes (apply to all rsync operations)
@@ -41,6 +42,7 @@ One-direction publish from `~/.claude/` (private) to `$HOME/repos/p/claude-resou
 - `.cache/`
 - `pnpm-lock.yaml`
 - `package-lock.json`
+- `target/`
 
 ## Workflow
 
@@ -55,35 +57,42 @@ Invoke the `/purge-private-info` command, targeting the source directories liste
 
 Present all findings to the user. **Do NOT proceed until the user explicitly confirms** there are no problems or that findings are acceptable.
 
-### Step 2: Prepare target directory
+### Step 2: Prepare target directory and pull latest
 
 ```bash
 # Create target if it doesn't exist
 mkdir -p $HOME/repos/p/claude-resources
 ```
 
-If the target has a `.git/` directory, preserve it. If not, the user should initialize it separately.
+If the target has a `.git/` directory, pull latest to avoid conflicts:
 
-### Step 3: Clean and copy
+```bash
+cd $HOME/repos/p/claude-resources
+git pull --rebase
+```
 
-Remove old content in the target (preserving `.git/`, `.gitignore`, `README.md`, `LICENSE`):
+If not a git repo, the user should initialize it separately.
+
+### Step 3: Remove old content and fresh copy
+
+First, remove all old content in the target (preserving `.git/`, `.gitignore`, `README.md`, `LICENSE`):
 
 ```bash
 # Remove previous copies (but preserve git and repo meta files)
 cd $HOME/repos/p/claude-resources
-for dir in commands skills agents hooks scripts doc; do
+for dir in commands skills agents hooks scripts doc app; do
   rm -rf "./$dir"
 done
 rm -f ./CLAUDE.md
 ```
 
-Then copy each directory using rsync. **IMPORTANT**: Pass each `--exclude` flag separately — do NOT store them in a shell variable, as variable expansion breaks glob patterns like `*.pyc`.
+Then copy fresh from source using rsync. **IMPORTANT**: Pass each `--exclude` flag separately — do NOT store them in a shell variable, as variable expansion breaks glob patterns like `*.pyc`.
 
 ```bash
 SRC="$HOME/.claude"
 DST="$HOME/repos/p/claude-resources"
 
-for dir in commands skills agents hooks scripts doc; do
+for dir in commands skills agents hooks scripts doc app; do
   rsync -av \
     --exclude=node_modules \
     --exclude=.docusaurus \
@@ -95,6 +104,7 @@ for dir in commands skills agents hooks scripts doc; do
     --exclude=.cache \
     --exclude=pnpm-lock.yaml \
     --exclude=package-lock.json \
+    --exclude=target \
     "$SRC/$dir/" "$DST/$dir/"
 done
 cp "$SRC/CLAUDE.md" "$DST/CLAUDE.md"
@@ -125,11 +135,21 @@ Report file counts per directory:
 
 ```bash
 DST="$HOME/repos/p/claude-resources"
-for dir in commands skills agents hooks scripts doc; do
+for dir in commands skills agents hooks scripts doc app; do
   echo "$dir: $(find "$DST/$dir" -type f | wc -l) files"
 done
 echo "CLAUDE.md: 1 file"
 ```
+
+### Step 6: Commit and push (user choice)
+
+Ask the user whether they want to commit and push the changes to the target repo. **Do NOT auto-commit or auto-push.** Present the options:
+
+1. Commit and push
+2. Commit only (no push)
+3. Skip (leave changes uncommitted)
+
+If the user chooses to commit, use the `/commits` skill to commit inside the target repo directory. If they also want to push, push after committing.
 
 ## Scan whitelist
 

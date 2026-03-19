@@ -13,6 +13,7 @@ import { createServer } from "node:http";
 import { watch, existsSync, statSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { join, extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getWatchDirs } from "./watch-dirs.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -63,13 +64,55 @@ let building = false;
 let pendingRebuild = false;
 let rebuildTimer = null;
 let ready = false;
+let buildId = 0;
+
+// ── SSE live-reload ─────────────────────────────────
+
+const sseClients = new Set();
+
+const LIVE_RELOAD_SCRIPT = `<script>(function(){
+var es=new EventSource('/___events');
+var dot;
+es.addEventListener('building',function(){
+  if(dot)return;
+  dot=document.createElement('div');
+  dot.id='__lr';
+  dot.innerHTML='<div style="width:80px;height:80px;border:4px solid #383838;border-top-color:#d69a66;border-radius:50%;animation:__lrs 0.7s linear infinite"></div>';
+  dot.style.cssText='position:fixed;bottom:24px;right:24px;z-index:99999;background:#181818;border:1px solid #333;border-radius:12px;padding:12px;box-shadow:0 2px 12px rgba(0,0,0,0.5)';
+  var st=document.createElement('style');
+  st.textContent='@keyframes __lrs{to{transform:rotate(360deg)}}';
+  dot.appendChild(st);
+  document.body.appendChild(dot);
+});
+es.addEventListener('rebuild',function(){location.reload()});
+es.onerror=function(){es.close();setTimeout(function(){location.reload()},3000)};
+})();</script>`;
+
+function broadcastSSE(eventType, data) {
+  const msg = `event: ${eventType}\ndata: ${data}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(msg); } catch { sseClients.delete(res); }
+  }
+}
+
+function broadcastBuilding() {
+  broadcastSSE("building", "start");
+  console.log(`\x1b[36m[stable]\x1b[0m SSE broadcast building (clients=${sseClients.size})`);
+}
+
+function broadcastRebuild() {
+  buildId++;
+  broadcastSSE("rebuild", buildId);
+  console.log(`\x1b[36m[stable]\x1b[0m SSE broadcast rebuild (id=${buildId}, clients=${sseClients.size})`);
+}
 
 // ── Build ──────────────────────────────────────────
 
 function build() {
   return new Promise((ok, fail) => {
     console.log("\x1b[36m[stable]\x1b[0m Building...");
-    const proc = spawn("pnpm", ["exec", "astro", "build", "--outDir", "dist_tmp"], {
+    const astroBin = join(ROOT, "node_modules", "astro", "astro.js");
+    const proc = spawn(process.execPath, [astroBin, "build", "--outDir", "dist_tmp"], {
       cwd: ROOT,
       stdio: "inherit",
     });
@@ -96,6 +139,19 @@ function serve() {
   const server = createServer((req, res) => {
     const url = new URL(req.url || "/", `http://localhost:${PORT}`);
     const pathname = decodeURIComponent(url.pathname);
+
+    // SSE endpoint for live-reload
+    if (pathname === "/___events") {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      });
+      res.write(`data: connected\n\n`);
+      sseClients.add(res);
+      req.on("close", () => sseClients.delete(res));
+      return;
+    }
 
     // Ready check endpoint — loading page polls this
     if (pathname === "/___ready") {
@@ -148,7 +204,13 @@ function serve() {
 
     const ct = MIME[extname(filePath).toLowerCase()] || "application/octet-stream";
     try {
-      const content = readFileSync(filePath);
+      let content = readFileSync(filePath);
+      // Inject live-reload script into HTML pages
+      if (ct.startsWith("text/html")) {
+        let html = content.toString();
+        html = html.replace("</body>", LIVE_RELOAD_SCRIPT + "</body>");
+        content = html;
+      }
       res.writeHead(200, { "Content-Type": ct, "Cache-Control": "no-cache" });
       res.end(content);
     } catch {
@@ -157,7 +219,7 @@ function serve() {
     }
   });
 
-  server.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "127.0.0.1", () => {
     console.log(`\x1b[36m[stable]\x1b[0m Serving on http://localhost:${PORT}`);
   });
 }
@@ -173,12 +235,15 @@ function scheduleRebuild() {
       return;
     }
     building = true;
+    broadcastBuilding();
     try {
       await build();
       ready = true;
-      console.log("\x1b[36m[stable]\x1b[0m Rebuild complete — refresh browser");
+      broadcastRebuild();
     } catch (err) {
       console.error("\x1b[31m[stable]\x1b[0m Rebuild failed:", err.message);
+      // Broadcast rebuild even on failure to dismiss the spinner
+      broadcastRebuild();
     } finally {
       building = false;
       if (pendingRebuild) {
@@ -190,21 +255,24 @@ function scheduleRebuild() {
 }
 
 function startWatcher() {
-  const dirs = [
-    join(ROOT, "src"),
-    join(ROOT, "public"),
-  ];
+  const dirs = getWatchDirs(ROOT);
+  const claudeDir = resolve(ROOT, "..");
 
   for (const dir of dirs) {
-    if (!existsSync(dir)) continue;
+    const isClaudeDir = dir.startsWith(claudeDir);
     watch(dir, { recursive: true }, (event, filename) => {
       if (!filename) return;
       if (filename.includes("node_modules")) return;
-      console.log(`\x1b[33m[watch]\x1b[0m ${event}: ${filename}`);
+      // Ignore generated content written by claude-resources integration during build
+      if (filename === "content/docs/claude" || filename.startsWith("content/docs/claude/") || filename.startsWith("content/docs/claude-")) return;
+      // For ~/.claude/ root, only rebuild on CLAUDE.md changes
+      // (commands/, skills/, agents/ are watched as separate dirs)
+      if (dir === claudeDir && filename !== "CLAUDE.md") return;
+      console.log(`\x1b[33m[watch]\x1b[0m ${event}: ${isClaudeDir ? "~/.claude/" : ""}${filename}`);
       scheduleRebuild();
     });
   }
-  console.log("\x1b[36m[stable]\x1b[0m Watching src/ and public/ for changes");
+  console.log(`\x1b[36m[stable]\x1b[0m Watching ${dirs.length} directories for changes`);
 }
 
 // ── Kill stale port ───────────────────────────────

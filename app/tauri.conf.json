@@ -6,7 +6,6 @@
     "frontendDist": "./frontend"
   },
   "app": {
-    "withGlobalTauri": true,
     "windows": [],
     "security": {
       "csp": null
@@ -17,6 +16,7 @@
     "targets": "all",
     "icon": [],
     "category": "DeveloperTool",
+    "externalBin": ["binaries/node"],
     "macOS": {
       "minimumSystemVersion": "10.15"
     }
