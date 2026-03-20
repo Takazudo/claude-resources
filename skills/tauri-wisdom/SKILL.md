@@ -9,11 +9,27 @@ description: |
   (5) WebView navigation and IPC between bundled HTML and Rust,
   (6) Building .app bundles with cargo tauri build,
   (7) User mentions 'tauri', 'tauri app', or 'tauri wrapper'.
+  Also covers general Tauri v2 Rust backend patterns:
+  (8) Mutex safety in Tauri commands,
+  (9) Settings caching with external edit detection,
+  (10) PTY/process cleanup on window destroy,
+  (11) File watcher debounce patterns.
 ---
 
 # Tauri v2 Wrapper App Development
 
 Patterns for building lightweight macOS wrapper apps that wrap local dev servers using Tauri v2. Based on production experience building a doc viewer app with bundled Node.js sidecar.
+
+## Research-First Approach (IMPORTANT)
+
+Tauri is still a new and rapidly evolving framework. APIs, best practices, and available features change frequently between versions. **Before implementing any workaround or hacky solution:**
+
+1. **Search official Tauri docs first** — Use web search to check `tauri.app` documentation for the current recommended approach. What required a workaround in v2.0 may have a proper API in v2.1+.
+2. **Check Tauri GitHub issues/discussions** — Search `github.com/tauri-apps/tauri` for issues and discussions. Someone likely hit the same problem and there may be an official fix or recommended pattern.
+3. **Search community resources** — Check Discord archives, Stack Overflow, and blog posts for community-tested solutions. Tauri's community is active and often has practical solutions ahead of official docs.
+4. **Verify version compatibility** — Always check which Tauri version the solution targets. A solution for `tauri@2.0` may not apply to `tauri@2.2`.
+
+**Do NOT assume the patterns in this skill are still the best approach.** Always verify against current official documentation before applying them. If a cleaner official solution exists, prefer it over the patterns documented here.
 
 ## Architecture Overview
 
@@ -318,6 +334,149 @@ node --test scripts/__tests__/watch-dirs.test.js        # unit: directory config
 node --test scripts/__tests__/live-reload.test.js        # e2e: SSE, rebuild, content update
 ```
 
+## General Tauri v2 Rust Backend Patterns
+
+These patterns apply to any Tauri v2 app with a Rust backend, not just sidecar wrapper apps.
+
+### 8. Mutex Safety in Tauri Commands
+
+Never use `.lock().unwrap()` on `Mutex<T>` in Tauri commands. A poisoned mutex will crash the entire app. Use `.map_err()` to return a graceful error instead:
+
+```rust
+fn get_project_root_string(state: &State<'_, AppState>) -> Result<String, String> {
+    state
+        .project_root
+        .lock()
+        .map(|r| r.clone())
+        .map_err(|e| format!("Failed to lock project root: {}", e))
+}
+```
+
+Apply this to every `Mutex::lock()` call in command handlers. For non-command contexts where you need best-effort access, use `.unwrap_or_else(|e| e.into_inner())`.
+
+### 9. Settings Caching with External Edit Detection
+
+Avoid re-reading settings from disk on every command call. Cache in `AppState` with mtime-based invalidation so external edits are still detected:
+
+```rust
+pub struct AppState {
+    pub settings_cache: Mutex<Option<serde_json::Value>>,
+    pub settings_mtime: Mutex<u64>,
+    // ...
+}
+
+pub fn read_settings(root: &str, state: &State<'_, AppState>) -> Option<serde_json::Value> {
+    let settings_path = Path::new(root).join(".settings.json");
+    let current_mtime = mtime_ms(&settings_path);
+    let stored_mtime = state.settings_mtime.lock().ok().map(|m| *m).unwrap_or(0);
+
+    let mut cache = state.settings_cache.lock().ok()?;
+    if let Some(ref cached) = *cache {
+        if current_mtime == stored_mtime {
+            return Some(cached.clone());
+        }
+    }
+    // Cache miss or mtime changed — re-read
+    let content = fs::read_to_string(&settings_path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&content).ok()?;
+    *cache = Some(value.clone());
+    if let Ok(mut m) = state.settings_mtime.lock() { *m = current_mtime; }
+    Some(value)
+}
+```
+
+On save, update both the cache and the stored mtime so the next read doesn't re-read unnecessarily.
+
+### 10. PTY/Process Cleanup on Window Destroy
+
+For apps that spawn terminal processes (PTY), clean them up when the window is destroyed to prevent orphaned processes:
+
+```rust
+.on_window_event(move |window, event| {
+    if let tauri::WindowEvent::Destroyed = event {
+        // Only clean up for the main window, not splash screens
+        if window.label() == "main" {
+            let state = window.state::<AppState>();
+            commands::terminal::kill_all_ptys(&state);
+        }
+    }
+})
+```
+
+Key points:
+
+- Guard on window label to avoid cleanup on splash/secondary windows
+- The `kill_all_ptys` function should iterate all PTY instances and send SIGTERM
+- Also applies to any spawned child processes (not just PTYs)
+
+### 11. Generic File Watcher Debounce
+
+When watching files for external changes, debounce events to avoid excessive processing. Extract a reusable helper instead of duplicating the pattern:
+
+```rust
+fn debounced_watch_loop<T, F, E>(
+    rx: mpsc::Receiver<Event>,
+    debounce: Duration,
+    matches_event: F,  // returns Some(T) if event is relevant
+    on_emit: E,        // called with T after debounce
+) where
+    T: Send,
+    F: Fn(&Event) -> Option<T>,
+    E: Fn(T),
+{
+    let mut pending: Option<T> = None;
+    let mut last_event_time = Instant::now();
+    loop {
+        match rx.recv_timeout(debounce) {
+            Ok(event) => {
+                if let EventKind::Create(_) | EventKind::Modify(_) = event.kind {
+                    if let Some(val) = matches_event(&event) {
+                        pending = Some(val);
+                        last_event_time = Instant::now();
+                    }
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if pending.is_some() && last_event_time.elapsed() >= debounce {
+                    if let Some(val) = pending.take() { on_emit(val); }
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        }
+    }
+}
+```
+
+Key points:
+
+- Use `Option<T>` return from `matches_event` to keep all captured variables `Send`-safe (avoid `RefCell` which is `!Send`)
+- The generic approach eliminates duplication across multiple watchers (messages, draft, pins)
+- Pair with write markers (`mark_draft_write`, `mark_pin_write`) to distinguish app-originated writes from external changes
+
+### 12. Write Marker Pattern for File Watchers
+
+When the app writes files that it also watches, the watcher sees the app's own writes as "external changes." Use a mtime-based marker to suppress false positives:
+
+```rust
+// Before writing: record current mtime
+pub fn mark_draft_write(state: &State<'_, AppState>) {
+    if let Ok(ws) = state.watchers.lock() {
+        let mtime = mtime_ms(&draft_path);
+        if let Ok(mut m) = ws.draft_write_mtime.lock() { *m = mtime; }
+    }
+}
+
+// In watcher callback: compare mtime to detect external vs app writes
+let current_mtime = mtime_ms(&file_path);
+let last = *mtime_arc.lock().unwrap_or_else(|e| e.into_inner());
+if current_mtime > last {
+    // External change — emit event to frontend
+    app_handle.emit("draft:externalChange", payload);
+}
+```
+
+Call `mark_*_write` after every `fs::write` in your commands — including `draft_clear` (file deletion also changes the watcher state).
+
 ## Common Mistakes to Avoid
 
 1. **Never use `/bin/zsh -c "source ~/.zshrc; pnpm ..."`** — breaks from Finder. Bundle the binary instead.
@@ -328,3 +487,5 @@ node --test scripts/__tests__/live-reload.test.js        # e2e: SSE, rebuild, co
 6. **Always kill stale port before spawn** — in BOTH Rust and JS layers. Previous crashes leave orphan processes.
 7. **Always truncate sidecar log on launch** — append mode causes unbounded file growth across sessions.
 8. **Always broadcast rebuild on failure too** — otherwise the spinner overlay stays forever.
+9. **Never use `.lock().unwrap()` on Mutex in Tauri commands** — a poisoned mutex will panic and crash the app. Use `.map_err()`.
+10. **Always mark app-originated writes** — without write markers, file watchers emit false "externally modified" events on every save.

@@ -23,6 +23,12 @@
 
 Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (set in ~/.zshrc).
 
+## Testing & Verification
+
+- Unit tests alone cannot prove visual correctness. If the change is UI/CSS/layout, verify with `/verify-ui` (computed styles) or `/headless-browser` (screenshots, interactions)
+- When user says "it's still broken" after you tested, escalate to a deeper testing level -- do not re-run the same test
+- Invoke `/test-wisdom` when unsure which testing approach fits the current situation
+
 ## Safety
 
 - `rm -rf`: relative paths only (`./path`, never `/absolute/path`)

@@ -23,7 +23,7 @@ The user can specify:
 ## Formatter Details
 
 - **npm package**: `@takazudo/mdx-formatter`
-- **Command**: `npx @takazudo/mdx-formatter --write <file-path>`
+- **Command**: `npx @takazudo/mdx-formatter@next --write <file-path>`
 
 ## Instructions
 
@@ -31,7 +31,7 @@ The user can specify:
 2. If no file was specified, ask the user which file(s) they want to format
 3. Run the formatter using the Bash tool:
    ```bash
-   npx @takazudo/mdx-formatter --write <file-path>
+   npx @takazudo/mdx-formatter@next --write <file-path>
    ```
 4. Report the results to the user
 
@@ -39,10 +39,10 @@ The user can specify:
 
 ```bash
 # Format a single file
-npx @takazudo/mdx-formatter --write README.md
+npx @takazudo/mdx-formatter@next --write README.md
 
 # Format multiple files with glob pattern
-npx @takazudo/mdx-formatter --write "docs/**/*.md"
+npx @takazudo/mdx-formatter@next --write "docs/**/*.md"
 ```
 
 ## Features

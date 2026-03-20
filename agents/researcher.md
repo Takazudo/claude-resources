@@ -32,7 +32,7 @@ Use `{logdir}/{timestamp}-research-{context}.md` format
 1. Prepare the content as markdown text following proper formatting guidelines
 2. Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-research-{context}.md" "content"`
 3. The script will automatically replace `{timestamp}` and `{logdir}` with correct values
-4. Post-save formatting: Always run `npx @takazudo/mdx-formatter --write <file.md>` after saving
+4. Post-save formatting: Always run `npx @takazudo/mdx-formatter@next --write <file.md>` after saving
 
 #### Available Placeholders for save-file.js
 

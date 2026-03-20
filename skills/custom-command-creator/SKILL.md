@@ -199,7 +199,7 @@ What to accomplish with $ARGUMENTS.
 Format the created command file using the mdx-formatter to ensure consistent markdown formatting:
 
 ```bash
-pnpm dlx @takazudo/mdx-formatter --write <path-to-command-file.md>
+pnpm dlx @takazudo/mdx-formatter@next --write <path-to-command-file.md>
 ```
 
 ### Step 5: Verify and Report

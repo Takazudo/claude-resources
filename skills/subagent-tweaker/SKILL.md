@@ -57,7 +57,7 @@ Edit the agent's Markdown file. Preserve existing content that works well.
 Format the edited agent file using the mdx-formatter to ensure consistent markdown formatting:
 
 ```bash
-pnpm dlx @takazudo/mdx-formatter --write <path-to-agent-file.md>
+pnpm dlx @takazudo/mdx-formatter@next --write <path-to-agent-file.md>
 ```
 
 ### Step 5: Verify

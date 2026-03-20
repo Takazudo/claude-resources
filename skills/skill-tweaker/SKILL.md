@@ -59,7 +59,7 @@ Common problems and fixes:
 Format the edited SKILL.md file using the mdx-formatter to ensure consistent markdown formatting:
 
 ```bash
-pnpm dlx @takazudo/mdx-formatter --write <path-to-SKILL.md>
+pnpm dlx @takazudo/mdx-formatter@next --write <path-to-SKILL.md>
 ```
 
 ### Step 5: Verify

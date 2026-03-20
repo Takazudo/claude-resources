@@ -337,7 +337,7 @@ Write instructions for using the skill and its bundled resources.
 Format the SKILL.md file using the mdx-formatter to ensure consistent markdown formatting:
 
 ```bash
-pnpm dlx @takazudo/mdx-formatter --write <path-to-SKILL.md>
+pnpm dlx @takazudo/mdx-formatter@next --write <path-to-SKILL.md>
 ```
 
 ### Step 6: Iterate

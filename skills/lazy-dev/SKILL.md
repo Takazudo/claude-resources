@@ -23,13 +23,14 @@ When you implement changes in this mode, you MUST:
 
 ### For Browser/Frontend Changes
 
-- Use **chrome-devtools** or **MCP Playwright** to:
-  - Navigate to the relevant page
-  - Take snapshots to see the current state
-  - Interact with elements (click buttons, fill forms, etc.)
-  - Verify the behavior matches expectations
-  - Check console for errors
-  - Test edge cases
+Choose the right testing level -- unit tests alone cannot prove visual correctness:
+
+- **Logic only** (utils, state, data): run `vitest`/`jest`
+- **CSS/style changes**: use `/verify-ui` for deterministic computed style checks, then `/headless-browser` for screenshot confirmation
+- **Interactive UI** (modals, dropdowns, forms): use `/headless-browser` Tier 2 (custom Playwright script) to click, fill, and verify
+- **Complex/ambiguous visual issues**: use MCP Playwright or chrome-devtools for deep inspection
+
+If a lower-level test passes but the change still looks wrong, escalate to the next level. See `/test-wisdom` for the full testing level guide.
 
 ### For Build Tools & Scripts
 
