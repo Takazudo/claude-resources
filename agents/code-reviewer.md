@@ -91,7 +91,7 @@ When creating the log file:
   1. Prepare the content as markdown text following proper formatting guidelines
   2. Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-reviewer-{context}.md" "content"`
   3. The script will automatically replace `{timestamp}` and `{logdir}` with correct values
-  4. Post-save formatting: Always run `npx @takazudo/mdx-formatter@next --write <file.md>` after saving
+  4. Post-save formatting: Always run `npx @takazudo/mdx-formatter --write <file.md>` after saving
 - **Available placeholders for save-file.js**:
   - `{logdir}` - Centralized log directory (`~/cclogs/{repo-name}/`), resolved by get-logdir.js
   - `{timestamp}` - MMDD_HHMM format (e.g., 0822_1930)
@@ -205,7 +205,9 @@ Never mix ordered lists (ol) and unordered lists (ul) within the same content st
 ### 2. Widget Initialization
 
 ```js
+
 myapp.init({ /* ... */ });
+
 ```
 ```
 

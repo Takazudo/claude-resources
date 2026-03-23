@@ -12,6 +12,21 @@ description: >
 
 Convert the current conversation into a zpaper blog article by crafting a detailed writing brief and delegating to the `zpaper-writer` subagent.
 
+## Argument: `--conversation`
+
+When `$ARGUMENTS` contains `--conversation`, the article must preserve the actual
+conversation as-is. This means:
+
+- **NEVER summarize the conversation.** Reproduce the actual dialogue flow faithfully.
+- **Keep casual utterances.** Words like 「なるほど」「ふーん」「どう思う？」「OK」
+  「hum...」are meaningful conversational texture — they make the article sound
+  natural and human. Removing them makes it look AI-auto-written.
+- **Minimal rewriting only.** Typo fixes and light formatting are OK. Do NOT
+  restructure, condense, or rephrase the user's words beyond that.
+- **Include the brief in the writing prompt** with explicit instruction:
+  "This is a conversation-style article. Preserve the dialogue verbatim.
+  Only fix typos and apply vocabulary rules. Do not summarize or restructure."
+
 ## Workflow
 
 ### Step 1: Gather context from conversation

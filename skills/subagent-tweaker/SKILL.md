@@ -1,10 +1,6 @@
 ---
 name: subagent-tweaker
-description: >
-  Fix, improve, or update existing Claude Code custom agents (subagents). Use when: (1) User reports
-  an agent isn't working well, (2) User wants to adjust agent behavior, tools, or model, (3) User
-  says 'fix agent', 'update agent', 'tweak agent', 'agent not working'. Handles: editing agent
-  frontmatter, adjusting tool restrictions, updating prompts, debugging issues.
+description: "Fix, improve, or update existing Claude Code custom agents (subagents). Use when: (1) User reports an agent isn't working well, (2) User wants to adjust agent behavior, tools, or model, (3) User says 'fix agent', 'update agent', 'tweak agent', 'agent not working'. Handles: editing agent frontmatter, adjusting tool restrictions, updating prompts, debugging issues."
 ---
 
 # Tweak Custom Agent
@@ -14,6 +10,7 @@ description: >
 ### Step 1: Identify the agent
 
 Find agents at:
+
 - `~/.claude/agents/*.md` (personal)
 - `.claude/agents/*.md` (project)
 
@@ -57,12 +54,13 @@ Edit the agent's Markdown file. Preserve existing content that works well.
 Format the edited agent file using the mdx-formatter to ensure consistent markdown formatting:
 
 ```bash
-pnpm dlx @takazudo/mdx-formatter@next --write <path-to-agent-file.md>
+pnpm dlx @takazudo/mdx-formatter --write <path-to-agent-file.md>
 ```
 
 ### Step 5: Verify
 
 After editing:
+
 1. Confirm YAML frontmatter has no syntax errors
 2. Check tool restrictions match intended behavior
 3. Verify description contains keywords users would say

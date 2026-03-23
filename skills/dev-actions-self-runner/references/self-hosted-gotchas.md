@@ -144,3 +144,38 @@ pnpm dlx wrangler@4 pages deploy deploy \
 ```
 
 This avoids PATH issues entirely and doesn't leave global packages on the runner.
+
+## pnpm/action-setup Corrupted Installation
+
+`pnpm/action-setup` installs pnpm to a custom directory (e.g., `~/setup-pnpm/`). On persistent self-hosted runners, this installation can become corrupted — files deleted, permissions changed, or version mismatches when the action upgrades.
+
+**Symptoms:**
+
+```
+Error: Cannot find module '/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@10.32.1/node_modules/pnpm/dist/worker.js'
+```
+
+All `pnpm install` steps fail with `MODULE_NOT_FOUND` errors.
+
+**Fix:** Recreate the installation directory on the runner:
+
+```bash
+rm -rf ~/setup-pnpm
+mkdir -p ~/setup-pnpm
+cd ~/setup-pnpm
+npm init -y
+npm install pnpm@10
+```
+
+**Prevention:** Since the self-hosted runner already has pnpm available (via corepack or nodenv), consider whether `pnpm/action-setup` is even needed. If `pnpm` is already on PATH, the action's only purpose is version pinning — which `corepack` handles via the `packageManager` field in `package.json`.
+
+**Alternative:** Remove `pnpm/action-setup` from workflows and rely on corepack:
+
+```yaml
+# Instead of pnpm/action-setup, just enable corepack:
+- name: Enable corepack
+  run: corepack enable
+
+# corepack reads packageManager from package.json automatically
+- run: pnpm install --frozen-lockfile
+```

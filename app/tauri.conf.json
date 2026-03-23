@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "identifier": "com.takazudo.claude-resources",
   "build": {
-    "frontendDist": "./frontend"
+    "frontendDist": "./frontend",
+    "beforeDevCommand": "cd doc && pnpm dev:stable",
+    "devUrl": "http://localhost:4892/docs/claude"
   },
   "app": {
     "windows": [],

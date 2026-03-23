@@ -11,6 +11,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const PORT: u16 = 4892;
 const DOCS_PATH: &str = "/docs/claude";
+const IS_DEV: bool = cfg!(debug_assertions);
 
 struct Sidecar {
     child: Child,
@@ -181,28 +182,32 @@ fn wait_for_build(timeout: Duration) {
 // ── Refresh ───────────────────────────────────────
 
 fn do_refresh(app_handle: &AppHandle) {
-    let state = app_handle.state::<AppState>();
-
-    // Restart sidecar
-    {
-        let mut guard = state.sidecar.lock().unwrap();
-        if let Some(mut old) = guard.take() {
-            kill_sidecar(&mut old);
+    if !IS_DEV {
+        // Production: restart sidecar
+        let state = app_handle.state::<AppState>();
+        {
+            let mut guard = state.sidecar.lock().unwrap();
+            if let Some(mut old) = guard.take() {
+                kill_sidecar(&mut old);
+            }
+            *guard = Some(spawn_sidecar());
         }
-        *guard = Some(spawn_sidecar());
+        let mut ready = false;
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_secs(15) {
+            let code = curl_ready();
+            if code == "200" {
+                ready = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+        if !ready {
+            log("do_refresh: TIMEOUT waiting for server");
+        }
     }
 
-    // Wait for server to be listening (not full build — loading page handles the rest)
-    let start = Instant::now();
-    while start.elapsed() < Duration::from_secs(15) {
-        let code = curl_ready();
-        if code != "000" {
-            break;
-        }
-        thread::sleep(Duration::from_millis(500));
-    }
-
-    // Navigate — server serves loading page while building
+    // Both modes: navigate to the docs URL
     if let Some(w) = app_handle.get_webview_window("main") {
         let url = format!("http://localhost:{PORT}{DOCS_PATH}");
         let _ = w.navigate(url.parse().unwrap());
@@ -225,9 +230,13 @@ fn refresh(app_handle: AppHandle) {
 // ── Main ──────────────────────────────────────────
 
 fn main() {
-    let sidecar = spawn_sidecar();
+    let sidecar = if IS_DEV {
+        None // Dev mode: Tauri's beforeDevCommand handles the dev server
+    } else {
+        Some(spawn_sidecar()) // Production: spawn bundled node sidecar
+    };
     let app_state = AppState {
-        sidecar: Arc::new(Mutex::new(Some(sidecar))),
+        sidecar: Arc::new(Mutex::new(sidecar)),
         zoom: Mutex::new(1.0),
     };
     let sidecar_for_exit = app_state.sidecar.clone();
@@ -291,7 +300,10 @@ fn main() {
             app.set_menu(menu)?;
 
             app.on_menu_event(|app_handle, event| match event.id().as_ref() {
-                "refresh" => do_refresh(app_handle),
+                "refresh" => {
+                    let handle = app_handle.clone();
+                    thread::spawn(move || do_refresh(&handle));
+                }
                 "devtools" => {
                     if let Some(w) = app_handle.get_webview_window("main") {
                         if w.is_devtools_open() {
@@ -315,8 +327,10 @@ fn main() {
                 _ => {}
             });
 
-            // ── Wait for full build, then open window ──
-            wait_for_build(Duration::from_secs(120));
+            // Wait for server only in production (dev mode: Tauri handles via devUrl)
+            if !IS_DEV {
+                wait_for_build(Duration::from_secs(120));
+            }
 
             let url: tauri::Url = format!("http://localhost:{PORT}{DOCS_PATH}")
                 .parse()
@@ -335,13 +349,111 @@ fn main() {
                 event: tauri::WindowEvent::Destroyed,
                 ..
             } => {
-                if let Ok(mut g) = sidecar_for_exit.lock() {
-                    if let Some(mut s) = g.take() {
-                        kill_sidecar(&mut s);
+                if !IS_DEV {
+                    if let Ok(mut g) = sidecar_for_exit.lock() {
+                        if let Some(mut s) = g.take() {
+                            kill_sidecar(&mut s);
+                        }
                     }
                 }
                 app_handle.exit(0);
             }
             _ => {}
         });
+}
+
+// ── Tests ─────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn read_tauri_conf() -> serde_json::Value {
+        let conf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+        let raw = std::fs::read_to_string(&conf_path).expect("Failed to read tauri.conf.json");
+        serde_json::from_str(&raw).expect("Failed to parse tauri.conf.json")
+    }
+
+    #[test]
+    fn docs_path_starts_with_slash() {
+        assert!(DOCS_PATH.starts_with('/'), "DOCS_PATH must start with /");
+    }
+
+    #[test]
+    fn doc_dir_ends_with_claude_doc() {
+        let d = doc_dir();
+        assert!(
+            d.ends_with(".claude/doc"),
+            "doc_dir should end with .claude/doc, got: {}",
+            d.display()
+        );
+    }
+
+    #[test]
+    fn node_binary_path_fallback_is_node() {
+        // When the dev-named binary doesn't exist (typical in test env),
+        // node_binary_path falls back to "node" in the exe directory.
+        let p = node_binary_path();
+        assert_eq!(
+            p.file_name().unwrap().to_str().unwrap(),
+            "node",
+            "Fallback binary name should be 'node'"
+        );
+    }
+
+    #[test]
+    fn node_binary_path_is_absolute() {
+        let p = node_binary_path();
+        assert!(p.is_absolute(), "node_binary_path must be absolute");
+    }
+
+    #[test]
+    fn tauri_conf_devurl_uses_same_port() {
+        let conf = read_tauri_conf();
+        let dev_url = conf["build"]["devUrl"].as_str().expect("devUrl must be a string");
+        let expected = format!("localhost:{PORT}");
+        assert!(
+            dev_url.contains(&expected),
+            "devUrl '{dev_url}' should reference port {PORT}"
+        );
+    }
+
+    #[test]
+    fn tauri_conf_devurl_uses_same_path() {
+        let conf = read_tauri_conf();
+        let dev_url = conf["build"]["devUrl"].as_str().expect("devUrl must be a string");
+        assert!(
+            dev_url.contains(DOCS_PATH),
+            "devUrl '{dev_url}' should reference DOCS_PATH '{DOCS_PATH}'"
+        );
+    }
+
+    #[test]
+    fn tauri_conf_has_before_dev_command() {
+        let conf = read_tauri_conf();
+        let cmd = conf["build"]["beforeDevCommand"]
+            .as_str()
+            .expect("beforeDevCommand must be a string");
+        assert!(!cmd.is_empty(), "beforeDevCommand must not be empty");
+    }
+
+    #[test]
+    fn tauri_conf_before_dev_command_runs_dev_stable() {
+        let conf = read_tauri_conf();
+        let cmd = conf["build"]["beforeDevCommand"]
+            .as_str()
+            .expect("beforeDevCommand must be a string");
+        assert!(
+            cmd.contains("pnpm dev:stable"),
+            "beforeDevCommand '{cmd}' should run pnpm dev:stable"
+        );
+    }
+
+    #[test]
+    fn docs_url_format_is_valid() {
+        let url_str = format!("http://localhost:{PORT}{DOCS_PATH}");
+        let url: Result<tauri::Url, _> = url_str.parse();
+        assert!(url.is_ok(), "Docs URL should be parseable: {url_str}");
+    }
 }

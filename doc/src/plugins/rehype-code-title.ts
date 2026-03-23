@@ -1,50 +1,39 @@
 import type { Root, Element } from "hast";
-import { visit, SKIP } from "unist-util-visit";
+import type { Plugin } from "unified";
+import { visit } from "unist-util-visit";
 
 /**
- * Rehype plugin that extracts title="..." from code block meta strings
- * and wraps the <pre> in a container with a title header.
+ * Rehype plugin that extracts title from code block meta and adds a
+ * title element before the code block.
  *
- * Usage in MDX:
- *   ```js title="config.js"
- *   const x = 1;
- *   ```
+ * Usage in markdown:
+ * ```js title="example.js"
+ * console.log("hello");
+ * ```
  */
-export function rehypeCodeTitle() {
-  return (tree: Root) => {
+export const rehypeCodeTitle: Plugin<[], Root> = () => {
+  return (tree) => {
     visit(tree, "element", (node: Element, index, parent) => {
-      if (node.tagName !== "pre" || !parent || index === undefined) return;
+      if (node.tagName !== "pre" || !parent || index == null) return;
 
-      const codeEl = node.children.find(
-        (child): child is Element =>
-          child.type === "element" && child.tagName === "code",
+      const code = node.children.find(
+        (c): c is Element => c.type === "element" && c.tagName === "code",
       );
-      if (!codeEl) return;
+      if (!code) return;
 
-      const meta =
-        String(codeEl.properties?.meta ?? "") ||
-        String((codeEl.data as Record<string, unknown> | undefined)?.meta ?? "");
+      const meta = (code.properties?.["data-meta"] as string) ?? "";
       const titleMatch = meta.match(/title="([^"]+)"/);
       if (!titleMatch) return;
 
       const title = titleMatch[1];
-
-      const titleEl: Element = {
+      const titleNode: Element = {
         type: "element",
         tagName: "div",
-        properties: { className: ["code-block-title"] },
+        properties: { "data-code-title": title },
         children: [{ type: "text", value: title }],
       };
 
-      const wrapper: Element = {
-        type: "element",
-        tagName: "div",
-        properties: { className: ["code-block-container"] },
-        children: [titleEl, { ...node }],
-      };
-
-      (parent as Element).children[index] = wrapper;
-      return SKIP;
+      parent.children.splice(index, 0, titleNode);
     });
   };
-}
+};

@@ -16,7 +16,7 @@ for RUN in $(seq 1 $COUNT); do
   sleep 3
 
   # Launch via open (use build output or installed app)
-  APP_PATH="${APP_OVERRIDE:-/Users/takazudo/.claude/app/target/release/bundle/macos/Claude Resources.app}"
+  APP_PATH="${APP_OVERRIDE:-$HOME/.claude/app/target/release/bundle/macos/Claude Resources.app}"
   open "$APP_PATH"
 
   # Wait up to 60s for docs to be available

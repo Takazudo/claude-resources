@@ -1,22 +1,23 @@
 # Performance Optimization
 
-## Dependency Caching
+## Dependency Caching: Don't Cache Package Managers
 
-The highest-impact single optimization. Use built-in caching in setup actions.
+**Do NOT use `cache: 'pnpm'` (or `npm`, `yarn`) in `actions/setup-node`.** GitHub Actions cache restore is often slower than a fresh `pnpm install` from npm's CDN. npm's CDN is highly optimized for package downloads, while GitHub's cache API has significant overhead for large stores (especially 1GB+). Benchmarking confirmed: direct install from CDN consistently beats cache restore + install.
+
+For self-hosted runners this is even more pointless — the pnpm store is already local, so caching to GitHub's remote cache and restoring it adds pure overhead.
 
 ```yaml
-# pnpm caching (most common in this codebase)
-- uses: pnpm/action-setup@v4
+# BAD - cache restore adds overhead
 - uses: actions/setup-node@v4
   with:
     node-version-file: .node-version
-    cache: pnpm
+    cache: pnpm  # REMOVE THIS
 
-# npm caching
+# GOOD - just install directly
 - uses: actions/setup-node@v4
   with:
-    node-version: 20
-    cache: npm
+    node-version-file: .node-version
+- run: pnpm install
 ```
 
 ### Custom Cache (Playwright browsers, etc.)

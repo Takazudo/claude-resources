@@ -5,18 +5,32 @@ Tauri v2 macOS app that wraps the doc site (port 4892) in a native window with b
 ## Quick Start
 
 ```bash
+# Dev mode — uses system node/pnpm, no binary download needed
+cargo tauri dev
+
+# Production build — requires bundled Node.js binary
 bash scripts/download-node.sh   # download Node.js binary (~112MB, one-time)
-cargo tauri dev                  # dev mode
 cargo tauri build                # production .app bundle
 ```
 
 ## Architecture
 
-- **Tauri v2** thin wrapper — spawns `node scripts/dev-stable.js` as a sidecar
-- **Bundled Node.js** via `externalBin` — no pnpm/nodenv/.zshrc dependency at runtime
-- **Single file**: `src/main.rs` (~330 lines) handles sidecar lifecycle, menus, window management
+- **Tauri v2** thin wrapper — spawns `node scripts/dev-stable.js` as a sidecar (production only)
+- **Dev mode**: Tauri's `beforeDevCommand` runs `pnpm dev:stable` using system node; `devUrl` polls until server is ready
+- **Production**: bundled Node.js via `externalBin` — no pnpm/nodenv/.zshrc dependency at runtime
+- **Single file**: `src/main.rs` (~360 lines of production code, ~90 lines of tests) handles sidecar lifecycle, menus, window management
 
 ## How It Works
+
+### Dev mode (`cargo tauri dev`)
+
+1. Tauri runs `beforeDevCommand`: `cd doc && pnpm dev:stable` (system node, CWD is repo root)
+2. Tauri polls `devUrl` (`http://localhost:4892/docs/claude`) until the server responds
+3. Window opens pointing at the dev server
+4. Cmd+R just navigates to the docs URL (server stays running)
+5. On window close, Tauri kills the `beforeDevCommand` child process
+
+### Production (bundled `.app`)
 
 1. `main()` → `spawn_sidecar()` → `kill_port(4892)` → launches bundled `node` with `doc/scripts/dev-stable.js`
 2. `wait_for_build()` polls `http://localhost:4892/___ready` (up to 120s)

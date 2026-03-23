@@ -1,11 +1,6 @@
 ---
 name: skill-tweaker
-description: >
-  Fix, improve, or update existing Claude Code skills. Use when: (1) User reports a skill isn't
-  working well or triggering incorrectly, (2) User wants to adjust skill behavior, (3) User says
-  'fix skill', 'update skill', 'tweak skill', 'skill not working', 'skill triggers too often'.
-  Handles: editing SKILL.md frontmatter and body, adjusting scripts/references/assets, debugging
-  trigger issues.
+description: "Fix, improve, or update existing Claude Code skills. Use when: (1) User reports a skill isn't working well or triggering incorrectly, (2) User wants to adjust skill behavior, (3) User says 'fix skill', 'update skill', 'tweak skill', 'skill not working', 'skill triggers too often'. Handles: editing SKILL.md frontmatter and body, adjusting scripts/references/assets, debugging trigger issues."
 ---
 
 # Tweak Existing Skill
@@ -15,6 +10,7 @@ description: >
 ### Step 1: Identify the skill
 
 Find skills at:
+
 - `~/.claude/skills/<name>/SKILL.md` (personal)
 - `.claude/skills/<name>/SKILL.md` (project)
 
@@ -59,12 +55,13 @@ Common problems and fixes:
 Format the edited SKILL.md file using the mdx-formatter to ensure consistent markdown formatting:
 
 ```bash
-pnpm dlx @takazudo/mdx-formatter@next --write <path-to-SKILL.md>
+pnpm dlx @takazudo/mdx-formatter --write <path-to-SKILL.md>
 ```
 
 ### Step 5: Verify
 
 After editing:
+
 1. YAML frontmatter parses without errors
 2. Description matches intended trigger scenarios
 3. Referenced files (scripts, references) exist and are correct
@@ -74,6 +71,7 @@ After editing:
 ## Progressive Disclosure Reminder
 
 If SKILL.md is getting too long (approaching 500 lines):
+
 - Move detailed content to `references/` files
 - Keep only core workflow and navigation in SKILL.md
 - Reference split files clearly: "See [filename](references/filename.md) for details"

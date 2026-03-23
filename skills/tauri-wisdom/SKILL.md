@@ -46,11 +46,51 @@ app/
 └── src/main.rs               # Sidecar lifecycle, menus, window
 ```
 
-## Approach: Bundled Node.js Sidecar
+## Dev Mode vs Production Mode
+
+Use `beforeDevCommand` + `devUrl` for development (system node), bundled sidecar for production.
+
+### Dev Mode (`cargo tauri dev`)
+
+Tauri's `beforeDevCommand` starts the dev server using system node/pnpm — no binary download needed:
+
+```json
+{
+  "build": {
+    "frontendDist": "./frontend",
+    "beforeDevCommand": "cd doc && pnpm dev:stable",
+    "devUrl": "http://localhost:4892/docs/claude"
+  }
+}
+```
+
+**CRITICAL: `beforeDevCommand` CWD is the git repo root**, NOT the directory containing `tauri.conf.json`. If your app is at `app/` and your doc site is at `doc/`, use `cd doc`, NOT `cd ../doc`.
+
+In `main.rs`, skip sidecar spawn and wait in dev mode:
+
+```rust
+const IS_DEV: bool = cfg!(debug_assertions);
+
+fn main() {
+    let sidecar = if IS_DEV {
+        None // Tauri's beforeDevCommand handles the dev server
+    } else {
+        Some(spawn_sidecar())
+    };
+    // ...
+    // In setup:
+    if !IS_DEV {
+        wait_for_build(Duration::from_secs(120));
+    }
+    // Window creation, menus — same in both modes
+}
+```
+
+### Production Mode (Bundled Sidecar)
 
 **Do NOT rely on host pnpm/nodenv/zshrc.** Bundle the Node.js binary as a Tauri `externalBin` sidecar for self-contained operation.
 
-### Why Not Shell-Based Approach
+### Why Not Shell-Based Approach (Production)
 
 The shell approach (`/bin/zsh -c "source ~/.zshrc; pnpm dev"`) has critical problems:
 
@@ -59,7 +99,7 @@ The shell approach (`/bin/zsh -c "source ~/.zshrc; pnpm dev"`) has critical prob
 - Different behavior between terminal launch and Finder/Spotlight launch
 - Fragile PATH resolution
 
-### Bundled Node.js Approach
+### Bundled Node.js Approach (Production)
 
 1. Download Node.js standalone binary for the target platform
 2. Configure as Tauri `externalBin` — gets bundled into `.app`
@@ -477,9 +517,46 @@ if current_mtime > last {
 
 Call `mark_*_write` after every `fs::write` in your commands — including `draft_clear` (file deletion also changes the watcher state).
 
+### 13. Menu Event Handlers Must Not Block UI
+
+`on_menu_event` runs on the main thread. If a handler contains a poll loop (e.g., waiting for sidecar restart), it freezes the entire window. Spawn a background thread:
+
+```rust
+app.on_menu_event(|app_handle, event| match event.id().as_ref() {
+    "refresh" => {
+        let handle = app_handle.clone();
+        thread::spawn(move || do_refresh(&handle));
+    }
+    // ...
+});
+```
+
+### 14. Poll Loop Timeout Logging — Use Boolean Flag
+
+Checking `elapsed >= timeout` after a poll loop has a TOCTOU race: if the success response arrives near the timeout boundary, the elapsed check can fire even though the loop broke on success.
+
+```rust
+// WRONG — can false-positive
+while start.elapsed() < Duration::from_secs(15) {
+    if curl_ready() == "200" { break; }
+    thread::sleep(Duration::from_millis(500));
+}
+if start.elapsed() >= Duration::from_secs(15) {
+    log("TIMEOUT"); // May fire even on success!
+}
+
+// CORRECT — boolean flag
+let mut ready = false;
+while start.elapsed() < Duration::from_secs(15) {
+    if curl_ready() == "200" { ready = true; break; }
+    thread::sleep(Duration::from_millis(500));
+}
+if !ready { log("TIMEOUT"); }
+```
+
 ## Common Mistakes to Avoid
 
-1. **Never use `/bin/zsh -c "source ~/.zshrc; pnpm ..."`** — breaks from Finder. Bundle the binary instead.
+1. **Never use `/bin/zsh -c "source ~/.zshrc; pnpm ..."`** — breaks from Finder. Bundle the binary instead (production only).
 2. **Never use IPC polling from frontend** — simpler to poll with curl from Rust, then create window after ready.
 3. **Never use `WebviewUrl::default()` with IPC** — creates cross-origin issues. Use `WebviewUrl::External(url)` after server is ready.
 4. **Never forget to handle dev vs production binary naming** — Tauri strips the target triple in bundles.
@@ -489,3 +566,6 @@ Call `mark_*_write` after every `fs::write` in your commands — including `draf
 8. **Always broadcast rebuild on failure too** — otherwise the spinner overlay stays forever.
 9. **Never use `.lock().unwrap()` on Mutex in Tauri commands** — a poisoned mutex will panic and crash the app. Use `.map_err()`.
 10. **Always mark app-originated writes** — without write markers, file watchers emit false "externally modified" events on every save.
+11. **`beforeDevCommand` CWD is repo root** — NOT the `tauri.conf.json` directory. Use `cd doc`, not `cd ../doc` if your project structure is `repo/app/` + `repo/doc/`.
+12. **Never block UI in menu event handlers** — use `thread::spawn` for any handler that does I/O, polling, or sleeps.
+13. **Use boolean flags for poll loop timeout logging** — not elapsed-time re-checks (TOCTOU race).

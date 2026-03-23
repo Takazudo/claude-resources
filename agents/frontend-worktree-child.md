@@ -72,7 +72,7 @@ Assess testability and choose pragmatically:
   `{logdir}/{timestamp}-wt-child-{context}.md`
   - Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-wt-child-{context}.md" "content"`
   - The `{logdir}` placeholder resolves to `~/cclogs/{repo-name}/`
-  - Post-save: run `npx @takazudo/mdx-formatter@next --write <file.md>`
+  - Post-save: run `npx @takazudo/mdx-formatter --write <file.md>`
 
 ## Markdown Formatting Guidelines
 

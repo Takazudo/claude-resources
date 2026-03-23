@@ -1,10 +1,6 @@
 ---
 name: subagent-creator
-description: >
-  Create new Claude Code custom agents (subagents). Use when: (1) User wants to create a new custom
-  agent, (2) User says 'create agent', 'new agent', 'make subagent', (3) User wants a specialized
-  agent for delegation. Covers: agent file format, YAML frontmatter fields, tool restrictions, model
-  selection, permission modes, persistent memory, and placement.
+description: "Create new Claude Code custom agents (subagents). Use when: (1) User wants to create a new custom agent, (2) User says 'create agent', 'new agent', 'make subagent', (3) User wants a specialized agent for delegation. Covers: agent file format, YAML frontmatter fields, tool restrictions, model selection, permission modes, persistent memory, and placement."
 ---
 
 # Create Custom Agent
@@ -40,6 +36,7 @@ Custom agents are **Markdown files with YAML frontmatter** stored in:
 ### Step 1: Understand the agent's purpose
 
 Ask user:
+
 - What tasks should this agent handle?
 - Should it be personal (`~/.claude/agents/`) or project-scoped (`.claude/agents/`)?
 - Does it need write access or is it read-only?
@@ -47,16 +44,19 @@ Ask user:
 ### Step 2: Choose appropriate settings
 
 **Model selection:**
+
 - `opus` - Complex reasoning, code review, architecture decisions
 - `sonnet` - General development, balanced speed/quality
 - `haiku` - Fast simple tasks, formatting, quick lookups
 
 **Tool restrictions:**
+
 - Read-only agent: `tools: Read, Grep, Glob`
 - Developer agent: omit `tools` (inherits all)
 - No web access: `disallowedTools: WebFetch, WebSearch`
 
 **Key constraints:**
+
 - Subagents CANNOT spawn other subagents (no nesting)
 - Keep the body focused - it becomes the agent's system prompt
 
@@ -88,12 +88,13 @@ You are a specialized [role]. [Core instruction in 1-2 sentences.]
 Format the created agent file using the mdx-formatter to ensure consistent markdown formatting:
 
 ```bash
-pnpm dlx @takazudo/mdx-formatter@next --write <path-to-agent-file.md>
+pnpm dlx @takazudo/mdx-formatter --write <path-to-agent-file.md>
 ```
 
 ### Step 5: Verify
 
 After creating the file, verify:
+
 1. File is at the correct location
 2. YAML frontmatter parses correctly (no syntax errors)
 3. Description clearly indicates when to use the agent

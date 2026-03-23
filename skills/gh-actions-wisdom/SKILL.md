@@ -81,6 +81,26 @@ Tags are mutable. The March 2025 `tj-actions/changed-files` supply chain attack 
 - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 ```
 
+### 5. Do NOT Cache Package Managers (pnpm/npm/yarn)
+
+Do **not** use `cache: 'pnpm'` (or `cache: 'npm'`, `cache: 'yarn'`) in `actions/setup-node`. GitHub Actions cache restore is often **slower** than a fresh `pnpm install` from npm's CDN. npm's CDN is highly optimized for package downloads, while GitHub's cache API has significant overhead for large stores (especially 1GB+). Benchmarking confirmed: direct install from CDN consistently beats cache restore + install.
+
+```yaml
+# BAD - cache restore adds overhead, slower than fresh install
+- uses: actions/setup-node@v4
+  with:
+    node-version-file: .node-version
+    cache: pnpm  # REMOVE THIS
+
+# GOOD - just install directly
+- uses: actions/setup-node@v4
+  with:
+    node-version-file: .node-version
+- run: pnpm install
+```
+
+This is especially true for **self-hosted runners** where the pnpm store is already local — caching to GitHub's remote cache and restoring it is pointless overhead.
+
 ## Quick Reference by Topic
 
 For detailed guidance, read the appropriate reference file:
@@ -121,6 +141,6 @@ When reviewing or writing a workflow, verify:
 5. `pull_request_target` is NOT used with PR code checkout
 6. No string interpolation of user-controlled values in `run:` blocks
 7. Secrets passed individually, not via `secrets: inherit`
-8. Dependency caching enabled (`cache: 'pnpm'` in setup-node, etc.)
+8. No `cache:` parameter in `setup-node` (fresh install from CDN is faster — see rule 5)
 9. Path filters used where possible to skip irrelevant runs
 10. Deploy steps have retry logic for network operations

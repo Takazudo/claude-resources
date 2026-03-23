@@ -99,13 +99,16 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 ## Fully Automated Workflow
 
 **IMPORTANT**: You are the manager. You handle ALL steps automatically:
+
 1. Resolve GitHub tracking issue (read existing, create new, or skip)
 2. Create base branch + root PR
 3. Create worktrees for each topic
 4. Set up environment in worktrees
 5. Use TeamCreate + Task tool to spawn child agents in worktrees (NO pushing during implementation — commit only)
 6. Monitor child agents, review their PRs, merge into base
+
 6.5. Shut down child agents — close tmux panes, TeamDelete
+
 7. Sync local base branch
 8. Quality assurance: local review (`/local-review`)
 9. Push all changes to remote
@@ -132,6 +135,7 @@ gh issue view <number>
 Use the issue body as the primary input for planning topics and the development approach. Set `ISSUE_NUMBER=<number>` and reuse this issue for progress logging (no new issue needed).
 
 **Update the issue body** with `gh issue edit` to add:
+
 1. A **Summary** section (if missing) — write 2-4 sentences explaining what this implementation does and why, based on the user's instructions and your planned approach
 2. A **Topics** section listing each topic with a 1-sentence description
 3. A **TODO checklist** of workflow steps (same as in 1b)
@@ -283,6 +287,7 @@ git worktree add worktrees/<topic-name> -b <project-name>/<topic-name> base/<pro
 ```
 
 Example with 3 topics:
+
 ```bash
 git worktree add worktrees/topicA -b marker-fix/topicA base/marker-fix
 git worktree add worktrees/topicB -b marker-fix/topicB base/marker-fix
@@ -319,6 +324,7 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
    - subagent_type: "frontend-worktree-child" (or "general-purpose" for non-frontend topics)
    - team_name: "<project-name>"
    - name: "topic-<name>"  (e.g., "topic-topicA")
+   - mode: "bypassPermissions"  (prevents child agents from prompting on file edits)
    - prompt: Detailed instructions including:
      a. The worktree absolute path to work in
      b. What to implement for this topic
@@ -330,6 +336,7 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
 ```
 
 **Spawn all child agents in parallel** using multiple Task tool calls in a single message. Each agent should:
+
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (pushing is deferred to Step 9)
@@ -538,10 +545,10 @@ After you report the root PR, the user often replies with feedback — requests 
 1. **Analyze the feedback** — break it into discrete topics. Each heading, bullet group, or distinct concern becomes a separate topic. If there's only one small concern, a single topic is fine.
 2. **Create new worktrees and topic branches** off the existing base branch (Step 3)
 3. **Spawn new child agent teams** (Steps 4–5):
-  - Use `TeamCreate` with an incremented team name: `<project-name>-v2`, `<project-name>-v3`, etc.
-  - New topic branches: `<project-name>/<new-topic-name>`
-  - New worktrees: `worktrees/<new-topic-name>`
-  - Include the user's feedback verbatim in child agent prompts so they have full context
+- Use `TeamCreate` with an incremented team name: `<project-name>-v2`, `<project-name>-v3`, etc.
+- New topic branches: `<project-name>/<new-topic-name>`
+- New worktrees: `worktrees/<new-topic-name>`
+- Include the user's feedback verbatim in child agent prompts so they have full context
 4. **Follow the same workflow**: merge topics → shut down agents → sync → local review → push → CI watch → update PR (Steps 6–11.5)
 5. **Report back** and wait for the next round of feedback
 
