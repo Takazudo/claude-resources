@@ -1,12 +1,6 @@
 ---
 name: verify-ui
-description: >-
-  Verify CSS/UI changes actually match what the user asked for. Uses deterministic computed style
-  checks to avoid LLM confirmation bias. Use when: (1) After making CSS or layout changes and the
-  user asks to verify, (2) User says 'verify ui', 'check the result', 'confirm it works', (3) User
-  asks to check via /headless-browser for style-related work. Use PROACTIVELY after CSS/layout
-  changes when asked to verify. Key principle: verify what the user specifically requested, not a
-  generic checklist.
+description: "Verify CSS/UI changes actually match what the user asked for. Uses deterministic computed style checks to avoid LLM confirmation bias. Use when: (1) After making CSS or layout changes and the user asks to verify, (2) User says 'verify ui', 'check the result', 'confirm it works', (3) User asks to check via /headless-browser for style-related work. Use PROACTIVELY after CSS/layout changes when asked to verify. Key principle: verify what the user specifically requested, not a generic checklist."
 ---
 
 # Verify UI
@@ -41,7 +35,9 @@ Do NOT proceed with a generic screenshot check when you don't know what you're l
 Run the verification script targeting the element in question:
 
 ```bash
-node ~/.claude/skills/verify-ui/scripts/verify-styles.mjs "<URL>" "<SELECTOR>" "{logdir}/verify-ui" "<WIDTHS>" "<SCHEMES>"
+LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
+mkdir -p "$LOGDIR"
+node $HOME/.claude/skills/verify-ui/scripts/verify-styles.mjs "<URL>" "<SELECTOR>" "$LOGDIR/verify-ui" "<WIDTHS>" "<SCHEMES>"
 ```
 
 **Detect viewport widths from the project's breakpoints:**

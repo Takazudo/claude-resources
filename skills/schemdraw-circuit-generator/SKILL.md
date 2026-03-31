@@ -1,14 +1,6 @@
 ---
 name: schemdraw-circuit-generator
-description: >
-  Generate high-quality professional circuit diagrams using schemdraw Python library. Creates vector
-  graphics (SVG/PDF/PNG) from natural language circuit descriptions. Supports extensive component
-  library including resistors, capacitors, inductors, diodes, transistors, opamps, ICs, logic gates,
-  and more. Use when (1) User requests circuit diagrams or schematics, (2) User wants
-  professional/publication-quality output, (3) User needs vector graphics (SVG/PDF) for
-  documentation, (4) Creating complex circuits with ICs opamps or digital logic, (5) User explicitly
-  mentions schemdraw or wants alternative to ASCII circuits, (6) User needs diagrams for papers
-  documentation or presentations.
+description: Generate high-quality professional circuit diagrams using schemdraw Python library. Creates vector graphics (SVG/PDF/PNG) from natural language circuit descriptions. Supports extensive component library including resistors, capacitors, inductors, diodes, transistors, opamps, ICs, logic gates, and more. Use when (1) User requests circuit diagrams or schematics, (2) User wants professional/publication-quality output, (3) User needs vector graphics (SVG/PDF) for documentation, (4) Creating complex circuits with ICs opamps or digital logic, (5) User explicitly mentions schemdraw or wants alternative to ASCII circuits, (6) User needs diagrams for papers documentation or presentations.
 ---
 
 # Schemdraw Circuit Generator
@@ -23,6 +15,7 @@ This workflow builds diagrams step-by-step with visual confirmation at each stag
 
 **A. Connection List** - Write explicit connection list showing all component pins
 **B. Incremental Build Loop** - Build one component/section at a time:
+
 1. **Add ONE component or connection** (e.g., "IC only", "add GND connection", "add R1")
 2. **Execute** - Run Python script and save SVG
 3. **Visual Check** - Generate screenshot via HTML wrapper + headless browser
@@ -30,12 +23,14 @@ This workflow builds diagrams step-by-step with visual confirmation at each stag
 5. **REPEAT** - Go back to step 1 for next component until circuit complete
 
    **Why this works:**
+
 - Catches issues immediately when they occur
 - Easy to debug single changes
 - User can guide spacing, positioning, and layout decisions
 - Prevents compound errors that are hard to untangle
 
 **C. Final Verification** - Once all components added:
+
 - Generate final screenshot
 - Trace each connection from Step A connection list
 - Verify all component values, labels, pin numbers present
@@ -47,6 +42,7 @@ This workflow builds diagrams step-by-step with visual confirmation at each stag
 **⚡ ALTERNATIVE: All-at-Once Approach** *(Only for simple circuits or experienced users)*
 
 Use this workflow ONLY when:
+
 - Circuit is simple (< 5 components)
 - You have high confidence in layout
 - User explicitly requests complete diagram in one shot
@@ -55,14 +51,18 @@ Use this workflow ONLY when:
 **B. Generate Complete Code** - Create schemdraw code implementing ALL connections
 **C. Execute** - Run Python script and save SVG
 **D. Visual Verification (MANDATORY)** - Perform comprehensive visual assessment
+
 - Generate screenshot via HTML wrapper + headless browser
 - **LIST ALL PROBLEMS FIRST** (don't fix one-by-one - you'll forget issues!)
 - Apply ALL fixes at once
 - Confirm with fresh screenshot
 - **REPEAT** until all problems resolved
+
 **E. Final Confirmation** - Trace each signal path from connection list
+
 - If violations found: **Return to B** with fixes
 - If clean: **Proceed to F**
+
 **F. Complete** - Deliver both connection list AND diagram
 
 **⚠️ Warning:** All-at-once approach often requires multiple fix iterations for complex circuits. Incremental approach is more reliable.
@@ -97,6 +97,7 @@ Use this workflow ONLY when:
 **"Technically connected" ≠ "Visually connected"**
 
 For each connection in your connection list:
+
 - ✅ Can you visually TRACE the line end-to-end?
 - ✅ Are junction dots visible at split points?
 - ❌ Are lines overlapping IC edges? (Human can't see the connection!)
@@ -106,6 +107,7 @@ For each connection in your connection list:
 **Common failure**: Line connects to IC pin at the edge of the IC box → looks disconnected even though code is correct.
 
 **Fix**: Route connections AWAY from IC edges using Manhattan routing:
+
 ```python
 # ❌ WRONG - line touches IC edge, invisible
 elm.Line().at(junction).to(ic.PIN)
@@ -124,6 +126,7 @@ elm.Line().right(SMALL_SPACING + 1.0)  # Now visible approaching pin
 **🚨 CRITICAL RULE: Labels must NEVER overlap component symbols**
 
 **Common overlap zones:**
+
 - **Labels on component symbols** - ❌ FORBIDDEN (e.g., "10kΩ" text on resistor zigzag)
 - Adjacent components on same signal path (R1 ↔ R2)
 - IC center label ↔ pin labels (IC name ↔ VOUT)
@@ -131,6 +134,7 @@ elm.Line().right(SMALL_SPACING + 1.0)  # Now visible approaching pin
 - Labels ↔ junction dots or lines
 
 **Visual test questions:**
+
 - ❌ Is label text sitting ON TOP of component symbol? (resistor, capacitor, inductor)
 - ❌ Are any characters touching between different labels?
 - ❌ Is label text crowded or cramped?
@@ -138,7 +142,9 @@ elm.Line().right(SMALL_SPACING + 1.0)  # Now visible approaching pin
 - ✅ Can you see the complete component symbol without text obscuring it?
 
 **Fix priority order:**
+
 1. **First: Increase spacing** - Most effective, cleanest solution
+
    ```python
    HORIZONTAL_SPACING = 1.5  # Increase from 1.0
    VERTICAL_SPACING = 1.5    # Increase from 1.0
@@ -146,6 +152,7 @@ elm.Line().right(SMALL_SPACING + 1.0)  # Now visible approaching pin
    ```
 
 2. **Second: Adjust label position** - Change `loc` parameter
+
    ```python
    # R1/R2 overlap example:
    elm.Resistor().label('R1\n10kΩ', loc='top', ofst=0.2)  # Push up
@@ -153,11 +160,13 @@ elm.Line().right(SMALL_SPACING + 1.0)  # Now visible approaching pin
    ```
 
 3. **Third: Reduce font size** - Only if spacing isn't feasible
+
    ```python
    .label('U2\nLM2596S', fontsize=10)  # Reduce from 11
    ```
 
 4. **Fourth: Add offset** - Fine-tune position
+
    ```python
    .label('IC', ofst=-0.3)  # Shift left by 0.3 units
    ```
@@ -167,12 +176,14 @@ elm.Line().right(SMALL_SPACING + 1.0)  # Now visible approaching pin
 **🚨 CRITICAL RULE: Lines touching IC edges = Connection ambiguity**
 
 **Problem areas:**
+
 - **Lines touching/overlapping IC box edges** - ❌ FORBIDDEN ("Is this connected?" - impossible to tell!)
 - Lines crossing component bodies
 - Lines crossing other lines without junction
 - Lines crossing ground symbols
 
 **Fix rules:**
+
 - **NEVER use `.to(ic.PIN)` directly** - creates line touching IC edge
 - Use `.at()` to position connections explicitly
 - Use Manhattan routing (horizontal → vertical → horizontal only)
@@ -181,6 +192,7 @@ elm.Line().right(SMALL_SPACING + 1.0)  # Now visible approaching pin
 - **Leave visible gap between IC edge and incoming lines**
 
 **Example - Correct IC connection:**
+
 ```python
 # ❌ WRONG - line touches IC edge
 elm.Line().at(junction).to(ic.VIN)
@@ -193,6 +205,7 @@ elm.Line().at(junction).right(1.0)  # Stop BEFORE IC edge
 #### 4. Definition of "Complete"
 
 A diagram is complete ONLY when:
+
 - ✅ Code executes without errors
 - ✅ SVG generates successfully
 - ✅ **USER has visually reviewed screenshot and approved** (MOST IMPORTANT)
@@ -228,7 +241,7 @@ svg{border:2px solid #333;max-width:100%;max-height:90vh;}
 EOF
 
 # Capture screenshot
-node ~/.claude/skills/headless-browser/scripts/headless-check.js \
+node $HOME/.claude/skills/headless-browser/scripts/headless-check.js \
   --url file:///tmp/view_diagram.html \
   --screenshot viewport
 ```
@@ -246,12 +259,14 @@ topic: "element positioning at anchor"
 ```
 
 **Key IC patterns learned:**
+
 - IC connects via **sequential flow** - current position flows to first left pin automatically
 - Use `.at(ic.pinname)` to start FROM a specific pin
 - Use `.at(junction)` BEFORE routing TO a pin to avoid edge overlap
 - Pin names are anchors: `ic.VIN`, `ic.GND`, `ic.FB`, `ic.VOUT`
 
 **Example of proper IC connection:**
+
 ```python
 # Create junction BEFORE IC
 elm.Dot()
@@ -279,6 +294,7 @@ mcp__context7__get-library-docs(
 ```
 
 **When to use context7:**
+
 - Uncommon components not in references/components.md
 - Advanced features (custom elements, annotations, etc.)
 - Specific IC pinout configurations
@@ -286,6 +302,7 @@ mcp__context7__get-library-docs(
 - Troubleshooting unusual errors
 
 **Examples:**
+
 - `topic: "opamp operational amplifier circuits"`
 - `topic: "transistor bjt npn pnp"`
 - `topic: "wire routing shapes"`
@@ -340,6 +357,7 @@ elm.Line().left()                    # Goes left from C1's end
 ### Anchors
 
 Elements have named connection points:
+
 - Two-terminal: `start`, `end`, `center`
 - Transistors: `base`, `collector`, `emitter` (BJT) or `gate`, `drain`, `source` (FET)
 - Opamps: `in1`, `in2`, `out`, `vd`, `vs`
@@ -392,6 +410,7 @@ This list serves as the specification. The diagram must satisfy EVERY connection
 **CRITICAL**: Build circuit incrementally, one component/connection at a time.
 
 **Typical build order:**
+
 1. Start with IC only (no connections)
 2. Add power connections (VIN, ON pins to input rail)
 3. Add ground connection
@@ -439,11 +458,13 @@ with schemdraw.Drawing(
 After EACH iteration:
 
 1. **Run the script:**
+
    ```bash
    python3 /tmp/circuit_generator.py
    ```
 
 2. **Generate screenshot:**
+
    ```bash
    cat > /tmp/view.html << 'EOF'
    <!DOCTYPE html>
@@ -456,7 +477,7 @@ After EACH iteration:
    EOF
    cat /tmp/buck_converter.svg >> /tmp/view.html
    echo "</body></html>" >> /tmp/view.html
-   node ~/.claude/skills/headless-browser/scripts/headless-check.js \
+   node $HOME/.claude/skills/headless-browser/scripts/headless-check.js \
      --url file:///tmp/view.html --screenshot viewport
    ```
 
@@ -471,12 +492,14 @@ After EACH iteration:
 ### Step D: Conversational Build Loop
 
 **User guides the process:**
+
 - "Add GND connection next"
 - "Connect the input rail"
 - "Shorten that line by half"
 - "Move the label to the right side"
 
 **You respond with:**
+
 - Code update for requested change
 - Execute script
 - Generate screenshot
@@ -484,6 +507,7 @@ After EACH iteration:
 - Wait for next instruction
 
 **Benefits:**
+
 - User can correct spacing/positioning immediately
 - Catches label overlaps before they compound
 - Easy to adjust layout decisions in real-time
@@ -501,6 +525,7 @@ Once all components added and user confirms diagram looks complete:
 ### Step F: Deliver
 
 Provide to user:
+
 1. **Connection list** (from Step A)
 2. **Final SVG diagram** (verified version)
 3. **Python code** (for reproducibility)
@@ -509,6 +534,7 @@ Provide to user:
 ## Common Patterns
 
 See `references/patterns.md` for copy-paste patterns:
+
 - Voltage divider
 - RC filter (low-pass, high-pass)
 - Inverting/non-inverting opamp
@@ -523,6 +549,7 @@ See `references/patterns.md` for copy-paste patterns:
 ### components.md
 
 Complete component library reference with syntax for all elements:
+
 - Passive: Resistors, capacitors, inductors
 - Semiconductors: Diodes, transistors (BJT/FET)
 - Sources: Voltage, current, AC, batteries
@@ -533,6 +560,7 @@ Complete component library reference with syntax for all elements:
 ### patterns.md
 
 Copy-paste code for common circuits:
+
 - Simple circuits (voltage divider, RC filter, LED)
 - Opamp configurations (inverting, non-inverting, buffer, comparator)
 - Transistor circuits (switch, amplifier)
@@ -541,6 +569,7 @@ Copy-paste code for common circuits:
 ### best-practices.md
 
 Guidelines for professional diagrams:
+
 - Layout strategies
 - Labeling conventions
 - Connection techniques
@@ -551,6 +580,7 @@ Guidelines for professional diagrams:
 ### examples.md
 
 Complete working examples:
+
 - 555 timer LED blinker
 - Inverting opamp with power
 - Differential amplifier
@@ -562,6 +592,7 @@ Complete working examples:
 ### troubleshooting.md
 
 Solutions to common problems:
+
 - Installation and import issues
 - Layout and positioning problems
 - Label issues (Unicode, LaTeX)
@@ -685,6 +716,7 @@ elm.Ground()  # Ground symbol at bottom, points down
 **Problem:** User says "NO!" or expresses frustration - you misunderstood the request.
 
 **Solution:**
+
 1. **STOP immediately** - Don't continue with wrong approach
 2. **Re-read user's EXACT words** - What did they literally say?
 3. **Use exact parameters specified** - "right side" means `loc='right'`, not `loc='left'`
@@ -692,6 +724,7 @@ elm.Ground()  # Ground symbol at bottom, points down
 5. **Wait for confirmation** - Let user verify before proceeding
 
 **Example from session:**
+
 - User: "the RIGHT side of the capacitor symbol"
 - Wrong: `loc='left'` (causes "NO!!!")
 - Correct: `loc='right'` (what they literally requested)
@@ -774,6 +807,7 @@ with schemdraw.Drawing(
 ```
 
 **Why transparent background with black foreground:**
+
 - Allows HTML container background to show through (e.g., custom background colors)
 - Black lines and text are visible on light container backgrounds
 - Works seamlessly with web-based documentation (Docusaurus, etc.)
@@ -781,6 +815,7 @@ with schemdraw.Drawing(
 - Integrates with any light-themed documentation
 
 **Solid background (if specifically requested):**
+
 ```python
 # Dark theme with solid black background and white foreground
 with schemdraw.Drawing(

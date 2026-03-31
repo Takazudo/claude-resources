@@ -147,7 +147,7 @@ This avoids PATH issues entirely and doesn't leave global packages on the runner
 
 ## pnpm/action-setup Corrupted Installation
 
-`pnpm/action-setup` installs pnpm to a custom directory (e.g., `~/setup-pnpm/`). On persistent self-hosted runners, this installation can become corrupted — files deleted, permissions changed, or version mismatches when the action upgrades.
+`pnpm/action-setup` installs pnpm to a custom directory (e.g., `$HOME/setup-pnpm/`). On persistent self-hosted runners, this installation can become corrupted — files deleted, permissions changed, or version mismatches when the action upgrades.
 
 **Symptoms:**
 
@@ -160,9 +160,9 @@ All `pnpm install` steps fail with `MODULE_NOT_FOUND` errors.
 **Fix:** Recreate the installation directory on the runner:
 
 ```bash
-rm -rf ~/setup-pnpm
-mkdir -p ~/setup-pnpm
-cd ~/setup-pnpm
+rm -rf $HOME/setup-pnpm
+mkdir -p $HOME/setup-pnpm
+cd $HOME/setup-pnpm
 npm init -y
 npm install pnpm@10
 ```

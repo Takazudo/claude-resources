@@ -1,11 +1,6 @@
 ---
 name: lighthouse-audit
-description: >-
-  Run Lighthouse audits on a project's built site, create a GitHub issue with findings, then
-  optionally fix issues via /x-wt-teams. Use when: (1) User says 'lighthouse audit', 'lighthouse',
-  'performance audit', or 'audit website', (2) User wants to improve web performance, accessibility,
-  SEO, or best practices, (3) User says 'lighthouse-audit'. Takes optional URL argument; default
-  flow builds project and serves locally.
+description: "Run Lighthouse audits on a project's built site, create a GitHub issue with findings, then optionally fix issues via /x-wt-teams. Use when: (1) User says 'lighthouse audit', 'lighthouse', 'performance audit', or 'audit website', (2) User wants to improve web performance, accessibility, SEO, or best practices, (3) User says 'lighthouse-audit'. Takes optional URL argument; default flow builds project and serves locally."
 argument-hint: "[url] [--desktop] [--mobile] [--both]"
 user-invocable: true
 ---
@@ -64,14 +59,14 @@ Always include homepage.
 Determine preset from argument: `--desktop`, `--mobile`, or `--both` (default: `--both`).
 
 ```bash
-REPORT_DIR=~/cclogs/<repo-name>/lighthouse-$(date +%Y%m%d_%H%M%S)
+REPORT_DIR=$HOME/cclogs/<repo-name>/lighthouse-$(date +%Y%m%d_%H%M%S)
 mkdir -p "$REPORT_DIR"
 
-bash ~/.claude/skills/lighthouse-audit/scripts/run-lighthouse.sh \
+bash $HOME/.claude/skills/lighthouse-audit/scripts/run-lighthouse.sh \
   "$REPORT_DIR/mobile" mobile \
   http://localhost:3456/ http://localhost:3456/page2
 
-bash ~/.claude/skills/lighthouse-audit/scripts/run-lighthouse.sh \
+bash $HOME/.claude/skills/lighthouse-audit/scripts/run-lighthouse.sh \
   "$REPORT_DIR/desktop" desktop \
   http://localhost:3456/ http://localhost:3456/page2
 ```
@@ -131,7 +126,7 @@ After agent teams complete:
 3. Compare with bundled script:
 
 ```bash
-bash ~/.claude/skills/lighthouse-audit/scripts/compare-reports.sh \
+bash $HOME/.claude/skills/lighthouse-audit/scripts/compare-reports.sh \
   "$REPORT_DIR/mobile/summary.json" \
   "$NEW_REPORT_DIR/mobile/summary.json"
 ```
@@ -144,4 +139,4 @@ bash ~/.claude/skills/lighthouse-audit/scripts/compare-reports.sh \
 - Each audit takes ~30-60s per page per preset
 - Limit to 5 pages for large sites
 - If user provides a live URL, skip build+serve steps
-- Reports saved to `~/cclogs/<repo-name>/`
+- Reports saved to `$HOME/cclogs/<repo-name>/`

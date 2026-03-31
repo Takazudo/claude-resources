@@ -1,16 +1,6 @@
 ---
 name: jlcpcb-component-finder
-description: >-
-  Search the JLCPCB electronic components database (~7 million parts) for hardware/electronics
-  projects. Use when the user needs to: (1) Find electronic components (resistors, capacitors,
-  inductors, ICs, connectors, diodes, transistors, MOSFETs, op-amps, microcontrollers, sensors,
-  LEDs, etc.), (2) Look up specific part numbers, LCSC numbers (C-prefix), or manufacturer part
-  numbers, (3) Find alternatives or equivalents for components, (4) Check component availability and
-  stock at JLCPCB/LCSC, (5) Get component specifications (package type, footprint, description), (6)
-  Search for parts for PCB assembly (PCBA) projects, (7) Find SMD or through-hole components, (8)
-  Look up voltage regulators (LDO, linear, switching), audio jacks, connectors, or any other
-  electronic parts. Keywords: JLCPCB, LCSC, electronic components, PCB parts, SMT assembly, BOM,
-  bill of materials, component sourcing.
+description: "Search the JLCPCB electronic components database (~7 million parts) for hardware/electronics projects. Use when the user needs to: (1) Find electronic components (resistors, capacitors, inductors, ICs, connectors, diodes, transistors, MOSFETs, op-amps, microcontrollers, sensors, LEDs, etc.), (2) Look up specific part numbers, LCSC numbers (C-prefix), or manufacturer part numbers, (3) Find alternatives or equivalents for components, (4) Check component availability and stock at JLCPCB/LCSC, (5) Get component specifications (package type, footprint, description), (6) Search for parts for PCB assembly (PCBA) projects, (7) Find SMD or through-hole components, (8) Look up voltage regulators (LDO, linear, switching), audio jacks, connectors, or any other electronic parts. Keywords: JLCPCB, LCSC, electronic components, PCB parts, SMT assembly, BOM, bill of materials, component sourcing."
 allowed-tools:
   - Bash
 ---
@@ -21,12 +11,12 @@ Search ~7 million electronic components in the local JLCPCB database.
 
 ## Database
 
-- Path: `~/.jlcpcb-db/cache.sqlite3` (~11 GB)
+- Path: `$HOME/.jlcpcb-db/cache.sqlite3` (~11 GB)
 - If missing, tell the user to run `/jlcpcb-component-finder-update-db`
 
 ## Query Script
 
-All queries use: `node ~/.claude/skills/jlcpcb-component-finder/query.js <command>`
+All queries use: `node $HOME/.claude/skills/jlcpcb-component-finder/query.js <command>`
 
 ### Commands
 
@@ -42,19 +32,19 @@ All queries use: `node ~/.claude/skills/jlcpcb-component-finder/query.js <comman
 
 ```bash
 # Check database status
-node ~/.claude/skills/jlcpcb-component-finder/query.js db-info
+node $HOME/.claude/skills/jlcpcb-component-finder/query.js db-info
 
 # Find audio-related categories
-node ~/.claude/skills/jlcpcb-component-finder/query.js list-categories "audio"
+node $HOME/.claude/skills/jlcpcb-component-finder/query.js list-categories "audio"
 
 # Search for 3.5mm audio jacks in category 208
-node ~/.claude/skills/jlcpcb-component-finder/query.js search-parts 208 "3.5" 10
+node $HOME/.claude/skills/jlcpcb-component-finder/query.js search-parts 208 "3.5" 10
 
 # Search for CH340 across all categories
-node ~/.claude/skills/jlcpcb-component-finder/query.js search-all "CH340" 10
+node $HOME/.claude/skills/jlcpcb-component-finder/query.js search-all "CH340" 10
 
 # Look up a specific part
-node ~/.claude/skills/jlcpcb-component-finder/query.js lookup C12084
+node $HOME/.claude/skills/jlcpcb-component-finder/query.js lookup C12084
 ```
 
 ## Workflow

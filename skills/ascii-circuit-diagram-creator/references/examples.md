@@ -169,7 +169,7 @@ Output ─┬─→ R1 ──┬─→ Tap ─→ R2  ← Tap point labeled
 Always preview diagrams in monospace font before finalizing:
 
 ```bash
-bash ~/.claude/skills/ascii-circuit-diagram-creator/scripts/preview_diagram.sh diagram.txt
+bash $HOME/.claude/skills/ascii-circuit-diagram-creator/scripts/preview_diagram.sh diagram.txt
 ```
 
 The preview will reveal:

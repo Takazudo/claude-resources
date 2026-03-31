@@ -1,10 +1,6 @@
 ---
 name: zudoesa-articlify
-description: >
-  Convert conversation context into an esa article by delegating to the zudoesa-writer subagent. Use
-  when: (1) User wants to write an esa article based on what was discussed, (2) User says 'write esa
-  article', 'esa記事', 'esaに書いて', 'articlify for esa'. This skill gathers context from the
-  conversation, creates a detailed writing brief, and delegates to the writer subagent.
+description: "Convert conversation context into an esa article by delegating to the zudoesa-writer subagent. Use when: (1) User wants to write an esa article based on what was discussed, (2) User says 'write esa article', 'esa記事', 'esaに書いて', 'articlify for esa'. This skill gathers context from the conversation, creates a detailed writing brief, and delegates to the writer subagent."
 ---
 
 # Articlify for esa
@@ -18,11 +14,16 @@ conversation as-is. This means:
 
 - **NEVER summarize the conversation.** Reproduce the actual dialogue flow faithfully.
 - **Keep casual utterances.** Words like 「なるほど」「ふーん」「どう思う？」「OK」
+
   「hum...」are meaningful conversational texture — they make the article sound
   natural and human. Removing them makes it look AI-auto-written.
+
 - **Minimal rewriting only.** Typo fixes and light formatting are OK. Do NOT
+
   restructure, condense, or rephrase the user's words beyond that.
+
 - **Include the brief in the writing prompt** with explicit instruction:
+
   "This is a conversation-style article. Preserve the dialogue verbatim.
   Only fix typos and apply vocabulary rules. Do not summarize or restructure."
 
@@ -31,6 +32,7 @@ conversation as-is. This means:
 ### Step 1: Gather context from conversation
 
 Review the conversation history and identify:
+
 - What topic was discussed
 - What was tried (approaches A, B, C...)
 - What worked and what didn't
@@ -45,14 +47,19 @@ If images were provided in the conversation (attached screenshots, diagrams, etc
 
 1. **Determine the article slug** from the topic (e.g., `20260209-package-json-organization`)
 2. **Create the image directory** in the esa repo:
+
    ```
-   mkdir -p $HOME/repos/w/esa/doc/static/img/articles/YYYYMMDD-slug/
+   mkdir -p $HOME/repos/w/esa/doc/public/img/articles/YYYYMMDD-slug/
    ```
+
 3. **Copy each image** to that directory with a descriptive filename:
+
    ```
-   cp /path/to/source/image.png $HOME/repos/w/esa/doc/static/img/articles/YYYYMMDD-slug/descriptive-name.png
+   cp /path/to/source/image.png $HOME/repos/w/esa/doc/public/img/articles/YYYYMMDD-slug/descriptive-name.png
    ```
+
 4. **Record the image paths** for the writing brief. The markdown reference format is:
+
    ```
    ![alt text](/img/articles/YYYYMMDD-slug/descriptive-name.png)
    ```
@@ -84,6 +91,7 @@ Agent tool:
 ```
 
 The subagent will:
+
 - Read the repo's writing style guides
 - Write the article in Japanese following esa conventions
 - Set `sidebar_position` using the formula `999999999999 - YYYYMMDDHHMM` (ensures newest articles appear first)
@@ -93,6 +101,7 @@ The subagent will:
 ### Step 4: Verify sidebar_position
 
 After the subagent completes, read the created article file and verify that:
+
 - `sidebar_position` is present in the frontmatter
 - The value follows the formula `999999999999 - YYYYMMDDHHMM`
 
@@ -101,6 +110,7 @@ If `sidebar_position` is missing or incorrect, fix it directly. This is critical
 ### Step 5: Report back
 
 After the subagent completes, report:
+
 - The file path of the created article
 - A brief summary of what was written
 

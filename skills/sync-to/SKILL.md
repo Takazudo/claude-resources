@@ -1,9 +1,6 @@
 ---
 name: sync-to
-description: >-
-  Merge current branch into a target branch and return. Use when user says 'sync to', 'merge into',
-  'push changes to branch', or wants to sync their work branch into another branch without leaving
-  their current branch.
+description: "Merge current branch into a target branch and return. Use when user says 'sync to', 'merge into', 'push changes to branch', or wants to sync their work branch into another branch without leaving their current branch."
 disable-model-invocation: true
 argument-hint: <target-branch>
 allowed-tools: Bash(bash *)
@@ -18,7 +15,7 @@ Merge the current branch into a specified target branch, push if remote exists, 
 Run the bundled script:
 
 ```bash
-bash ~/.claude/skills/sync-to/scripts/sync-to.sh $ARGUMENTS
+bash $HOME/.claude/skills/sync-to/scripts/sync-to.sh $ARGUMENTS
 ```
 
 Report the script output to the user verbatim. Do not add extra commentary unless there was an error.

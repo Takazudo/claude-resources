@@ -18,7 +18,7 @@ Restart WSL2 from PowerShell: `wsl --shutdown` then `wsl`.
 On GitHub: repo Settings > Actions > Runners > New self-hosted runner > **Linux** x64.
 
 ```bash
-mkdir ~/actions-runner-REPONAME && cd ~/actions-runner-REPONAME
+mkdir $HOME/actions-runner-REPONAME && cd $HOME/actions-runner-REPONAME
 curl -o actions-runner-linux-x64.tar.gz -L https://github.com/actions/runner/releases/latest/download/actions-runner-linux-x64-2.322.0.tar.gz
 tar xzf actions-runner-linux-x64.tar.gz
 ./config.sh --url https://github.com/OWNER/REPO --token <TOKEN>
@@ -96,7 +96,7 @@ This applies to any CLI tool used only in CI: `wrangler`, `vercel`, `netlify`, `
 ### Cache behavior differs
 
 - GitHub-hosted runners start clean — `actions/cache` and `setup-node` cache restore from network
-- Self-hosted runners keep `node_modules`, `~/.cache/pnpm`, `~/.npm` across runs — caching is faster but stale state can accumulate
+- Self-hosted runners keep `node_modules`, `$HOME/.cache/pnpm`, `$HOME/.npm` across runs — caching is faster but stale state can accumulate
 - Use `--frozen-lockfile` to prevent accidental dependency drift
 - If builds behave differently on self-hosted vs GitHub-hosted, clear the runner's pnpm store: `pnpm store prune`
 
@@ -106,7 +106,7 @@ A single runner process handles one job at a time. If workflows have parallel jo
 
 **Mitigation options:**
 
-- Register multiple runner instances in separate directories (`~/actions-runner-REPO-1`, `~/actions-runner-REPO-2`)
+- Register multiple runner instances in separate directories (`$HOME/actions-runner-REPO-1`, `$HOME/actions-runner-REPO-2`)
 - Design workflows so heavy jobs run sequentially (e.g., quality → build → deploy chain)
 - Keep lightweight jobs (detect-runner, notifications) on `ubuntu-latest` so they don't block the self-hosted queue
 
@@ -116,7 +116,7 @@ If `npm install -g` or similar was used before and left stale files, clean up ma
 
 ```bash
 # Find and remove stale global modules from the runner's node tool cache
-rm -rf ~/actions-runner-*/_work/_tool/node/*/x64/lib/node_modules/.package-*
+rm -rf $HOME/actions-runner-*/_work/_tool/node/*/x64/lib/node_modules/.package-*
 ```
 
 ### Docker container jobs won't work

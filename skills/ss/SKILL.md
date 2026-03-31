@@ -1,12 +1,9 @@
 ---
 name: ss
-description: >-
-  Load screenshot images or other files from Dropbox screenshots directory. Use when user invokes /ss directly.
-  Supports /ss 2 (latest 2 images), /ss latest3, /ss filename.png (exact or substring match), /ss full-path.
-  Also supports non-image files (e.g., /ss pattern-4-variations.html) to read files shared via the screenshots dir.
+description: Load screenshot images or other files from Dropbox screenshots directory. Use when user invokes /ss directly. Supports /ss 2 (latest 2 images), /ss latest3, /ss filename.png (exact or substring match), /ss full-path. Also supports non-image files (e.g., /ss pattern-4-variations.html) to read files shared via the screenshots dir.
 disable-model-invocation: true
 argument-hint: "[N | latestN | filename]"
-allowed-tools: Read, Bash(ls *), Bash(find *), Bash(for *), Bash(stat *)
+allowed-tools: Read, Bash(ls *), Bash(find *), Bash(for *), Bash(stat *), Bash(sleep *)
 ---
 
 # Screenshot Loader
@@ -70,11 +67,11 @@ When the argument has a non-image extension (not `.png`, `.jpg`, `.jpeg`, `.gif`
 
 1. First, try exact match: `$DROPBOX_SCREENSHOTS_DIR/<filename>`
 2. If the exact file does not exist, perform a **substring search** across all image files in the screenshots directory:
-   - Strip the extension from the argument to get the search term (e.g., `foo-bar-moo.png` → `foo-bar-moo`)
-   - Search filenames (case-insensitive) that contain the search term as a substring
-   - Also try **plural/singular variants**: if the search term contains a word, try both its singular and plural forms (e.g., `screenshot` ↔ `screenshots`, `image` ↔ `images`)
-   - If multiple files match, pick the most recently modified one
-   - If no matches found, proceed to the "Wait for file" step using the exact path
+- Strip the extension from the argument to get the search term (e.g., `foo-bar-moo.png` → `foo-bar-moo`)
+- Search filenames (case-insensitive) that contain the search term as a substring
+- Also try **plural/singular variants**: if the search term contains a word, try both its singular and plural forms (e.g., `screenshot` ↔ `screenshots`, `image` ↔ `images`)
+- If multiple files match, pick the most recently modified one
+- If no matches found, proceed to the "Wait for file" step using the exact path
 
 ```bash
 # Substring search example
@@ -86,24 +83,72 @@ find "$DROPBOX_SCREENSHOTS_DIR" -maxdepth 1 -type f \( -iname "*.png" -o -iname 
 
 Use the path as-is.
 
-## Wait for file if not found
+## Wait for file — Dropbox sync delay handling
 
-The user is confident the file exists or is being created (e.g., just took a screenshot). If the target file does not exist yet:
+The user typically takes a screenshot and immediately runs `/ss`. Dropbox sync introduces a delay of a few seconds (sometimes longer), so the file may not exist locally yet. This section handles that proactively.
 
-1. Poll every 5 seconds using `ls` to check if the file appears
-2. Continue polling for up to 5 minutes (60 attempts)
-3. For "latest N" mode, also retry if fewer than N image files have modification time <= the cutoff
-4. If the file appears during polling, proceed normally
-5. If timeout is reached, report that the file was not found
+### Initial delay for "Latest N" mode
 
-Use a bash loop:
+For "Latest N" mode (bare number, `latestN`, or empty argument), **always sleep 3 seconds before the first file lookup**. This gives Dropbox a moment to sync the new screenshot. This simple delay avoids the most common case where old files are returned because the new one hasn't arrived yet.
 
 ```bash
-for i in $(seq 1 60); do
+# Always do this before the first file listing in "Latest N" mode
+sleep 3
+```
+
+### Freshness check for "Latest N" mode
+
+After listing files, check whether the results are **fresh enough** relative to the invocation epoch. A screenshot the user just took should have a modification time within ~60 seconds of the invocation epoch.
+
+**Freshness rule:** At least one of the N files must have a modification time within 120 seconds before the invocation epoch. If ALL files are older than 120 seconds before the invocation epoch, the user's new screenshot likely hasn't synced yet — retry.
+
+```bash
+CUTOFF=<invocation_epoch>
+FRESHNESS_THRESHOLD=$((CUTOFF - 120))
+# After getting the N files, check the newest one:
+NEWEST_MTIME=$(stat -f %m "$NEWEST_FILE")
+if [ "$NEWEST_MTIME" -lt "$FRESHNESS_THRESHOLD" ]; then
+  # All results are stale — the new screenshot hasn't synced yet, retry
+fi
+```
+
+### Retry loop
+
+If the file is not found (specific filename mode) or the freshness check fails (Latest N mode), poll with retries:
+
+1. **Poll every 5 seconds** for up to **2 minutes** (24 attempts)
+2. For **specific filename mode**: check if the target file exists (`[ -f "$TARGET" ]`)
+3. For **"Latest N" mode**: re-list files and re-check the freshness rule (at least one file within 120 seconds of invocation epoch)
+4. If the file appears or freshness check passes during polling, proceed normally
+5. If timeout is reached, report that the file was not found (or that only older files were found) and ask the user to confirm
+
+```bash
+# Specific filename mode
+for i in $(seq 1 24); do
   [ -f "$TARGET" ] && break
   sleep 5
 done
+
+# Latest N mode (after initial 3-second delay already elapsed)
+for i in $(seq 1 24); do
+  # Re-run the file listing and freshness check
+  FILES=$(ls -t "$DROPBOX_SCREENSHOTS_DIR"/*.{png,jpg,jpeg,gif,webp,tiff} 2>/dev/null | while IFS= read -r f; do
+    [ "$(stat -f %m "$f")" -le "$CUTOFF" ] && echo "$f"
+  done | head -n $N)
+  NEWEST=$(echo "$FILES" | head -n 1)
+  [ -n "$NEWEST" ] && [ "$(stat -f %m "$NEWEST")" -ge "$FRESHNESS_THRESHOLD" ] && break
+  sleep 5
+done
 ```
+
+### Summary of the wait flow for "Latest N" mode
+
+1. Sleep 3 seconds (initial delay)
+2. List files, apply timestamp cutoff, take top N
+3. Check freshness: is the newest file within 120 seconds of invocation epoch?
+4. If fresh enough, proceed to present files
+5. If stale, enter retry loop (poll every 5s, up to 2 minutes)
+6. If timeout, present what was found but warn the user that these may be older files
 
 ## Present the files
 
@@ -111,22 +156,23 @@ Use the Read tool to read each file. The Read tool supports reading image files 
 
 After reading, briefly acknowledge which file(s) were loaded (filename only, not full path) and ask what the user would like to do with them.
 
-## Wrong file loaded — Dropbox sync delay
+## Fallback: wrong file loaded despite waiting
 
-After presenting the file(s), if the content seems unrelated to the current conversation context (e.g., the image looks like an old screenshot, not something the user just took), this likely means:
+If, after the proactive waiting above, the presented file(s) still seem unrelated to the current conversation context (e.g., the image is clearly an old screenshot), this means Dropbox sync took longer than expected.
 
-- **The user added files after submitting the prompt** — the file wasn't in the directory when the invocation epoch was captured
-- **Dropbox hasn't synced yet** — the file exists on another device but hasn't arrived locally
+**Recovery steps:**
 
-**When you suspect a mismatch, do both:**
-
-1. **Check recent older files** — List images with modification time slightly before the invocation epoch. The user's intended file may have been timestamped just before they typed `/ss`.
-2. **Wait and re-check** — Sleep 10 seconds, then list the directory again for any **new** files that appeared after the invocation epoch. Dropbox sync is fast when online, so files typically arrive within seconds.
+1. **Wait and re-check** — Sleep 15 seconds, then list the directory again for any **new** files that appeared after the invocation epoch (allow files with mtime slightly after the epoch, since they synced late).
+2. **Check recent older files** — The user's intended file may have been timestamped just before they typed `/ss` (e.g., they took the screenshot a few minutes earlier). List images from the 5 minutes before the invocation epoch.
 
 ```bash
-# Re-check for newly synced files
-sleep 10
-ls -t "$DROPBOX_SCREENSHOTS_DIR"/*.{png,jpg,jpeg,gif,webp,tiff} 2>/dev/null | head -n 3
+# Re-check for newly synced files (allow mtime up to 120s after invocation epoch)
+sleep 15
+LATE_CUTOFF=$((CUTOFF + 120))
+ls -t "$DROPBOX_SCREENSHOTS_DIR"/*.{png,jpg,jpeg,gif,webp,tiff} 2>/dev/null | while IFS= read -r f; do
+  MTIME=$(stat -f %m "$f")
+  [ "$MTIME" -le "$LATE_CUTOFF" ] && [ "$MTIME" -gt "$CUTOFF" ] && echo "[NEW] $f"
+done | head -n 3
 ```
 
-If a new file appears, read it and present it. If nothing new appears after one retry, inform the user and ask them to confirm which file they meant.
+If a new file appears, read it and present it. If nothing new appears, inform the user and ask them to confirm which file they meant.

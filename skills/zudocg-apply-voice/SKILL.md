@@ -1,11 +1,6 @@
 ---
 name: zudocg-apply-voice
-description: >
-  Apply Takazudo's CodeGrid writing voice and vocabulary rules to text. Use when: (1) User wants to
-  write or rewrite text in Takazudo's CodeGrid style, (2) User says 'apply voice', 'codegrid voice',
-  'codegrid文体で', 'codegrid風に書いて', '文体を適用', (3) User provides text and wants it transformed to match
-  the CodeGrid writing style. Reads the writing-style.md and vocabulary-rule.md from the
-  takazudo-codegrid-writing repo and applies those rules to the given text.
+description: "Apply Takazudo's CodeGrid writing voice and vocabulary rules to text. Use when: (1) User wants to write or rewrite text in Takazudo's CodeGrid style, (2) User says 'apply voice', 'codegrid voice', 'codegrid文体で', 'codegrid風に書いて', '文体を適用', (3) User provides text and wants it transformed to match the CodeGrid writing style. Reads the writing-style.md and vocabulary-rule.md from the takazudo-codegrid-writing repo and applies those rules to the given text."
 ---
 
 # Apply CodeGrid Voice
@@ -17,6 +12,7 @@ Apply Takazudo's **CodeGrid** writing voice and vocabulary rules to incoming tex
 The CodeGrid voice is a **polite but approachable technical article** style. Sits between formal tech writing and casual blogging — です/ます base with conversational warmth. The author shares from personal experience, hedges assertions, and engages in dialogue with the reader.
 
 Key traits:
+
 - **Experienced but humble** — veteran developer who avoids overstatement
 - **Self-reference**: 「自分」for personal experience, 「筆者」for authorial stance, 「私」for emphatic opinions
 - **Sentence endings**: 〜と考えています / 〜と感じています / 〜のではないでしょうか / 〜かと思います / 〜わけでして
@@ -50,14 +46,15 @@ Key traits:
 
 **Always** read both rule files fresh at invocation time:
 
-1. `$HOME/repos/w/cg/doc/docs/overview/writing-style.md`
-2. `$HOME/repos/w/cg/doc/docs/overview/vocabulary-rule.md`
+1. `$HOME/repos/w/cg/doc/src/content/docs/overview/writing-style.md`
+2. `$HOME/repos/w/cg/doc/src/content/docs/overview/vocabulary-rule.md`
 
 These files are the authoritative source of truth. Read them every time to pick up any updates.
 
 ### Step 2: Identify the input text
 
 The input text comes from one of:
+
 - Text provided directly in the conversation (before or after the skill invocation)
 - $ARGUMENTS passed with the command
 - A file path the user points to

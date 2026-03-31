@@ -11,7 +11,7 @@ description: "Fix, improve, or update existing Claude Code skills. Use when: (1)
 
 Find skills at:
 
-- `~/.claude/skills/<name>/SKILL.md` (personal)
+- `$HOME/.claude/skills/<name>/SKILL.md` (personal)
 - `.claude/skills/<name>/SKILL.md` (project)
 
 Read the SKILL.md and any referenced files (scripts/, references/, assets/).
@@ -58,7 +58,21 @@ Format the edited SKILL.md file using the mdx-formatter to ensure consistent mar
 pnpm dlx @takazudo/mdx-formatter --write <path-to-SKILL.md>
 ```
 
-### Step 5: Verify
+### Step 5: Path safety check
+
+Scan the skill's SKILL.md and all referenced scripts/files for `~/` in file paths. Replace with `$HOME/`.
+
+**Why:** `~` is a shell expansion feature. It is NOT expanded by Node.js `fs` operations, Python `open()`, or non-login shell contexts. Using `~/` in these contexts creates a literal directory named `~` inside the working directory instead of resolving to the user's home directory. This has caused real bugs where a `~/` directory was accidentally created inside a repo.
+
+**What to check:**
+
+- Any hardcoded path like `~/foo/bar` in scripts or skill instructions
+- Shell commands wrapped in backtick injection that might be passed to Node.js
+- File paths in references or asset configurations
+
+**Replace with:** `$HOME/foo/bar` (expanded by both shell and most runtimes)
+
+### Step 6: Verify
 
 After editing:
 
@@ -67,6 +81,7 @@ After editing:
 3. Referenced files (scripts, references) exist and are correct
 4. For forked skills: content is self-contained (no conversation history available)
 5. SKILL.md body stays under 500 lines
+6. No `~/` paths in file operations -- use `$HOME/` instead (see Step 5)
 
 ## Progressive Disclosure Reminder
 

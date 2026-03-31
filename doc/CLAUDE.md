@@ -1,6 +1,6 @@
-# doc/ — Claude Resources Documentation Site
+# doc/ — CCResDoc Documentation Site + Tauri App
 
-Astro-based static site that renders Claude Code resources (CLAUDE.md, commands, skills, agents) as browsable documentation.
+Astro-based static site that renders Claude Code resources (CLAUDE.md, commands, skills, agents) as browsable documentation. Includes a Tauri macOS wrapper (`src-tauri/`) that serves the site in a native window.
 
 ## Quick Start
 
@@ -14,9 +14,9 @@ pnpm build        # production build to dist/
 ## Architecture
 
 - **Astro 5** static site with MDX, React, Tailwind CSS
-- **`src/integrations/claude-resources/`** — reads `~/.claude/` at build time, generates MDX pages for CLAUDE.md, commands, skills, agents
+- **`src/integrations/claude-resources/`** — reads `$HOME/.claude/` at build time, generates MDX pages for CLAUDE.md, commands, skills, agents
 - **`scripts/dev-stable.js`** — build-then-serve mode with SSE live-reload (the Tauri app uses this)
-- **`scripts/watch-dirs.js`** — configures which directories trigger rebuilds (src/, ~/.claude/CLAUDE.md, commands/, skills/, agents/)
+- **`scripts/watch-dirs.js`** — configures which directories trigger rebuilds (src/, $HOME/.claude/CLAUDE.md, commands/, skills/, agents/)
 - **`src/config/settings.ts`** — site configuration (color scheme, navigation, integrations)
 
 ## Two Dev Modes

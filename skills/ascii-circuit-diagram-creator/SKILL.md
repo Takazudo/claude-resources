@@ -1,11 +1,6 @@
 ---
 name: ascii-circuit-diagram-creator
-description: >-
-  Create and validate ASCII circuit diagrams with automatic rule checking and iterative refinement.
-  Use when the user requests circuit diagrams in ASCII/text format, or when creating technical
-  documentation with embedded circuit schematics. Automatically ensures diagrams follow golden rules
-  (no line crossings without junctions, no lines crossing labels, proper component connections,
-  correct polarity). Includes preview validation using monospace rendering.
+description: Create and validate ASCII circuit diagrams with automatic rule checking and iterative refinement. Use when the user requests circuit diagrams in ASCII/text format, or when creating technical documentation with embedded circuit schematics. Automatically ensures diagrams follow golden rules (no line crossings without junctions, no lines crossing labels, proper component connections, correct polarity). Includes preview validation using monospace rendering.
 ---
 
 # ASCII Circuit Diagram Creator
@@ -18,8 +13,10 @@ Creates clear, unambiguous ASCII circuit diagrams through an iterative generate-
 **B. Generate ASCII diagram** - Create circuit that satisfies ALL connections
 **C. Preview** - Render in monospace font, capture as image
 **D. Confirm** - Check for rule violations
+
 - If violations found: **Return to B** with fixes
 - If clean: **Proceed to E**
+
 **E. Complete** - Deliver both connection list AND ASCII diagram
 
 ## Core Principles
@@ -27,12 +24,14 @@ Creates clear, unambiguous ASCII circuit diagrams through an iterative generate-
 **Start with connections, not the diagram** - The connection list is the specification. The ASCII diagram must satisfy every connection in the list.
 
 **Connection list is a deliverable** - Always provide both:
+
 1. Connection list (explicit, unambiguous)
 2. ASCII diagram (visual representation)
 
 **Preview is mandatory** - Label crossings and alignment issues are invisible in plain text but obvious in monospace rendering.
 
 **Follow the golden rules** - See `references/golden-rules.md` for complete list:
+
 1. Never cross lines without junctions
 2. Never cross lines over text labels
 3. Use label notation for distant connections - **Use "GND" labels frequently** to avoid cluttered diagrams (many components connect to GND)
@@ -52,6 +51,7 @@ Creates clear, unambiguous ASCII circuit diagrams through an iterative generate-
 Write explicit text connections showing which pin connects to which:
 
 **Format:**
+
 ```
 Connections:
 - Component1 pin X → Component2 pin Y
@@ -60,6 +60,7 @@ Connections:
 ```
 
 **Example (Buck Converter):**
+
 ```
 Connections:
 - +15V input → U2 (LM2596S) pin 5 (VIN)
@@ -77,6 +78,7 @@ Connections:
 ```
 
 **Key points:**
+
 - Every component connection must be listed
 - Show pin numbers for ICs
 - Indicate parallel vs. series connections
@@ -88,6 +90,7 @@ Connections:
 Create the ASCII diagram that satisfies ALL connections from Step A:
 
 **Layout strategy:**
+
 - **Separate functional blocks** - Break complex circuits into labeled sections (IC, switching node, input caps, feedback network)
 - **Branch right, then down** - Use `└───` to create branches that extend right first, then go vertical
 - **Main flow horizontal, branches vertical** - Keep signal flow left-to-right, use vertical lines for branches to GND or parallel components
@@ -101,12 +104,14 @@ Create the ASCII diagram that satisfies ALL connections from Step A:
 - Ensure vertical lines maintain exact column alignment (no flying lines)
 
 **Component representation:**
+
 - ICs: Show pin numbers and names
 - Passives: Include values (10µF, 5.1kΩ)
 - Voltages: Label at each stage
 - Parallel components: Draw as vertical drops to GND
 
 **Best practice: Parallel capacitors (filter pairs):**
+
 ```
 Power ──┬────────────────┬─── To IC
         │                │
@@ -117,6 +122,7 @@ Power ──┬────────────────┬─── To I
         │                │
        GND              GND
 ```
+
 - T-junction (┬) at TOP on power rail
 - Capacitor labels in middle of vertical lines
 - Clear vertical drops to GND
@@ -124,6 +130,7 @@ Power ──┬────────────────┬─── To I
 - Shows physical placement hints
 
 **Separated section example (recommended for complex circuits):**
+
 ```
 IC Section:
                     ┌──────────────┐
@@ -158,6 +165,7 @@ Input ───┬─── To IC
 ```
 
 **Key benefits of separated sections:**
+
 - No line crossings between different functional blocks
 - Crystal clear component grouping
 - Easy to trace signal paths
@@ -171,10 +179,11 @@ Input ───┬─── To IC
 Run the preview script to render in monospace font and capture as image:
 
 ```bash
-bash ~/.claude/skills/ascii-circuit-diagram-creator/scripts/preview_diagram.sh <diagram-text-or-file>
+bash $HOME/.claude/skills/ascii-circuit-diagram-creator/scripts/preview_diagram.sh <diagram-text-or-file>
 ```
 
 The preview creates an "almost empty HTML" with monospace font styling and captures the result using headless browser. This reveals issues invisible in plain text:
+
 - Lines crossing labels
 - Ambiguous junctions
 - Incorrect component leg counts
@@ -185,6 +194,7 @@ The preview creates an "almost empty HTML" with monospace font styling and captu
 **CRITICAL**: Check the preview image for rule violations by **tracing each signal path** and **inspecting vertical line alignment**.
 
 Simply looking at the screenshot is not enough - you must:
+
 1. **Trace each signal** from source to destination
 2. **Verify junctions** - does each `├ ┤ ┬ ┴` connect the correct signals?
 3. **Check for false junctions** - do any signals appear connected that shouldn't be?
@@ -194,6 +204,7 @@ Simply looking at the screenshot is not enough - you must:
 If ANY violations found, **return to Step B** with fixes.
 
 **Preview phase is critical for detecting:**
+
 - Lines crossing labels (invisible in plain text, obvious in preview)
 - False junctions where signals appear connected but shouldn't be
 - Box padding issues where text touches borders
@@ -202,34 +213,41 @@ If ANY violations found, **return to Step B** with fixes.
 **Check against golden rules** (see `references/golden-rules.md`):
 
 **Rule 1: Line crossings without junctions**
+
 - Look for `┼` symbols (usually wrong)
 - Check if non-connected lines cross
 
 **Rule 2: Lines crossing labels**
+
 - Look for vertical/horizontal lines passing over text
 - Most common issue: switching node line crossing "Tap" or "GND" labels
 
 **Rule 3: Disconnected components**
+
 - Verify all components connect to appropriate nodes
 - Check input capacitors connect to power rails
 - Ensure feedback networks connect to correct pins
 
 **Rule 4: Incorrect polarity**
+
 - Diodes: Cathode to higher potential, anode to lower
 - Buck converter: Flyback diode cathode to switching node, anode to GND
 
 **Rule 5: Unclear parallel/series connections**
+
 - Filter capacitors should be vertical drops to GND
 - Should NOT appear in series with signal path
 
 **Common fixes:**
 
 **Fix: Line crossing label**
+
 - **Solution A**: Route in opposite direction (if going down crosses labels, route up)
 - **Solution B**: Remove intermediate label
 - **Solution C**: Use wider spacing to route around
 
 Example:
+
 ```
 Before (crosses labels):    After (routes upward):
 VOUT ├4───┬─→ L1            D1 ← Routes UP
@@ -239,14 +257,17 @@ VOUT ├4───┬─→ L1            D1 ← Routes UP
 ```
 
 **Fix: Disconnected component**
+
 - Add connection using appropriate junction (`┬ ├ ┤ ┴`)
 - Ensure vertical line from power rail reaches component
 
 **Fix: Inverted polarity**
+
 - Swap component orientation
 - For diodes: cathode (top) to higher potential, anode (bottom) to GND
 
 **Fix: Ambiguous parallel/series**
+
 - Redraw parallel components as vertical drops
 - Use `├─→` to branch from main signal path
 
@@ -264,6 +285,7 @@ Optionally explain key connections or design choices if complex.
 ## Common Patterns
 
 See `references/examples.md` for detailed examples of:
+
 - Buck converter (LM2596S-ADJ)
 - Common mistakes and fixes
 - Before/after comparisons
@@ -286,6 +308,7 @@ Before finalizing, verify:
 ## When to Use This Skill
 
 Use this skill when:
+
 - User requests ASCII/text-format circuit diagrams
 - Creating technical documentation with embedded circuits
 - Need to ensure diagram clarity and correctness
@@ -299,5 +322,6 @@ Use this skill when:
 **Preview tool**: Uses headless-browser skill to render diagrams in monospace font and capture screenshots for validation. This is **critical** for catching issues before finalizing.
 
 **References**:
+
 - `references/golden-rules.md` - Complete rule specification
 - `references/examples.md` - Good/bad examples and fixes

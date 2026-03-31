@@ -28,7 +28,7 @@ Custom slash commands are Markdown files that define reusable prompts. They're s
 | Location | Path | Scope |
 |----------|------|-------|
 | Project | `.claude/commands/<name>.md` | This project only (shows as "project") |
-| Personal | `~/.claude/commands/<name>.md` | All your projects (shows as "user") |
+| Personal | `$HOME/.claude/commands/<name>.md` | All your projects (shows as "user") |
 
 **Priority**: Project commands override personal commands with same name.
 
@@ -135,7 +135,7 @@ If the user provides a name, use it. If they describe what they want, derive an 
 
 **Choose location based on context:**
 
-- **Global command** (`~/.claude/commands/<name>.md`): User says "global", or wants it available across all projects
+- **Global command** (`$HOME/.claude/commands/<name>.md`): User says "global", or wants it available across all projects
 - **Local/project command** (`.claude/commands/<name>.md`): User says "local" or "project", or wants it scoped to current repo
 - **If unclear**: Ask the user which they prefer
 
@@ -214,6 +214,7 @@ After creating the file:
 - Use `$ARGUMENTS` / `$1` / `$2` for dynamic values, not hardcoded values
 - Don't overcomplicate - a command is a single Markdown file for a reusable prompt
 - Local commands are great for project-specific workflows (deploy, test patterns, review checklists)
+- **File paths must use `$HOME` instead of `~`**: When command instructions reference home directory paths (e.g., log directories, config files), always write `$HOME/cclogs/...` or `$HOME/.claude/...`, NEVER `$HOME/cclogs/...` or `$HOME/.claude/...`. The `~` character is only expanded by interactive shell login contexts. In Node.js `fs` operations, non-login shells, and many tool contexts, `~` is treated as a literal character, which creates an actual directory named `$HOME/` inside the working directory. This applies to paths in the command body text, bash execution snippets, and any instructions that an agent will follow
 
 ## Examples
 
@@ -320,7 +321,7 @@ The `once: true` option runs the hook only once per session.
 
 ### Command not appearing
 
-1. Check file is in correct location (`.claude/commands/` or `~/.claude/commands/`)
+1. Check file is in correct location (`.claude/commands/` or `$HOME/.claude/commands/`)
 2. Verify `.md` extension
 3. Run `/help` to see available commands
 

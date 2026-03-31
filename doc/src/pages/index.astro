@@ -1,7 +1,38 @@
 ---
+import DocLayout from "@/layouts/doc-layout.astro";
+import { settings } from "@/config/settings";
+import { buildNavTree, groupSatelliteNodes, isNavVisible } from "@/utils/docs";
+import { loadLocaleDocs } from "@/utils/locale-docs";
+import SiteTreeNav from "@/components/site-tree-nav.tsx";
+
+const categoryOrder = settings.headerNav
+  .map((n) => n.categoryMatch)
+  .filter((v): v is string => !!v);
+
+// Build full nav tree for site index
+const { allDocs, categoryMeta } = await loadLocaleDocs("en");
+const navDocs = allDocs.filter(isNavVisible);
+const tree = buildNavTree(navDocs, "en", categoryMeta);
+const groupedTree = groupSatelliteNodes(tree, categoryOrder);
 ---
-<html>
-  <head>
-    <meta http-equiv="refresh" content="0;url=/docs/claude" />
-  </head>
-</html>
+
+<DocLayout title={settings.siteName} lang="en" hideSidebar hideToc>
+  <div class="flex justify-center mb-vsp-xl">
+    <div class="text-center">
+      <h1 class="text-heading font-bold mb-vsp-2xs">{settings.siteName}</h1>
+      <p class="text-muted text-small">
+        Claude Code Resources Documentation
+      </p>
+    </div>
+  </div>
+
+  <SiteTreeNav
+    tree={groupedTree}
+    categoryOrder={categoryOrder}
+    client:idle
+  />
+
+  <footer class="mt-vsp-xl pt-vsp-md border-t border-muted text-center text-small text-muted">
+    Built with <a href="https://takazudomodular.com/pj/zudo-doc" class="text-fg underline hover:text-accent" target="_blank" rel="noopener noreferrer">zudo-doc</a>.
+  </footer>
+</DocLayout>

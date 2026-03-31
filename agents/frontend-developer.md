@@ -47,19 +47,9 @@ Assess testability and choose pragmatically:
 
   `{logdir}/{timestamp}-frontend-dev-{context}.md`
 
-  - Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-frontend-dev-{context}.md" "content"`
-  - The `{logdir}` placeholder resolves to `~/cclogs/{repo-name}/`
-  - Post-save: run `npx @takazudo/mdx-formatter --write <file.md>`
-
-## Markdown Formatting Guidelines
-
-When writing log files, follow these rules:
-
-- Use proper headings (`##`, `###`), never bold text as section headings
-- Never mix ordered and unordered lists in the same structure
-- URLs in Japanese text: use `[サイト名](url)` or separate as bullet list — never raw URLs in parentheses
-- Numbered lists for simple content; heading structure for complex content with code blocks
-- Avoid contentless consecutive headings
+  - Use the save-file script: `$HOME/.claude/scripts/save-file.js "{logdir}/{timestamp}-frontend-dev-{context}.md" "content"`
+  - The `{logdir}` placeholder resolves to `$HOME/cclogs/{repo-name}/` (NEVER use `~` in paths — it won't expand in Node.js)
+  - Post-save: run `pnpm dlx @takazudo/mdx-formatter --write <file.md>`
 
 ## Tool Usage
 

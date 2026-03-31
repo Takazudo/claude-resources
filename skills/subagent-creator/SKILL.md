@@ -11,7 +11,7 @@ Custom agents are **Markdown files with YAML frontmatter** stored in:
 
 | Location | Scope |
 |----------|-------|
-| `~/.claude/agents/` | All projects (personal) |
+| `$HOME/.claude/agents/` | All projects (personal) |
 | `.claude/agents/` | Current project only |
 
 ## Frontmatter Fields
@@ -38,7 +38,7 @@ Custom agents are **Markdown files with YAML frontmatter** stored in:
 Ask user:
 
 - What tasks should this agent handle?
-- Should it be personal (`~/.claude/agents/`) or project-scoped (`.claude/agents/`)?
+- Should it be personal (`$HOME/.claude/agents/`) or project-scoped (`.claude/agents/`)?
 - Does it need write access or is it read-only?
 
 ### Step 2: Choose appropriate settings
@@ -59,6 +59,12 @@ Ask user:
 
 - Subagents CANNOT spawn other subagents (no nesting)
 - Keep the body focused - it becomes the agent's system prompt
+
+**Path safety -- NEVER use `~` in agent instructions:**
+
+- WARNING: `~` (tilde) is only expanded by interactive shells. It is NOT expanded by Node.js `fs` operations, non-login shell contexts, or most programmatic file APIs. Using `~` in file paths passed to `fs.writeFileSync`, `fs.mkdirSync`, etc. will create a literal directory named `~` inside the working directory
+- In agent instructions, ALWAYS write `$HOME` instead of `~` for home directory paths. For example: `$HOME/cclogs/...` not `~/cclogs/...`, `$HOME/.claude/...` not `~/.claude/...`
+- This applies to all file paths in the agent body: log directories, config paths, output directories, temp file locations, etc.
 
 ### Step 3: Create the agent file
 

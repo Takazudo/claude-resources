@@ -1,23 +1,20 @@
 ---
 name: logrefer
-description: >-
-  Browse and read recent logs and artifacts from ~/cclogs/{slug}/. Use when: (1) User wants to see
-  recent agent logs, (2) User says 'logrefer', 'show logs', 'recent logs', (3) User wants to read
-  a specific log file from a previous session.
+description: "Browse and read recent logs and artifacts from $HOME/cclogs/{slug}/. Use when: (1) User wants to see recent agent logs, (2) User says 'logrefer', 'show logs', 'recent logs', (3) User wants to read a specific log file from a previous session."
 user_invocable: true
 argument_description: "[N] [prefix] [read <filename>]"
 ---
 
 # Log Browser
 
-Browse and read recent logs and artifacts from the centralized log directory (`~/cclogs/{slug}/`).
+Browse and read recent logs and artifacts from the centralized log directory (`$HOME/cclogs/{slug}/`).
 
 ## Determine Log Directory
 
 Get the log directory for the current project:
 
 ```bash
-LOGDIR=$(node ~/.claude/scripts/get-logdir.js)
+LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
 ```
 
 If the directory does not exist, inform the user that no logs have been saved yet for this project.
@@ -52,7 +49,7 @@ Check `$ARGUMENTS` for these patterns:
 ### List Mode
 
 ```
-Recent logs in ~/cclogs/{slug}/:
+Recent logs in $HOME/cclogs/{slug}/:
 
   0314_1530-reviewer-auth-refactor.md -- Auth Module Code Review
   0314_1200-research-caching-strategies.md -- Caching Strategy Analysis

@@ -1,12 +1,6 @@
 ---
 name: headless-browser
-description: >-
-  Browser automation skill with two efficiency tiers. Tier 1: lightweight headless-check.js for
-  quick checks, screenshots, error detection. Tier 2: custom Playwright scripts for interactions
-  (click, fill, navigate). Use when: (1) Quick webpage health checks, (2) Taking screenshots, (3)
-  Checking console/network errors, (4) Simple interactions like clicking buttons or filling forms,
-  (5) Multi-step browser automation. Use MCP Playwright only for complex scenarios requiring
-  persistent context or rich introspection.
+description: "Browser automation skill with two efficiency tiers. Tier 1: lightweight headless-check.js for quick checks, screenshots, error detection. Tier 2: custom Playwright scripts for interactions (click, fill, navigate). Use when: (1) Quick webpage health checks, (2) Taking screenshots, (3) Checking console/network errors, (4) Simple interactions like clicking buttons or filling forms, (5) Multi-step browser automation. Use MCP Playwright only for complex scenarios requiring persistent context or rich introspection."
 ---
 
 # Headless Browser Skill
@@ -34,24 +28,27 @@ Need browser automation?
 
 **Best for:** Quick health checks, screenshot capture, error detection
 
-**Script:** `~/.claude/skills/headless-browser/scripts/headless-check.js`
+**Script:** `$HOME/.claude/skills/headless-browser/scripts/headless-check.js`
 
 ### Commands
 
 Basic check (recommended for error detection):
+
 ```bash
-node ~/.claude/skills/headless-browser/scripts/headless-check.js --url <URL> --no-block-resources
+node $HOME/.claude/skills/headless-browser/scripts/headless-check.js --url <URL> --no-block-resources
 ```
 
 Quick check (faster, but may miss font/image errors):
+
 ```bash
-node ~/.claude/skills/headless-browser/scripts/headless-check.js --url <URL>
+node $HOME/.claude/skills/headless-browser/scripts/headless-check.js --url <URL>
 ```
 
 With screenshot:
+
 ```bash
-node ~/.claude/skills/headless-browser/scripts/headless-check.js --url <URL> --screenshot viewport --no-block-resources
-node ~/.claude/skills/headless-browser/scripts/headless-check.js --url <URL> --screenshot full --no-block-resources
+node $HOME/.claude/skills/headless-browser/scripts/headless-check.js --url <URL> --screenshot viewport --no-block-resources
+node $HOME/.claude/skills/headless-browser/scripts/headless-check.js --url <URL> --screenshot full --no-block-resources
 ```
 
 Options:
@@ -97,16 +94,16 @@ JSON with:
 
 **Best for:** Clicking, form filling, navigation, multi-step automation
 
-**Prerequisite:** Playwright is installed in `~/.claude/node_modules/`. Scripts must run from `~/.claude/` or a subdirectory so Node resolves the module.
+**CRITICAL:** Playwright is installed in `$HOME/.claude/skills/headless-browser/node_modules/`. Scripts **MUST** be saved under `$HOME/.claude/skills/headless-browser/` (e.g., `$HOME/.claude/skills/headless-browser/tmp-browser-check.mjs`). **NEVER save to `/tmp/` or `$HOME/.claude/` root** — Node will fail with `ERR_MODULE_NOT_FOUND` because it cannot find the `playwright` package outside this directory tree.
 
 ### How to Use
 
-Write a temporary `.mjs` script, save it under `~/.claude/`, and run it with `node`.
+Write a temporary `.mjs` script, save it as `$HOME/.claude/skills/headless-browser/tmp-browser-check.mjs`, and run it with `node`.
 
 ### Script Template
 
 ```javascript
-// Save as ~/.claude/tmp-browser-check.mjs
+// Save as $HOME/.claude/skills/headless-browser/tmp-browser-check.mjs
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch();
@@ -133,7 +130,7 @@ await browser.close();
 ### Running
 
 ```bash
-node ~/.claude/tmp-browser-check.mjs
+node $HOME/.claude/skills/headless-browser/tmp-browser-check.mjs
 ```
 
 ### Common Operations
@@ -171,7 +168,7 @@ await page.screenshot({ path: 'full.png', fullPage: true });
 Delete the temporary script after use:
 
 ```bash
-rm -f ~/.claude/tmp-browser-check.mjs
+rm -f $HOME/.claude/skills/headless-browser/tmp-browser-check.mjs
 ```
 
 ---
@@ -227,6 +224,7 @@ If the project's breakpoints are unclear, ask the user which width variations ma
 **CRITICAL**: After capturing screenshots, you MUST read and carefully examine every captured PNG file using the Read tool. Do NOT report success without visually verifying the screenshots show the expected result.
 
 Workflow:
+
 1. Capture screenshots
 2. **Read each screenshot with the Read tool**
 3. **Carefully inspect** — check borders, spacing, alignment, color, contrast
@@ -239,8 +237,8 @@ Screenshots that are captured but not visually inspected are worthless. If you s
 
 1. **Start with Tier 1** - If you just need to check if a page works, use headless-check.js
 2. **Escalate to Tier 2** - When interactions are needed, write a custom Playwright script
-3. **Save scripts under `~/.claude/`** - This is where `playwright` is installed as a node_module
-4. **Clean up temp scripts** - Delete `~/.claude/tmp-*.mjs` after use
+3. **Save scripts under `$HOME/.claude/skills/headless-browser/`** - This is where `playwright` is installed as a node_module
+4. **Clean up temp scripts** - Delete `$HOME/.claude/skills/headless-browser/tmp-*.mjs` after use
 5. **Use `waitForTimeout` between actions** - Gives the page time to settle after interactions
 6. **Capture both themes** - When checking CSS, use `colorScheme: 'light'` and `colorScheme: 'dark'`
 7. **Capture at project breakpoints** - When checking layout, read the project's breakpoint config and capture widths that cover each transition
@@ -250,8 +248,8 @@ Screenshots that are captured but not visually inspected are worthless. If you s
 
 ## Technical Notes
 
-- Both tiers use Playwright's headless Chromium (installed in `~/.claude/node_modules/`)
+- Both tiers use Playwright's headless Chromium (installed in `$HOME/.claude/skills/headless-browser/node_modules/`)
 - **Resource blocking:** By default, Tier 1 blocks images/fonts for speed. Use `--no-block-resources` for accurate error detection
-- Tier 2 scripts must be saved under `~/.claude/` (or any ancestor directory of the `node_modules/playwright` install) so Node module resolution can find the package
-- Screenshots saved to `~/cclogs/{repo-name}/headless-screenshots/` (Tier 1) or custom path (Tier 2)
+- Tier 2 scripts must be saved under `$HOME/.claude/skills/headless-browser/` so Node module resolution can find the `playwright` package in its `node_modules/`
+- Screenshots saved to `$HOME/cclogs/{repo-name}/headless-screenshots/` (Tier 1) or custom path (Tier 2)
 - Both tiers are more token-efficient than MCP Playwright

@@ -1,11 +1,6 @@
 ---
 name: watch-ci
-description: >-
-  Watch GitHub PR CI checks in the background and notify on completion. Use when: (1) User wants to
-  monitor CI/CD pipeline status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait
-  for CI', (3) User wants to know when PR checks pass or fail. Launches a background agent that
-  polls CI every 30 seconds, sends macOS system notification on completion. Also handles merged PRs
-  by watching the merge target branch CI instead.
+description: "Watch GitHub PR CI checks in the background and notify on completion. Use when: (1) User wants to monitor CI/CD pipeline status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait for CI', (3) User wants to know when PR checks pass or fail. Launches a background agent that polls CI every 30 seconds, sends macOS system notification on completion. Also handles merged PRs by watching the merge target branch CI instead."
 ---
 
 # Watch CI
@@ -15,7 +10,7 @@ Also supports watching CI on the merge target branch when a PR is already merged
 
 ## Scripts
 
-- **Notification**: `~/.claude/skills/watch-ci/scripts/notify.sh`
+- **Notification**: `$HOME/.claude/skills/watch-ci/scripts/notify.sh`
 
 ## Workflow
 
@@ -78,8 +73,8 @@ Launch a **background Agent** to poll CI status. The agent should:
 - For merged PRs: run `gh run list --branch <base-branch> --commit <sha> --json databaseId,name,status,conclusion --limit 20` each cycle
 - Print a brief progress update each cycle (e.g., "5/8 passed, 3 pending")
 - Stop when all checks reach a terminal state (all passed, or any failed)
-- On **success**: run `bash ~/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<number>"`
-- On **failure**: run `bash ~/.claude/skills/watch-ci/scripts/notify.sh error "CI check failed: <check-name>. PR #<number>"`
+- On **success**: run `bash $HOME/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<number>"`
+- On **failure**: run `bash $HOME/.claude/skills/watch-ci/scripts/notify.sh error "CI check failed: <check-name>. PR #<number>"`
 - Maximum watch time: 60 minutes. After that, notify with warning and stop.
 
 **Agent prompt template** (adapt based on PR state):
@@ -95,8 +90,8 @@ For each poll cycle:
 4. If all terminal (no pending): stop and notify
 
 On completion:
-- If all passed: run bash ~/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<NUMBER>"
-- If any failed: run bash ~/.claude/skills/watch-ci/scripts/notify.sh error "CI check failed: <failed-check-names>. PR #<NUMBER>"
+- If all passed: run bash $HOME/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<NUMBER>"
+- If any failed: run bash $HOME/.claude/skills/watch-ci/scripts/notify.sh error "CI check failed: <failed-check-names>. PR #<NUMBER>"
   Then investigate: run gh run list --branch <branch> --status failure --limit 5 --json databaseId,name,conclusion
   Then run gh run view <run-id> --log-failed for each failed run
   Analyze the logs and report the root cause.
@@ -114,7 +109,7 @@ If checks already passed at Step 2/2b (no polling needed):
 1. Send notification:
 
    ```bash
-   bash ~/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<number>"
+   bash $HOME/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<number>"
    ```
 
 2. Report the final status summary.
@@ -126,7 +121,7 @@ If checks already failed at Step 2/2b:
 1. Send notification:
 
    ```bash
-   bash ~/.claude/skills/watch-ci/scripts/notify.sh error "CI check failed: <check-name>. PR #<number>"
+   bash $HOME/.claude/skills/watch-ci/scripts/notify.sh error "CI check failed: <check-name>. PR #<number>"
    ```
 
 2. Investigate the failure:

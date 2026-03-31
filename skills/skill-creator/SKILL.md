@@ -272,11 +272,11 @@ scripts/init_skill.py <skill-name> --path <parent-directory>
 If `--path` already ends with `<skill-name>`, it won't double-nest.
 
 ```bash
-# Correct: creates ~/.claude/skills/my-skill/SKILL.md
-scripts/init_skill.py my-skill --path ~/.claude/skills
+# Correct: creates $HOME/.claude/skills/my-skill/SKILL.md
+scripts/init_skill.py my-skill --path $HOME/.claude/skills
 
-# Also correct (no double-nesting): creates ~/.claude/skills/my-skill/SKILL.md
-scripts/init_skill.py my-skill --path ~/.claude/skills/my-skill
+# Also correct (no double-nesting): creates $HOME/.claude/skills/my-skill/SKILL.md
+scripts/init_skill.py my-skill --path $HOME/.claude/skills/my-skill
 ```
 
 The script:
@@ -312,6 +312,8 @@ Any example files and directories not needed for the skill should be deleted. Th
 #### Update SKILL.md
 
 **Writing Guidelines:** Always use imperative/infinitive form.
+
+**Path Safety Rule:** In skill instructions, always use `$HOME` instead of `~` (tilde) for home directory references. The `~` character is only expanded by interactive shells -- it is NOT expanded by Node.js `fs` operations, Python `open()`, or non-login shell contexts. Using `~` in file paths can create a literal directory named `~/` inside the working directory instead of resolving to the user's home directory. For example, write `$HOME/cclogs/...` and `$HOME/.claude/...`, never `~/cclogs/...` or `~/.claude/...`.
 
 ##### Frontmatter
 
@@ -389,7 +391,7 @@ Where a skill is stored determines its scope:
 | Location | Path | Applies to |
 |----------|------|------------|
 | Enterprise | Managed settings | All users in organization |
-| Personal | `~/.claude/skills/<name>/SKILL.md` | All your projects |
+| Personal | `$HOME/.claude/skills/<name>/SKILL.md` | All your projects |
 | Project | `.claude/skills/<name>/SKILL.md` | This project only |
 | Plugin | `<plugin>/skills/<name>/SKILL.md` | Where plugin is enabled |
 

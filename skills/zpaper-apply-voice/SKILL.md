@@ -1,11 +1,6 @@
 ---
 name: zpaper-apply-voice
-description: >
-  Apply Takazudo's zpaper blog writing voice and vocabulary rules to text. Use when: (1) User wants
-  to write or rewrite text in Takazudo's zpaper blog style, (2) User says 'apply voice', 'zpaper
-  voice', 'zpaper文体で', 'zpaper風に書いて', 'ブログ文体を適用', (3) User provides text and wants it transformed to
-  match the zpaper blog writing style. Reads the writing-style.md and vocabulary-rule.md from the
-  zpaper repo and applies those rules to the given text.
+description: "Apply Takazudo's zpaper blog writing voice and vocabulary rules to text. Use when: (1) User wants to write or rewrite text in Takazudo's zpaper blog style, (2) User says 'apply voice', 'zpaper voice', 'zpaper文体で', 'zpaper風に書いて', 'ブログ文体を適用', (3) User provides text and wants it transformed to match the zpaper blog writing style. Reads the writing-style.md and vocabulary-rule.md from the zpaper repo and applies those rules to the given text."
 ---
 
 # Apply zpaper Voice
@@ -17,6 +12,7 @@ Apply Takazudo's **zpaper** blog writing voice and vocabulary rules to incoming 
 The zpaper voice is a **personal blog/memo style**. Like sharing personal notes publicly — direct, relaxed, not overly polite. Fragment sentences are fine. The stance is "sharing" not "teaching".
 
 Key traits:
+
 - **Casual directness** — no roundabout preambles, get to the point
 - **Personal blog tone** — not customer-facing, not formal, not slangy
 - **Self-reference**: 「自分」or「Takazudo」. **Never**「筆者」(too formal)
@@ -38,14 +34,15 @@ Key traits:
 
 **Always** read both rule files fresh at invocation time:
 
-1. `$HOME/repos/w/zpaper/doc/docs/overview/writing-style.md`
-2. `$HOME/repos/w/zpaper/doc/docs/overview/vocabulary-rule.md`
+1. `$HOME/repos/w/zpaper/doc/src/content/docs/overview/writing-style.md`
+2. `$HOME/repos/w/zpaper/doc/src/content/docs/overview/vocabulary-rule.md`
 
 These files are the authoritative source of truth. Read them every time to pick up any updates.
 
 ### Step 2: Identify the input text
 
 The input text comes from one of:
+
 - Text provided directly in the conversation (before or after the skill invocation)
 - $ARGUMENTS passed with the command
 - A file path the user points to

@@ -32,7 +32,7 @@ Spawned processes don't inherit version manager PATH. Source shell profile:
 ```javascript
 function getShellEnv() {
   const shell = process.env.SHELL || "/bin/bash";
-  const rcFile = shell.includes("zsh") ? "~/.zshrc" : "~/.bashrc";
+  const rcFile = shell.includes("zsh") ? "$HOME/.zshrc" : "$HOME/.bashrc";
 
   return new Promise((resolve) => {
     const child = spawn(shell, ["-c", `source ${rcFile} && env`], {

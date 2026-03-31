@@ -1,11 +1,6 @@
 ---
 name: easyeda2kicad
-description: >-
-  Download KiCad footprints and symbols from LCSC/EasyEDA for JLCPCB PCBA projects. Use when: (1)
-  User asks to download KiCad footprints or symbols from LCSC, (2) User provides LCSC part numbers
-  (e.g., C3975094, C2927029), (3) User is setting up a KiCad project for JLCPCB assembly, (4) User
-  needs exact symbol-footprint combinations for PCBA, or (5) User is working on hardware/PCB
-  projects requiring component libraries from JLCPCB.
+description: "Download KiCad footprints and symbols from LCSC/EasyEDA for JLCPCB PCBA projects. Use when: (1) User asks to download KiCad footprints or symbols from LCSC, (2) User provides LCSC part numbers (e.g., C3975094, C2927029), (3) User is setting up a KiCad project for JLCPCB assembly, (4) User needs exact symbol-footprint combinations for PCBA, or (5) User is working on hardware/PCB projects requiring component libraries from JLCPCB."
 ---
 
 # easyeda2kicad - Download KiCad Libraries from LCSC/EasyEDA
@@ -89,7 +84,7 @@ easyeda2kicad --lcsc_id <LCSC_ID> --footprint --symbol --3d
 ### Footprints
 
 ```
-~/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/
+$HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/
 └── *.kicad_mod
 ```
 
@@ -98,7 +93,7 @@ Each footprint is a separate `.kicad_mod` file.
 ### Symbols
 
 ```
-~/Documents/Kicad/easyeda2kicad/
+$HOME/Documents/Kicad/easyeda2kicad/
 └── easyeda2kicad.kicad_sym
 ```
 
@@ -123,11 +118,11 @@ After downloading, copy files to project directories:
 
 ```bash
 # Copy footprints (specific files)
-cp ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/<filename>.kicad_mod \
+cp $HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/<filename>.kicad_mod \
    <project-root>/footprints/kicad/
 
 # Copy symbols (entire file)
-cp ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.kicad_sym \
+cp $HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.kicad_sym \
    <project-root>/symbols/<project-name>.kicad_sym
 ```
 
@@ -135,7 +130,7 @@ cp ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.kicad_sym \
 
 ```bash
 # Copy all footprints at once
-cp ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/*.kicad_mod \
+cp $HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/*.kicad_mod \
    /path/to/project/footprints/kicad/
 ```
 
@@ -145,7 +140,7 @@ When user requests multiple components, use this pattern:
 
 ```bash
 # 1. Change to download directory
-cd ~/Documents/Kicad/easyeda2kicad
+cd $HOME/Documents/Kicad/easyeda2kicad
 
 # 2. Download all components
 easyeda2kicad --lcsc_id C3975094 --footprint --symbol --overwrite
@@ -154,11 +149,11 @@ easyeda2kicad --lcsc_id C7432781 --footprint --symbol --overwrite
 # ... etc
 
 # 3. Copy footprints to project
-cp ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/*.kicad_mod \
+cp $HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/*.kicad_mod \
    <project-root>/footprints/kicad/
 
 # 4. Copy symbols to project
-cp ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.kicad_sym \
+cp $HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.kicad_sym \
    <project-root>/symbols/<project-name>.kicad_sym
 ```
 
@@ -250,19 +245,20 @@ easyeda2kicad --lcsc_id <LCSC_ID> --footprint --full
 **Solution: Use Generic KiCad Symbols**
 
 1. **Download footprint only** (if available):
+
    ```bash
    easyeda2kicad --lcsc_id <LCSC_ID> --footprint --overwrite
    ```
 
 2. **Use KiCad's built-in generic symbols**:
-  - Capacitors: `Device:C`
-  - Resistors: `Device:R`
-  - LEDs: `Device:LED`
-  - Inductors: `Device:L`
+- Capacitors: `Device:C`
+- Resistors: `Device:R`
+- LEDs: `Device:LED`
+- Inductors: `Device:L`
 
 3. **Pair with downloaded footprint**:
-  - Symbol: Generic KiCad symbol (e.g., `Device:C`)
-  - Footprint: Downloaded or generic (e.g., `C0805.kicad_mod`)
+- Symbol: Generic KiCad symbol (e.g., `Device:C`)
+- Footprint: Downloaded or generic (e.g., `C0805.kicad_mod`)
 
 **Example workflow for 22nF capacitor (C7393941):**
 
@@ -286,10 +282,10 @@ Successful download shows:
 -- easyeda2kicad.py v0.8.0 --
 [INFO] Created Kicad symbol for ID : C3975094
        Symbol name : CH224D_C3975094
-       Library path : ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.kicad_sym
+       Library path : $HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.kicad_sym
 [INFO] Created Kicad footprint for ID: C3975094
        Footprint name: QFN-20_L3.0-W3.0-P0.40-BL-EP1.7
-       Footprint path: ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/...
+       Footprint path: $HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/...
 ```
 
 ## Batch Download Example
@@ -297,7 +293,7 @@ Successful download shows:
 For a complete stage (e.g., USB-PD stage with 9 components):
 
 ```bash
-cd ~/Documents/Kicad/easyeda2kicad
+cd $HOME/Documents/Kicad/easyeda2kicad
 
 # Download all components for USB-PD stage
 for lcsc_id in C3975094 C2927029 C7432781 C49678 C6119849 C705785 C23186 C23138 C2286; do
@@ -314,7 +310,7 @@ cp easyeda2kicad.kicad_sym <project>/symbols/<project>.kicad_sym
 
 1. **Always download BOTH footprint and symbol** unless user specifically requests only one
 2. **Use `--overwrite`** when downloading multiple components to avoid conflicts
-3. **Run downloads from `~/Documents/Kicad/easyeda2kicad`** directory for consistency
+3. **Run downloads from `$HOME/Documents/Kicad/easyeda2kicad`** directory for consistency
 4. **Copy files separately** - footprints are individual files, symbols are a single file
 5. **Verify after copying** by listing files in project directories
 6. **Inform user of symbol names** so they can find them in KiCad
@@ -327,8 +323,8 @@ cp easyeda2kicad.kicad_sym <project>/symbols/<project>.kicad_sym
 | Overwrite existing | Add `--overwrite` flag |
 | Include 3D model | Add `--3d` flag |
 | Check installation | `easyeda2kicad --version` |
-| Copy footprints | `cp ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/*.kicad_mod <project>/footprints/kicad/` |
-| Copy symbols | `cp ~/Documents/Kicad/easyeda2kicad/easyeda2kicad.kicad_sym <project>/symbols/<name>.kicad_sym` |
+| Copy footprints | `cp $HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.pretty/*.kicad_mod <project>/footprints/kicad/` |
+| Copy symbols | `cp $HOME/Documents/Kicad/easyeda2kicad/easyeda2kicad.kicad_sym <project>/symbols/<name>.kicad_sym` |
 
 ## References
 

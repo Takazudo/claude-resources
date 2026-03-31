@@ -1,10 +1,6 @@
 ---
 name: refer-another-project
-description: >-
-  Refer another project while protecting sensitive information. Use when: (1) User says 'refer
-  project', 'copy from project', or 'look at another repo', (2) User wants to reference patterns or
-  setup from another codebase, (3) User needs to learn from another project's structure without
-  leaking private data.
+description: "Refer another project while protecting sensitive information. Use when: (1) User says 'refer project', 'copy from project', or 'look at another repo', (2) User wants to reference patterns or setup from another codebase, (3) User needs to learn from another project's structure without leaking private data."
 argument-hint: <slug|path> [slug2 ...] — repo slug (e.g. zmod) or full path
 disable-model-invocation: true
 ---
@@ -21,20 +17,20 @@ Arguments can be **slugs** (short names) or **full paths**. Multiple slugs/paths
 
 For each slug argument (any argument that is NOT an absolute path starting with `/`):
 
-1. Search for matching directories at `~/repos/*/{slug}` (one level of category directories)
+1. Search for matching directories at `$HOME/repos/*/{slug}` (one level of category directories)
 2. If exactly one match is found, use it as the project path
 3. If no match is found, **stop and report the error** to the user — do not guess or continue
 4. If multiple matches are found, list them and ask the user to clarify
 
 **Examples:**
 
-- `/refer-another-project zmod` → resolves `~/repos/*/zmod` → e.g. `~/repos/zp/zmod`
+- `/refer-another-project zmod` → resolves `$HOME/repos/*/zmod` → e.g. `$HOME/repos/zp/zmod`
 - `/refer-another-project zmod dotfiles` → resolves both slugs independently
-- `/refer-another-project ~/repos/zp/zmod` → uses full path directly
+- `/refer-another-project $HOME/repos/zp/zmod` → uses full path directly
 
 ```bash
 # Resolution command for each slug
-ls -d ~/repos/*/{slug} 2>/dev/null
+ls -d $HOME/repos/*/{slug} 2>/dev/null
 ```
 
 ## Critical Security Warning
@@ -85,7 +81,7 @@ The referenced project may belong to a work client. Exposing client names or pro
 
 ## Example Scenario
 
-When copying Docusaurus setup from `~/foo/bar/`:
+When copying Docusaurus setup from `$HOME/foo/bar/`:
 
 **Safe to reference:**
 

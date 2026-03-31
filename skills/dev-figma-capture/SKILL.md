@@ -1,9 +1,6 @@
 ---
 name: dev-figma-capture
-description: >-
-  Capture web pages and send them to Figma as editable design files. Use when: (1) User wants to
-  capture a webpage to Figma, (2) User says 'figma capture', 'send to figma', 'capture to figma',
-  (3) User provides URLs to convert to Figma designs
+description: "Capture web pages and send them to Figma as editable design files. Use when: (1) User wants to capture a webpage to Figma, (2) User says 'figma capture', 'send to figma', 'capture to figma', (3) User provides URLs to convert to Figma designs"
 disable-model-invocation: true
 argument-hint: "[url1] [url2] ... [--existing fileKey]"
 ---
@@ -65,7 +62,7 @@ Wait 5-10 seconds, then poll capture status.
 Run the bundled capture script:
 
 ```bash
-node ~/.claude/skills/dev-figma-capture/scripts/figma-capture.mjs \
+node $HOME/.claude/skills/dev-figma-capture/scripts/figma-capture.mjs \
   --url <URL> \
   --capture-id <CAPTURE_ID>
 ```

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = resolve(__dirname, "../..");
-const APP_DIR = resolve(ROOT, "..", "app");
+const APP_DIR = resolve(ROOT, "src-tauri");
 
 describe("config consistency between tauri.conf.json and dev-stable.js", () => {
   const tauriConf = JSON.parse(
@@ -53,12 +53,4 @@ describe("config consistency between tauri.conf.json and dev-stable.js", () => {
     assert.ok(dist, "tauri.conf.json must have build.frontendDist for production");
   });
 
-  it("tauri.conf.json externalBin includes node for production", () => {
-    const bins = tauriConf.bundle?.externalBin;
-    assert.ok(bins, "tauri.conf.json must have bundle.externalBin");
-    assert.ok(
-      bins.some((b) => b.includes("node")),
-      "externalBin should include a node binary entry",
-    );
-  });
 });

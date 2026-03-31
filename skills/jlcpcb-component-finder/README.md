@@ -17,14 +17,14 @@ This is a Claude Code **skill** that enables Claude to search through JLCPCB's m
 
 1. **Claude Code** installed and configured
 2. **Node.js** (for running the query script)
-3. **JLCPCB database** (~11GB) downloaded to `~/.jlcpcb-db/`
+3. **JLCPCB database** (~11GB) downloaded to `$HOME/.jlcpcb-db/`
 
 ### Step 1: Install the Skill
 
 #### Option A: As Git Submodule (Recommended)
 
 ```bash
-cd ~/.claude
+cd $HOME/.claude
 git submodule add git@github.com:Takazudo/jlcpcb-parts-finder-skill.git skills/jlcpcb
 cd skills/jlcpcb
 npm install
@@ -33,8 +33,8 @@ npm install
 #### Option B: Manual Installation
 
 ```bash
-git clone git@github.com:Takazudo/jlcpcb-parts-finder-skill.git ~/.claude/skills/jlcpcb
-cd ~/.claude/skills/jlcpcb
+git clone git@github.com:Takazudo/jlcpcb-parts-finder-skill.git $HOME/.claude/skills/jlcpcb
+cd $HOME/.claude/skills/jlcpcb
 npm install
 ```
 
@@ -56,8 +56,8 @@ cat cache.z* cache.zip > cache_combined.zip
 unzip cache_combined.zip
 
 # Move to the expected location
-mkdir -p ~/.jlcpcb-db
-mv cache.sqlite3 ~/.jlcpcb-db/
+mkdir -p $HOME/.jlcpcb-db
+mv cache.sqlite3 $HOME/.jlcpcb-db/
 ```
 
 ### Step 3: Add the Custom Command (Optional)
@@ -66,10 +66,10 @@ For the `/jlcpcb` slash command to appear in autocomplete:
 
 ```bash
 # Copy or create the command file
-cp jlcpcb.md ~/.claude/commands/jlcpcb.md
+cp jlcpcb.md $HOME/.claude/commands/jlcpcb.md
 ```
 
-Or create `~/.claude/commands/jlcpcb.md` manually (see command template below).
+Or create `$HOME/.claude/commands/jlcpcb.md` manually (see command template below).
 
 ### Step 4: Restart Claude Code
 
@@ -95,13 +95,13 @@ You can also run the query script directly:
 
 ```bash
 # List all categories
-node ~/.claude/skills/jlcpcb/query.js list-categories
+node $HOME/.claude/skills/jlcpcb/query.js list-categories
 
 # Search for 3.5mm audio jacks
-node ~/.claude/skills/jlcpcb/query.js search-parts 208 "3.5" 10
+node $HOME/.claude/skills/jlcpcb/query.js search-parts 208 "3.5" 10
 
 # Search for LDO regulators
-node ~/.claude/skills/jlcpcb/query.js search-parts 111 "LDO" 15
+node $HOME/.claude/skills/jlcpcb/query.js search-parts 111 "LDO" 15
 ```
 
 ## Common Categories
@@ -145,7 +145,7 @@ jlcpcb-parts-finder-skill/
 ## Requirements
 
 - **Node.js**: v14 or higher
-- **Database**: `~/.jlcpcb-db/cache.sqlite3` (11GB)
+- **Database**: `$HOME/.jlcpcb-db/cache.sqlite3` (11GB)
 - **Claude Code**: Latest version
 - **Dependencies**: `better-sqlite3` (installed via npm)
 
@@ -154,15 +154,15 @@ jlcpcb-parts-finder-skill/
 ### Database not found
 
 ```
-ERROR: Database not found at ~/.jlcpcb-db/cache.sqlite3
+ERROR: Database not found at $HOME/.jlcpcb-db/cache.sqlite3
 ```
 
-**Solution**: Download and extract the database to `~/.jlcpcb-db/cache.sqlite3` (see installation steps above).
+**Solution**: Download and extract the database to `$HOME/.jlcpcb-db/cache.sqlite3` (see installation steps above).
 
 ### Skill not appearing
 
 **Solution**:
-1. Verify skill is in `~/.claude/skills/jlcpcb/`
+1. Verify skill is in `$HOME/.claude/skills/jlcpcb/`
 2. Check that `SKILL.md` exists with proper frontmatter
 3. Run `npm install` in the skill directory
 4. Completely restart Claude Code (not just new conversation)
@@ -179,7 +179,7 @@ npm --version
 
 **Solution**: Check that better-sqlite3 is installed:
 ```bash
-cd ~/.claude/skills/jlcpcb
+cd $HOME/.claude/skills/jlcpcb
 npm list better-sqlite3
 ```
 
@@ -200,7 +200,7 @@ node query.js search-parts 208 "3.5" 5
 ### Updating the Skill
 
 ```bash
-cd ~/.claude/skills/jlcpcb
+cd $HOME/.claude/skills/jlcpcb
 git pull origin main
 npm install  # If dependencies changed
 ```

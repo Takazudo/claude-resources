@@ -1,9 +1,6 @@
 ---
 name: globalsync
-description: >-
-  Sync all personal repos across machines via git pull & push. Use when: (1) User says 'globalsync',
-  'sync repos', 'pull push all', (2) User wants to sync their daily resources across machines, (3)
-  User starts or ends a work session and needs repos up to date.
+description: "Sync all personal repos across machines via git pull & push. Use when: (1) User says 'globalsync', 'sync repos', 'pull push all', (2) User wants to sync their daily resources across machines, (3) User starts or ends a work session and needs repos up to date."
 allowed-tools: Bash, Read, Task
 ---
 
@@ -14,15 +11,18 @@ Sync all personal repos across machines by running git pull & push on each repo 
 ## Target Repos
 
 Work resources (`$HOME/repos/w/`):
+
 - `cg` - CodeGrid writing (Docusaurus)
 - `esa` - esa writing (Docusaurus)
 
 Standalone:
-- `~/.claude` - Claude Code settings, skills, agents, commands
+
+- `$HOME/.claude` - Claude Code settings, skills, agents, commands
 
 Personal resources (`$HOME/repos/p/`):
+
 - `claude-resources` - Claude Code config & resources
-- `dotconfigetc` - ~/.config managed entries
+- `dotconfigetc` - $HOME/.config managed entries
 - `dotconfignvim` - Neovim/VimR config
 - `dotfiles` - Shared dotfiles across Macs
 

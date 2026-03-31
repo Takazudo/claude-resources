@@ -25,7 +25,7 @@ For self-hosted runners this is even more pointless — the pnpm store is alread
 ```yaml
 - uses: actions/cache@v4
   with:
-    path: ~/.cache/ms-playwright
+    path: $HOME/.cache/ms-playwright
     key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
     restore-keys: |
       playwright-${{ runner.os }}-

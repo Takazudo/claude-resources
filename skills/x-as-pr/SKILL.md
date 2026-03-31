@@ -12,7 +12,9 @@ description: >-
   coding, (4) User has already implemented changes on a branch and wants to create a PR for them,
   (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' or '--issue' to
   create an issue first.
-argument-hint: "[--make-issue|--issue] [--stay] [issue-url-or-number] [branch-name] [base-branch]"
+argument-hint: >-
+  [-co|--codex] [--make-issue|--issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi]
+  [issue-url-or-number] [branch-name] [base-branch]
 ---
 
 # Dev As PR
@@ -25,6 +27,10 @@ Parse `$ARGUMENTS` to extract:
 
 - **`--make-issue` or `--issue` flag**: If present, create a GitHub issue before starting (see "Issue Creation Mode" below)
 - **`--stay` flag**: If present, stay on the current branch instead of creating a new one (see "Stay Mode" below)
+- **`-l` or `--review-loop` flag**: If present, replace the final review step with `/review-loop 5 --aggressive` instead of `/local-review` (see "Review Loop Mode" below)
+- **`-v` or `--verify-ui` flag**: If present, run `/verify-ui` after review fixes to verify frontend changes visually (see "Verify UI Mode" below)
+- **`--noi`, `--noissue`, or `--noissues` flag**: Only meaningful with `--review-loop`. Suppresses GitHub issue creation for review findings. Without this flag, review-loop creates issues for considerable findings by default
+- **`-co` or `--codex` flag**: If present, use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below
 - **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
 - **Branch name**: Explicit branch name if provided (look for words like `branch:` or a slash-containing name like `topic/foo`)
 - **Base branch**: Explicit base branch if provided (look for words like `base:` or `from:`)
@@ -200,6 +206,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 
 1. **Parent issue**: Use `ISSUE_NUM` if set (from linked issue or `--make-issue`)
 2. **Parent PR**: Check if `TARGET_BRANCH` has an open PR:
+
    ```bash
    PARENT_PR_NUM=$(gh pr list --head "$TARGET_BRANCH" --json number -q '.[0].number' 2>/dev/null)
    ```
@@ -220,6 +227,41 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 - Only include sections that have values — omit `- issues` if no issue, omit `- parent PR` if no parent PR
 - If neither exists, omit the header entirely
 - **When updating the PR body later** (e.g., via `/pr-revise`), always preserve the reference header at the top — do not remove or replace it
+
+---
+
+## Codex 2nd Opinion (Planning Phase)
+
+Before starting implementation (in either Fresh-Start or Existing-Work mode), when the abstract concept of the task is understood:
+
+1. **Form an initial plan** — understand what needs to be done, which files are involved, and the approach
+2. **Invoke `/codex-2nd`** — send the plan to codex for a second opinion
+3. **Review feedback** — if codex returns useful, actionable feedback, update the plan accordingly
+4. **Optionally re-run** — if the plan changed significantly, invoke `/codex-2nd` again with the updated plan (up to 3 iterations total)
+5. **Finalize and proceed** — once the plan is stable, begin implementation
+
+This step is advisory. If codex is unresponsive or provides no useful feedback, proceed with the original plan.
+
+---
+
+## Codex Mode (`-co` / `--codex`)
+
+When `-co` or `--codex` is passed, the following substitutions apply throughout the entire workflow:
+
+| Default tool | Codex replacement | Used for |
+|---|---|---|
+| `/local-review` | `/codex-review` | Post-implementation code review |
+| `/review-loop N --aggressive` | `/codex-review` (run once) | Review loop mode review step |
+| Agent tool (web search, research) | `/codex-research` | Any web search or codebase research during planning/implementation |
+| Agent tool (doc writing) | `/codex-writer` | Writing documentation, README, or other text content |
+
+**How it affects the workflow:**
+
+- **Post-Implementation Review**: Instead of `/local-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
+- **Research during planning/implementation**: When you need to research libraries, APIs, or best practices (web search or codebase exploration), prefer `/codex-research` over the Agent tool or WebSearch.
+- **Documentation writing**: When writing README content, doc comments, or other prose during implementation, prefer `/codex-writer` over writing directly.
+
+All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
 ---
 
@@ -476,9 +518,12 @@ After implementation is complete (in either mode), evaluate whether to run an au
 
 ### Action
 
-When all conditions are met, invoke `/local-review` to perform an automatic code quality review of the changes.
+When all conditions are met, run the review:
 
-Tell the user: "Implementation went smoothly — running local review on the changes."
+- **If `-l` / `--review-loop` was passed**: Invoke `/review-loop 5 --aggressive --issues` instead of `/local-review`. If `--noi` / `--noissue` / `--noissues` was also passed, omit the `--issues` flag (i.e., invoke `/review-loop 5 --aggressive`). This runs 5 rounds of aggressive review-fix cycles for thorough quality improvement.
+- **Otherwise (default)**: Invoke `/local-review` to perform a standard code quality review.
+
+Tell the user: "Implementation went smoothly — running local review on the changes." (or "running review-loop" if `--review-loop` is active).
 
 Commit any review fixes locally (do NOT push yet).
 
@@ -490,6 +535,20 @@ Do NOT run local review if:
 - The user was asked for confirmation or clarification during implementation
 - Errors occurred that required user intervention
 - The user explicitly asked to skip review
+
+---
+
+## Post-Implementation: Verify UI (optional)
+
+**Only run this step if `-v` / `--verify-ui` was passed.**
+
+After the review step (whether `/local-review` or `/review-loop`) is complete and fixes are committed:
+
+1. **Launch a verification target** — start the project's dev server, use a PR preview URL, or any other means to get the implementation running in a browser
+2. **Invoke `/verify-ui`** to verify that frontend/CSS/layout changes were actually applied correctly
+3. If `/verify-ui` reveals issues, fix them and commit locally (do NOT push yet)
+
+This step ensures that visual/UI changes are not just code-correct but render correctly in the browser. Skip if the changes are purely backend or non-visual.
 
 ---
 
@@ -512,7 +571,7 @@ This single push triggers CI once with the complete implementation, rather than 
 Invoke `/watch-ci` on the PR to monitor CI:
 
 ```bash
-RESULT=$(bash ~/.claude/skills/watch-ci/scripts/check-ci.sh <PR_NUMBER>)
+RESULT=$(bash $HOME/.claude/skills/watch-ci/scripts/check-ci.sh <PR_NUMBER>)
 echo "$RESULT"
 ```
 
@@ -566,7 +625,7 @@ Write a markdown report summarizing:
 ### Save to Log Directory
 
 ```bash
-~/.claude/scripts/save-file.js "{logdir}/{timestamp}-x-as-pr-{slug}.md" "<report content>"
+$HOME/.claude/scripts/save-file.js "{logdir}/{timestamp}-x-as-pr-{slug}.md" "<report content>"
 ```
 
 Where `{slug}` is derived from the branch name or PR title (e.g., `add-dark-mode-support`).
@@ -581,11 +640,53 @@ gh issue comment "$ISSUE_NUM" --body "<report content>"
 
 ---
 
+## Post-Implementation: Requirements Verification
+
+**Only run this step when a GitHub issue is linked** (`ISSUE_NUM` is set — either passed as argument or created via `--make-issue`). Skip if no issue is linked.
+
+After the session report, verify that the original requirements have been fully implemented:
+
+### Step 1: Re-read the Issue
+
+```bash
+gh issue view "$ISSUE_NUM"
+```
+
+Read the **initial issue body** and any **early comments** (especially the first 1-2 comments) to extract the original requirements. These represent what the user actually asked for.
+
+### Step 2: Compare Against Implementation
+
+Check every requirement, acceptance criterion, and bullet point from the issue against what was actually implemented. Be thorough — check the code, not just commit messages.
+
+### Step 3: Handle Missing Requirements
+
+- **If all requirements are met**: Proceed to STOP. Add a comment on the issue confirming all requirements are satisfied:
+
+  ```bash
+  gh issue comment "$ISSUE_NUM" --body "All original requirements verified as implemented."
+  ```
+
+- **If requirements are missing**: Do NOT stop. Instead:
+  1. Comment on the issue listing the missing requirements:
+
+     ```bash
+     gh issue comment "$ISSUE_NUM" --body "### Requirements gap found\n\nMissing: <list of missing items>\n\nContinuing implementation..."
+     ```
+
+  2. **Continue the development loop** — implement the missing parts, commit locally (push-forbid), then re-run the post-implementation steps (review, verify-ui if applicable, push, CI watch, PR revision, session report)
+  3. **Re-run this verification step** after the additional implementation is complete
+  4. Repeat until all original requirements are satisfied
+
+This creates a self-correcting loop that ensures nothing from the original spec is missed, even in long workflows where context can drift.
+
+---
+
 ## STOP — WORKFLOW ENDS HERE
 
-**After the session report is saved, the workflow is DONE.** Report the PR URL and stop.
+**After requirements verification passes, the workflow is DONE.** Report the PR URL and stop.
 
 **CRITICAL RULES:**
+
 - **Stay on `<BRANCH_NAME>`.** Do NOT checkout `main`, the parent branch, or any other branch.
 - **Do NOT do anything else** unless the user asks.
 

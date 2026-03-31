@@ -1,11 +1,6 @@
 ---
 name: zudoesa-apply-voice
-description: >
-  Apply Takazudo's esa writing voice and vocabulary rules to text. Use when: (1) User wants to write
-  or rewrite text in Takazudo's esa style, (2) User says 'apply voice', 'esa voice', 'esa文体で',
-  'esa風に書いて', '文体を適用', (3) User provides text and wants it transformed to match the esa writing
-  style. Reads the writing-style.md and vocabulary-rule.md from the takazudo-esa-writing repo and
-  applies those rules to the given text.
+description: "Apply Takazudo's esa writing voice and vocabulary rules to text. Use when: (1) User wants to write or rewrite text in Takazudo's esa style, (2) User says 'apply voice', 'esa voice', 'esa文体で', 'esa風に書いて', '文体を適用', (3) User provides text and wants it transformed to match the esa writing style. Reads the writing-style.md and vocabulary-rule.md from the takazudo-esa-writing repo and applies those rules to the given text."
 ---
 
 # Apply esa Voice
@@ -17,6 +12,7 @@ Apply Takazudo's **esa** writing voice and vocabulary rules to incoming text.
 The esa voice is a **casual memo/blog for colleagues**. Like talking to a coworker — direct, relaxed, not overly polite. Fragment sentences are fine. The stance is "sharing" not "teaching".
 
 Key traits:
+
 - **Casual directness** — no roundabout preambles, get to the point
 - **Colleague-to-colleague tone** — not customer-facing, not formal
 - **Self-reference**: 「自分」or「Takazudo」. **Never**「筆者」(too formal for esa)
@@ -48,14 +44,15 @@ Key traits:
 
 **Always** read both rule files fresh at invocation time:
 
-1. `$HOME/repos/w/esa/doc/docs/overview/writing-style.md`
-2. `$HOME/repos/w/esa/doc/docs/overview/vocabulary-rule.md`
+1. `$HOME/repos/w/esa/doc/src/content/docs/overview/writing-style.md`
+2. `$HOME/repos/w/esa/doc/src/content/docs/overview/vocabulary-rule.md`
 
 These files are the authoritative source of truth. Read them every time to pick up any updates.
 
 ### Step 2: Identify the input text
 
 The input text comes from one of:
+
 - Text provided directly in the conversation (before or after the skill invocation)
 - $ARGUMENTS passed with the command
 - A file path the user points to

@@ -4,7 +4,7 @@ A lightweight headless browser checking skill for webpage health checks.
 
 ## Installation
 
-The skill is installed in `~/.claude/skills/headless-browser/`, making it available globally.
+The skill is installed in `$HOME/.claude/skills/headless-browser/`, making it available globally.
 
 ## Script Location
 
@@ -15,7 +15,7 @@ The script has two possible locations:
   - Uses the project's Playwright installation
   - No additional setup needed
 
-2. **Global**: `~/bin/headless-check.mjs`
+2. **Global**: `$HOME/bin/headless-check.mjs`
   - Can run from anywhere
   - Requires: `npm install -g playwright`
 
@@ -52,7 +52,7 @@ If you want to use the script globally (from any directory):
 # Install Playwright globally
 npm install -g playwright
 
-# The script is already copied to ~/bin/headless-check.mjs
+# The script is already copied to $HOME/bin/headless-check.mjs
 # Test it:
-node ~/bin/headless-check.mjs --url https://example.com
+node $HOME/bin/headless-check.mjs --url https://example.com
 ```

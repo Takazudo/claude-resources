@@ -33,6 +33,7 @@ import { docsUrl } from "@/utils/base";
 import EditLink from "@/components/edit-link.astro";
 import DocMetainfo from "@/components/doc-metainfo.astro";
 import DocTags from "@/components/doc-tags.astro";
+import DocFrontmatter from "@/components/doc-frontmatter.astro";
 
 export async function getStaticPaths() {
   const allDocs = await getCollection("docs");
@@ -182,13 +183,14 @@ const slug = autoIndex
           />
         )}
 
-        {entry.data.description && (
-          <p class="mt-0 mb-vsp-lg text-subheading text-muted">
-            {entry.data.description}
-          </p>
-        )}
-
-        {entry?.data?.tags && <DocTags tags={entry.data.tags} locale="en" />}
+        <DocFrontmatter entries={
+          (["description", "tags"] as const)
+            .filter((k) => {
+              const v = entry.data[k];
+              return v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
+            })
+            .map((k) => ({ key: k, value: entry.data[k] as string | number | string[] }))
+        } />
 
         <Content components={components} />
 

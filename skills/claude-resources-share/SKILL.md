@@ -1,34 +1,28 @@
 ---
 name: claude-resources-share
-description: >-
-  Publish Claude Code resources (commands, skills, agents, hooks, scripts, doc, app, CLAUDE.md) from the
-  private ~/.claude repo to the public claude-resources repo. One-direction copy with a safety gate:
-  scans for private info before copying, requires user confirmation. Use when: (1) User says 'share
-  resources', 'publish resources', 'sync public repo', (2) User wants to update the public
-  claude-resources repo.
+description: "Publish Claude Code resources (commands, skills, agents, hooks, scripts, doc, CLAUDE.md) from the private $HOME/.claude repo to the public claude-resources repo. One-direction copy with a safety gate: scans for private info before copying, requires user confirmation. Use when: (1) User says 'share resources', 'publish resources', 'sync public repo', (2) User wants to update the public claude-resources repo."
 ---
 
 # Claude Resources Share
 
-One-direction publish from `~/.claude/` (private) to `$HOME/repos/p/claude-resources` (public).
+One-direction publish from `$HOME/.claude/` (private) to `$HOME/repos/p/claude-resources` (public).
 
 ## Paths
 
-- **Source**: `~/.claude/`
+- **Source**: `$HOME/.claude/`
 - **Target**: `$HOME/repos/p/claude-resources`
 
 ## Directories to copy
 
 | Source | Target |
 |--------|--------|
-| `~/.claude/commands/` | `commands/` |
-| `~/.claude/skills/` | `skills/` |
-| `~/.claude/agents/` | `agents/` |
-| `~/.claude/hooks/` | `hooks/` |
-| `~/.claude/scripts/` | `scripts/` |
-| `~/.claude/doc/` | `doc/` |
-| `~/.claude/app/` | `app/` |
-| `~/.claude/CLAUDE.md` | `CLAUDE.md` |
+| `$HOME/.claude/commands/` | `commands/` |
+| `$HOME/.claude/skills/` | `skills/` |
+| `$HOME/.claude/agents/` | `agents/` |
+| `$HOME/.claude/hooks/` | `hooks/` |
+| `$HOME/.claude/scripts/` | `scripts/` |
+| `$HOME/.claude/doc/` | `doc/` |
+| `$HOME/.claude/CLAUDE.md` | `CLAUDE.md` |
 
 ## Excludes (apply to all rsync operations)
 
@@ -80,7 +74,7 @@ First, remove all old content in the target (preserving `.git/`, `.gitignore`, `
 ```bash
 # Remove previous copies (but preserve git and repo meta files)
 cd $HOME/repos/p/claude-resources
-for dir in commands skills agents hooks scripts doc app; do
+for dir in commands skills agents hooks scripts doc; do
   rm -rf "./$dir"
 done
 rm -f ./CLAUDE.md
@@ -92,7 +86,7 @@ Then copy fresh from source using rsync. **IMPORTANT**: Pass each `--exclude` fl
 SRC="$HOME/.claude"
 DST="$HOME/repos/p/claude-resources"
 
-for dir in commands skills agents hooks scripts doc app; do
+for dir in commands skills agents hooks scripts doc; do
   rsync -av \
     --exclude=node_modules \
     --exclude=.docusaurus \
@@ -135,7 +129,7 @@ Report file counts per directory:
 
 ```bash
 DST="$HOME/repos/p/claude-resources"
-for dir in commands skills agents hooks scripts doc app; do
+for dir in commands skills agents hooks scripts doc; do
   echo "$dir: $(find "$DST/$dir" -type f | wc -l) files"
 done
 echo "CLAUDE.md: 1 file"

@@ -1,10 +1,6 @@
 ---
 name: local-review
-description: >-
-  Perform code quality review focused on structure, refactoring, and best practices. Use when: (1)
-  User says 'review', 'local review', or 'code review', (2) After implementation is complete and
-  quality check is needed, (3) Before marking a PR as ready for review. Auto-detects PR mode (3
-  reviewers on diff) vs full project mode (6 reviewers on entire codebase).
+description: "Perform code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'local review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Auto-detects PR mode (3 reviewers on diff) vs full project mode (6 reviewers on entire codebase)."
 ---
 
 # Local Review
@@ -130,6 +126,34 @@ Do NOT return the full analysis — it is in the log file.
 ```
 
 **CRITICAL: Launch all 3 code-reviewer subagents in PARALLEL in a single message using Opus model**
+
+### Step A-2b: Run Codex Review in Parallel
+
+**In addition to** the 3 Claude Code reviewers above, also launch `/codex-review` in parallel as a background Bash task. This provides a cross-model perspective on the same diff:
+
+```bash
+LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
+mkdir -p "$LOGDIR"
+DATETIME=$(date +%Y%m%d_%H%M%S)
+
+# Detect timeout command (gtimeout on macOS via coreutils, timeout on Linux/WSL)
+if command -v gtimeout &>/dev/null; then
+  TIMEOUT_CMD="gtimeout"
+elif command -v timeout &>/dev/null; then
+  TIMEOUT_CMD="timeout"
+else
+  TIMEOUT_CMD=""
+  echo "ERROR: neither gtimeout nor timeout found. On macOS: brew install coreutils | On WSL/Linux: sudo apt install coreutils"
+fi
+
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} codex exec review --base "$BASE" --ephemeral \
+  -o "$LOGDIR/${DATETIME}-codex-review-local.md" \
+  2>"$LOGDIR/${DATETIME}-codex-review-local-stderr.log"
+```
+
+- This runs concurrently with the Claude Code subagents — do not wait for it before launching them
+- If codex times out or produces no output, proceed with Claude Code reviewers' results only
+- If codex produces findings, include them in the synthesis step alongside Claude Code reviewer results
 
 ---
 
@@ -298,6 +322,34 @@ Do NOT return the full analysis — it is in the log file.
 ```
 
 **CRITICAL: Launch all 6 code-reviewer subagents in PARALLEL in a single message using Opus model**
+
+### Step B-2b: Run Codex Review in Parallel
+
+**In addition to** the 6 Claude Code reviewers above, also launch a codex review in parallel as a background Bash task:
+
+```bash
+LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
+mkdir -p "$LOGDIR"
+DATETIME=$(date +%Y%m%d_%H%M%S)
+
+# Detect timeout command (gtimeout on macOS via coreutils, timeout on Linux/WSL)
+if command -v gtimeout &>/dev/null; then
+  TIMEOUT_CMD="gtimeout"
+elif command -v timeout &>/dev/null; then
+  TIMEOUT_CMD="timeout"
+else
+  TIMEOUT_CMD=""
+  echo "ERROR: neither gtimeout nor timeout found. On macOS: brew install coreutils | On WSL/Linux: sudo apt install coreutils"
+fi
+
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} codex exec review --ephemeral -o "$LOGDIR/${DATETIME}-codex-review-local-full.md" \
+  "Review the entire codebase for bugs, logic errors, structural issues, and quality. Be concise." \
+  2>"$LOGDIR/${DATETIME}-codex-review-local-full-stderr.log"
+```
+
+- Runs concurrently with Claude Code subagents
+- If codex times out or produces no output, proceed with Claude Code reviewers only
+- Include codex findings in synthesis if available
 
 ---
 

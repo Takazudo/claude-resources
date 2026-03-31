@@ -751,6 +751,74 @@ pre.astro-code .line .highlighted-word {
   margin: var(--spacing-vsp-xs) 0 var(--spacing-vsp-2xs);
 }
 
+/* ========================================
+ * Sidebar variable + toggle/resize
+ * ======================================== */
+
+:root {
+  --zd-sidebar-w: clamp(14rem, 20vw, 22rem);
+}
+
+@media (min-width: 1024px) {
+  #desktop-sidebar {
+    transition:
+      transform 200ms ease-in-out,
+      visibility 200ms;
+  }
+
+  html[data-sidebar-hidden] #desktop-sidebar {
+    transform: translateX(calc(-1 * var(--zd-sidebar-w)));
+    visibility: hidden;
+  }
+
+  .zd-sidebar-content-wrapper {
+    transition: margin-left 200ms ease-in-out;
+  }
+
+  html[data-sidebar-hidden] .zd-sidebar-content-wrapper {
+    margin-left: 0;
+  }
+}
+
+.zd-desktop-sidebar-toggle {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .zd-desktop-sidebar-toggle {
+    position: fixed;
+    bottom: var(--spacing-vsp-xl);
+    left: var(--zd-sidebar-w);
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    border: 1px solid var(--color-muted);
+    background-color: var(--color-surface);
+    color: var(--color-muted);
+    cursor: pointer;
+    transform: translateX(-50%);
+    transition:
+      left 200ms ease-in-out,
+      color 0.15s;
+  }
+
+  .zd-desktop-sidebar-toggle:hover,
+  .zd-desktop-sidebar-toggle:focus-visible {
+    color: var(--color-fg);
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  html[data-sidebar-hidden] .zd-desktop-sidebar-toggle {
+    left: 0.75rem;
+    transform: none;
+  }
+}
+
 @keyframes contentFadeIn {
   from {
     opacity: 0;

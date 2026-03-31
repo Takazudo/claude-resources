@@ -1,11 +1,6 @@
 ---
 name: zudocg-articlify
-description: >
-  Convert conversation context into a CodeGrid article by delegating to the zudocg-writer subagent.
-  Use when: (1) User wants to write a CodeGrid article based on what was discussed, (2) User says
-  'write codegrid article', 'CodeGrid記事', 'codegridに書いて', 'articlify for codegrid'. This skill
-  gathers context from the conversation, creates a detailed writing brief, and delegates to the
-  writer subagent.
+description: "Convert conversation context into a CodeGrid article by delegating to the zudocg-writer subagent. Use when: (1) User wants to write a CodeGrid article based on what was discussed, (2) User says 'write codegrid article', 'CodeGrid記事', 'codegridに書いて', 'articlify for codegrid'. This skill gathers context from the conversation, creates a detailed writing brief, and delegates to the writer subagent."
 ---
 
 # Articlify for CodeGrid
@@ -17,6 +12,7 @@ Convert the current conversation into a CodeGrid article by crafting a detailed 
 ### Step 1: Gather context from conversation
 
 Review the conversation history and identify:
+
 - What topic was discussed
 - What was tried (approaches A, B, C...)
 - What worked and what didn't
@@ -31,14 +27,19 @@ If images were provided in the conversation (attached screenshots, diagrams, etc
 
 1. **Determine the series name** (e.g., `ai-agent`, `2025-html-selectbox`)
 2. **Create the image directory** in the codegrid repo:
+
    ```
-   mkdir -p $HOME/repos/w/cg/doc/static/img/{series-name}/
+   mkdir -p $HOME/repos/w/cg/doc/public/img/{series-name}/
    ```
+
 3. **Copy each image** to that directory with a descriptive filename:
+
    ```
-   cp /path/to/source/image.png $HOME/repos/w/cg/doc/static/img/{series-name}/descriptive-name.png
+   cp /path/to/source/image.png $HOME/repos/w/cg/doc/public/img/{series-name}/descriptive-name.png
    ```
+
 4. **Record the image paths** for the writing brief. The markdown reference format is:
+
    ```
    ![alt text](/img/{series-name}/descriptive-name.png)
    ```
@@ -71,6 +72,7 @@ Agent tool:
 ```
 
 The subagent will:
+
 - Read the repo's writing style guides
 - Write the article in Japanese following CodeGrid conventions
 - Save to the correct series directory
@@ -80,6 +82,7 @@ The subagent will:
 ### Step 4: Report back
 
 After the subagent completes, report:
+
 - The file path of the created article
 - A brief summary of what was written
 

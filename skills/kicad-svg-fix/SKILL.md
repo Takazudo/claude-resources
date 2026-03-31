@@ -1,11 +1,6 @@
 ---
 name: kicad-svg-fix
-description: >-
-  Fix SVG files for KiCad PCB import. Handles compound paths with holes (splits into separate
-  paths), Illustrator DPI scale correction (72 to 96 DPI), and style cleanup. Use when: (1) User
-  wants to import SVG into KiCad, (2) SVG has shapes with holes/cutouts that KiCad mangles, (3) SVG
-  from Illustrator imports at wrong scale, (4) User says 'fix svg', 'kicad svg', 'svg import', or
-  'svg fix'.
+description: "Fix SVG files for KiCad PCB import. Handles compound paths with holes (splits into separate paths), Illustrator DPI scale correction (72 to 96 DPI), and style cleanup. Use when: (1) User wants to import SVG into KiCad, (2) SVG has shapes with holes/cutouts that KiCad mangles, (3) SVG from Illustrator imports at wrong scale, (4) User says 'fix svg', 'kicad svg', 'svg import', or 'svg fix'."
 allowed-tools:
   - Bash(python3 *)
   - Read
@@ -28,7 +23,7 @@ Fix SVG files exported from Illustrator (or similar) for clean KiCad PCB import.
 Run the bundled script:
 
 ```bash
-python3 ~/.claude/skills/kicad-svg-fix/scripts/fix-svg-for-kicad.py INPUT.svg [OUTPUT.svg] [--scale FACTOR] [--no-scale]
+python3 $HOME/.claude/skills/kicad-svg-fix/scripts/fix-svg-for-kicad.py INPUT.svg [OUTPUT.svg] [--scale FACTOR] [--no-scale]
 ```
 
 - Default output: `INPUT-fixed.svg` (same directory)

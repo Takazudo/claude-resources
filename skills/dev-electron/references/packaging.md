@@ -75,7 +75,7 @@ Packaged apps need to find their project root (for spawning dev servers). Avoid 
 
 ### Resolution Order
 
-1. **Saved config** — user previously selected a path (persisted to `~/.config/<app>/config.json`)
+1. **Saved config** — user previously selected a path (persisted to `$HOME/.config/<app>/config.json`)
 2. **Walk up from exe** — walk up directory tree from the app executable, matching `package.json` name
 3. **Default path** — hardcoded fallback
 4. **User prompt** — show folder picker dialog as last resort

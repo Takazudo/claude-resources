@@ -84,14 +84,13 @@ describe("generateClaudeResourcesDocs", () => {
         docsDir,
       });
 
-      expect(fs.existsSync(path.join(docsDir, "claude"))).toBe(true);
       expect(fs.existsSync(path.join(docsDir, "claude-md"))).toBe(true);
       expect(fs.existsSync(path.join(docsDir, "claude-commands"))).toBe(true);
       expect(fs.existsSync(path.join(docsDir, "claude-skills"))).toBe(true);
       expect(fs.existsSync(path.join(docsDir, "claude-agents"))).toBe(true);
     });
 
-    it("generates _category_.json with noPage for sub-categories", () => {
+    it("generates _category_.json without noPage for categories", () => {
       generateClaudeResourcesDocs({
         claudeDir,
         projectRoot: tmpDir,
@@ -107,7 +106,33 @@ describe("generateClaudeResourcesDocs", () => {
         expect(cat).toHaveProperty("label");
         expect(cat).toHaveProperty("position");
         expect(cat).toHaveProperty("description");
-        expect(cat.noPage).toBe(true);
+        expect(cat).not.toHaveProperty("noPage");
+      }
+    });
+
+    it("generates index.mdx for each category", () => {
+      generateClaudeResourcesDocs({
+        claudeDir,
+        projectRoot: tmpDir,
+        docsDir,
+      });
+
+      const categories = [
+        { dir: "claude-md", slug: "claude-md", title: "CLAUDE.md" },
+        { dir: "claude-commands", slug: "claude-commands", title: "Commands" },
+        { dir: "claude-skills", slug: "claude-skills", title: "Skills" },
+        { dir: "claude-agents", slug: "claude-agents", title: "Agents" },
+      ];
+      for (const cat of categories) {
+        const indexPath = path.join(docsDir, cat.dir, "index.mdx");
+        expect(fs.existsSync(indexPath)).toBe(true);
+
+        const content = fs.readFileSync(indexPath, "utf8");
+        const parsed = matter(content);
+        expect(parsed.data.title).toBe(cat.title);
+        expect(parsed.data.sidebar_position).toBe(0);
+        expect(parsed.data.generated).toBe(true);
+        expect(content).toContain(`<CategoryNav category="${cat.slug}" />`);
       }
     });
 
@@ -128,18 +153,14 @@ describe("generateClaudeResourcesDocs", () => {
   // ---------------------------------------------------------------------------
 
   describe("content", () => {
-    it("generates overview page with CategoryTreeNav", () => {
+    it("does not generate old claude/ overview directory", () => {
       generateClaudeResourcesDocs({
         claudeDir,
         projectRoot: tmpDir,
         docsDir,
       });
 
-      const overview = fs.readFileSync(
-        path.join(docsDir, "claude", "index.mdx"),
-        "utf8",
-      );
-      expect(overview).toContain('<CategoryTreeNav category="claude" />');
+      expect(fs.existsSync(path.join(docsDir, "claude"))).toBe(false);
     });
 
     it("skill page has correct frontmatter", () => {

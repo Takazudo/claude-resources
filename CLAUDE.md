@@ -21,17 +21,18 @@
 
 ## Dropbox
 
-Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (set in ~/.zshrc).
+Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (set in $HOME/.zshrc).
 
 ## Testing & Verification
 
 - Unit tests alone cannot prove visual correctness. If the change is UI/CSS/layout, verify with `/verify-ui` (computed styles) or `/headless-browser` (screenshots, interactions)
 - When user says "it's still broken" after you tested, escalate to a deeper testing level -- do not re-run the same test
 - Invoke `/test-wisdom` when unsure which testing approach fits the current situation
+- **NEVER suggest "clear browser cache" or "hard refresh" as a solution.** If the user says it's still broken, the code is still broken. Investigate the actual cause instead of blaming cache.
 
 ## Safety
 
 - `rm -rf`: relative paths only (`./path`, never `/absolute/path`)
-- Agent logs/artifacts go to `~/cclogs/{repo-name}/` via save-file.js `{logdir}` placeholder
+- Agent logs/artifacts go to `$HOME/cclogs/{repo-name}/` via save-file.js `{logdir}` placeholder. NEVER use `~` in file paths — `~` is NOT expanded in Node.js or non-login shell contexts. Always use `$HOME` or the `{logdir}` placeholder
 - Worktree prompt files and truly ephemeral temp files stay in `__inbox/` (gitignored)
 

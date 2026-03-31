@@ -31,11 +31,11 @@ When saving files:
   - If no slug: use `{logdir}/{timestamp}-{suitable-words}.md` where `{suitable-words}` is contextually appropriate
 - Saving process:
   1. Prepare the content as markdown text
-  2. Use the save-file script: `~/.claude/scripts/save-file.js "{logdir}/{timestamp}-{slug}.md" "content"`
+  2. Use the save-file script: `$HOME/.claude/scripts/save-file.js "{logdir}/{timestamp}-{slug}.md" "content"`
   3. The script will automatically replace `{timestamp}` and `{logdir}` with correct values
   4. Post-save formatting: Always run `npx @takazudo/mdx-formatter --write <file.md>` after saving
 - Available placeholders for save-file.js:
-  - `{logdir}` - Centralized log directory (`~/cclogs/{repo-name}/`)
+  - `{logdir}` - Centralized log directory (`$HOME/cclogs/{repo-name}/`). NEVER use `~` in paths — it won't expand in Node.js
   - `{timestamp}` - MMDD_HHMM format (e.g., 0822_1930)
   - `{date}` - YYYYMMDD format (e.g., 20250822)
   - `{time}` - HHMM format (e.g., 1930)

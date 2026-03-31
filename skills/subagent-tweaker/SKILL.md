@@ -11,7 +11,7 @@ description: "Fix, improve, or update existing Claude Code custom agents (subage
 
 Find agents at:
 
-- `~/.claude/agents/*.md` (personal)
+- `$HOME/.claude/agents/*.md` (personal)
 - `.claude/agents/*.md` (project)
 
 Read the agent file to understand current configuration.

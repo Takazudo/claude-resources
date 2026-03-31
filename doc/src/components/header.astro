@@ -1,5 +1,6 @@
 ---
 import SidebarToggle from "@/components/sidebar-toggle";
+import ThemeToggle from "@/components/theme-toggle";
 import Search from "@/components/search.astro";
 import { settings } from "@/config/settings";
 import { withBase, stripBase } from "@/utils/base";
@@ -68,6 +69,9 @@ const pathForMatch = isNonDefaultLocale
   </nav>
 
   <div class="ml-auto flex items-center gap-x-hsp-md">
+    {settings.colorMode && (
+      <ThemeToggle defaultMode={settings.colorMode.defaultMode} client:load />
+    )}
     <Search />
   </div>
 </header>

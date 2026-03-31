@@ -2,7 +2,7 @@
 name: review-loop
 description: "Iterative code review loop that runs /local-review multiple times, fixing issues each round. Finds bugs, improvements, and quality issues through repeated passes. Use when: (1) User says 'review-loop', 'review loop', or 'review repeat', (2) User wants continuous review+fix cycles to kill tiny problems, (3) User wants thorough multi-pass review before finalizing code, (4) User says 'review 5 rounds' or similar."
 user-invocable: true
-argument-hint: "[count] [--issues] [--aggressive|--defensive] [--stay|--as-pr]"
+argument-hint: "[count] [--aggressive|--defensive] [--stay|--as-pr] [-co|--codex]"
 ---
 
 # Review Loop
@@ -17,8 +17,8 @@ Parse arguments to extract:
 - **--aggressive**: Fix almost everything. Ask user only for truly base-changing decisions (e.g., "should we switch frameworks?"). Use during prototyping, massive migration, or greenfield work
 - **--defensive** (default): Handle results carefully. Fix only clear bugs and convention violations. Use when the project is live and stability matters
 - **--stay** (default): Apply fixes directly to the current branch
-- **--as-pr**: Create a GitHub issue + branch + draft PR, then apply fixes there. Follow the `/x-as-pr` workflow
-- **--issues**: Create GitHub issues for review findings that are worth considering but not must-fix. Do NOT create issues for high-priority must-fix items (just fix those directly)
+- **--as-pr**: Create a branch + draft PR, then apply fixes there. Follow the `/x-as-pr` workflow
+- **-co** or **--codex**: Use `/codex-review` instead of `/local-review` for the review process. Codex review uses OpenAI Codex CLI for faster, cheaper reviews
 
 ## Workflow
 
@@ -28,36 +28,21 @@ Determine the working mode from parsed arguments.
 
 If `--as-pr`:
 
-1. Invoke `/x-as-pr --make-issue <description>` to create a tracking issue, branch, and draft PR
-2. Record the issue number as `BASE_ISSUE_NUM` and PR number as `PR_NUM`
+1. Invoke `/x-as-pr <description>` to create a branch and draft PR
+2. Record the PR number as `PR_NUM`
 3. All subsequent work happens on the new branch
 
 If `--stay`:
 
 1. Work directly on the current branch
-2. If `--issues` is passed, create a tracking issue to collect child issue links:
-
-```bash
-ISSUE_URL=$(gh issue create \
-  --title "review-loop: Code quality improvements for $(git branch --show-current)" \
-  --body "$(cat <<'EOF'
-## Summary
-Iterative code review findings and fixes.
-
-## Issues
-(child issues added below as they are created)
-EOF
-)")
-BASE_ISSUE_NUM=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
-```
 
 ### Step 2: Review Loop (repeat N times)
 
 For each round (1 to N):
 
-#### 2a: Run /local-review
+#### 2a: Run review
 
-Invoke `/local-review` using the Skill tool. Wait for all reviewers to complete.
+If `--codex` is set, invoke `/codex-review` using the Skill tool. Otherwise, invoke `/local-review`. Wait for all reviewers to complete.
 
 #### 2b: Categorize findings
 
@@ -73,14 +58,13 @@ Sort all findings into:
 
 - Fix everything in must-fix and should-fix automatically
 - Fix consider items too, UNLESS the change is truly base-changing (framework switch, major API redesign). In that case, ask the user
-- If `--issues` is also set: create issues for consider items, then implement them too. Link issues to the PR
 
 **If `--defensive`:**
 
 - Fix must-fix items automatically
 - Fix should-fix items only if clearly safe and low-risk
 - Skip consider items entirely
-- If `--issues` is set: create issues for should-fix and consider items but do NOT implement them
+- Report consider items to the user in the terminal for awareness
 
 #### 2d: Handle fix volume
 
@@ -102,43 +86,7 @@ Tell the user what was found and fixed in this round. Be concise.
 
 If a round finds 0 actionable issues, skip remaining rounds. Report "No issues found — stopping early."
 
-### Step 3: Create issues (if --issues)
-
-For findings categorized as "consider" (and "should-fix" if `--defensive`):
-
-1. Create a GitHub issue for each finding (or group closely related ones)
-2. Each issue body should include:
-
-```markdown
-## Context
-Found during review-loop round N on branch `<branch>`.
-
-## Description
-<what was found and why it matters>
-
-## Suggested approach
-<how to fix it>
-```
-
-3. If `--as-pr` and a PR exists, add the PR link to each issue:
-
-```markdown
-## PR
-- <REPO_URL>/pull/<PR_NUM>
-```
-
-4. Collect all created issue URLs and update the base issue (if one exists):
-
-```markdown
-## Issues
-- <REPO_URL>/issues/<ISSUE_1>
-- <REPO_URL>/issues/<ISSUE_2>
-- <REPO_URL>/issues/<ISSUE_3>
-```
-
-Use `gh issue edit <BASE_ISSUE_NUM>` to append the issues list to the body.
-
-### Step 4: Finalize
+### Step 3: Finalize
 
 If `--as-pr`:
 
@@ -149,42 +97,6 @@ If `--as-pr`:
 If `--stay`:
 
 1. Report what was done across all rounds
-2. If `--issues`, report the list of created issues
-
-## Issue and PR Cross-Linking
-
-### PR body format
-
-Each PR (if `--as-pr`) should start with:
-
-```markdown
-- <REPO_URL>/issues/<BASE_ISSUE_NUM>
-
----
-
-## Summary
-...
-```
-
-### Issue body format
-
-Each child issue should include (if a PR exists):
-
-```markdown
-## PR
-- <REPO_URL>/pull/<PR_NUM>
-```
-
-### Base issue body format
-
-The base/tracking issue should accumulate all child issue links:
-
-```markdown
-## Issues
-- <REPO_URL>/issues/48
-- <REPO_URL>/issues/46
-- <REPO_URL>/issues/44
-```
 
 ## Examples
 
@@ -194,21 +106,29 @@ The base/tracking issue should accumulate all child issue links:
 /review-loop
 ```
 
-### Aggressive migration review with issues
+### Aggressive migration review
 
 ```
-/review-loop 5 --aggressive --issues
+/review-loop 5 --aggressive
 ```
 
-Runs 5 rounds, fixes aggressively, creates issues for remaining findings.
+Runs 5 rounds, fixes aggressively.
 
 ### Careful review as a PR
 
 ```
-/review-loop 3 --defensive --as-pr --issues
+/review-loop 3 --defensive --as-pr
 ```
 
-Creates issue+branch+PR, runs 3 defensive rounds, creates issues for non-critical findings, updates PR.
+Creates branch+PR, runs 3 defensive rounds, updates PR.
+
+### Codex-powered review
+
+```
+/review-loop 3 --codex
+```
+
+Uses `/codex-review` (OpenAI Codex CLI) instead of `/local-review` for each round.
 
 ### Quick single round
 
@@ -218,8 +138,10 @@ Creates issue+branch+PR, runs 3 defensive rounds, creates issues for non-critica
 
 ## Important Notes
 
-- Each round of `/local-review` uses 3 Opus reviewers in PR mode (or 6 in full project mode)
+- Default review uses `/local-review` with 3 Opus reviewers in PR mode (or 6 in full project mode)
+- With `--codex`, review uses `/codex-review` (OpenAI Codex CLI) instead — faster and cheaper
 - Later rounds often find fewer issues as earlier rounds fixed the low-hanging fruit
 - The `--aggressive` vs `--defensive` distinction controls the threshold for automatic fixes, not the review depth
 - Always run typecheck between rounds to catch regressions from fixes
 - If a round finds 0 actionable issues, skip remaining rounds early
+- Do NOT create GitHub issues for review findings — findings are reported in the terminal only. Issues created for review findings tend to linger forever since they are not urgent enough to fix immediately

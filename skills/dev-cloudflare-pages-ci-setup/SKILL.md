@@ -1,10 +1,6 @@
 ---
 name: dev-cloudflare-pages-ci-setup
-description: >
-  Set up Cloudflare Pages deployment with GitHub Actions workflows. Use when: (1) User wants to
-  deploy a static site to Cloudflare Pages, (2) User says 'cloudflare pages', 'deploy to
-  cloudflare', 'cf pages setup', (3) User wants CI/CD workflows for Cloudflare Pages with PR
-  previews, (4) Setting up wrangler deployment pipelines.
+description: "Set up Cloudflare Pages deployment with GitHub Actions workflows. Use when: (1) User wants to deploy a static site to Cloudflare Pages, (2) User says 'cloudflare pages', 'deploy to cloudflare', 'cf pages setup', (3) User wants CI/CD workflows for Cloudflare Pages with PR previews, (4) Setting up wrangler deployment pipelines."
 ---
 
 # Cloudflare Pages CI Setup
@@ -66,8 +62,42 @@ Most static site generators (Astro, Next.js, etc.) copy `public/` to output, eli
 - **Pass `${{ }}` values via `env:` blocks**, never inline in `github-script` JavaScript (prevents script injection)
 - **Quote all shell variable expansions**: `"${GITHUB_SHA}"`
 - **Pin wrangler version**: `npm install -g wrangler@4` (or `pnpm exec wrangler` when node_modules available)
-- **Add `timeout-minutes`** to all jobs (build: 15, deploy: 10, notify: 5)
+- **Add `timeout-minutes`** to all jobs (build: 15, deploy: 20, notify: 5)
 - **Use `curl -sSf --max-time 10`** for external HTTP calls
+
+### Deploy Retry (apply to all deploy steps)
+
+Cloudflare Pages API occasionally returns transient errors (504 Gateway Timeout on `/upload-token`). Wrap all `wrangler pages deploy` commands in a bash retry loop:
+
+```yaml
+- name: Deploy to Cloudflare Pages
+  run: |
+    for attempt in 1 2 3; do
+      echo "Deploy attempt $attempt/3..."
+      if wrangler pages deploy deploy \
+        --project-name=PROJECT_NAME \
+        --branch=main \
+        --commit-hash="${GITHUB_SHA}" \
+        --commit-message="Production deploy: ${GITHUB_SHA}"; then
+        echo "Deploy succeeded on attempt $attempt"
+        exit 0
+      fi
+      if [ "$attempt" -lt 3 ]; then
+        echo "Deploy failed, retrying in 150 seconds..."
+        sleep 150
+      fi
+    done
+    echo "Deploy failed after 3 attempts"
+    exit 1
+  env:
+    CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+```
+
+- **3 attempts, 150s (2.5 min) delay** between retries
+- Increase `timeout-minutes` on deploy jobs to **20** (from 10) to accommodate retries
+- For steps that set `GITHUB_OUTPUT` (preview URLs), move the output logic inside the success branch of the `if` block
+- Works with both `npx wrangler@4` and `pnpm exec wrangler` variants
 
 ### Production Deploy (main-deploy.yml)
 
@@ -96,17 +126,30 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/download-artifact@v4
         with: { name: dist-out, path: deploy/ }
       - run: npm install -g wrangler@4
-      - run: |
-          wrangler pages deploy deploy \
-            --project-name=PROJECT_NAME \
-            --branch=main \
-            --commit-hash="${GITHUB_SHA}" \
-            --commit-message="Production deploy: ${GITHUB_SHA}"
+      - name: Deploy to Cloudflare Pages (production)
+        run: |
+          for attempt in 1 2 3; do
+            echo "Deploy attempt $attempt/3..."
+            if wrangler pages deploy deploy \
+              --project-name=PROJECT_NAME \
+              --branch=main \
+              --commit-hash="${GITHUB_SHA}" \
+              --commit-message="Production deploy: ${GITHUB_SHA}"; then
+              echo "Deploy succeeded on attempt $attempt"
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Deploy failed, retrying in 150 seconds..."
+              sleep 150
+            fi
+          done
+          echo "Deploy failed after 3 attempts"
+          exit 1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

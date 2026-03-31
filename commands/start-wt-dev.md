@@ -29,11 +29,13 @@ Parse the user's input to determine the type:
 ### Step 1: Parse and Validate Input
 
 **If GitHub URL:**
+
 ```bash
 gh issue view <issue-num> --repo <owner/repo>
 ```
 
 **If Issue Number:**
+
 ```bash
 gh issue view <issue-num>
 ```
@@ -51,7 +53,7 @@ gh issue view <issue-num>
 Use the helper script:
 
 ```bash
-bash ~/.claude/scripts/create-worktree.sh <issue-number> [repo]
+bash $HOME/.claude/scripts/create-worktree.sh <issue-number> [repo]
 ```
 
 **Arguments:**
@@ -62,6 +64,7 @@ bash ~/.claude/scripts/create-worktree.sh <issue-number> [repo]
 ### Step 3: Output Results
 
 The script will output:
+
 ```
 Worktree created successfully
 

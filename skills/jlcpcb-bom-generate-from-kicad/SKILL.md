@@ -1,13 +1,6 @@
 ---
 name: jlcpcb-bom-generate-from-kicad
-description: >-
-  Convert KiCad exported BOM and position files to JLCPCB PCBA (PCB Assembly) order format. Use
-  when: (1) User has KiCad BOM CSV and .pos position files, (2) User needs to prepare files for
-  JLCPCB PCBA ordering, (3) User mentions converting KiCad exports for JLCPCB, (4) User asks about
-  CPL (Component Placement List) format. Handles BOM conversion (Designation→Comment, sorting
-  designators), CPL conversion (negating Y coordinates, adding mm suffix, normalizing rotation), and
-  can integrate with jlcpcb-component-finder skill to add LCSC part numbers. Includes ready-to-use
-  Python scripts.
+description: "Convert KiCad exported BOM and position files to JLCPCB PCBA (PCB Assembly) order format. Use when: (1) User has KiCad BOM CSV and .pos position files, (2) User needs to prepare files for JLCPCB PCBA ordering, (3) User mentions converting KiCad exports for JLCPCB, (4) User asks about CPL (Component Placement List) format. Handles BOM conversion (Designation→Comment, sorting designators), CPL conversion (negating Y coordinates, adding mm suffix, normalizing rotation), and can integrate with jlcpcb-component-finder skill to add LCSC part numbers. Includes ready-to-use Python scripts."
 ---
 
 # KiCad to JLCPCB BOM/CPL Converter
@@ -21,7 +14,7 @@ Convert KiCad exported BOM and position files to JLCPCB PCBA order format.
 ### Scripts Location
 
 ```
-~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/
+$HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/
 ├── convert_to_jlcpcb.py      # Main conversion script
 ├── add_lcsc_numbers.py        # Add LCSC part numbers
 └── create_parts_mapping.py    # Generate mapping template
@@ -31,15 +24,15 @@ Convert KiCad exported BOM and position files to JLCPCB PCBA order format.
 
 ```bash
 # Step 1: Convert KiCad exports to JLCPCB format
-python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/convert_to_jlcpcb.py \
+python3 $HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/convert_to_jlcpcb.py \
   bom.csv top.pos bottom.pos output_dir/
 
 # Step 2: Add LCSC part numbers (interactive mode)
-python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers.py \
+python3 $HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers.py \
   output_dir/jlcpcb-bom.csv --interactive
 
 # Or use mapping file
-python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers.py \
+python3 $HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers.py \
   output_dir/jlcpcb-bom.csv --map parts_mapping.json --filter-test-points
 ```
 
@@ -47,14 +40,15 @@ python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers
 
 Reference templates (downloaded from JLCPCB) are located at:
 
-- `~/.claude/skills/jlcpcb-bom-generate-from-kicad/templates/sample-bom.xlsx`
-- `~/.claude/skills/jlcpcb-bom-generate-from-kicad/templates/sample-cpl.xlsx`
+- `$HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/templates/sample-bom.xlsx`
+- `$HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/templates/sample-cpl.xlsx`
 
 ## Input Files (KiCad Exports)
 
 ### KiCad BOM CSV
 
 Exported from KiCad's BOM tool. Format (semicolon-delimited):
+
 ```
 "Id";"Designator";"Footprint";"Quantity";"Designation";"Supplier and ref";
 1;"U6";"TO-263-2_L10.0-W9.1-P5.08-LS15.2-TL";1;"L7812CD2T-TR";;;
@@ -64,6 +58,7 @@ Exported from KiCad's BOM tool. Format (semicolon-delimited):
 ### KiCad Position Files (.pos)
 
 Exported from KiCad's Fabrication Outputs > Component Placement. Format:
+
 ```
 # Ref     Val               Package                   PosX       PosY       Rot  Side
 C1        10uF              C1206                     46.7500   -12.4325  180.0000  top
@@ -137,8 +132,9 @@ R1,38.8600mm,29.5025mm,Top,90
 ### Step 2: Convert Files
 
 Use the bundled script:
+
 ```bash
-python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/convert_to_jlcpcb.py \
+python3 $HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/convert_to_jlcpcb.py \
   dist/kicad-bom-outputs/bom.csv \
   dist/kicad-placement-outputs/top.pos \
   dist/kicad-placement-outputs/bottom.pos \
@@ -153,17 +149,19 @@ Output:
 ### Step 3: Add LCSC Part Numbers
 
 **Option A: Interactive Mode** (good for small projects)
+
 ```bash
-python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers.py \
+python3 $HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers.py \
   dist/jlcpcb-ready/jlcpcb-bom.csv \
   --interactive \
   --output dist/jlcpcb-ready/jlcpcb-bom-with-lcsc.csv
 ```
 
 **Option B: Mapping File** (good for reusable projects)
+
 ```bash
 # 1. Create mapping template
-python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/create_parts_mapping.py \
+python3 $HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/create_parts_mapping.py \
   --output parts_mapping.json
 
 # 2. Edit parts_mapping.json to add your LCSC numbers
@@ -174,7 +172,7 @@ python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/create_parts_map
 # }
 
 # 3. Apply mapping
-python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers.py \
+python3 $HOME/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers.py \
   dist/jlcpcb-ready/jlcpcb-bom.csv \
   --map parts_mapping.json \
   --filter-test-points \
@@ -183,6 +181,7 @@ python3 ~/.claude/skills/jlcpcb-bom-generate-from-kicad/scripts/add_lcsc_numbers
 
 **Option C: Use jlcpcb-component-finder skill**
 For unknown parts, use the companion skill to search JLCPCB database:
+
 ```
 User: "Find LCSC part for LM7805 TO-263 package"
 Claude: [Uses jlcpcb-component-finder skill]
@@ -194,8 +193,8 @@ Claude: [Uses jlcpcb-component-finder skill]
 2. Upload Gerber files
 3. Enable "SMT Assembly"
 4. Upload:
-  - BOM: `jlcpcb-bom-with-lcsc.csv`
-  - CPL: `jlcpcb-cpl.csv`
+- BOM: `jlcpcb-bom-with-lcsc.csv`
+- CPL: `jlcpcb-cpl.csv`
 5. Review component matching
 6. Verify placements in viewer
 7. Checkout!
@@ -291,6 +290,7 @@ This skill works well with:
 - **easyeda2kicad**: Download footprints/symbols for JLCPCB parts
 
 Example workflow:
+
 ```
 1. Use easyeda2kicad to download footprints from LCSC
 2. Design PCB in KiCad

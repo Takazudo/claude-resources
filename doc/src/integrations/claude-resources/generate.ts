@@ -76,19 +76,29 @@ function listFiles(dir: string): string[] {
     .sort();
 }
 
-function writeCategoryMeta(
+function writeCategoryFiles(
   outputDir: string,
   label: string,
   position: number,
   description: string,
-  noPage = true,
+  categorySlug: string,
 ) {
+  ensureDir(outputDir);
   const meta: Record<string, unknown> = { label, position, description };
-  if (noPage) meta.noPage = true;
   fs.writeFileSync(
     path.join(outputDir, "_category_.json"),
     JSON.stringify(meta, null, 2) + "\n",
   );
+  const index = `---
+title: "${label}"
+description: "${description}"
+sidebar_position: 0
+generated: true
+---
+
+<CategoryNav category="${categorySlug}" />
+`;
+  fs.writeFileSync(path.join(outputDir, "index.mdx"), index);
 }
 
 // ---------------------------------------------------------------------------
@@ -138,10 +148,11 @@ function generateClaudemdDocs(
     path.join(config.docsDir),
   ];
 
+  writeCategoryFiles(outputDir, "CLAUDE.md", 900, "Project-specific instructions", "claude-md");
+
   const files = findClaudeMdFiles(projectRoot, excludeDirs);
   if (files.length === 0) return [];
 
-  ensureDir(outputDir);
   const items: ClaudeMdItem[] = [];
 
   for (const filePath of files) {
@@ -176,7 +187,6 @@ ${escapeForMdx(content.trim())}
     return a.displayPath.localeCompare(b.displayPath);
   });
 
-  writeCategoryMeta(outputDir, "CLAUDE.md", 900, "Project-specific instructions");
   return items;
 }
 
@@ -189,13 +199,13 @@ function generateCommandsDocs(config: ClaudeResourcesConfig): CommandItem[] {
   const outputDir = path.join(config.docsDir, "claude-commands");
 
   cleanDir(outputDir);
+  writeCategoryFiles(outputDir, "Commands", 901, "Custom slash commands", "claude-commands");
 
   if (!fs.existsSync(commandsDir)) return [];
 
   const files = fs.readdirSync(commandsDir).filter((f) => f.endsWith(".md"));
   if (files.length === 0) return [];
 
-  ensureDir(outputDir);
   const items: CommandItem[] = [];
 
   for (const file of files) {
@@ -222,7 +232,6 @@ ${escapeForMdx(parsed.content.trim())}
 
   items.sort((a, b) => a.name.localeCompare(b.name));
 
-  writeCategoryMeta(outputDir, "Commands", 901, "Custom slash commands");
   return items;
 }
 
@@ -307,6 +316,7 @@ function generateSkillsDocs(config: ClaudeResourcesConfig): SkillItem[] {
   const outputDir = path.join(config.docsDir, "claude-skills");
 
   cleanDir(outputDir);
+  writeCategoryFiles(outputDir, "Skills", 902, "Skill packages", "claude-skills");
 
   if (!fs.existsSync(skillsDir)) return [];
 
@@ -324,7 +334,6 @@ function generateSkillsDocs(config: ClaudeResourcesConfig): SkillItem[] {
 
   if (dirs.length === 0) return [];
 
-  ensureDir(outputDir);
   const items: SkillItem[] = [];
 
   for (const dir of dirs) {
@@ -450,7 +459,6 @@ ${escapeForMdx(ref.content.trim())}
 
   items.sort((a, b) => a.name.localeCompare(b.name));
 
-  writeCategoryMeta(outputDir, "Skills", 902, "Skill packages");
   return items;
 }
 
@@ -463,13 +471,13 @@ function generateAgentsDocs(config: ClaudeResourcesConfig): AgentItem[] {
   const outputDir = path.join(config.docsDir, "claude-agents");
 
   cleanDir(outputDir);
+  writeCategoryFiles(outputDir, "Agents", 903, "Custom subagents", "claude-agents");
 
   if (!fs.existsSync(agentsDir)) return [];
 
   const files = fs.readdirSync(agentsDir).filter((f) => f.endsWith(".md"));
   if (files.length === 0) return [];
 
-  ensureDir(outputDir);
   const items: AgentItem[] = [];
 
   for (const file of files) {
@@ -501,7 +509,6 @@ ${escapeForMdx(parsed.content.trim())}
 
   items.sort((a, b) => a.name.localeCompare(b.name));
 
-  writeCategoryMeta(outputDir, "Agents", 903, "Custom subagents");
   return items;
 }
 
@@ -509,34 +516,19 @@ ${escapeForMdx(parsed.content.trim())}
 // Main
 // ---------------------------------------------------------------------------
 
-function generateOverviewIndex(config: ClaudeResourcesConfig) {
-  const outputDir = path.join(config.docsDir, "claude");
-  cleanDir(outputDir);
-  ensureDir(outputDir);
-
-  const index = `---
-title: "Claude"
-description: "Claude Code configuration reference."
-sidebar_position: 899
-generated: true
----
-
-Claude Code configuration reference.
-
-## Resources
-
-<CategoryTreeNav category="claude" />
-`;
-  fs.writeFileSync(path.join(outputDir, "index.mdx"), index);
-}
-
 export function generateClaudeResourcesDocs(config: ClaudeResourcesConfig) {
   const claudemds = generateClaudemdDocs(config);
   const commands = generateCommandsDocs(config);
   const skills = generateSkillsDocs(config);
   const agents = generateAgentsDocs(config);
 
-  generateOverviewIndex(config);
+  // Remove stale directories no longer managed by generators
+  for (const stale of ["claude", "getting-started"]) {
+    const staleDir = path.join(config.docsDir, stale);
+    if (fs.existsSync(staleDir)) {
+      fs.rmSync(staleDir, { recursive: true, force: true });
+    }
+  }
 
   return {
     claudemd: claudemds.length,
