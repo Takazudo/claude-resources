@@ -1,9 +1,0 @@
-{
-  "name": "headless-browser-skill",
-  "version": "1.0.0",
-  "type": "module",
-  "description": "Lightweight headless browser checker for Claude Code",
-  "dependencies": {
-    "playwright": "^1.58.2"
-  }
-}

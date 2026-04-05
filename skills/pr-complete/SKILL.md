@@ -8,12 +8,24 @@ argument-hint: "[-c/--close] [-k/--keep-issue] [-w/--watch-ci]"
 
 This PR is checked, reviewed, and no other tasks are left. Complete the following:
 
+## Step 0: Pre-flight — check for uncommitted changes
+
+Before anything else, run `git status` and `git diff --stat` to check for unstaged or staged-but-uncommitted changes.
+
+- **If the working tree is clean** → skip to step 1.
+- **If there are uncommitted changes:**
+  - Look at what changed. In most cases, the user simply forgot to commit before invoking `/pr-complete`.
+  - **If it's clearly work that belongs in this PR** (source code, config, docs related to the current branch's topic) → invoke `/commits push` to commit and push automatically, then continue to step 1.
+  - **If it's ambiguous** (unrelated files, experimental changes, files you're unsure about) → tell the user: "There are uncommitted changes. Please run `/commits push` first, then re-invoke `/pr-complete`." and **stop here**.
+
+## Step 1: Check PR status
+
 1. Check the current PR status and CI checks using `gh pr view` and `gh pr checks`
 2. If all CI checks have already passed and the PR is approved → proceed to step 4
 3. If CI checks are still in progress:
 - Invoke `/watch-ci` to monitor CI in the background
-- Tell the user: "CI is still running. Watching in background via /watch-ci. Run `/pr-complete` again once CI passes to merge."
-- **Stop here** — do NOT block the conversation with polling
+- Tell the user: "CI is still running. Watching in background via /watch-ci"
+- do NOT block the conversation with polling
 4. Once all CI checks are green and the PR is approved:
 - Merge the PR using `gh pr merge --merge --delete-branch`
 - Confirm the operation completed successfully

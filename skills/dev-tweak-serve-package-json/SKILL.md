@@ -1,11 +1,6 @@
 ---
 name: dev-tweak-serve-package-json
-description: >-
-  Tweak serve/dev commands in package.json. Use when: (1) User says 'tweak serve', 'dev tweak
-  serve', or 'tweak-serve', (2) User wants to add port-kill before dev/serve commands (--kill), (3)
-  User wants to add :net LAN-accessible variants of dev/serve commands (--net). Flags: --kill adds
-  predev port cleanup, --net adds 0.0.0.0 host variants.
-disable-model-invocation: true
+description: "Tweak serve/dev commands in package.json. Use when: (1) User says 'tweak serve', 'dev tweak serve', or 'tweak-serve', (2) User wants to add port-kill before dev/serve commands (--kill), (3) User wants to add :net LAN-accessible variants of dev/serve commands (--net). Flags: --kill adds predev port cleanup, --net adds 0.0.0.0 host variants."
 user-invocable: true
 argument-hint: "--kill and/or --net"
 ---

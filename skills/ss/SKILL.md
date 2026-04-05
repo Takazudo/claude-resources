@@ -1,7 +1,7 @@
 ---
 name: ss
-description: Load screenshot images or other files from Dropbox screenshots directory. Use when user invokes /ss directly. Supports /ss 2 (latest 2 images), /ss latest3, /ss filename.png (exact or substring match), /ss full-path. Also supports non-image files (e.g., /ss pattern-4-variations.html) to read files shared via the screenshots dir.
-disable-model-invocation: true
+description: Load screenshot images or other files from Dropbox screenshots directory. Use when user invokes /ss directly. IMPORTANT - NEVER manually list or read files from the screenshots directory. This skill handles Dropbox sync delays, freshness checks, and retry logic that manual file reads will miss, resulting in stale/wrong files being loaded. Supports /ss 2 (latest 2 images), /ss latest3, /ss filename.png (exact or substring match), /ss full-path. Also supports non-image files (e.g., /ss pattern-4-variations.html) to read files shared via the screenshots dir.
+disable-model-invocation: false
 argument-hint: "[N | latestN | filename]"
 allowed-tools: Read, Bash(ls *), Bash(find *), Bash(for *), Bash(stat *), Bash(sleep *)
 ---
@@ -156,23 +156,44 @@ Use the Read tool to read each file. The Read tool supports reading image files 
 
 After reading, briefly acknowledge which file(s) were loaded (filename only, not full path) and ask what the user would like to do with them.
 
-## Fallback: wrong file loaded despite waiting
+## CRITICAL: Relevance check — never silently ignore loaded files
 
-If, after the proactive waiting above, the presented file(s) still seem unrelated to the current conversation context (e.g., the image is clearly an old screenshot), this means Dropbox sync took longer than expected.
+**After presenting files, you MUST treat them as the user's intended files.** The user just took these screenshots and ran `/ss` — they expect you to work with whatever was loaded.
 
-**Recovery steps:**
+**NEVER do this:**
 
-1. **Wait and re-check** — Sleep 15 seconds, then list the directory again for any **new** files that appeared after the invocation epoch (allow files with mtime slightly after the epoch, since they synced late).
-2. **Check recent older files** — The user's intended file may have been timestamped just before they typed `/ss` (e.g., they took the screenshot a few minutes earlier). List images from the 5 minutes before the invocation epoch.
+- Load files, decide they "don't seem related," and ignore them
+- Skip the screenshots and continue with the conversation as if `/ss` wasn't invoked
+- Say "these don't appear to be relevant" and move on
+
+**The user's screenshots ARE the context.** Even if the content seems unrelated to the prior conversation, the user may be introducing new context, switching topics, or showing something you don't yet understand.
+
+### If files seem potentially mismatched (e.g., clearly old/stale screenshots)
+
+Only if the files are **obviously stale** (e.g., timestamps are many hours old, content is clearly from a different session), follow this two-step recovery:
+
+**Step 1: Wait and recheck (Dropbox sync delay)**
+
+The user's actual screenshot may still be syncing. Wait 2 minutes, then re-list the directory for newer files:
 
 ```bash
-# Re-check for newly synced files (allow mtime up to 120s after invocation epoch)
-sleep 15
-LATE_CUTOFF=$((CUTOFF + 120))
+# Wait for potential Dropbox sync delay
+sleep 120
+
+# Re-check for newly synced files (allow mtime up to 180s after invocation epoch)
+LATE_CUTOFF=$((CUTOFF + 180))
 ls -t "$DROPBOX_SCREENSHOTS_DIR"/*.{png,jpg,jpeg,gif,webp,tiff} 2>/dev/null | while IFS= read -r f; do
   MTIME=$(stat -f %m "$f")
   [ "$MTIME" -le "$LATE_CUTOFF" ] && [ "$MTIME" -gt "$CUTOFF" ] && echo "[NEW] $f"
 done | head -n 3
 ```
 
-If a new file appears, read it and present it. If nothing new appears, inform the user and ask them to confirm which file they meant.
+If new files appeared, read and present them — these are likely the intended screenshots.
+
+**Step 2: Ask the user**
+
+If no new files appeared after waiting, present what you have and **ask the user to confirm**:
+
+> "I loaded [filenames]. These screenshots appear to be from [timestamp]. Are these the ones you meant, or should I wait longer for a newer screenshot to sync?"
+
+**Never skip both steps.** If you suspect the files are wrong, you MUST either wait-and-recheck OR ask the user. Silently ignoring the user's `/ss` invocation is never acceptable.

@@ -1,11 +1,6 @@
 ---
 name: dev-gh-actions-doc-auto-merge
-description: >
-  Create a GitHub Actions workflow that auto-merges a production branch into a documentation branch.
-  Use when: (1) Setting up auto-sync from production to doc branch, (2) User mentions 'doc auto
-  merge', 'auto sync docs', 'document branch sync', (3) User wants docs to stay up-to-date with
-  production automatically.
-disable-model-invocation: true
+description: "Create a GitHub Actions workflow that auto-merges a production branch into a documentation branch. Use when: (1) Setting up auto-sync from production to doc branch, (2) User mentions 'doc auto merge', 'auto sync docs', 'document branch sync', (3) User wants docs to stay up-to-date with production automatically."
 ---
 
 # Doc Branch Auto-Merge GitHub Actions Workflow

@@ -1,6 +1,11 @@
 ---
 name: skill-tweaker
-description: "Fix, improve, or update existing Claude Code skills. Use when: (1) User reports a skill isn't working well or triggering incorrectly, (2) User wants to adjust skill behavior, (3) User says 'fix skill', 'update skill', 'tweak skill', 'skill not working', 'skill triggers too often'. Handles: editing SKILL.md frontmatter and body, adjusting scripts/references/assets, debugging trigger issues."
+description: >-
+  Fix, improve, or update existing Claude Code skills. Use when: (1) User reports a skill isn't
+  working well or triggering incorrectly, (2) User wants to adjust skill behavior, (3) User says
+  'fix skill', 'update skill', 'tweak skill', 'skill not working', 'skill triggers too often'.
+  Handles: editing SKILL.md frontmatter and body, adjusting scripts/references/assets, debugging
+  trigger issues.
 ---
 
 # Tweak Existing Skill
@@ -14,7 +19,13 @@ Find skills at:
 - `$HOME/.claude/skills/<name>/SKILL.md` (personal)
 - `.claude/skills/<name>/SKILL.md` (project)
 
-Read the SKILL.md and any referenced files (scripts/, references/, assets/).
+**Case-sensitivity check (IMPORTANT for macOS):** The skill file may be named `SKILL.md` (uppercase) or `skill.md` (lowercase). On case-insensitive filesystems (macOS), both resolve to the same file on disk, but git tracks them as separate entries. Before editing:
+
+1. Check the actual filename in git: `git ls-files --stage '<skill-dir>/'`
+2. If both `SKILL.md` and `skill.md` exist in the git index, remove the duplicate: `git rm --cached '<path>/SKILL.md'` (keep the one matching the project convention)
+3. Always use the exact filename that exists in git when editing
+
+Read the skill file and any referenced files (scripts/, references/, assets/).
 
 ### Step 2: Diagnose the issue
 

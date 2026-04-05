@@ -1,20 +1,7 @@
 ---
 name: x-as-pr
-description: >-
-  Start a development workflow as a draft PR. Fetches, creates a branch, makes an empty start
-  commit, pushes, and opens a draft PR. Then starts implementation if instructions are provided.
-  Also handles the case where implementation is already done on a topic branch — detects this and
-  creates a PR from the current branch instead. When a GitHub issue URL is passed, treats it as an
-  implementation request — read the issue and implement it. Use --make-issue to create a GitHub
-  issue first describing the plan, then proceed. With linked issues, logs progress via issue
-  comments. Use when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix
-  development with a PR-first workflow, (3) User wants to set up a branch and draft PR before
-  coding, (4) User has already implemented changes on a branch and wants to create a PR for them,
-  (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' or '--issue' to
-  create an issue first.
-argument-hint: >-
-  [-co|--codex] [--make-issue|--issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi]
-  [issue-url-or-number] [branch-name] [base-branch]
+description: "Start a development workflow as a draft PR. Fetches, creates a branch, makes an empty start commit, pushes, and opens a draft PR. Then starts implementation if instructions are provided. Also handles the case where implementation is already done on a topic branch — detects this and creates a PR from the current branch instead. When a GitHub issue URL is passed, treats it as an implementation request — read the issue and implement it. Use --make-issue to create a GitHub issue first describing the plan, then proceed. With linked issues, logs progress via issue comments. Use when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix development with a PR-first workflow, (3) User wants to set up a branch and draft PR before coding, (4) User has already implemented changes on a branch and wants to create a PR for them, (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' or '--issue' to create an issue first."
+argument-hint: "[-co|--codex] [-a|--auto] [--make-issue|--issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
@@ -27,10 +14,11 @@ Parse `$ARGUMENTS` to extract:
 
 - **`--make-issue` or `--issue` flag**: If present, create a GitHub issue before starting (see "Issue Creation Mode" below)
 - **`--stay` flag**: If present, stay on the current branch instead of creating a new one (see "Stay Mode" below)
-- **`-l` or `--review-loop` flag**: If present, replace the final review step with `/review-loop 5 --aggressive` instead of `/local-review` (see "Review Loop Mode" below)
+- **`-l` or `--review-loop` flag**: If present, replace the final review step with `/review-loop 5 --aggressive` instead of `/deep-review` (see "Review Loop Mode" below)
 - **`-v` or `--verify-ui` flag**: If present, run `/verify-ui` after review fixes to verify frontend changes visually (see "Verify UI Mode" below)
 - **`--noi`, `--noissue`, or `--noissues` flag**: Only meaningful with `--review-loop`. Suppresses GitHub issue creation for review findings. Without this flag, review-loop creates issues for considerable findings by default
 - **`-co` or `--codex` flag**: If present, use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below
+- **`-a` or `--auto` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes. See "Auto-Complete Mode" below
 - **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
 - **Branch name**: Explicit branch name if provided (look for words like `branch:` or a slash-containing name like `topic/foo`)
 - **Base branch**: Explicit base branch if provided (look for words like `base:` or `from:`)
@@ -59,7 +47,7 @@ When `--stay` is passed, stay on the current branch instead of creating a new on
 - If yes, reuse that PR (record its number) — no new PR needed
 - If no PR exists, use the repository's default branch as `TARGET_BRANCH` and create a new draft PR
 3. If implementation instructions are provided, start implementation (commit locally, no push)
-4. All post-implementation steps (local review, push, CI watch, PR revision) work the same
+4. All post-implementation steps (deep review, push, CI watch, PR revision) work the same
 
 When `--stay` is passed, skip Mode Detection entirely and go straight to implementation.
 
@@ -150,7 +138,7 @@ When creating an issue (`--make-issue`) or linking an existing one, ensure the i
 ### TODO
 - [ ] Create branch and draft PR
 - [ ] Implementation
-- [ ] Local review (`/local-review`)
+- [ ] Deep review (`/deep-review`)
 - [ ] Push changes to remote
 - [ ] CI watch (if CI configured)
 - [ ] PR revision (`/pr-revise`)
@@ -250,14 +238,14 @@ When `-co` or `--codex` is passed, the following substitutions apply throughout 
 
 | Default tool | Codex replacement | Used for |
 |---|---|---|
-| `/local-review` | `/codex-review` | Post-implementation code review |
+| `/deep-review` | `/codex-review` | Post-implementation code review |
 | `/review-loop N --aggressive` | `/codex-review` (run once) | Review loop mode review step |
 | Agent tool (web search, research) | `/codex-research` | Any web search or codebase research during planning/implementation |
 | Agent tool (doc writing) | `/codex-writer` | Writing documentation, README, or other text content |
 
 **How it affects the workflow:**
 
-- **Post-Implementation Review**: Instead of `/local-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
+- **Post-Implementation Review**: Instead of `/deep-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
 - **Research during planning/implementation**: When you need to research libraries, APIs, or best practices (web search or codebase exploration), prefer `/codex-research` over the Agent tool or WebSearch.
 - **Documentation writing**: When writing README content, doc comments, or other prose during implementation, prefer `/codex-writer` over writing directly.
 
@@ -338,7 +326,7 @@ The PR title should be descriptive based on the issue or instructions provided.
 
 ### Step 5: Start Implementation (Push-Forbid Mode)
 
-**IMPORTANT: DO NOT push during implementation.** All commits stay local until the post-implementation phase. This saves CI resources by avoiding CI runs on every intermediate commit. Only push once at the end after local review is complete.
+**IMPORTANT: DO NOT push during implementation.** All commits stay local until the post-implementation phase. This saves CI resources by avoiding CI runs on every intermediate commit. Only push once at the end after deep review is complete.
 
 If the user provided implementation instructions (either via issue or direct text), begin the implementation work immediately. Commit frequently but do NOT push.
 
@@ -505,7 +493,7 @@ If no further instructions were provided, report the PR URL and wait for directi
 
 ---
 
-## Post-Implementation: Automatic Local Review
+## Post-Implementation: Automatic Deep Review
 
 After implementation is complete (in either mode), evaluate whether to run an automatic code review:
 
@@ -520,16 +508,16 @@ After implementation is complete (in either mode), evaluate whether to run an au
 
 When all conditions are met, run the review:
 
-- **If `-l` / `--review-loop` was passed**: Invoke `/review-loop 5 --aggressive --issues` instead of `/local-review`. If `--noi` / `--noissue` / `--noissues` was also passed, omit the `--issues` flag (i.e., invoke `/review-loop 5 --aggressive`). This runs 5 rounds of aggressive review-fix cycles for thorough quality improvement.
-- **Otherwise (default)**: Invoke `/local-review` to perform a standard code quality review.
+- **If `-l` / `--review-loop` was passed**: Invoke `/review-loop 5 --aggressive --issues` instead of `/deep-review`. If `--noi` / `--noissue` / `--noissues` was also passed, omit the `--issues` flag (i.e., invoke `/review-loop 5 --aggressive`). This runs 5 rounds of aggressive review-fix cycles for thorough quality improvement.
+- **Otherwise (default)**: Invoke `/deep-review` to perform a standard code quality review.
 
-Tell the user: "Implementation went smoothly — running local review on the changes." (or "running review-loop" if `--review-loop` is active).
+Tell the user: "Implementation went smoothly — running deep review on the changes." (or "running review-loop" if `--review-loop` is active).
 
 Commit any review fixes locally (do NOT push yet).
 
 ### Skip Conditions
 
-Do NOT run local review if:
+Do NOT run deep review if:
 
 - No implementation was done (e.g., Existing-Work Mode with no additional instructions)
 - The user was asked for confirmation or clarification during implementation
@@ -542,7 +530,7 @@ Do NOT run local review if:
 
 **Only run this step if `-v` / `--verify-ui` was passed.**
 
-After the review step (whether `/local-review` or `/review-loop`) is complete and fixes are committed:
+After the review step (whether `/deep-review` or `/review-loop`) is complete and fixes are committed:
 
 1. **Launch a verification target** — start the project's dev server, use a PR preview URL, or any other means to get the implementation running in a browser
 2. **Invoke `/verify-ui`** to verify that frontend/CSS/layout changes were actually applied correctly
@@ -554,7 +542,7 @@ This step ensures that visual/UI changes are not just code-correct but render co
 
 ## Post-Implementation: Push Changes
 
-After local review is complete (or skipped), **push all commits to remote in one batch**. This is the first push since the initial empty commit — saving CI resources.
+After deep review is complete (or skipped), **push all commits to remote in one batch**. This is the first push since the initial empty commit — saving CI resources.
 
 ```bash
 git push origin <BRANCH_NAME>
@@ -568,12 +556,7 @@ This single push triggers CI once with the complete implementation, rather than 
 
 **Only perform this step if the project has CI configured.** Check with `gh pr checks <PR_NUMBER>` — if no checks exist, skip to PR Revision.
 
-Invoke `/watch-ci` on the PR to monitor CI:
-
-```bash
-RESULT=$(bash $HOME/.claude/skills/watch-ci/scripts/check-ci.sh <PR_NUMBER>)
-echo "$RESULT"
-```
+Invoke `/watch-ci <PR_NUMBER>` to monitor CI. The `/watch-ci` skill handles polling, notifications, and failure investigation internally.
 
 - **If CI passes**: Proceed to PR Revision
 - **If CI fails**: Investigate and fix
@@ -588,7 +571,7 @@ If the task is intentionally CI-breaking, skip CI verification and inform the us
 
 ## Post-Implementation: PR Revision
 
-After implementation, local review, push, and CI watch are complete (or skipped), update the PR to reflect the full implementation.
+After implementation, deep review, push, and CI watch are complete (or skipped), update the PR to reflect the full implementation.
 
 ### When to Run
 
@@ -618,7 +601,7 @@ Write a markdown report summarizing:
 - What was implemented (feature/fix description)
 - Key decisions made during implementation
 - Files changed (summary, not full list)
-- Review findings and fixes applied (if `/local-review` was run)
+- Review findings and fixes applied (if `/deep-review` was run)
 - CI status (pass/fail/skipped)
 - PR URL and status
 
@@ -681,9 +664,38 @@ This creates a self-correcting loop that ensures nothing from the original spec 
 
 ---
 
+## Auto-Complete Mode (`-a` / `--auto`)
+
+**Only run this step if `-a` or `--auto` was passed.** Otherwise, skip to STOP below.
+
+After requirements verification passes (or after the session report if no issue is linked), automatically invoke `/pr-complete -c -w` to:
+
+1. Wait for CI checks to pass
+2. Merge the PR (`--merge --delete-branch`)
+3. Close the linked issue (`-c`)
+4. Watch post-merge CI on the target branch (`-w`)
+
+This is intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/pr-complete` will handle the error reporting.
+
+---
+
+## Post-Implementation: Close Tracking Issue
+
+**Only run this step when the tracking issue was created by this workflow** (`--make-issue` was used). Skip if the issue was provided by the user (they may want it to remain open for other purposes).
+
+After requirements verification passes (or auto-complete finishes), close the tracking issue:
+
+```bash
+gh issue close "$ISSUE_NUM" --comment "Workflow complete. PR: <PR_URL>"
+```
+
+The tracking issue is a workflow log — it has served its purpose. If any problems were discovered during the workflow that need follow-up, they should have been raised as **separate issues** (not left as open items on the tracking issue).
+
+---
+
 ## STOP — WORKFLOW ENDS HERE
 
-**After requirements verification passes, the workflow is DONE.** Report the PR URL and stop.
+**After the tracking issue is closed (or skipped), the workflow is DONE.** Report the PR URL and stop.
 
 **CRITICAL RULES:**
 

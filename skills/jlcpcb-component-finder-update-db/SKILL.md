@@ -1,10 +1,11 @@
 ---
 name: jlcpcb-component-finder-update-db
 description: "Download or update the JLCPCB electronic components database for the jlcpcb-component-finder skill. Use when: (1) User says 'update jlcpcb db', 'download jlcpcb database', 'refresh parts database', (2) The jlcpcb-component-finder skill reports database not found, (3) User wants to get the latest component data from JLCPCB/LCSC, (4) User says 'update db', 'update parts db'. Downloads ~11 GB split-zip database from yaqwsx.github.io/jlcparts."
-disable-model-invocation: true
 allowed-tools:
   - Bash
 ---
+
+> **DO NOT auto-invoke this skill.** This downloads ~11 GB of data. Always ask for user confirmation before proceeding.
 
 # JLCPCB Database Updater
 

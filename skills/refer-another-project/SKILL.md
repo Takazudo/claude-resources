@@ -2,8 +2,9 @@
 name: refer-another-project
 description: "Refer another project while protecting sensitive information. Use when: (1) User says 'refer project', 'copy from project', or 'look at another repo', (2) User wants to reference patterns or setup from another codebase, (3) User needs to learn from another project's structure without leaking private data."
 argument-hint: <slug|path> [slug2 ...] — repo slug (e.g. zmod) or full path
-disable-model-invocation: true
 ---
+
+> **DO NOT auto-invoke this skill.** Referencing another project exposes its contents to the current session, which may leak private/client information across project boundaries. Always ask for user confirmation before proceeding.
 
 # Refer Another Project Command
 

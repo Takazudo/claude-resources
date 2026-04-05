@@ -1,13 +1,13 @@
 ---
 name: review-loop
-description: "Iterative code review loop that runs /local-review multiple times, fixing issues each round. Finds bugs, improvements, and quality issues through repeated passes. Use when: (1) User says 'review-loop', 'review loop', or 'review repeat', (2) User wants continuous review+fix cycles to kill tiny problems, (3) User wants thorough multi-pass review before finalizing code, (4) User says 'review 5 rounds' or similar."
+description: "Iterative code review loop that runs /deep-review multiple times, fixing issues each round. Finds bugs, improvements, and quality issues through repeated passes. Use when: (1) User says 'review-loop', 'review loop', or 'review repeat', (2) User wants continuous review+fix cycles to kill tiny problems, (3) User wants thorough multi-pass review before finalizing code, (4) User says 'review 5 rounds' or similar."
 user-invocable: true
 argument-hint: "[count] [--aggressive|--defensive] [--stay|--as-pr] [-co|--codex]"
 ---
 
 # Review Loop
 
-Run `/local-review` repeatedly, fixing issues each round. Progressively kills bugs, improves code quality, and surfaces improvement opportunities.
+Run `/deep-review` repeatedly, fixing issues each round. Progressively kills bugs, improves code quality, and surfaces improvement opportunities.
 
 ## Input Parsing
 
@@ -18,7 +18,7 @@ Parse arguments to extract:
 - **--defensive** (default): Handle results carefully. Fix only clear bugs and convention violations. Use when the project is live and stability matters
 - **--stay** (default): Apply fixes directly to the current branch
 - **--as-pr**: Create a branch + draft PR, then apply fixes there. Follow the `/x-as-pr` workflow
-- **-co** or **--codex**: Use `/codex-review` instead of `/local-review` for the review process. Codex review uses OpenAI Codex CLI for faster, cheaper reviews
+- **-co** or **--codex**: Use `/codex-review` instead of `/deep-review` for the review process. Codex review uses OpenAI Codex CLI for faster, cheaper reviews
 
 ## Workflow
 
@@ -42,7 +42,7 @@ For each round (1 to N):
 
 #### 2a: Run review
 
-If `--codex` is set, invoke `/codex-review` using the Skill tool. Otherwise, invoke `/local-review`. Wait for all reviewers to complete.
+If `--codex` is set, invoke `/codex-review` using the Skill tool. `/codex-review` silently falls back to Claude Code reviewers if codex is rate-limited — no special handling needed here. Otherwise, invoke `/deep-review`. Wait for all reviewers to complete.
 
 #### 2b: Categorize findings
 
@@ -128,7 +128,7 @@ Creates branch+PR, runs 3 defensive rounds, updates PR.
 /review-loop 3 --codex
 ```
 
-Uses `/codex-review` (OpenAI Codex CLI) instead of `/local-review` for each round.
+Uses `/codex-review` (OpenAI Codex CLI) instead of `/deep-review` for each round.
 
 ### Quick single round
 
@@ -138,8 +138,8 @@ Uses `/codex-review` (OpenAI Codex CLI) instead of `/local-review` for each roun
 
 ## Important Notes
 
-- Default review uses `/local-review` with 3 Opus reviewers in PR mode (or 6 in full project mode)
-- With `--codex`, review uses `/codex-review` (OpenAI Codex CLI) instead — faster and cheaper
+- Default review uses `/deep-review` with 3 Opus reviewers in PR mode (or 6 in full project mode)
+- With `--codex`, review uses `/codex-review` (OpenAI Codex CLI) instead — faster and cheaper. If codex is rate-limited, `/codex-review` silently falls back to Claude Code reviewers (no workflow interruption)
 - Later rounds often find fewer issues as earlier rounds fixed the low-hanging fruit
 - The `--aggressive` vs `--defensive` distinction controls the threshold for automatic fixes, not the review depth
 - Always run typecheck between rounds to catch regressions from fixes

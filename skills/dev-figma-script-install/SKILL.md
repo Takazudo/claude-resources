@@ -1,11 +1,6 @@
 ---
 name: dev-figma-script-install
-description: >-
-  Provide Figma capture script installation guidance for web projects. Use when: (1) User wants to
-  set up Figma capture in a web dev project, (2) User says 'figma script install', 'add figma
-  capture', 'figma setup', (3) User wants to enable browser-to-Figma capture in their dev
-  environment
-disable-model-invocation: true
+description: "Provide Figma capture script installation guidance for web projects. Use when: (1) User wants to set up Figma capture in a web dev project, (2) User says 'figma script install', 'add figma capture', 'figma setup', (3) User wants to enable browser-to-Figma capture in their dev environment"
 argument-hint: ""
 ---
 

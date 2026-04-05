@@ -2,25 +2,46 @@
 name: codex-research
 description: "Web research using OpenAI Codex CLI (codex exec). PREFERRED over general web research tasks. Use when: (1) User says 'research', 'codex research', 'look up', or 'investigate', (2) Researching libraries, APIs, best practices, or technical topics, (3) Gathering information from the web to inform decisions. Codex performs web research and returns findings, Claude Code synthesizes. Falls back to Claude Code researcher subagent if codex is unresponsive."
 allowed-tools:
-  - Bash(codex *)
+  - Bash(node *)
   - Bash(timeout *)
   - Bash(gtimeout *)
-  - Bash(cat *)
 ---
 
 # Codex Research
 
-Web research via `codex exec`, synthesized by Claude Code.
+Web research via the codex plugin companion script, synthesized by Claude Code.
 
-## Codex CLI Usage
+## Codex Plugin Companion Script
+
+The codex plugin provides a companion script for running tasks. Resolve it dynamically:
 
 ```bash
-codex exec --sandbox read-only --ephemeral -o <output-file> "<research prompt>"
+CODEX_PLUGIN_ROOT=$(command ls -d "$HOME/.claude/plugins/cache/openai-codex/codex"/*/ 2>/dev/null | sort -V | tail -1)
+CODEX_COMPANION="${CODEX_PLUGIN_ROOT}scripts/codex-companion.mjs"
 ```
 
-Codex can perform web searches and read workspace files for context.
+If the file does not exist, report "Codex plugin not installed. Run `/codex:setup` first." and fall back to Claude Code research.
+
+Usage for research tasks:
+
+```bash
+node "$CODEX_COMPANION" task "<research prompt>"
+```
+
+The `task` command runs Codex in read-only mode by default (no `--write` flag), which is appropriate for research.
 
 ## Process
+
+### Step 0: Pre-flight Rate Limit Check
+
+Before doing anything, check if Codex is currently rate-limited:
+
+```bash
+RATE_CHECK=$(node $HOME/.claude/scripts/codex-rate-limit.js check 2>&1)
+RATE_EXIT=$?
+```
+
+If `RATE_EXIT` is non-zero (rate-limited), **skip all codex steps** and jump directly to the **Fallback** step. **Do NOT report the rate limit to the user** — silently fall back.
 
 ### Step 1: Understand the Research Topic
 
@@ -58,6 +79,10 @@ LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
 mkdir -p "$LOGDIR"
 DATETIME=$(date +%Y%m%d_%H%M%S)
 
+# Resolve codex companion script
+CODEX_PLUGIN_ROOT=$(command ls -d "$HOME/.claude/plugins/cache/openai-codex/codex"/*/ 2>/dev/null | sort -V | tail -1)
+CODEX_COMPANION="${CODEX_PLUGIN_ROOT}scripts/codex-companion.mjs"
+
 # Detect timeout command (gtimeout on macOS via coreutils, timeout on Linux/WSL)
 if command -v gtimeout &>/dev/null; then
   TIMEOUT_CMD="gtimeout"
@@ -65,32 +90,45 @@ elif command -v timeout &>/dev/null; then
   TIMEOUT_CMD="timeout"
 else
   TIMEOUT_CMD=""
-  echo "ERROR: neither gtimeout nor timeout found. On macOS: brew install coreutils | On WSL/Linux: sudo apt install coreutils"
+  echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1200} codex exec --sandbox read-only --ephemeral \
-  -o "$LOGDIR/${DATETIME}-codex-research-{topic-slug}.md" \
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1200} node "$CODEX_COMPANION" task \
   "<research prompt>" \
+  > "$LOGDIR/${DATETIME}-codex-research-{topic-slug}.md" \
   2>"$LOGDIR/${DATETIME}-codex-research-{topic-slug}-stderr.log"
 ```
 
 **Timeout: 20 minutes.** Research can take longer than other tasks.
 
-### Step 4: Fallback
+### Step 4: Check for Rate Limiting
 
-If codex times out or produces no output:
+After codex completes (or times out), check output files for rate limit errors:
 
-- Report: "Codex CLI unresponsive. Falling back to Claude Code research."
+```bash
+node $HOME/.claude/scripts/codex-rate-limit.js check-output \
+  "$LOGDIR/${DATETIME}-codex-research-{topic-slug}.md" \
+  "$LOGDIR/${DATETIME}-codex-research-{topic-slug}-stderr.log"
+```
+
+If exit code is non-zero (rate limit detected), jump to **Fallback**.
+
+### Step 5: Fallback
+
+If codex times out, produces no output, or is rate-limited:
+
+- **Silently fall back** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
 - Spawn a `researcher` subagent to perform the research via Claude Code tools (WebSearch, WebFetch, etc.)
+- Continue the workflow as if the researcher subagent was the original plan
 
-### Step 5: Synthesize
+### Step 6: Synthesize
 
 1. Read codex output from the log file
 2. Verify key claims where possible
 3. Organize findings into a clear structure
 4. Present to the user with source references
 
-### Step 6: Save Research Log
+### Step 7: Save Research Log
 
 Save the final synthesized findings:
 
@@ -116,4 +154,5 @@ pnpm dlx @takazudo/mdx-formatter --write <file>
 - All file writing done by Claude Code, never by codex
 - Long timeout (20 min) because research can take time
 - Falls back to `researcher` subagent if codex fails
+- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to the researcher subagent. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do
 - NEVER use `~` in paths — use `$HOME`

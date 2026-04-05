@@ -1,11 +1,6 @@
 ---
 name: gh-actions-wisdom
-description: >-
-  GitHub Actions workflow best practices and pitfalls reference. Use when: (1) Writing or reviewing
-  GitHub Actions workflows (.yml), (2) Setting up CI/CD pipelines with GitHub Actions, (3) Debugging
-  slow, expensive, or stuck workflow runs, (4) User says 'gh actions', 'github actions', 'workflow
-  best practices', (5) Before creating or modifying any .github/workflows/ file. Keywords: GitHub
-  Actions, CI/CD, workflow, timeout, concurrency, security, caching.
+description: "GitHub Actions workflow best practices and pitfalls reference. Use when: (1) Writing or reviewing GitHub Actions workflows (.yml), (2) Setting up CI/CD pipelines with GitHub Actions, (3) Debugging slow, expensive, or stuck workflow runs, (4) User says 'gh actions', 'github actions', 'workflow best practices', (5) Before creating or modifying any .github/workflows/ file. Keywords: GitHub Actions, CI/CD, workflow, timeout, concurrency, security, caching."
 ---
 
 # GitHub Actions Wisdom
@@ -101,6 +96,61 @@ Do **not** use `cache: 'pnpm'` (or `cache: 'npm'`, `cache: 'yarn'`) in `actions/
 
 This is especially true for **self-hosted runners** where the pnpm store is already local — caching to GitHub's remote cache and restoring it is pointless overhead.
 
+### 6. Set `set-safe-directory: false` on Self-Hosted Runners
+
+`actions/checkout` defaults `set-safe-directory` to `true`, which runs `git config --global --add safe.directory` on **every CI run**. On self-hosted runners this appends duplicate entries to `~/.gitconfig` indefinitely, polluting the shared gitconfig across all repos on that machine.
+
+```yaml
+# GOOD — prevent gitconfig pollution on self-hosted runners
+- uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  with:
+    set-safe-directory: false
+```
+
+The `safe.directory` setting is unnecessary when the runner user owns the workspace directory.
+
+### 7. Don't Use `actions/cache` for Build Tools on Self-Hosted Runners
+
+On self-hosted runners, build tool caches (Cargo, Go modules, Gradle, etc.) **already persist on disk**. Using `actions/cache` uploads them to GitHub's remote cache API on every run and creates duplicate entries, wasting storage.
+
+```yaml
+# BAD on self-hosted — uploads local cache to remote on every run
+- uses: actions/cache@v4
+  with:
+    path: ~/.cargo/registry
+    key: cargo-${{ hashFiles('Cargo.lock') }}
+
+# GOOD on self-hosted — just use the local disk cache directly
+# (no actions/cache step needed)
+```
+
+### 8. Use Cache (Not Artifacts) for Inter-Job Data Sharing
+
+`upload-artifact`/`download-artifact` counts toward **shared org storage** (often limited). For passing build output between jobs in the same workflow, use `actions/cache` instead — it has a **separate 10 GB per-repo limit**.
+
+```yaml
+# BAD — artifacts accumulate in shared org storage
+- uses: actions/upload-artifact@v4
+  with:
+    name: build-output
+    path: dist/
+    retention-days: 1
+
+# GOOD — cache uses separate per-repo quota
+- uses: actions/cache/save@v4
+  with:
+    path: dist/
+    key: build-${{ github.run_id }}
+
+# In the downstream job:
+- uses: actions/cache/restore@v4
+  with:
+    path: dist/
+    key: build-${{ github.run_id }}
+```
+
+If the build and deploy steps can run on the same runner, merging them into a single job is even simpler.
+
 ## Quick Reference by Topic
 
 For detailed guidance, read the appropriate reference file:
@@ -144,3 +194,6 @@ When reviewing or writing a workflow, verify:
 8. No `cache:` parameter in `setup-node` (fresh install from CDN is faster — see rule 5)
 9. Path filters used where possible to skip irrelevant runs
 10. Deploy steps have retry logic for network operations
+11. `actions/checkout` has `set-safe-directory: false` on self-hosted runners (see rule 6)
+12. No `actions/cache` for build tools on self-hosted runners — disk cache is already local (see rule 7)
+13. Inter-job data sharing uses `actions/cache` not `upload-artifact` to avoid org storage limits (see rule 8)

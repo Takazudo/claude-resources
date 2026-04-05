@@ -1,7 +1,6 @@
 ---
 name: dev-figma-capture
 description: "Capture web pages and send them to Figma as editable design files. Use when: (1) User wants to capture a webpage to Figma, (2) User says 'figma capture', 'send to figma', 'capture to figma', (3) User provides URLs to convert to Figma designs"
-disable-model-invocation: true
 argument-hint: "[url1] [url2] ... [--existing fileKey]"
 ---
 

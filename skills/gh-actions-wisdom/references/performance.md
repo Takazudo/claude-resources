@@ -143,6 +143,44 @@ Set short retention for non-essential artifacts.
     retention-days: 1  # Default is 90 days
 ```
 
+## Inter-Job Data: Use Cache, Not Artifacts
+
+Artifacts count toward **shared org storage** (often the bottleneck — orgs hit 90% easily). For passing build output between jobs in the same workflow, use `actions/cache` instead — it uses a **separate 10 GB per-repo limit**.
+
+```yaml
+# In build job — save with run-specific key
+- uses: actions/cache/save@v4
+  with:
+    path: dist/
+    key: build-${{ github.run_id }}
+
+# In deploy job — restore
+- uses: actions/cache/restore@v4
+  with:
+    path: dist/
+    key: build-${{ github.run_id }}
+```
+
+If both steps can run on the same runner, merging into a single job is even simpler.
+
+## Self-Hosted Runner: Skip Remote Caching
+
+On self-hosted runners, build tool caches (Cargo, Go, Gradle) and package stores (pnpm, npm) **already persist on disk**. Using `actions/cache` uploads them to GitHub's remote cache on every run, creating duplicate entries and wasting storage.
+
+- Don't use `actions/cache` for `~/.cargo`, `~/.gradle`, Go module cache, etc.
+- Don't use `cache: pnpm` in `actions/setup-node`
+- The local disk IS the cache on self-hosted runners
+
+## Self-Hosted Runner: Disable `set-safe-directory`
+
+`actions/checkout` runs `git config --global --add safe.directory` by default. On self-hosted runners, this appends a new entry to `~/.gitconfig` on **every single CI run**, creating thousands of duplicate lines over time.
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    set-safe-directory: false  # Prevent gitconfig pollution
+```
+
 ## Docker Layer Caching
 
 ```yaml

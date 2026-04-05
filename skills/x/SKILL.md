@@ -1,12 +1,7 @@
 ---
 name: x
-description: >-
-  Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic
-  parallel). Use when: (1) User says '/x' followed by development instructions, (2) User wants to
-  start development without deciding between /x-as-pr and /x-wt-teams, (3) User says 'dev',
-  'implement', or 'build' with a task description. Examines the request and chooses the right
-  strategy. Default options: -l -v (review-loop + verify-ui).
-argument-hint: "[-co|--codex] [options] <instructions>"
+description: "Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic parallel). Use when: (1) User says '/x' followed by development instructions, (2) User wants to start development without deciding between /x-as-pr and /x-wt-teams, (3) User says 'dev', 'implement', or 'build' with a task description. Examines the request and chooses the right strategy. Default options: -l -v (review-loop + verify-ui)."
+argument-hint: "[-co|--codex] [-a|--auto] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
@@ -17,7 +12,7 @@ Route development requests to the right workflow skill: `/x-as-pr` (single-topic
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`--make-issue`, `--issue`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `--noi`, `--no-issue`, `-co`, `--codex`, etc.)
+- **All flags from both skills** (`--make-issue`, `--issue`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `--noi`, `--no-issue`, `-co`, `--codex`, `-a`, `--auto`, etc.)
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
@@ -33,6 +28,10 @@ If any flags ARE passed explicitly, use those as-is — do NOT add defaults.
 ### Codex Mode (`-co` / `--codex`)
 
 When `-co` or `--codex` is passed, forward it to the chosen skill. This switches reviews, doc writing, and research to use codex-based alternatives (`/codex-review`, `/codex-writer`, `/codex-research`). See `/x-as-pr` and `/x-wt-teams` for details.
+
+### Auto-Complete Mode (`-a` / `--auto`)
+
+When `-a` or `--auto` is passed, forward it to the chosen skill. After the workflow completes, it automatically runs `/pr-complete -c -w` to merge the PR, close the linked issue, and watch post-merge CI. Intended for full-auto, safe-to-merge work.
 
 ## Strategy Selection
 

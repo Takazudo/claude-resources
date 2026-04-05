@@ -1,9 +1,9 @@
 ---
-name: local-review
-description: "Perform code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'local review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Auto-detects PR mode (3 reviewers on diff) vs full project mode (6 reviewers on entire codebase)."
+name: deep-review
+description: "Perform deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Auto-detects PR mode (3 Claude reviewers + 2 codex reviewers on diff) vs full project mode (6 Claude reviewers + 2 codex reviewers on entire codebase)."
 ---
 
-# Local Review
+# Deep Review
 
 Perform a practical code quality review with priorities:
 
@@ -127,14 +127,27 @@ Do NOT return the full analysis — it is in the log file.
 
 **CRITICAL: Launch all 3 code-reviewer subagents in PARALLEL in a single message using Opus model**
 
-### Step A-2b: Run Codex Review in Parallel
+### Step A-2b: Run Codex Review in Parallel (if not rate-limited)
 
-**In addition to** the 3 Claude Code reviewers above, also launch `/codex-review` in parallel as a background Bash task. This provides a cross-model perspective on the same diff:
+**Pre-flight check**: Before launching any codex background tasks, check if codex is rate-limited:
+
+```bash
+RATE_CHECK=$(node $HOME/.claude/scripts/codex-rate-limit.js check 2>&1)
+RATE_EXIT=$?
+```
+
+If `RATE_EXIT` is non-zero, **silently skip ALL codex steps** (A-2b and A-2c). Do NOT report the rate limit to the user — just proceed with Claude Code reviewers only.
+
+**In addition to** the 3 Claude Code reviewers above, also launch a codex review in parallel as a background Bash task. This provides a cross-model perspective on the same diff:
 
 ```bash
 LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
 mkdir -p "$LOGDIR"
 DATETIME=$(date +%Y%m%d_%H%M%S)
+
+# Resolve codex companion script
+CODEX_PLUGIN_ROOT=$(command ls -d "$HOME/.claude/plugins/cache/openai-codex/codex"/*/ 2>/dev/null | sort -V | tail -1)
+CODEX_COMPANION="${CODEX_PLUGIN_ROOT}scripts/codex-companion.mjs"
 
 # Detect timeout command (gtimeout on macOS via coreutils, timeout on Linux/WSL)
 if command -v gtimeout &>/dev/null; then
@@ -143,17 +156,53 @@ elif command -v timeout &>/dev/null; then
   TIMEOUT_CMD="timeout"
 else
   TIMEOUT_CMD=""
-  echo "ERROR: neither gtimeout nor timeout found. On macOS: brew install coreutils | On WSL/Linux: sudo apt install coreutils"
+  echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} codex exec review --base "$BASE" --ephemeral \
-  -o "$LOGDIR/${DATETIME}-codex-review-local.md" \
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} node "$CODEX_COMPANION" review --base "$BASE" --wait \
+  > "$LOGDIR/${DATETIME}-codex-review-local.md" \
   2>"$LOGDIR/${DATETIME}-codex-review-local-stderr.log"
 ```
 
-- This runs concurrently with the Claude Code subagents — do not wait for it before launching them
-- If codex times out or produces no output, proceed with Claude Code reviewers' results only
+**IMPORTANT:** Launch this command using `Bash(..., run_in_background: true)` so it runs concurrently with the Claude Code subagents. The `--wait` flag ensures the companion script blocks until the review completes (so output is captured), while `run_in_background` ensures Claude Code doesn't wait for it before launching the subagents.
+
+- If codex plugin is not installed or codex times out or produces no output, proceed with Claude Code reviewers' results only
 - If codex produces findings, include them in the synthesis step alongside Claude Code reviewer results
+
+### Step A-2c: Run Codex Adversarial Review in Parallel
+
+**In addition to** the standard codex review above, also launch an adversarial review as a separate background Bash task. This challenges the design choices, assumptions, and tradeoffs — complementing the standard review which focuses on implementation defects:
+
+```bash
+LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
+mkdir -p "$LOGDIR"
+DATETIME=$(date +%Y%m%d_%H%M%S)
+
+# Resolve codex companion script (pick latest version if multiple exist)
+CODEX_PLUGIN_ROOT=$(command ls -d "$HOME/.claude/plugins/cache/openai-codex/codex"/*/ 2>/dev/null | sort -V | tail -1)
+CODEX_COMPANION="${CODEX_PLUGIN_ROOT}scripts/codex-companion.mjs"
+
+# Detect timeout command (gtimeout on macOS via coreutils, timeout on Linux/WSL)
+if command -v gtimeout &>/dev/null; then
+  TIMEOUT_CMD="gtimeout"
+elif command -v timeout &>/dev/null; then
+  TIMEOUT_CMD="timeout"
+else
+  TIMEOUT_CMD=""
+  echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
+fi
+
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} node "$CODEX_COMPANION" adversarial-review --base "$BASE" --wait \
+  > "$LOGDIR/${DATETIME}-codex-adversarial-review-local.md" \
+  2>"$LOGDIR/${DATETIME}-codex-adversarial-review-local-stderr.log"
+```
+
+**IMPORTANT:** Launch this command using `Bash(..., run_in_background: true)` — same as the standard codex review. Both codex reviews run concurrently with each other and with the Claude Code subagents.
+
+- The adversarial review questions the approach, architecture, and design tradeoffs
+- The standard review (Step A-2b) catches implementation bugs and defects
+- Together they provide comprehensive cross-model coverage
+- If codex fails or times out, proceed with other reviewers' results only
 
 ---
 
@@ -323,7 +372,9 @@ Do NOT return the full analysis — it is in the log file.
 
 **CRITICAL: Launch all 6 code-reviewer subagents in PARALLEL in a single message using Opus model**
 
-### Step B-2b: Run Codex Review in Parallel
+### Step B-2b: Run Codex Review in Parallel (if not rate-limited)
+
+**Pre-flight check**: Same as Step A-2b — check `codex-rate-limit.js check` first. If rate-limited, silently skip ALL codex steps (B-2b and B-2c).
 
 **In addition to** the 6 Claude Code reviewers above, also launch a codex review in parallel as a background Bash task:
 
@@ -332,6 +383,10 @@ LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
 mkdir -p "$LOGDIR"
 DATETIME=$(date +%Y%m%d_%H%M%S)
 
+# Resolve codex companion script
+CODEX_PLUGIN_ROOT=$(command ls -d "$HOME/.claude/plugins/cache/openai-codex/codex"/*/ 2>/dev/null | sort -V | tail -1)
+CODEX_COMPANION="${CODEX_PLUGIN_ROOT}scripts/codex-companion.mjs"
+
 # Detect timeout command (gtimeout on macOS via coreutils, timeout on Linux/WSL)
 if command -v gtimeout &>/dev/null; then
   TIMEOUT_CMD="gtimeout"
@@ -339,17 +394,53 @@ elif command -v timeout &>/dev/null; then
   TIMEOUT_CMD="timeout"
 else
   TIMEOUT_CMD=""
-  echo "ERROR: neither gtimeout nor timeout found. On macOS: brew install coreutils | On WSL/Linux: sudo apt install coreutils"
+  echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} codex exec review --ephemeral -o "$LOGDIR/${DATETIME}-codex-review-local-full.md" \
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} node "$CODEX_COMPANION" task \
   "Review the entire codebase for bugs, logic errors, structural issues, and quality. Be concise." \
+  > "$LOGDIR/${DATETIME}-codex-review-local-full.md" \
   2>"$LOGDIR/${DATETIME}-codex-review-local-full-stderr.log"
 ```
 
-- Runs concurrently with Claude Code subagents
-- If codex times out or produces no output, proceed with Claude Code reviewers only
+**IMPORTANT:** Launch this command using `Bash(..., run_in_background: true)` so it runs concurrently with the Claude Code subagents. Uses `task` (not `review`) because full-project mode needs a custom prompt — the companion's `review` command only supports branch/working-tree diffs.
+
+- If codex plugin is not installed or codex times out or produces no output, proceed with Claude Code reviewers only
 - Include codex findings in synthesis if available
+
+### Step B-2c: Run Codex Adversarial Review in Parallel
+
+**In addition to** the standard codex task above, also launch an adversarial review as a separate background Bash task:
+
+```bash
+LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
+mkdir -p "$LOGDIR"
+DATETIME=$(date +%Y%m%d_%H%M%S)
+
+# Resolve codex companion script (pick latest version if multiple exist)
+CODEX_PLUGIN_ROOT=$(command ls -d "$HOME/.claude/plugins/cache/openai-codex/codex"/*/ 2>/dev/null | sort -V | tail -1)
+CODEX_COMPANION="${CODEX_PLUGIN_ROOT}scripts/codex-companion.mjs"
+
+# Detect timeout command (gtimeout on macOS via coreutils, timeout on Linux/WSL)
+if command -v gtimeout &>/dev/null; then
+  TIMEOUT_CMD="gtimeout"
+elif command -v timeout &>/dev/null; then
+  TIMEOUT_CMD="timeout"
+else
+  TIMEOUT_CMD=""
+  echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
+fi
+
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} node "$CODEX_COMPANION" adversarial-review --wait \
+  > "$LOGDIR/${DATETIME}-codex-adversarial-review-local-full.md" \
+  2>"$LOGDIR/${DATETIME}-codex-adversarial-review-local-full-stderr.log"
+```
+
+**IMPORTANT:** Launch this command using `Bash(..., run_in_background: true)`. Runs concurrently with the standard codex task and Claude Code subagents.
+
+- Challenges architecture, design decisions, and assumptions across the full codebase
+- If codex fails or times out, proceed with other reviewers' results only
+- Include findings in synthesis if available
 
 ---
 

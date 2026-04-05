@@ -1,6 +1,10 @@
 ---
 name: globalsync
-description: "Sync all personal repos across machines via git pull & push. Use when: (1) User says 'globalsync', 'sync repos', 'pull push all', (2) User wants to sync their daily resources across machines, (3) User starts or ends a work session and needs repos up to date."
+description: >-
+  Sync all personal repos across machines via git pull & push. Use when: (1) User says 'globalsync',
+  'sync repos', 'pull push all', (2) User wants to sync their daily resources across machines, (3)
+  User starts or ends a work session and needs repos up to date.
+disable-model-invocation: true
 allowed-tools: Bash, Read, Task
 ---
 

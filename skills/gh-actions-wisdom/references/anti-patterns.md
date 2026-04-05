@@ -137,3 +137,40 @@ on:
 ## 12. Long Artifact Retention
 
 Default 90-day retention for build artifacts wastes storage. Set `retention-days: 1` for ephemeral build output.
+
+## 13. Using Artifacts for Inter-Job Data Sharing
+
+Artifacts count toward **shared org storage** (the quota orgs hit first). For passing build output between jobs in the same workflow, use `actions/cache` with a run-specific key instead — caches have a separate 10 GB per-repo limit.
+
+```yaml
+# BAD — accumulates in shared org storage even with retention-days: 1
+- uses: actions/upload-artifact@v4
+  with:
+    name: build-output
+    path: dist/
+    retention-days: 1
+
+# GOOD — uses separate per-repo cache quota
+- uses: actions/cache/save@v4
+  with:
+    path: dist/
+    key: build-${{ github.run_id }}
+```
+
+## 14. `actions/checkout` Polluting Gitconfig on Self-Hosted Runners
+
+`actions/checkout` defaults `set-safe-directory` to `true`, running `git config --global --add safe.directory` on every CI run. On self-hosted runners this creates thousands of duplicate entries in `~/.gitconfig` over time.
+
+```yaml
+# BAD — appends to ~/.gitconfig on every run
+- uses: actions/checkout@v4
+
+# GOOD
+- uses: actions/checkout@v4
+  with:
+    set-safe-directory: false
+```
+
+## 15. Remote Caching on Self-Hosted Runners
+
+On self-hosted runners, build caches (Cargo, pnpm store, Go modules) already persist on disk. Using `actions/cache` or `cache: pnpm` in `setup-node` uploads them to GitHub's remote cache API on every run — pure overhead that creates duplicate entries.

@@ -1,14 +1,7 @@
 ---
 name: x-wt-teams
-description: >-
-  Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code
-  agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User
-  mentions 'worktree', 'base branch', or 'parallel development', (3) User says 'split into topics'
-  or 'multi-topic development'. This skill is FULLY AUTONOMOUS — it creates worktrees, spawns agent
-  teams, and coordinates everything automatically. No manual child sessions needed.
-argument-hint: >-
-  [-co|--codex] [--no-issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [#issue-number]
-  <instructions>
+description: "Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', or 'parallel development', (3) User says 'split into topics' or 'multi-topic development'. This skill is FULLY AUTONOMOUS — it creates worktrees, spawns agent teams, and coordinates everything automatically. No manual child sessions needed."
+argument-hint: "[-co|--codex] [-a|--auto] [--no-issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -21,10 +14,11 @@ By default, create a GitHub issue at the start to track progress. The manager an
 
 - **`--no-issue`**: Skip issue creation. Also skip if the user explicitly says not to create an issue.
 - **`--stay`**: **(OPT-IN ONLY — never auto-detect)** Use the current branch as the base branch instead of creating a new one. See "Using `--stay`" below. **Only apply when the user explicitly passes `--stay`.** Even if the current branch has an existing PR, even if it "seems logical" to stay — ALWAYS create a new branch unless `--stay` was literally typed by the user.
-- **`-l` or `--review-loop`**: Replace the Step 9 local review with `/review-loop 5 --aggressive` instead of `/local-review`. By default, this also passes `--issues` to create GitHub issues for considerable review findings. See "Review Loop Mode" below.
+- **`-l` or `--review-loop`**: Replace the Step 9 deep review with `/review-loop 5 --aggressive` instead of `/deep-review`. By default, this also passes `--issues` to create GitHub issues for considerable review findings. See "Review Loop Mode" below.
 - **`-v` or `--verify-ui`**: After review fixes (Step 9), run `/verify-ui` to verify frontend/CSS/layout changes visually. See "Verify UI Mode" below.
 - **`--noi`, `--noissue`, or `--noissues`**: Only meaningful with `--review-loop`. Suppresses `--issues` flag on the review-loop invocation, so no GitHub issues are created for review findings.
 - **`-co` or `--codex`**: Use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below.
+- **`-a` or `--auto`**: After the workflow completes (Step 15), automatically run `/pr-complete -c -w` to merge the PR, close the linked issue, and watch post-merge CI. Intended for full-auto, safe-to-merge work.
 - **Existing issue provided**: If the user provides an existing issue (number or URL), read it first with `gh issue view <number>`. The issue body typically contains implementation instructions or a prompt — use it as the primary input for planning topics and development. Reuse this issue for progress logging instead of creating a new one.
 - The issue number is passed to all child agents so they can comment on it too.
 - Comments should be concise step reports (what was done, outcome, any issues encountered).
@@ -118,7 +112,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 6. Monitor child agents, review their PRs, merge into base
 7. Shut down child agents — close tmux panes, TeamDelete
 8. Sync local base branch
-9. Quality assurance: `/local-review` (default) or `/review-loop 5 --aggressive` (if `-l`/`--review-loop`)
+9. Quality assurance: `/deep-review` (default) or `/review-loop 5 --aggressive` (if `-l`/`--review-loop`)
 10. Verify UI: `/verify-ui` (if `-v`/`--verify-ui`)
 11. Push all changes to remote
 12. CI watch: verify CI passes on root PR (invoke `/watch-ci`, fix if red)
@@ -127,7 +121,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 15. Requirements verification (if issue linked) — **STOP HERE. Workflow ends.**
 16. _(DEFERRED — only when user asks, after PR is merged)_ Clean up worktrees and branches
 
-**PUSH-FORBID DURING WORK**: To save CI resources, child agents must **NOT push** during implementation. They commit locally only. All pushing happens in Step 11 after local review is complete. This prevents CI from running on every intermediate commit.
+**PUSH-FORBID DURING WORK**: To save CI resources, child agents must **NOT push** during implementation. They commit locally only. All pushing happens in Step 11 after deep review is complete. This prevents CI from running on every intermediate commit.
 
 **Never ask the user to manually cd into worktrees or start Claude sessions.** Use the Task tool to spawn agents that work in each worktree directory.
 
@@ -181,7 +175,7 @@ ISSUE_URL=$(gh issue create \
 - [ ] Step 6: Review and merge topic PRs
 - [ ] Step 7: Shut down child agents
 - [ ] Step 8: Sync local base branch
-- [ ] Step 9: Quality assurance (local review or review-loop)
+- [ ] Step 9: Quality assurance (deep review or review-loop)
 - [ ] Step 10: Verify UI (if --verify-ui)
 - [ ] Step 11: Push all changes to remote
 - [ ] Step 12: CI watch (verify CI passes)
@@ -247,7 +241,7 @@ When `-co` or `--codex` is passed, the following substitutions apply throughout 
 
 | Default tool | Codex replacement | Used for |
 |---|---|---|
-| `/local-review` | `/codex-review` | Step 9 quality assurance (manager review) |
+| `/deep-review` | `/codex-review` | Step 9 quality assurance (manager review) |
 | `/review-loop N --aggressive` | `/codex-review` (run once) | Review loop mode review step |
 | `/codex-review` in child agents (Step 5) | No change (already codex) | Child agent self-review |
 | Agent tool (web search, research) | `/codex-research` | Any web search or codebase research during planning/implementation |
@@ -256,7 +250,7 @@ When `-co` or `--codex` is passed, the following substitutions apply throughout 
 **How it affects the workflow:**
 
 - **Step 5 (child agents)**: Child agents already use `/codex-review` for self-review by default. No change needed.
-- **Step 9 (quality assurance)**: Instead of `/local-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
+- **Step 9 (quality assurance)**: Instead of `/deep-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
 - **Research during planning**: When you need to research libraries, APIs, or best practices, prefer `/codex-research` over the Agent tool or WebSearch.
 - **Documentation writing**: When writing README content, doc comments, or other prose, prefer `/codex-writer` over writing directly.
 
@@ -393,7 +387,7 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (pushing is deferred to Step 11)
-4. **Run `/codex-review`** to self-review their work — fix any clearly useful findings and commit
+4. **Run `/codex-review`** to self-review their work — fix any clearly useful findings and commit. **If codex is rate-limited or unavailable, `/codex-review` silently falls back to `/light-review` style (2 Claude Code reviewers). Do NOT pause or report the rate limit — just continue.**
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
 7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, and log file path. Do NOT send full summaries — the log file has the detail. The manager can read it via `/logrefer` if needed
@@ -476,7 +470,7 @@ The next step is **Step 9: Quality Assurance**. You MUST run it before pushing. 
 
 #### Review Loop Mode (`-l` / `--review-loop`)
 
-If `-l` or `--review-loop` was passed, invoke `/review-loop 5 --aggressive --issues` instead of `/local-review`. If `--noi` / `--noissue` / `--noissues` was also passed, omit the `--issues` flag (i.e., invoke `/review-loop 5 --aggressive`). This runs 5 rounds of aggressive review-fix cycles for thorough quality improvement.
+If `-l` or `--review-loop` was passed, invoke `/review-loop 5 --aggressive --issues` instead of `/deep-review`. If `--noi` / `--noissue` / `--noissues` was also passed, omit the `--issues` flag (i.e., invoke `/review-loop 5 --aggressive`). This runs 5 rounds of aggressive review-fix cycles for thorough quality improvement.
 
 ```
 Skill tool: skill="review-loop", args="5 --aggressive --issues"
@@ -486,10 +480,10 @@ Skill tool: skill="review-loop", args="5 --aggressive"
 
 #### Default Mode
 
-If `--review-loop` was NOT passed, invoke `/local-review` as usual:
+If `--review-loop` was NOT passed, invoke `/deep-review` as usual:
 
 ```
-Skill tool: skill="local-review"
+Skill tool: skill="deep-review"
 ```
 
 #### Common Steps
@@ -533,14 +527,20 @@ for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC;
 done
 ```
 
-After pushing, create topic PRs for documentation/tracking, close them, then **immediately delete topic branches**:
+After pushing, create topic PRs for documentation/tracking, close them, then **immediately delete topic branches**.
+
+**IMPORTANT**: Topic branches were already merged locally into the base branch (Step 6). If the remote base branch already contains the topic commits (because the base was pushed first), `gh pr create` will fail with "No commits between base and head". Always guard against this — check if the PR was actually created before trying to close it. **Never call `gh pr close` with an empty PR number** — `gh` will default to closing the current branch's PR (the root PR), which is destructive.
 
 ```bash
 # For each topic branch, create PR, close it, then delete the branch
 for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
-  gh pr create --base base/<project-name> --head "$branch" --title "<topic> implementation" --body "Part of <project-name> development" --fill
-  PR_NUM=$(gh pr list --head "$branch" --json number -q '.[0].number')
-  gh pr close "$PR_NUM" --comment "Already merged into base branch locally"
+  # Attempt to create PR — may fail if topic is already merged into base
+  if gh pr create --base base/<project-name> --head "$branch" --title "<topic> implementation" --body "Part of <project-name> development" --fill 2>/dev/null; then
+    PR_NUM=$(gh pr list --head "$branch" --json number -q '.[0].number')
+    if [ -n "$PR_NUM" ]; then
+      gh pr close "$PR_NUM" --comment "Already merged into base branch locally"
+    fi
+  fi
 done
 
 # Clean up topic branches immediately (they're merged into base, PRs are closed)
@@ -556,13 +556,7 @@ This prevents stale topic branches from accumulating. Only the base branch remai
 
 **Only perform this step if the project has CI configured.** Check with `gh pr checks <root-pr-number>` — if no checks exist, skip to Step 13.
 
-Invoke `/watch-ci` on the root PR to monitor CI:
-
-```bash
-RESULT=$(bash $HOME/.claude/skills/watch-ci/scripts/check-ci.sh <root-pr-number>)
-echo "$RESULT"
-# Poll every 20 seconds until terminal state
-```
+Invoke `/watch-ci <root-pr-number>` to monitor CI. The `/watch-ci` skill handles polling, notifications, and failure investigation internally.
 
 - **If CI passes**: Proceed to Step 13
 - **If CI fails**: Investigate and fix
@@ -597,7 +591,7 @@ Write a markdown report summarizing:
 - Project name and scope
 - Topics implemented (one bullet per topic with brief summary of what each child agent did)
 - Key decisions and architectural choices
-- Review findings and fixes applied (from `/local-review`)
+- Review findings and fixes applied (from `/deep-review`)
 - CI status (pass/fail/skipped)
 - Root PR URL and topic PR URLs
 
@@ -660,9 +654,38 @@ This creates a self-correcting loop that ensures nothing from the original spec 
 
 ---
 
+### Auto-Complete Mode (`-a` / `--auto`)
+
+**Only run this step if `-a` or `--auto` was passed.** Otherwise, skip to STOP below.
+
+After requirements verification passes (Step 15), automatically invoke `/pr-complete -c -w` to:
+
+1. Wait for CI checks to pass
+2. Merge the root PR (`--merge --delete-branch`)
+3. Close the linked issue (`-c`)
+4. Watch post-merge CI on the target branch (`-w`)
+
+This is intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/pr-complete` will handle the error reporting.
+
+---
+
+### Close Tracking Issue
+
+**Always close the tracking issue when the workflow ends** (unless `--no-issue` was used and no issue exists). The tracking issue is a workflow log — it has served its purpose once the PR is ready.
+
+```bash
+gh issue close "$ISSUE_NUMBER" --comment "Workflow complete. Root PR: <ROOT_PR_URL>"
+```
+
+If any problems were discovered during the workflow that need follow-up, raise them as **separate issues** before closing the tracking issue. The tracking issue itself should not remain open as a to-do item.
+
+**Exception**: If the issue was provided by the user (not created by this workflow), do NOT close it — the user may want it to remain open for other purposes.
+
+---
+
 ### STOP — WORKFLOW ENDS HERE
 
-**After requirements verification passes (Step 15), the automated workflow is DONE.** Report the root PR URL and wait for user response.
+**After the tracking issue is closed (or skipped) and auto-complete finishes (if applicable), the automated workflow is DONE.** Report the root PR URL and wait for user response.
 
 **CRITICAL RULES at this point:**
 
@@ -693,7 +716,7 @@ After you report the root PR, the user often replies with feedback — requests 
 - New topic branches: `<project-name>/<new-topic-name>`
 - New worktrees: `worktrees/<new-topic-name>`
 - Include the user's feedback verbatim in child agent prompts so they have full context
-4. **Follow the same workflow**: merge topics → shut down agents → sync → local review → push → CI watch → update PR (Steps 6–14)
+4. **Follow the same workflow**: merge topics → shut down agents → sync → deep review → push → CI watch → update PR (Steps 6–14)
 5. **Report back** and wait for the next round of feedback
 
 #### Key points
@@ -735,7 +758,7 @@ Even during cleanup, do NOT checkout main or the parent branch. Stay on whatever
 3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts
 4. **Create the root PR immediately in Step 2** — an empty commit + draft PR locks in the correct parent branch
 5. **Never force push** — regular merge only, preserves history
-6. **Push-forbid during work** — child agents commit locally only. All pushing happens in Step 11 after local review. This saves CI resources
+6. **Push-forbid during work** — child agents commit locally only. All pushing happens in Step 11 after deep review. This saves CI resources
 7. **Topic branches merge locally first** — the manager merges topic branches into base via `git merge`, not GitHub PR merge. Topic branches are pushed later for documentation only
 8. **Root PR targets the parent branch** — this is handled automatically by creating it in Step 2
 9. **worktrees/ must be in .gitignore** — worktrees are local only

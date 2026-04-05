@@ -1,11 +1,6 @@
 ---
 name: dev-repo-bigbang-move
-description: >-
-  Big-bang move a repository to a new remote, stripping commit history and purging private info. Use
-  when: (1) User says 'bigbang move', 'repo move', or 'move repo', (2) User wants to move a repo to
-  a new remote while cleaning out client/private information, (3) User needs to start fresh in a new
-  repo without commit history.
-disable-model-invocation: true
+description: "Big-bang move a repository to a new remote, stripping commit history and purging private info. Use when: (1) User says 'bigbang move', 'repo move', or 'move repo', (2) User wants to move a repo to a new remote while cleaning out client/private information, (3) User needs to start fresh in a new repo without commit history."
 argument-hint: <old-repo-path> <new-repo-path>
 ---
 
@@ -26,9 +21,11 @@ If arguments are not provided, ask the user for both paths.
 
 1. Confirm `$0` exists and is a git repo
 2. Confirm `$1` exists. If it is not a git repo yet, run `git init` and create an initial empty commit:
+
    ```
    git commit --allow-empty -m "Initial commit"
    ```
+
 3. Confirm `$1` has a remote configured (`git remote -v`). If not, ask the user for the remote URL and add it.
 
 ### Step 2: Copy Files

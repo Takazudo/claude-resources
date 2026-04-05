@@ -65,6 +65,9 @@ fn docs_url() -> String {
 // ── Node detection ───────────────────────────────
 
 fn find_node() -> Option<std::path::PathBuf> {
+    let home = home_dir();
+
+    // 1. Direct paths (system / Homebrew installs)
     let candidates = [
         "/opt/homebrew/bin/node",
         "/usr/local/bin/node",
@@ -76,7 +79,46 @@ fn find_node() -> Option<std::path::PathBuf> {
             return Some(path);
         }
     }
-    // Fallback: `which node` (unlikely to find nvm/nodenv when launched from Finder)
+
+    // 2. Version managers — resolve actual binary (not shim) so it works
+    //    without shell env when launched from Finder / launchd.
+
+    // anyenv/nodenv, standalone nodenv
+    let nodenv_roots = [
+        format!("{home}/.anyenv/envs/nodenv"),
+        format!("{home}/.nodenv"),
+    ];
+    for root in &nodenv_roots {
+        if let Some(path) = find_node_in_versions_dir(root, "nodenv") {
+            return Some(path);
+        }
+    }
+
+    // nvm — versions stored in $HOME/.nvm/versions/node/<ver>/bin/node
+    let nvm_root = format!("{home}/.nvm");
+    if let Some(path) = find_node_in_versions_dir(
+        &format!("{nvm_root}/versions/node"), "nvm",
+    ) {
+        return Some(path);
+    }
+
+    // volta — actual binaries in $HOME/.volta/tools/image/node/<ver>/bin/node
+    let volta_root = format!("{home}/.volta/tools/image/node");
+    if let Some(path) = find_node_in_versions_dir(&volta_root, "volta") {
+        return Some(path);
+    }
+
+    // fnm — check both modern (Library/Application Support/fnm) and legacy (~/.fnm)
+    for fnm_base in &[
+        format!("{home}/Library/Application Support/fnm/node-versions"),
+        format!("{home}/.fnm/node-versions"),
+    ] {
+        if let Some(path) = find_node_in_versions_dir(fnm_base, "fnm") {
+            return Some(path);
+        }
+    }
+
+    // 3. Fallback: `which node` (unlikely to find version managers when launched from Finder)
     if let Ok(output) = Command::new("/usr/bin/which").arg("node").output() {
         let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !path_str.is_empty() {
@@ -88,6 +130,64 @@ fn find_node() -> Option<std::path::PathBuf> {
         }
     }
     log("find_node: no node binary found on system");
+    None
+}
+
+/// Find a node binary inside a directory containing version subdirectories.
+/// Works for nodenv (`versions/`), nvm (`versions/node/`), volta (`tools/image/node/`), fnm.
+///
+/// For nodenv roots, also checks the `version` file to prefer the configured global version.
+/// Falls back to the highest installed version using numeric semver sort.
+fn find_node_in_versions_dir(dir: &str, label: &str) -> Option<std::path::PathBuf> {
+    let dir_path = std::path::PathBuf::from(dir);
+    if !dir_path.exists() {
+        return None;
+    }
+
+    // For nodenv roots: the dir is the root, versions are in `versions/`
+    // For nvm/volta/fnm: the dir already points at the versions directory
+    let versions_dir = if dir_path.join("versions").exists() {
+        // nodenv-style root — also check its `version` file for the configured global
+        if let Ok(ver) = fs::read_to_string(dir_path.join("version")) {
+            let ver = ver.trim();
+            let node_path = dir_path.join("versions").join(ver).join("bin").join("node");
+            if node_path.exists() {
+                log(&format!("find_node: found via {label} ({dir}): {}", node_path.display()));
+                return Some(node_path);
+            }
+        }
+        dir_path.join("versions")
+    } else {
+        dir_path
+    };
+
+    // Scan version subdirectories and pick the highest using numeric sort
+    if let Ok(entries) = fs::read_dir(&versions_dir) {
+        let mut versions: Vec<String> = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        // Sort by numeric version components (handles 9.x vs 20.x correctly)
+        versions.sort_by(|a, b| {
+            let parse = |s: &str| -> Vec<u64> {
+                // Strip leading 'v' (nvm uses "v20.11.0" directory names)
+                s.strip_prefix('v').unwrap_or(s)
+                    .split('.')
+                    .filter_map(|p| p.parse().ok())
+                    .collect()
+            };
+            parse(a).cmp(&parse(b))
+        });
+        if let Some(ver) = versions.last() {
+            let node_path = versions_dir.join(ver).join("bin").join("node");
+            if node_path.exists() {
+                log(&format!("find_node: found via {label} ({dir}): {}", node_path.display()));
+                return Some(node_path);
+            }
+        }
+    }
+
     None
 }
 
@@ -498,6 +598,29 @@ mod tests {
         if let Some(ref path) = result {
             assert!(path.is_absolute(), "node path should be absolute");
             assert!(path.exists(), "returned node path should exist");
+            assert_eq!(
+                path.file_name().unwrap().to_str().unwrap(),
+                "node",
+                "binary should be named 'node'"
+            );
+        }
+    }
+
+    #[test]
+    fn find_node_in_versions_dir_returns_none_for_missing_root() {
+        assert!(find_node_in_versions_dir("/nonexistent/path", "test").is_none());
+    }
+
+    #[test]
+    fn find_node_detects_anyenv_nodenv() {
+        // If anyenv/nodenv is installed on this machine, find_node should find it
+        let home = home_dir();
+        let root = format!("{home}/.anyenv/envs/nodenv");
+        if PathBuf::from(&root).join("versions").exists() {
+            let result = find_node_in_versions_dir(&root, "nodenv");
+            assert!(result.is_some(), "should find node in anyenv/nodenv");
+            let path = result.unwrap();
+            assert!(path.exists(), "resolved node binary should exist");
             assert_eq!(
                 path.file_name().unwrap().to_str().unwrap(),
                 "node",

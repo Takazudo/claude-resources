@@ -2,29 +2,46 @@
 name: codex-writer
 description: "Document writing assistance using OpenAI Codex CLI (codex exec). PREFERRED over general writing tasks. Use when: (1) User says 'write document', 'write docs', 'codex write', or 'codex writer', (2) Writing README, documentation, or technical content, (3) Drafting text content that benefits from a second AI perspective. Codex drafts content, Claude Code reviews and writes to files. Falls back to Claude Code if codex is unresponsive."
 allowed-tools:
-  - Bash(codex *)
+  - Bash(node *)
   - Bash(timeout *)
   - Bash(gtimeout *)
-  - Bash(cat *)
 ---
 
 # Codex Writer
 
-Draft documents via `codex exec`, then review and write to files via Claude Code.
+Draft documents via the codex plugin companion script, then review and write to files via Claude Code.
 
-## Codex CLI Usage
+## Codex Plugin Companion Script
+
+The codex plugin provides a companion script for running tasks. Resolve it dynamically:
 
 ```bash
-codex exec --sandbox read-only --ephemeral -o <output-file> "<prompt>"
+CODEX_PLUGIN_ROOT=$(command ls -d "$HOME/.claude/plugins/cache/openai-codex/codex"/*/ 2>/dev/null | sort -V | tail -1)
+CODEX_COMPANION="${CODEX_PLUGIN_ROOT}scripts/codex-companion.mjs"
 ```
 
-Key flags:
+If the file does not exist, report "Codex plugin not installed. Run `/codex:setup` first." and fall back to Claude Code writing.
 
-- `--sandbox read-only`: Codex cannot write files
-- `--ephemeral`: No session persistence
-- `-o <file>`: Capture output to file
+Usage for writing tasks:
+
+```bash
+node "$CODEX_COMPANION" task "<writing prompt>"
+```
+
+The `task` command runs Codex in read-only mode by default (no `--write` flag). Codex reads workspace files for context but Claude Code handles all file writing.
 
 ## Process
+
+### Step 0: Pre-flight Rate Limit Check
+
+Before doing anything, check if Codex is currently rate-limited:
+
+```bash
+RATE_CHECK=$(node $HOME/.claude/scripts/codex-rate-limit.js check 2>&1)
+RATE_EXIT=$?
+```
+
+If `RATE_EXIT` is non-zero (rate-limited), **skip all codex steps** and jump directly to the **Fallback** step. **Do NOT report the rate limit to the user** — silently fall back.
 
 ### Step 1: Understand the Task
 
@@ -50,6 +67,10 @@ LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
 mkdir -p "$LOGDIR"
 DATETIME=$(date +%Y%m%d_%H%M%S)
 
+# Resolve codex companion script
+CODEX_PLUGIN_ROOT=$(command ls -d "$HOME/.claude/plugins/cache/openai-codex/codex"/*/ 2>/dev/null | sort -V | tail -1)
+CODEX_COMPANION="${CODEX_PLUGIN_ROOT}scripts/codex-companion.mjs"
+
 # Detect timeout command (gtimeout on macOS via coreutils, timeout on Linux/WSL)
 if command -v gtimeout &>/dev/null; then
   TIMEOUT_CMD="gtimeout"
@@ -57,34 +78,47 @@ elif command -v timeout &>/dev/null; then
   TIMEOUT_CMD="timeout"
 else
   TIMEOUT_CMD=""
-  echo "ERROR: neither gtimeout nor timeout found. On macOS: brew install coreutils | On WSL/Linux: sudo apt install coreutils"
+  echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+900} codex exec --sandbox read-only --ephemeral \
-  -o "$LOGDIR/${DATETIME}-codex-writer-draft.md" \
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+900} node "$CODEX_COMPANION" task \
   "<detailed prompt here>" \
+  > "$LOGDIR/${DATETIME}-codex-writer-draft.md" \
   2>"$LOGDIR/${DATETIME}-codex-writer-draft-stderr.log"
 ```
 
 **Timeout: 15 minutes.** Codex reads workspace files for context but cannot write.
 
-### Step 4: Fallback
+### Step 4: Check for Rate Limiting
 
-If codex times out or produces no output:
+After codex completes (or times out), check output files for rate limit errors:
 
-- Report: "Codex CLI unresponsive. Writing document directly in Claude Code."
-- Draft the document using Claude Code instead
+```bash
+node $HOME/.claude/scripts/codex-rate-limit.js check-output \
+  "$LOGDIR/${DATETIME}-codex-writer-draft.md" \
+  "$LOGDIR/${DATETIME}-codex-writer-draft-stderr.log"
+```
 
-### Step 5: Review and Refine
+If exit code is non-zero (rate limit detected), jump to **Fallback**.
 
-1. Read the codex output from `$LOGDIR/codex-writer-draft.md`
+### Step 5: Fallback
+
+If codex times out, produces no output, or is rate-limited:
+
+- **Silently fall back** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
+- Draft the document using Claude Code directly, or spawn a `markdown-writer` subagent
+- Continue the workflow as if writing directly was the original plan
+
+### Step 6: Review and Refine
+
+1. Read the codex output from the log file
 2. Review for quality, accuracy, and adherence to the request
 3. Fix any issues, improve structure, correct factual errors
 4. Write the final content to the target file using Claude Code
 
 **Important:** Claude Code always does the final file writing. Codex only provides a draft.
 
-### Step 6: Report
+### Step 7: Report
 
 Tell the user what was written and where. Include the draft log path for reference.
 
@@ -100,3 +134,4 @@ Tell the user what was written and where. Include the draft log path for referen
 - Codex can read workspace files to understand codebase context
 - Claude Code reviews all codex output before writing to files
 - Draft output saved to `$LOGDIR/codex-writer-draft.md`
+- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to writing directly. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do

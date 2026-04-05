@@ -1,16 +1,12 @@
 ---
 name: light-review
-description: >-
-  Lightweight code review using 2 Sonnet reviewers. Faster and cheaper than /local-review. Use when:
-  (1) Quick review of a small change, (2) Child agents self-reviewing before reporting to manager,
-  (3) User says 'light review' or 'quick review', (4) Review is needed but full /local-review is
-  overkill. Always uses PR mode (diff-based) with 2 reviewers.
+description: "Lightweight code review using 2 Sonnet reviewers. Faster and cheaper than /deep-review. Use when: (1) Quick review of a small change, (2) Child agents self-reviewing before reporting to manager, (3) User says 'light review' or 'quick review', (4) Review is needed but full /deep-review is overkill. Always uses PR mode (diff-based) with 2 reviewers."
 model: sonnet
 ---
 
 # Light Review
 
-Lightweight code review — 2 Sonnet reviewers on the diff. Use this instead of `/local-review` for smaller changes or when speed matters more than depth.
+Lightweight code review — 2 Sonnet reviewers on the diff. Use this instead of `/deep-review` for smaller changes or when speed matters more than depth.
 
 ## Review Focus
 
@@ -100,7 +96,7 @@ If fixes were applied, commit them with a descriptive message.
 
 - This is a **lightweight** review — 2 reviewers, Sonnet model
 - Reviewers save full findings to log files, return only high-priority items + path
-- For thorough review (3-6 Opus reviewers), use `/local-review` instead
+- For thorough review (3-6 Opus reviewers), use `/deep-review` instead
 - Focus on real bugs and clear improvements, not style nitpicks
 - Keep it fast — the goal is a quick sanity check, not a deep audit
 - Log files are available via `/logrefer` for future sessions

@@ -1,11 +1,6 @@
 ---
 name: figrefer
-description: >-
-  Read the currently selected Figma element and work with it. Use when: (1) User says 'figrefer',
-  'figma refer', 'check my figma selection', (2) User wants to implement or analyze a design
-  selected in Figma desktop app, (3) User says 'what am I selecting in figma', 'implement this figma
-  design'
-disable-model-invocation: true
+description: "Read the currently selected Figma element and work with it. Use when: (1) User says 'figrefer', 'figma refer', 'check my figma selection', (2) User wants to implement or analyze a design selected in Figma desktop app, (3) User says 'what am I selecting in figma', 'implement this figma design'"
 argument-hint: "[what to do with the selection]"
 ---
 

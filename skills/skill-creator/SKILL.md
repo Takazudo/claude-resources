@@ -68,6 +68,8 @@ Every SKILL.md consists of:
 - **Frontmatter** (YAML): Contains `name` and `description` fields. These are the only fields that Claude reads to determine when the skill gets used, thus it is very important to be clear and comprehensive in describing what the skill is, and when it should be used.
 - **Body** (Markdown): Instructions and guidance for using the skill. Only loaded AFTER the skill triggers (if at all).
 
+**Case-sensitivity warning (macOS):** The canonical file name is `SKILL.md` (uppercase). On case-insensitive filesystems (macOS), if a skill directory already contains `skill.md` (lowercase), creating `SKILL.md` will overwrite it on disk but git will track both as separate index entries, causing clone-time collision warnings. Before creating or renaming: check for existing variants with `git ls-files '<skill-dir>/'` and remove any lowercase duplicate with `git rm --cached '<path>/skill.md'`.
+
 #### Bundled Resources (optional)
 
 ##### Scripts (`scripts/`)

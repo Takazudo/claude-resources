@@ -30,6 +30,11 @@ Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (s
 - Invoke `/test-wisdom` when unsure which testing approach fits the current situation
 - **NEVER suggest "clear browser cache" or "hard refresh" as a solution.** If the user says it's still broken, the code is still broken. Investigate the actual cause instead of blaming cache.
 
+## GitHub Issues
+
+- When reading a GitHub issue (URL, issue number, or any reference), always use `/gh-fetch-issue` first. This downloads the issue content and all attached images locally so Claude can read them. Do not use `gh issue view` directly — it cannot access embedded images.
+- When creating a GitHub issue that needs images (screenshots, diagrams, etc.), use `/gh-issue-with-imgs` to upload images as release assets and embed them in the issue body. `gh issue create` cannot attach images natively.
+
 ## Safety
 
 - `rm -rf`: relative paths only (`./path`, never `/absolute/path`)

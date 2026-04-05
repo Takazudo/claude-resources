@@ -33,7 +33,7 @@ cargo tauri build
 ### Production (bundled `.app`)
 
 1. `main()` calls `kill_port(4892)` to clean stale processes
-2. `find_node()` searches for system node: `/opt/homebrew/bin/node`, `/usr/local/bin/node`, `which node`
+2. `find_node()` searches for system node in order: Homebrew paths → anyenv/nodenv versions → standalone nodenv versions → nvm → volta → fnm → `which node`
 3. **If node found**: Spawns `node scripts/dev-stable.js` as sidecar (builds Astro site, serves, watches, SSE live-reload). Waits up to 120s for `___ready`.
 4. **If node not found**: Starts axum static file server on port 4892 serving `$HOME/.claude/doc/dist/`. Waits up to 30s. No build, no watch.
 5. Window opens pointing at `http://localhost:4892/`
@@ -57,7 +57,8 @@ pnpm install && pnpm build
 
 ## Process Management
 
-- `find_node()` — searches Homebrew paths then `which node`
+- `find_node()` — searches Homebrew paths, version managers (anyenv/nodenv, nodenv, nvm, volta, fnm), then `which node`
+- `find_node_in_versions_dir()` — resolves actual node binary from a versions directory (nodenv, nvm, volta, fnm); uses numeric semver sort for fallback
 - `kill_port()` — SIGTERM stale processes on port 4892 before startup
 - `process_group(0)` — sidecar runs in its own process group
 - `kill_sidecar()` — SIGTERM to process group, wait 500ms, SIGKILL if still alive
