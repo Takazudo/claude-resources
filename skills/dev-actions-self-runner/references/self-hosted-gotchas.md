@@ -87,9 +87,9 @@ On self-hosted runners, `npx <command>` may prompt to install the package and ha
 
 **Why not `pnpm exec`?** If the command runs in a subdirectory that isn't a pnpm workspace member (e.g., test fixtures with symlinked `node_modules`), `pnpm exec` fails with `ERR_PNPM_RECURSIVE_EXEC_NO_PACKAGE`. The direct bin path works everywhere since `node_modules` is symlinked from the repo root.
 
-## Playwright --with-deps Requires Passwordless sudo
+## Playwright --with-deps Requires sudo
 
-`pnpm dlx playwright install --with-deps chromium` installs OS-level dependencies (libgbm, libnss3, etc.) using `apt-get`, which requires `sudo`. On self-hosted runners, this fails if the runner user doesn't have passwordless sudo.
+`playwright install --with-deps chromium` installs OS-level dependencies (libgbm, libnss3, etc.) using `apt-get`, which requires `sudo`. On self-hosted runners, this fails if the runner user doesn't have passwordless sudo.
 
 **Symptoms:**
 
@@ -99,15 +99,31 @@ sudo: a password is required
 Failed to install browsers
 ```
 
-**Fix:** Configure passwordless sudo for the runner user:
+**Best fix for CI (recommended):** Use `sudo -n` to detect sudo availability and skip `--with-deps` on self-hosted runners. System deps persist on self-hosted between runs, so they only need to be installed once manually.
+
+```yaml
+- name: Install Playwright browsers
+  run: |
+    # --with-deps requires sudo for apt-get (available on GitHub-hosted, not on self-hosted)
+    if sudo -n true 2>/dev/null; then
+      pnpm exec playwright install --with-deps chromium
+    else
+      pnpm exec playwright install chromium
+    fi
+```
+
+On the self-hosted runner, install system deps once manually:
 
 ```bash
-# On the runner machine (WSL2):
+sudo npx playwright install-deps chromium
+```
+
+**Alternative fix:** Configure passwordless sudo for the runner user:
+
+```bash
 sudo visudo
 # Add: <your-username> ALL=(ALL) NOPASSWD: ALL
 ```
-
-Or pre-install Playwright dependencies once and use `playwright install chromium` (without `--with-deps`) in CI.
 
 ## Stale E2E Preview Servers
 

@@ -119,9 +119,9 @@ If `npm install -g` or similar was used before and left stale files, clean up ma
 rm -rf $HOME/actions-runner-*/_work/_tool/node/*/x64/lib/node_modules/.package-*
 ```
 
-### Docker container jobs won't work
+### Docker container jobs need Docker
 
-Jobs using `container:` in the workflow need Docker. Most self-hosted runners (especially macOS and WSL2) don't have Docker configured. Keep container-based jobs on `ubuntu-latest`.
+Jobs using `container:` in the workflow need Docker installed on the runner. On WSL2, this works if Docker is set up, but requires a permissions cleanup step (see gotchas). **Preferred approach:** Replace Docker container jobs with direct tool installation — e.g., replace Playwright Docker images with `playwright install --with-deps` (using the `sudo -n` pattern from gotchas). This avoids Docker as a dependency entirely.
 
 ### Security considerations
 

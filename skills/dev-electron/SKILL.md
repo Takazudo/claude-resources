@@ -1,14 +1,6 @@
 ---
 name: dev-electron
-description: |
-  Electron app development patterns for thin wrapper apps around dev servers.
-  Use when: (1) Building Electron apps as thin wrappers around web apps,
-  (2) Managing dev server processes in Electron,
-  (3) Handling nodenv/anyenv PATH issues in spawned processes,
-  (4) Packaging Electron apps with electron-builder,
-  (5) Sharing modules across multiple Electron apps (extraResources pattern),
-  (6) Dynamic project root resolution in packaged apps,
-  (7) Opening external links in default browser.
+description: "Electron app development patterns for thin wrapper apps around dev servers. Use when: (1) Building Electron apps as thin wrappers around web apps, (2) Managing dev server processes in Electron, (3) Handling nodenv/anyenv PATH issues in spawned processes, (4) Packaging Electron apps with electron-builder, (5) Sharing modules across multiple Electron apps (extraResources pattern), (6) Dynamic project root resolution in packaged apps, (7) Opening external links in default browser."
 ---
 
 # Electron Development
@@ -70,6 +62,7 @@ function createMainWindow(devServerUrl) {
 ```
 
 Key points:
+
 - Use `nodeIntegration: false` + `contextIsolation: true` (secure defaults)
 - Standard `{ role: "reload" }` menu items work correctly (they reload the BrowserWindow content directly)
 - No need for custom IPC, globalShortcut, or webview tags
@@ -219,7 +212,7 @@ const defaultUrl = "http://localhost:3000/pj/app/doc/";
 
 ### Dev Server: Avoid Transient Errors During File Regeneration
 
-When regenerating files that a running dev server watches, **write new files before deleting stale ones**. If you delete first, the dev server sees missing files and shows errors. See the dev-docusaurus skill for the `removeStaleItems` pattern.
+When regenerating files that a running dev server watches, **write new files before deleting stale ones**. If you delete first, the dev server sees missing files and shows errors.
 
 ### nodenv/anyenv PATH Issues
 

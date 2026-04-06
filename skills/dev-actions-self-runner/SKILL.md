@@ -1,10 +1,6 @@
 ---
 name: dev-actions-self-runner
-description: >
-  Add self-hosted runner support with automatic fallback to GitHub-hosted runners in GitHub Actions
-  workflows. Use when: (1) User wants to add self-hosted runner support to CI, (2) User says
-  'self-hosted runner', 'add self runner', 'self-hosted fallback', (3) User wants to save GitHub
-  Actions minutes, (4) User asks about runner detection or runner fallback in GitHub Actions.
+description: "Add self-hosted runner support with automatic fallback to GitHub-hosted runners in GitHub Actions workflows. Use when: (1) User wants to add self-hosted runner support to CI, (2) User says 'self-hosted runner', 'add self runner', 'self-hosted fallback', (3) User wants to save GitHub Actions minutes, (4) User asks about runner detection or runner fallback in GitHub Actions."
 ---
 
 # Self-Hosted Runner with Fallback
@@ -138,11 +134,46 @@ And update the comment to: `# Requires RUNNER_CHECK_TOKEN secret (PAT with admin
 
 ## Step 4: Modify Existing Workflows
 
-For each workflow with heavy jobs, add the detect-runner call and update `runs-on`.
+For each workflow, add the detect-runner call and update `runs-on`. By default, put all jobs on dynamic runner. If the user prefers, keep lightweight jobs (deploy, notify) on `ubuntu-latest`.
+
+### Replacing Docker container jobs (e.g., Playwright)
+
+If a workflow uses `container:` with a Docker image (e.g., `mcr.microsoft.com/playwright:v1.59.1-noble`), **replace it with direct tool installation**. Docker may not be available on self-hosted runners.
+
+```yaml
+# Before (Docker container):
+e2e-tests:
+  runs-on: ubuntu-latest
+  container:
+    image: mcr.microsoft.com/playwright:v1.59.1-noble
+  steps:
+    - run: pnpm install --frozen-lockfile
+      env:
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+# After (direct install with sudo-n pattern):
+e2e-tests:
+  needs: detect-runner
+  runs-on: ${{ needs.detect-runner.outputs.runner }}
+  steps:
+    - run: pnpm install --frozen-lockfile
+    - name: Install Playwright browsers
+      run: |
+        # --with-deps requires sudo for apt-get (GitHub-hosted has it, self-hosted may not)
+        if sudo -n true 2>/dev/null; then
+          pnpm exec playwright install --with-deps chromium
+        else
+          pnpm exec playwright install chromium
+        fi
+```
+
+Also **remove any Playwright browser cache steps** (`actions/cache` with `~/.cache/ms-playwright`) — browsers persist on self-hosted runners naturally, and on GitHub-hosted the fresh download is fast enough (~30s).
+
+### Removing cache maintenance workflows
+
+If the project has a cache-maintenance workflow that exists solely to keep Playwright (or similar) caches alive, **delete it** — the caches are no longer needed.
 
 ### Multi-job workflows (build → deploy → notify)
-
-Only build/test jobs get the dynamic runner. Deploy and notify jobs stay on `ubuntu-latest`:
 
 ```yaml
 jobs:
@@ -156,13 +187,13 @@ jobs:
     # ... heavy build steps
 
   deploy:
-    needs: [detect-runner, build]   # detect-runner listed for explicit dependency graph
-    runs-on: ubuntu-latest          # deploy stays on ubuntu-latest (fast, needs credentials)
+    needs: [detect-runner, build]
+    runs-on: ${{ needs.detect-runner.outputs.runner }}
     # ... deploy steps
 
   notify:
     needs: [detect-runner, build, deploy]
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.detect-runner.outputs.runner }}
 ```
 
 ### Single-job workflows (build + deploy in one job)
@@ -257,7 +288,7 @@ Without `RUNNER_CHECK_TOKEN`, all jobs run on `ubuntu-latest` as before (safe de
 
 - **Always call detect-runner unconditionally** — never skip it with `if:` conditions. The fallback handles all failure modes gracefully.
 - **Cache keys differ by runner OS** — `runner.os` produces `Linux` on GitHub-hosted but may produce `macOS` or `Linux` on self-hosted depending on setup. Cache hits may not cross between them.
-- **`container:` jobs must stay on `ubuntu-latest`** — Docker-in-Docker won't work on macOS or WSL2 self-hosted runners.
+- **Replace `container:` jobs with direct tool install** — Docker may not be available on self-hosted runners. Use the `sudo -n` pattern for tools like Playwright that need system deps (see Step 4).
 - **Single runner = single concurrent job** — parallel jobs need multiple runner instances registered in separate directories.
 - **Never use `npx` in pnpm projects** — `npx` hangs on self-hosted runners. Use `./node_modules/.bin/<cmd>` or `pnpm dlx` instead (see gotchas).
 - **`pnpm exec` only works in workspace members** — test fixtures with symlinked `node_modules` need direct bin paths instead.

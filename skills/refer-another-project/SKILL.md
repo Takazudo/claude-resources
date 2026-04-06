@@ -1,7 +1,7 @@
 ---
 name: refer-another-project
 description: "Refer another project while protecting sensitive information. Use when: (1) User says 'refer project', 'copy from project', or 'look at another repo', (2) User wants to reference patterns or setup from another codebase, (3) User needs to learn from another project's structure without leaking private data."
-argument-hint: <slug|path> [slug2 ...] — repo slug (e.g. zmod) or full path
+argument-hint: "[-u|--update] <slug|path> [slug2 ...] — repo slug (e.g. zmod) or full path"
 ---
 
 > **DO NOT auto-invoke this skill.** Referencing another project exposes its contents to the current session, which may leak private/client information across project boundaries. Always ask for user confirmation before proceeding.
@@ -33,6 +33,45 @@ For each slug argument (any argument that is NOT an absolute path starting with 
 # Resolution command for each slug
 ls -d $HOME/repos/*/{slug} 2>/dev/null
 ```
+
+## Update Mode (`-u` / `--update`)
+
+When `-u` or `--update` is passed, this skill switches to **fix-and-PR mode**: you've found a problem in the referenced project and want to fix it there directly.
+
+### How it works
+
+1. **Remember the current project path** (you'll return here afterward)
+2. **`cd` into the resolved project path**
+3. **Run `/x-as-pr -co` from the main branch** with the fix instructions
+- The `/x-as-pr` workflow handles branching, implementing, reviewing, and opening a draft PR
+- Pass any remaining arguments (after the slug and flags) as implementation instructions to `/x-as-pr`
+4. **After the PR is created**, `cd` back to the original project and resume work
+
+### PR content rules for update mode
+
+The PR on the referenced project must:
+
+- **Describe the fix in full detail** — what was wrong, why, and how it's fixed
+- **NEVER mention the originating project** — do not write which project led to discovering the bug. Each project must remain completely independent. No project names, slugs, paths, or hints about what you were working on when you found the issue
+- Use generic phrasing like "discovered during usage" or "found during testing" if context is needed
+
+### Example
+
+```
+/refer-another-project -u zmod fix the broken export path in package.json
+```
+
+This will:
+
+1. Resolve `zmod` → `$HOME/repos/*/zmod`
+2. `cd` into that directory
+3. Run `/x-as-pr -co fix the broken export path in package.json`
+4. Return to the original project after PR is created
+
+### Constraints
+
+- Only **one slug** is allowed with `-u` (you can't fix multiple projects at once)
+- If multiple slugs are provided with `-u`, report an error and stop
 
 ## Critical Security Warning
 
@@ -70,7 +109,17 @@ The referenced project may belong to a work client. Exposing client names or pro
 - **Internal documentation**: Private docs, internal guides, company-specific processes
 - **Asset files**: Images, logos, brand assets that belong to the other project
 
+## Argument Parsing
+
+Parse `$ARGUMENTS` to extract:
+
+- **`-u` or `--update` flag**: If present, switch to update mode (see "Update Mode" above)
+- **Slug(s) or path(s)**: Project identifiers to resolve
+- **Remaining text** (update mode only): Implementation instructions passed to `/x-as-pr -co`
+
 ## Instructions
+
+### Default mode (no `-u` flag)
 
 1. **Identify what you need**: Clearly state what patterns or setup you want to learn from
 2. **Read with filtering mindset**: When reading files, mentally separate:
