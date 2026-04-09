@@ -139,7 +139,15 @@ gh issue view <number>
 
 Use the issue body as the primary input for planning topics and the development approach. Set `ISSUE_NUMBER=<number>` and reuse this issue for progress logging (no new issue needed).
 
-**Update the issue body** with `gh issue edit` to add:
+**Epic issue shortcut (created by `/big-plan`):** If the issue title contains `[Epic]`, the planning is already done. Extract directly from the issue body:
+
+- **Topics** — use the child sub-issues listed in the issue (each `[Sub]` issue becomes one topic)
+- **Base branch** — use the `base/...` name stated in the issue body (do NOT invent a new one)
+- **Dependency order** — respect the dependency graph in the issue body; start with independent topics first
+
+Do NOT re-plan or re-analyze the codebase. Do NOT update the epic issue body (it already has a complete spec). Just proceed to Step 2 with the extracted topics and base branch name.
+
+**For non-epic issues:** Update the issue body with `gh issue edit` to add:
 
 1. A **Summary** section (if missing) — write 2-4 sentences explaining what this implementation does and why, based on the user's instructions and your planned approach
 2. A **Topics** section listing each topic with a 1-sentence description

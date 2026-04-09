@@ -8,3 +8,4 @@ __pycache__/
 .cache/
 pnpm-lock.yaml
 package-lock.json
+*.log

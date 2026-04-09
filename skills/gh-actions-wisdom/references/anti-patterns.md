@@ -171,6 +171,40 @@ Artifacts count toward **shared org storage** (the quota orgs hit first). For pa
     set-safe-directory: false
 ```
 
-## 15. Remote Caching on Self-Hosted Runners
+## 15. Hardcoded Ports in E2E Test Server Setup
+
+On self-hosted runners, ports persist between workflow runs. Starting a server on a hardcoded port (e.g., `python3 -m http.server 34434 &`) can silently fail if a stale process from a previous run still occupies it. The background process dies, but a subsequent health check (`curl`) passes against the stale server — which may be a dev server with HMR/WebSocket, not your production build.
+
+```yaml
+# BAD - silently fails if port is occupied, health check hits stale server
+cd dist
+python3 -m http.server 34434 &
+SERVER_PID=$!
+# curl passes because SOMETHING is on 34434... but not our server
+
+# GOOD - probe for available port, verify process is alive
+PORT=34434
+while lsof -ti:$PORT > /dev/null 2>&1; do
+  echo "Port $PORT in use, trying next..."
+  PORT=$((PORT + 1))
+done
+
+cd dist
+python3 -m http.server $PORT &
+SERVER_PID=$!
+
+sleep 1
+if ! kill -0 $SERVER_PID 2>/dev/null; then
+  echo "Server process died immediately"
+  exit 1
+fi
+
+# Pass the dynamic port to test runner via env
+BASE_URL="http://localhost:$PORT" pnpm exec playwright test
+```
+
+This is especially dangerous with sharded E2E tests on self-hosted runners — multiple shards or leftover processes compete for the same port.
+
+## 16. Remote Caching on Self-Hosted Runners
 
 On self-hosted runners, build caches (Cargo, pnpm store, Go modules) already persist on disk. Using `actions/cache` or `cache: pnpm` in `setup-node` uploads them to GitHub's remote cache API on every run — pure overhead that creates duplicate entries.

@@ -49,8 +49,21 @@ Analyze the request to decide which skill to invoke:
 - The task is a **single cohesive feature** or fix
 - The task is small to medium scope
 - The instructions describe one thing to do
-- The user just passes an issue URL/number (default to single-topic)
+- The user passes an issue URL/number and it is NOT an epic issue (see below)
 - Ambiguous cases — prefer `/x-as-pr` as the simpler option
+
+### Epic Issue Detection
+
+When the argument is a GitHub issue URL or number, fetch the issue title before routing:
+
+```bash
+gh issue view <number> --json title -q '.title'
+# or for a URL: gh issue view <url> --json title -q '.title'
+```
+
+If the title contains `[Epic]` → route to `/x-wt-teams`.
+
+Epic issues are created by `/big-plan` and contain multiple sub-issues meant for parallel agent teams — `/x-as-pr` cannot handle them correctly.
 
 ### Decision Examples
 
@@ -62,6 +75,7 @@ Analyze the request to decide which skill to invoke:
 | "refactor the auth system" | `/x-as-pr` | One cohesive refactor |
 | "build the settings page with theme picker, notification prefs, and profile editor" | `/x-wt-teams` | 3 parallel-able sections |
 | `https://github.com/owner/repo/issues/42` | `/x-as-pr` | Single issue |
+| `https://github.com/owner/repo/issues/42` (title has `[Epic]`) | `/x-wt-teams` | Epic issue from `/big-plan` |
 
 ## Execution
 

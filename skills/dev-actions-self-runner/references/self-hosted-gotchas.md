@@ -67,6 +67,35 @@ When a container job runs `pnpm install`, it uses the container's store path (e.
 
 Note: `pnpm add` at a workspace root requires the `-w` (or `--workspace-root`) flag, otherwise pnpm refuses with `ERR_PNPM_ADDING_TO_ROOT`.
 
+## pnpm Store Corruption (Worker Crash)
+
+On persistent self-hosted runners, the pnpm content-addressable store (`~/.local/share/pnpm/store`) can accumulate corrupted entries from interrupted or concurrent installs. This causes pnpm workers to crash during package extraction.
+
+**Symptoms:**
+
+```
+ERROR  Worker pnpm#1 exited with code 1
+pnpm: Worker pnpm#1 exited with code 1
+    at Worker.<anonymous> (.../pnpm/dist/pnpm.cjs:93167:27)
+```
+
+Or linking failures:
+
+```
+ERR_PNPM_LINKING_FAILED  ENOENT: no such file or directory
+```
+
+**Fix:** Add `pnpm store prune` before `pnpm install` to clean unreferenced/corrupted store entries:
+
+```yaml
+- name: Install dependencies
+  run: |
+    pnpm store prune || true
+    pnpm install --frozen-lockfile
+```
+
+The `|| true` ensures a store prune failure (e.g., if the store doesn't exist yet) doesn't block the install.
+
 ## npx Hangs in pnpm Projects
 
 On self-hosted runners, `npx <command>` may prompt to install the package and hang forever in non-interactive CI. This is especially common when the project uses pnpm — npm/npx may not find pnpm-installed binaries on its PATH.
@@ -160,6 +189,122 @@ pnpm dlx wrangler@4 pages deploy deploy \
 ```
 
 This avoids PATH issues entirely and doesn't leave global packages on the runner.
+
+## Concurrent Workflow pnpm dest Conflicts
+
+When multiple deploy workflows run concurrently on the same self-hosted runner (e.g., `deploy-sync-server` and `deploy-publish-server`), they can destroy each other's pnpm installation if they share the same `dest:` directory.
+
+**Symptoms:**
+
+```
+Error: ENOENT: process.cwd failed with error no such file or directory
+```
+
+The `pnpm/action-setup` step crashes because Workflow A's cleanup step (`rm -rf ~/setup-pnpm-deploy`) deleted the directory while Workflow B was using it.
+
+**Root cause:** Both workflows use `dest: ~/setup-pnpm-deploy` and both have a cleanup step `rm -rf ~/setup-pnpm ~/setup-pnpm-deploy`. When they run concurrently, one workflow's cleanup deletes the other's active pnpm installation.
+
+**Fix:** Give each deploy workflow a **unique** `dest:` directory:
+
+```yaml
+# deploy-sync-server.yml
+- name: Clean stale pnpm setup (self-hosted runner)
+  run: rm -rf ~/setup-pnpm ~/setup-pnpm-deploy || true
+- uses: pnpm/action-setup@...
+  with:
+    dest: ~/setup-pnpm-deploy
+
+# deploy-publish-server.yml — DIFFERENT directory
+- name: Clean stale pnpm setup (self-hosted runner)
+  run: rm -rf ~/setup-pnpm ~/setup-pnpm-publish || true
+- uses: pnpm/action-setup@...
+  with:
+    dest: ~/setup-pnpm-publish
+
+# deploy-another-server.yml — yet another directory
+- name: Clean stale pnpm setup (self-hosted runner)
+  run: rm -rf ~/setup-pnpm ~/setup-pnpm-another || true
+- uses: pnpm/action-setup@...
+  with:
+    dest: ~/setup-pnpm-another
+```
+
+**For matrix/shard jobs** that run in parallel, include the matrix variable in the dest to avoid conflicts between shards:
+
+```yaml
+# e2e-tests with 4 parallel shards
+- name: Clean stale pnpm setup (self-hosted runner)
+  run: rm -rf ~/setup-pnpm ~/setup-pnpm-e2e-${{ matrix.shard }} || true
+- uses: pnpm/action-setup@...
+  with:
+    dest: ~/setup-pnpm-e2e-${{ matrix.shard }}
+```
+
+**Rule of thumb:** Convention is `~/setup-pnpm-{workflow-slug}`. For sharded jobs use `~/setup-pnpm-{workflow-slug}-${{ matrix.shard }}`. Each cleanup step should only remove `~/setup-pnpm` (legacy) and its own directory — never another workflow's.
+
+## rm -rf Fails with ENOTEMPTY on Stale pnpm Setup Directory
+
+On self-hosted runners, `rm -rf ~/setup-pnpm` can itself fail with `ENOTEMPTY` or `Directory not empty`. This happens when other processes (or NFS `.nfs*` lock files) hold handles on files inside the directory. Under `bash -e` (GitHub Actions default), this kills the entire step and fails the job.
+
+**Symptoms:**
+
+```
+rm: cannot remove '/home/runner/setup-pnpm/node_modules/.bin/store/v10/files/cb': Directory not empty
+##[error]Process completed with exit code 1.
+```
+
+**Fix:** Always use `|| true` on cleanup steps — partial cleanup is better than a failed job:
+
+```yaml
+- name: Clean pnpm setup cache
+  run: rm -rf ~/setup-pnpm || true
+```
+
+**Why this happens:** `pnpm/action-setup` stores its installation at `~/setup-pnpm` (default `dest`). On persistent self-hosted runners, this directory survives between runs. The action's built-in cleanup uses Node.js `rmdir` which also fails with `ENOTEMPTY` on the same stale files. Adding a pre-cleanup step with `|| true` removes most of the stale content, allowing the action's setup to succeed even if a few locked files remain.
+
+## Hardcoded Port Collisions in E2E Tests
+
+On persistent self-hosted runners, server processes from previous workflow runs (or concurrent shards on the same machine) can leave ports occupied. Starting a background server on a hardcoded port fails silently — the process dies but a health check (`curl`) succeeds against whatever stale process is already listening. This stale server may be a dev server with HMR/WebSocket scripts, causing false test failures.
+
+**Symptoms:**
+
+```
+WebSocket connection to 'ws://localhost:34434/?token=abc123' failed:
+```
+
+A single page fails with a WebSocket error in a production E2E test, even though no WebSocket code exists in the built HTML. All other pages pass.
+
+**Root cause:** `python3 -m http.server 34434 &` (or `serve`) fails with `Address already in use`, dies immediately, but the health check succeeds against a stale Astro dev server on the same port — which injects HMR scripts.
+
+**Fix:** Probe for an available port before starting the server, and verify the process is alive:
+
+```yaml
+- name: Run E2E tests
+  run: |
+    # Find an available port starting from preferred port
+    PORT=34434
+    while lsof -ti:$PORT > /dev/null 2>&1; do
+      echo "Port $PORT in use, trying next..."
+      PORT=$((PORT + 1))
+    done
+
+    cd dist
+    python3 -m http.server $PORT &
+    SERVER_PID=$!
+    cd ..
+
+    # Verify the server process survived
+    sleep 1
+    if ! kill -0 $SERVER_PID 2>/dev/null; then
+      echo "Server process died immediately"
+      exit 1
+    fi
+
+    # Pass dynamic port to tests
+    BASE_URL="http://localhost:$PORT" pnpm exec playwright test
+```
+
+**Also consider:** Adding WebSocket connection errors to the E2E test's console error ignore list as defense-in-depth — WebSocket failures from stale processes aren't caused by the site's code.
 
 ## pnpm/action-setup Corrupted Installation
 

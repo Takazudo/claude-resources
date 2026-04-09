@@ -292,7 +292,27 @@ Without `RUNNER_CHECK_TOKEN`, all jobs run on `ubuntu-latest` as before (safe de
 - **Single runner = single concurrent job** — parallel jobs need multiple runner instances registered in separate directories.
 - **Never use `npx` in pnpm projects** — `npx` hangs on self-hosted runners. Use `./node_modules/.bin/<cmd>` or `pnpm dlx` instead (see gotchas).
 - **`pnpm exec` only works in workspace members** — test fixtures with symlinked `node_modules` need direct bin paths instead.
+- **Always clean stale `~/setup-pnpm` before `pnpm/action-setup`** — on self-hosted runners, `~/setup-pnpm` persists between runs and can cause `ENOTEMPTY` crashes. Add a cleanup step with `|| true` before every `pnpm/action-setup` invocation (even `rm -rf` itself can fail with ENOTEMPTY due to NFS lock files or held handles):
+
+  ```yaml
+  - name: Clean pnpm setup cache
+    run: rm -rf ~/setup-pnpm ~/setup-pnpm-<slug> || true
+  - uses: pnpm/action-setup@...
+    with:
+      version: 10
+      dest: ~/setup-pnpm-<slug>
+  ```
+
+- **Use unique `dest:` per workflow** — when multiple workflows share the same self-hosted runner home directory, each must have a unique `dest:` to prevent concurrent runs from stomping on each other's pnpm installation. Convention: `~/setup-pnpm-{workflow-slug}`. For matrix/shard jobs, include the matrix variable: `~/setup-pnpm-{slug}-${{ matrix.shard }}`. Each cleanup step only removes `~/setup-pnpm` (legacy) and its own directory (see gotchas).
+- **Prune pnpm store before install** — the persistent pnpm store on self-hosted runners can accumulate corrupted entries, causing `Worker pnpm#N exited with code 1` crashes. Add `pnpm store prune || true` before `pnpm install`:
+
+  ```yaml
+  - name: Install dependencies
+    run: |
+      pnpm store prune || true
+      pnpm install --frozen-lockfile
+  ```
 
 For runner setup details (WSL2, systemd, auto-start), see [references/setup-guide.md](references/setup-guide.md).
 
-For common pitfalls with self-hosted runners (Docker permissions, stale workspaces, pnpm store conflicts, global install PATH issues), see [references/self-hosted-gotchas.md](references/self-hosted-gotchas.md).
+For common pitfalls with self-hosted runners (Docker permissions, stale workspaces, pnpm store conflicts, concurrent pnpm dest conflicts, global install PATH issues), see [references/self-hosted-gotchas.md](references/self-hosted-gotchas.md).
