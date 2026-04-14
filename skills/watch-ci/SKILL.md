@@ -66,7 +66,7 @@ When the PR is already merged:
 
 ### Step 3: Launch Background Watch
 
-Launch a **background Agent** to poll CI status. The agent should:
+Launch a **background Agent** with `model: haiku` (cheap, sufficient for simple polling) to poll CI status. The agent should:
 
 - Poll every 30 seconds using `sleep 30` between checks
 - For open PRs: run `gh pr checks <PR_NUMBER> --json name,state,bucket` each cycle

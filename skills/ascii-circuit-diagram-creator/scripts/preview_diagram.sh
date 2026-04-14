@@ -27,7 +27,7 @@ cat > /tmp/ascii_preview.html << EOF
 </html>
 EOF
 
-node ~/.claude/skills/headless-browser/scripts/headless-check.js \
+node $HOME/.claude/skills/headless-browser/scripts/headless-check.js \
   --url file:///tmp/ascii_preview.html \
   --screenshot viewport
 

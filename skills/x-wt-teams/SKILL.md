@@ -1,7 +1,7 @@
 ---
 name: x-wt-teams
 description: "Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', or 'parallel development', (3) User says 'split into topics' or 'multi-topic development'. This skill is FULLY AUTONOMOUS — it creates worktrees, spawns agent teams, and coordinates everything automatically. No manual child sessions needed."
-argument-hint: "[-co|--codex] [-a|--auto] [--no-issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [#issue-number] <instructions>"
+argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [--no-issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [--model <opus|sonnet|haiku>] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -18,7 +18,9 @@ By default, create a GitHub issue at the start to track progress. The manager an
 - **`-v` or `--verify-ui`**: After review fixes (Step 9), run `/verify-ui` to verify frontend/CSS/layout changes visually. See "Verify UI Mode" below.
 - **`--noi`, `--noissue`, or `--noissues`**: Only meaningful with `--review-loop`. Suppresses `--issues` flag on the review-loop invocation, so no GitHub issues are created for review findings.
 - **`-co` or `--codex`**: Use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below.
+- **`-gco` or `--github-copilot`**: Use GitHub Copilot CLI for reviews and research. See "GitHub Copilot Mode" below. Mutually exclusive with `-co`.
 - **`-a` or `--auto`**: After the workflow completes (Step 15), automatically run `/pr-complete -c -w` to merge the PR, close the linked issue, and watch post-merge CI. Intended for full-auto, safe-to-merge work.
+- **`--model <opus|sonnet|haiku>`**: Override the model used for child agents (default: `sonnet`). Use `--model opus` for complex implementation tasks where you want maximum intelligence at higher token cost.
 - **Existing issue provided**: If the user provides an existing issue (number or URL), read it first with `gh issue view <number>`. The issue body typically contains implementation instructions or a prompt — use it as the primary input for planning topics and development. Reuse this issue for progress logging instead of creating a new one.
 - The issue number is passed to all child agents so they can comment on it too.
 - Comments should be concise step reports (what was done, outcome, any issues encountered).
@@ -266,6 +268,29 @@ All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
 ---
 
+### GitHub Copilot Mode (`-gco` / `--github-copilot`)
+
+When `-gco` or `--github-copilot` is passed, the following substitutions apply throughout the entire workflow:
+
+| Default tool | GCO replacement | Used for |
+|---|---|---|
+| `/deep-review` | `/gco-review` | Step 9 quality assurance (manager review) |
+| `/review-loop N --aggressive` | `/gco-review` (run once) | Review loop mode review step |
+| `/gco-review` in child agents (Step 5) | No change (already gco) | Child agent self-review |
+| `/codex-2nd` (planning phase) | `/gco-2nd` | Second opinion on plans |
+| Agent tool (web search, research) | `/gco-research` | Any web search or codebase research during planning/implementation |
+
+**How it affects the workflow:**
+
+- **Step 5 (child agents)**: Child agents use `/gco-review` for self-review. `/gco-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed.
+- **Step 9 (quality assurance)**: Instead of `/deep-review` or `/review-loop`, invoke `/gco-review`. If `-l`/`--review-loop` is also passed, still invoke `/gco-review` once (not multiple rounds).
+- **Second Opinion (planning phase)**: Instead of `/codex-2nd`, invoke `/gco-2nd`. If Copilot is rate-limited, `/gco-2nd` silently skips.
+- **Research during planning**: When you need to research libraries, APIs, or best practices, prefer `/gco-research` over the Agent tool or WebSearch.
+
+All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
+
+---
+
 ### Step 2: Create Base Branch and Root PR
 
 **CRITICAL: `--stay` is STRICTLY opt-in.** Only use the `--stay` flow below if the user explicitly passed `--stay`. Do NOT auto-detect `--stay` behavior based on the current branch state, existing PRs, or any other contextual clue. The default ALWAYS creates a new branch — even if you're on a branch that already has a PR.
@@ -380,6 +405,7 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
    - team_name: "<project-name>"
    - name: "topic-<name>"  (e.g., "topic-topicA")
    - mode: "bypassPermissions"  (prevents child agents from prompting on file edits)
+   - model: the value from `--model` flag if provided (e.g., "opus", "sonnet", "haiku"); omit this field if no `--model` was passed (the agent's default model applies)
    - prompt: Detailed instructions including:
      a. The worktree absolute path to work in
      b. What to implement for this topic
@@ -423,11 +449,14 @@ git diff <parent-branch>...base/<project-name> --stat
 
 All child agents are done and their branches have been merged. Shut down the team and clean up worktrees immediately.
 
-1. **Send shutdown to all agents** via broadcast:
+1. **Send shutdown to each agent individually** (structured messages cannot be broadcast to `"*"`):
 
 ```
-SendMessage: to="*", message={type: "shutdown_request", reason: "All topics merged into base branch. Work complete."}
+For each child agent (e.g., "topic-topicA", "topic-topicB", ...):
+  SendMessage: to="topic-<name>", message={type: "shutdown_request", reason: "All topics merged into base branch. Work complete."}
 ```
+
+Send all shutdown messages in parallel (multiple SendMessage calls in a single response).
 
 2. **Wait for shutdown confirmations**, then **delete the team**:
 
@@ -498,7 +527,49 @@ Skill tool: skill="deep-review"
 
 1. **Invoke the review skill** as described above
 2. **Wait for all reviewers to complete** and read their findings
-3. **Fix issues** found by the reviewers and commit locally (do NOT push yet)
+3. **Delegate fixes to a fresh Agent** — instead of fixing in the current (token-heavy) context, create a fix issue and spawn a fresh agent:
+
+   **If the review found no actionable issues**, skip to step 4.
+
+   **If fixes are needed:**
+
+   a. **Create a fix issue** capturing all findings:
+
+      ```bash
+      FIX_ISSUE_URL=$(gh issue create \
+        --title "Review fixes: <project-name>" \
+        --body "$(cat <<'EOF'
+      ## Review Findings to Fix
+
+      <all review findings — file paths, line numbers, what to fix and why>
+
+      ## Context
+      - Branch: `base/<project-name>`
+      - Root PR: <ROOT_PR_URL>
+
+      ## Instructions
+      Fix all issues listed above. Commit locally — do NOT push.
+      EOF
+      )")
+      FIX_ISSUE_NUM=$(echo "$FIX_ISSUE_URL" | grep -o '[0-9]*$')
+      ```
+
+   b. **Spawn a fresh Agent** to handle the fixes:
+
+      ```
+      Agent tool:
+        description: "Fix review findings"
+        prompt: "You are on branch base/<project-name> in <repo-path>.
+                 Read GitHub issue #<FIX_ISSUE_NUM> with `gh issue view <FIX_ISSUE_NUM>`.
+                 Fix all issues described there.
+                 Commit fixes locally — do NOT push.
+                 When done, close the issue with a summary of what was fixed."
+        mode: "bypassPermissions"
+      ```
+
+   c. **Verify** — after the agent returns, confirm fixes were committed (`git log --oneline -5`)
+   d. **Close the fix issue** if the agent didn't already
+
 4. **Only after the review has been invoked and findings addressed**, proceed to Step 10 (if `--verify-ui`) or Step 11
 
 If you are about to run `git push` and you have NOT yet invoked the review skill in this session, **STOP and go back to this step.**
@@ -675,6 +746,19 @@ After requirements verification passes (Step 15), automatically invoke `/pr-comp
 
 This is intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/pr-complete` will handle the error reporting.
 
+**After `/pr-complete` succeeds**, checkout the merged target branch and pull:
+
+```bash
+# Determine the target branch the PR was merged into
+TARGET_BRANCH=$(gh pr view <root-pr-number> --json baseRefName -q '.baseRefName')
+
+# Checkout and pull the target branch
+git checkout "$TARGET_BRANCH"
+git pull origin "$TARGET_BRANCH"
+```
+
+This leaves the user on the up-to-date target branch (e.g., `main`) after a fully automated workflow.
+
 ---
 
 ### Close Tracking Issue
@@ -697,9 +781,10 @@ If any problems were discovered during the workflow that need follow-up, raise t
 
 **CRITICAL RULES at this point:**
 
-- **Stay on `base/<project-name>`.** Do NOT checkout `main`, the parent branch, or any other branch.
-- **Do NOT run Step 16.** Step 16 is cleanup that only happens later, after the user has reviewed and merged the PR.
-- **Do NOT delete any branches** (local or remote) — topic branches, base branch, all stay.
+- **If `-a` / `--auto` was used and the PR was merged**: You are already on the target branch (e.g., `main`) after the auto-complete checkout+pull. Stay there.
+- **Otherwise**: **Stay on `base/<project-name>`.** Do NOT checkout `main`, the parent branch, or any other branch.
+- **Do NOT run Step 16** (unless `-a` was used and the PR is already merged). Step 16 is cleanup that only happens later, after the user has reviewed and merged the PR.
+- **Do NOT delete any branches** (local or remote) unless `-a` was used (in which case the merge branch is already deleted by `--delete-branch`).
 - **Do NOT do anything else** unless the user asks.
 
 The user will review the PR and may:
@@ -761,7 +846,7 @@ Even during cleanup, do NOT checkout main or the parent branch. Stay on whatever
 
 ## Important Rules
 
-1. **NEVER checkout main or parent branch** — after the workflow completes (Step 13), stay on `base/<project-name>`. Do NOT switch branches, do NOT delete branches, do NOT run Step 16. The workflow ends at Step 15. Step 16 is only run later when the user explicitly asks
+1. **NEVER checkout main or parent branch** — after the workflow completes (Step 13), stay on `base/<project-name>`. Do NOT switch branches, do NOT delete branches, do NOT run Step 16. The workflow ends at Step 15. Step 16 is only run later when the user explicitly asks. **Exception**: when `-a`/`--auto` is used and the PR is merged, checkout the target branch and pull
 2. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents
 3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts
 4. **Create the root PR immediately in Step 2** — an empty commit + draft PR locks in the correct parent branch

@@ -76,6 +76,8 @@ Tags are mutable. The March 2025 `tj-actions/changed-files` supply chain attack 
 - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 ```
 
+**Caveat**: Some repos (e.g., `pnpm/action-setup`) have force-pushed, invalidating previously pinned SHAs. If CI fails with `Unable to resolve action ... unable to find version`, look up the current SHA via `gh api repos/OWNER/REPO/git/ref/tags/vX.Y.Z`. See [references/security.md](references/security.md) for the full diagnostic procedure.
+
 ### 5. Do NOT Cache Package Managers (pnpm/npm/yarn)
 
 Do **not** use `cache: 'pnpm'` (or `cache: 'npm'`, `cache: 'yarn'`) in `actions/setup-node`. GitHub Actions cache restore is often **slower** than a fresh `pnpm install` from npm's CDN. npm's CDN is highly optimized for package downloads, while GitHub's cache API has significant overhead for large stores (especially 1GB+). Benchmarking confirmed: direct install from CDN consistently beats cache restore + install.

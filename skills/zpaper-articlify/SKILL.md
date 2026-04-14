@@ -22,10 +22,22 @@ conversation as-is. This means:
 
   restructure, condense, or rephrase the user's words beyond that.
 
+- **PRESERVE THE ORIGINAL LANGUAGE. DO NOT TRANSLATE.** This is critical. If the
+
+  conversation was in English, keep it in English. If it was in Japanese, keep it
+  in Japanese. If it was mixed, keep both languages as-is. Translating the
+  conversation to Japanese destroys the original text — it is a total loss of the
+  source material the user wanted to preserve. The whole point of `--conversation`
+  is to capture the raw dialogue, and translation defeats that purpose. The
+  surrounding frontmatter `title` and any minimal scaffolding headings MAY be in
+  Japanese, but the conversation body itself must remain in its original language.
+
 - **Include the brief in the writing prompt** with explicit instruction:
 
-  "This is a conversation-style article. Preserve the dialogue verbatim.
-  Only fix typos and apply vocabulary rules. Do not summarize or restructure."
+  "This is a conversation-style article with `--conversation` mode. Preserve the
+  dialogue verbatim IN THE ORIGINAL LANGUAGE. Only fix typos and apply vocabulary
+  rules. Do NOT summarize, restructure, or translate. If the conversation is in
+  English, the article body must remain in English."
 
 ## Workflow
 
@@ -107,7 +119,7 @@ Agent tool:
 The subagent will:
 
 - Read the repo's writing style guides
-- Write the draft article in Japanese following zpaper conventions
+- Write the draft article following zpaper conventions (in Japanese by default, but preserving the original language when `--conversation` is specified)
 - Set `sidebar_position` using the formula `999999999999 - YYYYMMDDHHMM` (ensures newest articles appear first)
 - Save to the draft articles directory (`doc/src/content/docs/articles/`)
 - Run formatting checks

@@ -4,7 +4,7 @@ description: >-
   Frontend developer agent that works inside a git worktree as part of an agent team. Implements
   features, commits, pushes, and creates PRs targeting the base branch. Reports back to the manager
   when done.
-model: opus
+model: sonnet
 color: green
 ---
 

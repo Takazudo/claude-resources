@@ -1,7 +1,7 @@
 ---
 name: text-fixer
 description: text fix agent.
-model: opus
+model: haiku
 color: yellow
 ---
 

@@ -18,6 +18,34 @@
 
 Use `step-security/secure-repo` or `pin-github-action` tool to automate SHA pinning.
 
+### When a Pinned SHA Becomes Invalid
+
+Some action repos (notably `pnpm/action-setup`) have force-pushed or rebased their history, **deleting previously valid commit SHAs**. CI fails with:
+
+```
+Unable to resolve action `pnpm/action-setup@fe02b34...`, unable to find version `fe02b34...`
+```
+
+**Diagnosis**: The pinned commit no longer exists in the upstream repo. The tag still exists but points to a different commit.
+
+**Fix**: Look up the correct SHA for the desired version tag via GitHub API:
+
+```bash
+# Step 1: Get the tag object SHA
+gh api repos/OWNER/REPO/git/ref/tags/vX.Y.Z --jq '.object.sha'
+
+# Step 2: If it's an annotated tag (type: "tag"), dereference to get the commit SHA
+gh api repos/OWNER/REPO/git/tags/<tag-object-sha> --jq '.object.sha'
+
+# Example for pnpm/action-setup v4.4.0:
+gh api repos/pnpm/action-setup/git/ref/tags/v4.4.0 --jq '.object.sha'
+# → a15d269c... (annotated tag object)
+gh api repos/pnpm/action-setup/git/tags/a15d269c... --jq '.object.sha'
+# → fc06bc12... (actual commit SHA to pin)
+```
+
+**Prevention**: When pinning third-party actions, prefer well-maintained repos (`actions/*`) that don't force-push. For repos with a history of force-pushing, consider using the mutable tag (`@v4`) as a pragmatic tradeoff, or pin to the latest patch release and update promptly when CI breaks.
+
 ## Permissions
 
 ### Always Declare Explicitly

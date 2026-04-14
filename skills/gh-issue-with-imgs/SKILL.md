@@ -13,7 +13,7 @@ allowed-tools:
 
 Create GitHub issues with embedded images using release assets as image hosting.
 
-GitHub CLI does not support attaching images to issues natively. This skill works around that by uploading images to a draft release, then embedding the asset URLs in the issue body markdown.
+GitHub CLI does not support attaching images to issues natively. This skill works around that by uploading images to a dedicated release, then embedding the asset URLs in the issue body markdown.
 
 ## Usage
 
@@ -34,14 +34,23 @@ Extract from the skill arguments:
 
 ### Step 2: Ensure Attachments Release Exists
 
-Check for a draft release named `_attachments` in the repo. Create if missing.
+Check for a non-draft release tagged `_attachments` in the repo. Create if missing.
+
+If an old **draft** `_attachments` release exists (from before this fix), delete it first — draft releases don't have tags, so assets uploaded to them return 404 for unauthenticated access.
 
 ```bash
-# Check if release exists
+# Check if a tagged (non-draft) release exists
 gh release view _attachments --repo <owner/repo> 2>/dev/null
 
-# Create if needed
-gh release create _attachments --draft --title "_attachments" --notes "Image attachments for issues. Do not delete." --repo <owner/repo>
+# If it doesn't exist, check for and clean up any old draft release named "_attachments"
+# (Draft releases have no tag, so we search by title via the API)
+OLD_DRAFT_ID=$(gh api repos/<owner/repo>/releases --jq '.[] | select(.draft == true and .name == "_attachments") | .id' 2>/dev/null)
+if [ -n "$OLD_DRAFT_ID" ]; then
+  gh api -X DELETE repos/<owner/repo>/releases/$OLD_DRAFT_ID
+fi
+
+# Create the non-draft release (NOT --draft — draft assets require auth and return 404 for anonymous access)
+gh release create _attachments --title "_attachments" --notes "Image attachments for issues. Do not delete." --repo <owner/repo>
 ```
 
 ### Step 3: Upload Images
@@ -105,7 +114,8 @@ Print the created issue URL.
 
 ## Notes
 
-- The `_attachments` release is a draft so it does not appear in the repo's releases page
+- The `_attachments` release is a real (non-draft) release so asset URLs are publicly accessible without authentication
+- Never use `--draft` — draft release assets return 404 for unauthenticated requests (e.g., Claude API vision, curl), even though they appear to work in browsers where the user is logged in
 - Asset URLs are permanent as long as the release exists
 - Works for both public and private repos (private repo assets require authentication to view)
 - Image size limit: same as GitHub release assets (2 GB per file)

@@ -1,7 +1,7 @@
 ---
 name: frontend-developer
 description: Frontend developer agent for implementing code changes. Applies TDD for logic and pragmatic testing for UI. Works autonomously with clear communication.
-model: opus
+model: sonnet
 color: cyan
 ---
 

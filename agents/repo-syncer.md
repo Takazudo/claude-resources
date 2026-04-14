@@ -3,7 +3,7 @@ name: repo-syncer
 description: >-
   Git pull-push sync agent for a single repository. Handles fetch, pull with rebase, conflict
   resolution, and push.
-model: sonnet
+model: haiku
 color: green
 ---
 

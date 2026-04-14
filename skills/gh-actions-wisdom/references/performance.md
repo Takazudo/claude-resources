@@ -33,22 +33,57 @@ For self-hosted runners this is even more pointless — the pnpm store is alread
 
 ## Path Filters
 
-Skip workflows when only irrelevant files changed.
+Skip workflows when only irrelevant files changed. **Critical for repos with expensive E2E pipelines** — a one-line `.gitignore` change should not trigger a full build+E2E across all apps.
+
+### `paths` vs `paths-ignore`
+
+| Approach | Use when | Trade-off |
+|----------|----------|-----------|
+| `paths-ignore` | You know which paths to exclude from app CI | New directories are included by default (safe) |
+| `paths` | You want a workflow to fire only for specific directories (e.g., doc CI) | New directories are excluded by default (must remember to add) |
+
+**You cannot use both in the same trigger** — GitHub Actions rejects the workflow.
+
+### Pattern: Separate App and Doc CI in a Monorepo
+
+When app code and documentation live in the same repo, split into two independent workflows:
 
 ```yaml
+# app-ci.yml — runs only when app-relevant files change
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
+  pull_request:
     paths-ignore:
-      - '**.md'
+      - 'docs/**'           # documentation directory
+      - '**/.gitignore'     # gitignore changes
+      - '*.md'              # root-level markdown
+      - 'LICENSE'
+      - '.vscode/**'
+
+# doc-ci.yml — runs only when docs change
+on:
+  pull_request:
+    paths:
       - 'docs/**'
+      - '.github/workflows/doc-ci.yml'
 ```
 
-For conditional job execution within a workflow, use `dorny/paths-filter`:
+**Mixed PRs**: When a PR contains both app and doc changes, both workflows run — this is correct behavior.
+
+### Common `paths-ignore` candidates
+
+```yaml
+paths-ignore:
+  - '*.md'                      # README, CHANGELOG, etc.
+  - 'docs/**'                   # documentation directory
+  - '.vscode/**'                # editor settings
+  - 'LICENSE'
+  - '**/.gitignore'             # gitignore changes
+  # Add project-specific non-app directories as needed
+```
+
+### Job-Level Conditional: `dorny/paths-filter`
+
+When you want to skip specific jobs (e.g., always lint but skip E2E) rather than the entire workflow:
 
 ```yaml
 jobs:

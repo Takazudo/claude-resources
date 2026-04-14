@@ -1,7 +1,12 @@
 ---
 name: x
-description: "Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic parallel). Use when: (1) User says '/x' followed by development instructions, (2) User wants to start development without deciding between /x-as-pr and /x-wt-teams, (3) User says 'dev', 'implement', or 'build' with a task description. Examines the request and chooses the right strategy. Default options: -l -v (review-loop + verify-ui)."
-argument-hint: "[-co|--codex] [-a|--auto] [options] <instructions>"
+description: >-
+  Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic
+  parallel). Use when: (1) User says '/x' followed by development instructions, (2) User wants to
+  start development without deciding between /x-as-pr and /x-wt-teams, (3) User says 'dev',
+  'implement', or 'build' with a task description. Examines the request and chooses the right
+  strategy. Default options: -l -v (review-loop + verify-ui).
+argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
@@ -28,6 +33,10 @@ If any flags ARE passed explicitly, use those as-is — do NOT add defaults.
 ### Codex Mode (`-co` / `--codex`)
 
 When `-co` or `--codex` is passed, forward it to the chosen skill. This switches reviews, doc writing, and research to use codex-based alternatives (`/codex-review`, `/codex-writer`, `/codex-research`). See `/x-as-pr` and `/x-wt-teams` for details.
+
+### GitHub Copilot Mode (`-gco` / `--github-copilot`)
+
+When `-gco` or `--github-copilot` is passed, forward it to the chosen skill. This switches reviews and research to use GitHub Copilot CLI (`/gco`). Mutually exclusive with `-co`. See `/x-as-pr` and `/x-wt-teams` for details.
 
 ### Auto-Complete Mode (`-a` / `--auto`)
 

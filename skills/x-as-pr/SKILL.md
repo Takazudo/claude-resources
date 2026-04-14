@@ -1,7 +1,7 @@
 ---
 name: x-as-pr
 description: "Start a development workflow as a draft PR. Fetches, creates a branch, makes an empty start commit, pushes, and opens a draft PR. Then starts implementation if instructions are provided. Also handles the case where implementation is already done on a topic branch — detects this and creates a PR from the current branch instead. When a GitHub issue URL is passed, treats it as an implementation request — read the issue and implement it. Use --make-issue to create a GitHub issue first describing the plan, then proceed. With linked issues, logs progress via issue comments. Use when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix development with a PR-first workflow, (3) User wants to set up a branch and draft PR before coding, (4) User has already implemented changes on a branch and wants to create a PR for them, (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' or '--issue' to create an issue first."
-argument-hint: "[-co|--codex] [-a|--auto] [--make-issue|--issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [issue-url-or-number] [branch-name] [base-branch]"
+argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [--make-issue|--issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
@@ -18,6 +18,7 @@ Parse `$ARGUMENTS` to extract:
 - **`-v` or `--verify-ui` flag**: If present, run `/verify-ui` after review fixes to verify frontend changes visually (see "Verify UI Mode" below)
 - **`--noi`, `--noissue`, or `--noissues` flag**: Only meaningful with `--review-loop`. Suppresses GitHub issue creation for review findings. Without this flag, review-loop creates issues for considerable findings by default
 - **`-co` or `--codex` flag**: If present, use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below
+- **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot for reviews and research. See "GitHub Copilot Mode" below. Mutually exclusive with `-co`
 - **`-a` or `--auto` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes. See "Auto-Complete Mode" below
 - **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
 - **Branch name**: Explicit branch name if provided (look for words like `branch:` or a slash-containing name like `topic/foo`)
@@ -248,6 +249,27 @@ When `-co` or `--codex` is passed, the following substitutions apply throughout 
 - **Post-Implementation Review**: Instead of `/deep-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
 - **Research during planning/implementation**: When you need to research libraries, APIs, or best practices (web search or codebase exploration), prefer `/codex-research` over the Agent tool or WebSearch.
 - **Documentation writing**: When writing README content, doc comments, or other prose during implementation, prefer `/codex-writer` over writing directly.
+
+All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
+
+---
+
+## GitHub Copilot Mode (`-gco` / `--github-copilot`)
+
+When `-gco` or `--github-copilot` is passed, the following substitutions apply throughout the entire workflow:
+
+| Default tool | GCO replacement | Used for |
+|---|---|---|
+| `/deep-review` | `/gco-review` | Post-implementation code review |
+| `/review-loop N --aggressive` | `/gco-review` (run once) | Review loop mode review step |
+| `/codex-2nd` (planning phase) | `/gco-2nd` | Second opinion on plans |
+| Agent tool (web search, research) | `/gco-research` | Any web search or codebase research during planning/implementation |
+
+**How it affects the workflow:**
+
+- **Post-Implementation Review**: Instead of `/deep-review` or `/review-loop`, invoke `/gco-review`. If `-l`/`--review-loop` is also passed, still invoke `/gco-review` once (not multiple rounds). `/gco-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed here.
+- **Second Opinion (planning phase)**: Instead of `/codex-2nd`, invoke `/gco-2nd`. If Copilot is rate-limited, `/gco-2nd` silently skips.
+- **Research during planning/implementation**: When you need to research libraries, APIs, or best practices (web search or codebase exploration), prefer `/gco-research` over the Agent tool or WebSearch.
 
 All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
@@ -513,7 +535,51 @@ When all conditions are met, run the review:
 
 Tell the user: "Implementation went smoothly — running deep review on the changes." (or "running review-loop" if `--review-loop` is active).
 
-Commit any review fixes locally (do NOT push yet).
+#### Delegating Review Fixes to a Fresh Agent
+
+After the review produces findings that require code changes, **delegate the fixes to a fresh Agent** instead of fixing in the current (token-heavy) context. This resets the token budget so the finalization phase stays lightweight.
+
+**If the review found no actionable issues**, skip this — proceed directly to the next post-implementation step.
+
+**If fixes are needed:**
+
+1. **Create a fix issue** capturing all findings:
+
+   ```bash
+   FIX_ISSUE_URL=$(gh issue create \
+     --title "Review fixes: <SLUG>" \
+     --body "$(cat <<'EOF'
+   ## Review Findings to Fix
+
+   <all review findings — file paths, line numbers, what to fix and why>
+
+   ## Context
+   - Branch: `<BRANCH_NAME>`
+   - PR: <PR_URL>
+
+   ## Instructions
+   Fix all issues listed above. Commit locally — do NOT push.
+   EOF
+   )")
+   FIX_ISSUE_NUM=$(echo "$FIX_ISSUE_URL" | grep -o '[0-9]*$')
+   ```
+
+2. **Spawn a fresh Agent** to handle the fixes:
+
+   ```
+   Agent tool:
+     description: "Fix review findings"
+     prompt: "You are on branch <BRANCH_NAME> in <repo-path>.
+              Read GitHub issue #<FIX_ISSUE_NUM> with `gh issue view <FIX_ISSUE_NUM>`.
+              Fix all issues described there.
+              Commit fixes locally — do NOT push.
+              When done, close the issue with a summary of what was fixed."
+     mode: "bypassPermissions"
+   ```
+
+3. **Verify** — after the agent returns, confirm fixes were committed (`git log --oneline -5`)
+4. **Close the fix issue** if the agent didn't already
+5. **Proceed** to the next post-implementation step (Verify UI or Push)
 
 ### Skip Conditions
 
@@ -677,6 +743,19 @@ After requirements verification passes (or after the session report if no issue 
 
 This is intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/pr-complete` will handle the error reporting.
 
+**After `/pr-complete` succeeds**, checkout the merged target branch and pull:
+
+```bash
+# Determine the target branch the PR was merged into
+TARGET_BRANCH=$(gh pr view <PR_NUMBER> --json baseRefName -q '.baseRefName')
+
+# Checkout and pull the target branch
+git checkout "$TARGET_BRANCH"
+git pull origin "$TARGET_BRANCH"
+```
+
+This leaves the user on the up-to-date target branch (e.g., `main`) after a fully automated workflow.
+
 ---
 
 ## Post-Implementation: Close Tracking Issue
@@ -699,7 +778,6 @@ The tracking issue is a workflow log — it has served its purpose. If any probl
 
 **CRITICAL RULES:**
 
-- **Stay on `<BRANCH_NAME>`.** Do NOT checkout `main`, the parent branch, or any other branch.
+- **If `-a` / `--auto` was used and the PR was merged**: You are already on the target branch (e.g., `main`) after the auto-complete checkout+pull. Stay there.
+- **Otherwise**: **Stay on `<BRANCH_NAME>`.** Do NOT checkout `main`, the parent branch, or any other branch. The user expects to remain on the working branch when the workflow finishes.
 - **Do NOT do anything else** unless the user asks.
-
-The user expects to remain on the working branch when the workflow finishes.

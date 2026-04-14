@@ -3,7 +3,7 @@ name: markdown-generator
 description: >-
   markdown file generator for creating markdown formatted text files based on user-provided context.
   It handles file management, URL formatting, and follows strict guidelines for markdown generation.
-model: opus
+model: haiku
 color: yellow
 ---
 

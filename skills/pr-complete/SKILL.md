@@ -45,9 +45,28 @@ If `--close` or `-c` is passed, after the PR is successfully merged:
 1. Find the parent issue linked to this PR
 - Check PR body for "Closes #N", "Fixes #N", "Resolves #N" patterns
 - Also check `gh pr view --json closingIssuesReferences`
-2. If a linked issue is found and the PR was merged successfully, close the issue:
-- `gh issue close <number>`
-- Report which issue was closed
+2. If a linked issue is found and the PR was merged successfully:
+- Check if it is an **epic issue** (one that holds sub-issues):
+
+     a. Fetch the issue body: `gh issue view <number> --json body`
+     b. Look for task list entries referencing issues in the body:
+
+  - Patterns: `- [ ] #N`, `- [x] #N`, `- [ ] owner/repo#N`, `- [x] owner/repo#N`
+
+     c. Also try the GitHub sub-issues API: `gh api repos/{owner}/{repo}/issues/<number>/sub_issues`
+        (this returns a list if the newer GitHub sub-issues feature is in use)
+
+- If sub-issues are found (either from the body task list or the API):
+  - For each sub-issue:
+    - Confirm it is still open: `gh issue view <sub-issue-number> --json state`
+    - If open, close it: `gh issue close <sub-issue-number>`
+    - Report each closure
+  - After all sub-issues are closed, close the epic issue itself:
+    - `gh issue close <number>`
+    - Report that the epic issue was closed
+- If no sub-issues are found (regular issue):
+  - `gh issue close <number>`
+  - Report which issue was closed
 
 ## `--keep-issue` (`-k`) option
 

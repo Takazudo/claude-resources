@@ -81,11 +81,13 @@ process_content() {
   local content="$1"
   local prefix="$2"  # e.g., "body" or "comment-1"
 
-  # Extract GitHub image URLs (user-attachments, legacy repo assets, and githubusercontent)
+  # Extract GitHub image URLs (user-attachments, legacy repo assets, release assets, and githubusercontent)
   local urls
   urls=$(echo "$content" | grep -oE 'https://github\.com/user-attachments/assets/[a-f0-9-]+' || true)
   urls+=$'\n'
   urls+=$(echo "$content" | grep -oE "https://github\.com/${REPO}/assets/[0-9]+/[a-f0-9-]+" || true)
+  urls+=$'\n'
+  urls+=$(echo "$content" | grep -oE 'https://github\.com/[^/]+/[^/]+/releases/download/[^ )"]+' || true)
   urls+=$'\n'
   urls+=$(echo "$content" | grep -oE 'https://(private-)?user-images\.githubusercontent\.com/[^ )"]+' || true)
 

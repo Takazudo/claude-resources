@@ -73,7 +73,26 @@ sidebar_position: <computed>
 - Admonitions: only `:::note 注記` and `:::info 備考`
 - URLs: use `[name](url)` format, not bare URLs in parentheses
 
-**ALL content must be in Japanese.**
+**Default language: Japanese.** All content should be written in Japanese by default.
+
+**EXCEPTION — verbatim / conversation-style briefs**: If the writing brief
+explicitly instructs you to preserve content verbatim (for example, a
+`--conversation` mode brief that says "Preserve the dialogue verbatim in the
+original language. Do not translate."), you MUST keep the original language of
+the source content. If the source conversation is in English, the article body
+stays in English. If it is in mixed Japanese/English, keep the mix as-is. Do NOT
+translate verbatim content to Japanese — doing so destroys the original text the
+user asked you to preserve, which is the entire point of conversation mode. In
+this case:
+
+- The `title` frontmatter MAY still be in Japanese (or match the original
+  language — follow the brief).
+- Scaffolding headings like `## 概要` MAY remain in Japanese, but the main body
+  reproducing the conversation must stay in the original language.
+- Vocabulary rules only apply to Japanese content; leave English text untouched
+  except for typo fixes.
+- When in doubt, err on the side of preserving the original. Never translate a
+  conversation you were told to preserve verbatim.
 
 ## Images
 
