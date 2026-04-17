@@ -14,6 +14,12 @@
 - No force push, no `--amend` unless explicitly permitted
 - No branch name reuse. Regular merge by default (not squash)
 
+## Git Commit/Push -- token-optimized /commits
+
+- `/commits` delegates to a Haiku subagent so the main Opus context only sees a summary, not the full git diff / staging reasoning.
+- Direct execution is the last-resort fallback if the subagent fails.
+- The old Copilot CLI (`gcom`/`gpush`) path was removed — too fragile for multi-turn stateful git work (see claude-settings#29).
+
 ## CSS Coding
 
 - Before writing non-trivial CSS, invoke `/css-wisdom <topic>` to look up best practices

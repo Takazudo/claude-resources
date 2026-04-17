@@ -70,6 +70,44 @@ pnpm install && pnpm build
 APP_OVERRIDE="/Applications/CCResDoc.app" bash test-launch.sh 3
 ```
 
+## Anti-White-Flash: `on_page_load` Pattern
+
+For apps that don't wrap a dev server, the simplest way to prevent a white flash on startup is to create the window hidden, then show it after the webview finishes loading. No background polling thread needed:
+
+```rust
+use tauri::webview::PageLoadEvent;
+
+tauri::Builder::default()
+  .on_page_load(|webview, payload| {
+    if webview.label() == "main" && matches!(payload.event(), PageLoadEvent::Finished) {
+      let _ = webview.window().show();
+    }
+  });
+```
+
+Combined with `visible: false` on window creation in `tauri.conf.json` (or via the window builder).
+
+### `webview-data-url` Cargo Feature
+
+If using `data:` URLs for inline loading HTML (e.g., showing a spinner before the real page loads), the `webview-data-url` cargo feature must be enabled in `Cargo.toml`. This approach is less maintainable than bundled HTML files.
+
+### Frontend Visibility Permissions
+
+If controlling window visibility from the frontend JS side (e.g., `appWindow.show()` / `appWindow.hide()`), these capabilities are required:
+
+```json
+{
+  "permissions": [
+    "core:window:allow-show",
+    "core:window:allow-hide"
+  ]
+}
+```
+
+### `tauri-plugin-window-state` Caveat
+
+If using `tauri-plugin-window-state`, the plugin persists window state including the `VISIBLE` flag. This can fight with the hidden-then-show startup pattern — the plugin restores `visible: true` before the page finishes loading, causing the white flash you're trying to avoid. The Hoppscotch app works around this by explicitly excluding the visibility state from persistence.
+
 ## Platform
 
 macOS arm64 only. See issue #11 comments for what's needed for Windows/Linux support.

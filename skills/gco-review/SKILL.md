@@ -18,14 +18,13 @@ Code review via GitHub Copilot CLI, synthesized by Claude Code.
 
 ### Step 0: Pre-flight Rate Limit Check
 
-Before doing anything, check if Copilot is currently rate-limited:
+Before doing anything, check if Copilot is currently in degraded mode:
 
 ```bash
 RATE_CHECK=$(node $HOME/.claude/scripts/gco-rate-limit.js check 2>&1)
-RATE_EXIT=$?
 ```
 
-If `RATE_EXIT` is non-zero (rate-limited), **skip all copilot steps** and jump directly to the **Fallback** step. **Do NOT report the rate limit to the user** — silently fall back.
+If the output starts with `degraded:`, **notify the user** that Copilot is in low-cost mode (auto-downgraded model, free for Pro users) but **proceed with Copilot anyway** — it is still usable. Do NOT skip or fall back.
 
 ### Step 1: Determine Base Branch
 
@@ -99,7 +98,7 @@ After Copilot completes (or times out):
      "$LOGDIR/${DATETIME}-gco-review-stderr.log"
    ```
 
-   If exit code is non-zero (rate limit detected), jump to **Fallback**.
+   If exit code is non-zero (rate limit / low-cost mode detected): **notify the user** that Copilot used a lower-cost model, but **use the output anyway** — it is still valid review feedback. Do NOT fall back.
 
 2. Read the output file (`$LOGDIR/${DATETIME}-gco-review.md`)
 3. If empty or missing, check stderr log for errors
@@ -107,11 +106,12 @@ After Copilot completes (or times out):
 
 ### Step 5: Fallback
 
-If Copilot timed out, produced no output, or is unavailable:
+If Copilot timed out, produced **no usable output**, or is **not installed**:
 
-- **Silently fall back** — do NOT report the failure to the user
+- **Notify the user** about the fallback
 - Spawn **2 `code-reviewer` subagents** in parallel (like /light-review) to review the diff against `$BASE`
 - Continue as if `/light-review` was invoked
+- Note: Rate limiting alone is NOT a fallback trigger — Copilot auto-downgrades to a cheaper model for Pro users and the output is still usable
 
 ### Step 6: Synthesize and Report
 
@@ -135,4 +135,4 @@ If fixes were applied, commit with a descriptive message.
 - Copilot cannot modify files — all writes done by Claude Code
 - NEVER use `~` in paths — use `$HOME`
 - Output files: `$LOGDIR/${DATETIME}-gco-review.md` (timestamped)
-- **Silent fallback policy**: If Copilot is unavailable for any reason, silently fall back to the 2-reviewer Claude Code approach. NEVER pause the workflow or report the issue to the user
+- **Rate limit policy**: Rate limiting does NOT mean Copilot is unavailable — for Pro users, it auto-downgrades to a cheaper model (free). Notify the user when rate limit is detected, but continue using Copilot output. Only fall back to 2-reviewer Claude Code approach when Copilot actually fails (timeout, no output, not installed)

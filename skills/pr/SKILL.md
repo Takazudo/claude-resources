@@ -99,6 +99,16 @@ Before creating, confirm:
 
 ### 6. Push and Create PR
 
+**Optional: Copilot-assisted body draft**
+
+Before drafting the body manually, attempt to get a Copilot-drafted body:
+
+```bash
+DRAFT=$($HOME/.claude/skills/gco/scripts/gco-pr-body.sh "<base-branch>" 2>/dev/null || true)
+```
+
+If `$DRAFT` is non-empty, use it as the starting point for the body. Claude must still review and adjust it — fill any gaps, fix inaccuracies, and ensure tone/completeness. If the script fails or returns empty, draft the body directly.
+
 ```bash
 # Push if needed
 git push -u origin $(git branch --show-current)
@@ -120,6 +130,8 @@ gh pr create \
 EOF
 )"
 ```
+
+Copilot output is NEVER applied verbatim — always review and adjust before creating the PR.
 
 ### 7. Report Result
 

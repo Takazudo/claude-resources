@@ -57,6 +57,19 @@ Read the diff carefully. Understand:
 
 ## Step 3: Draft New Title and Description
 
+**Optional: Copilot-assisted body draft**
+
+Before drafting manually, attempt to get a Copilot-drafted body:
+
+```bash
+BASE_BRANCH=<baseRefName from step 1>
+DRAFT=$($HOME/.claude/skills/gco/scripts/gco-pr-body.sh "$BASE_BRANCH" 2>/dev/null || true)
+```
+
+If `$DRAFT` is non-empty, use it as the starting point for the body. Claude must still review and adjust it — fill any gaps, fix inaccuracies, and ensure tone/completeness. If the script fails or returns empty, draft directly as below.
+
+---
+
 Based on the full diff analysis:
 
 **Title**: Write a concise PR title (under 70 chars) that captures the overall scope. If the PR covers multiple concerns, summarize the primary theme.
@@ -116,3 +129,18 @@ Report the updated PR URL when done.
 - Preserve issue references from the original body
 - Do not change the PR's base branch or draft status
 - If the diff is very large, use `--stat` first to get an overview, then read key files selectively
+- Copilot output is NEVER applied verbatim — always review and adjust before showing to user
+
+## Copilot draft audit (pr-* skills)
+
+Disposition of every `pr-*` skill regarding the Copilot-draft path:
+
+| Skill | Disposition |
+|---|---|
+| `/pr` | **Adopt** (this sub-task) |
+| `/pr-revise` | **Adopt** (this sub-task) |
+| `/pr-complete` | Skip — merge/completion workflow, not text generation |
+| `/pr-split` | Skip — structural rearrangement, not text generation |
+| `/pr-recreate` | Skip — history cleanup, not text generation |
+| `/pr-make-suggestion-edit` | Skip — applies code suggestions as edits, different domain |
+| `/pr-make-suggestion-to-pr` | Defer — creates new PRs from suggestion edits; future candidate, track in a follow-up issue |

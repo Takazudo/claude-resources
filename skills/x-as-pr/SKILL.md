@@ -1,7 +1,7 @@
 ---
 name: x-as-pr
 description: "Start a development workflow as a draft PR. Fetches, creates a branch, makes an empty start commit, pushes, and opens a draft PR. Then starts implementation if instructions are provided. Also handles the case where implementation is already done on a topic branch — detects this and creates a PR from the current branch instead. When a GitHub issue URL is passed, treats it as an implementation request — read the issue and implement it. Use --make-issue to create a GitHub issue first describing the plan, then proceed. With linked issues, logs progress via issue comments. Use when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix development with a PR-first workflow, (3) User wants to set up a branch and draft PR before coding, (4) User has already implemented changes on a branch and wants to create a PR for them, (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' or '--issue' to create an issue first."
-argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [--make-issue|--issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [issue-url-or-number] [branch-name] [base-branch]"
+argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [--make-issue|--issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [-nor|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
@@ -17,6 +17,7 @@ Parse `$ARGUMENTS` to extract:
 - **`-l` or `--review-loop` flag**: If present, replace the final review step with `/review-loop 5 --aggressive` instead of `/deep-review` (see "Review Loop Mode" below)
 - **`-v` or `--verify-ui` flag**: If present, run `/verify-ui` after review fixes to verify frontend changes visually (see "Verify UI Mode" below)
 - **`--noi`, `--noissue`, or `--noissues` flag**: Only meaningful with `--review-loop`. Suppresses GitHub issue creation for review findings. Without this flag, review-loop creates issues for considerable findings by default
+- **`-nor` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. See "Raising Issues for Unrelated Findings" below
 - **`-co` or `--codex` flag**: If present, use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below
 - **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot for reviews and research. See "GitHub Copilot Mode" below. Mutually exclusive with `-co`
 - **`-a` or `--auto` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes. See "Auto-Complete Mode" below
@@ -512,6 +513,47 @@ If no further instructions were provided, report the PR URL and wait for directi
 -> Comment on issue #99: "Draft PR created: <URL>"
 -> Implement, commenting on issue for progress
 ```
+
+---
+
+## Raising Issues for Unrelated Findings (Default Behavior)
+
+During coding and reviewing, you may discover problems that are **unrelated to the original topic** — e.g., pre-existing bugs, code smells in adjacent files, outdated dependencies, or inconsistencies in code that was not part of the task. By default, **always raise these as separate GitHub issues** so they are tracked and not lost.
+
+### When to Raise
+
+- A reviewer flags a problem in code that was NOT modified by this PR
+- You notice a bug or code quality issue in adjacent code while implementing
+- A pre-existing test failure or lint warning is discovered
+- Any problem that is clearly outside the scope of the current task
+
+### How to Raise
+
+```bash
+gh issue create \
+  --title "<concise description of the unrelated problem>" \
+  --body "$(cat <<'EOF'
+## Found during
+
+PR: <PR_URL> (or branch: <BRANCH_NAME>)
+
+## Description
+
+<what the problem is, where it is, and why it matters>
+
+## Suggested fix
+
+<brief suggestion if obvious, otherwise omit>
+
+---
+*Discovered during `/x-as-pr` workflow — not related to the original task.*
+EOF
+)"
+```
+
+### Suppressing with `--no-raise-issues` / `-nor`
+
+When `-nor` or `--no-raise-issues` is passed, **do NOT raise GitHub issues for unrelated findings**. Simply ignore them and focus only on the original task. This is useful when you want a lean workflow without side-effect issues.
 
 ---
 

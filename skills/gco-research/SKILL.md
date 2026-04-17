@@ -16,14 +16,13 @@ Web research via GitHub Copilot CLI, synthesized by Claude Code.
 
 ### Step 0: Pre-flight Rate Limit Check
 
-Before doing anything, check if Copilot is currently rate-limited:
+Before doing anything, check if Copilot is currently in degraded mode:
 
 ```bash
 RATE_CHECK=$(node $HOME/.claude/scripts/gco-rate-limit.js check 2>&1)
-RATE_EXIT=$?
 ```
 
-If `RATE_EXIT` is non-zero (rate-limited), **skip all copilot steps** and jump directly to the **Fallback** step. **Do NOT report the rate limit to the user** — silently fall back.
+If the output starts with `degraded:`, **notify the user** that Copilot is in low-cost mode (auto-downgraded model, free for Pro users) but **proceed with Copilot anyway** — it is still usable. Do NOT skip or fall back.
 
 ### Step 1: Understand the Research Topic
 
@@ -80,7 +79,7 @@ After Copilot completes (or times out):
      "$LOGDIR/${DATETIME}-gco-research-${SLUG}-stderr.log"
    ```
 
-   If exit code is non-zero (rate limit detected), jump to **Fallback**.
+   If exit code is non-zero (rate limit / low-cost mode detected): **notify the user** that Copilot used a lower-cost model, but **use the output anyway** — it is still valid research. Do NOT fall back.
 
 2. Read the output file
 3. If empty or missing, check stderr log for errors
@@ -88,11 +87,12 @@ After Copilot completes (or times out):
 
 ### Step 5: Fallback
 
-If Copilot timed out, produced no output, or is unavailable:
+If Copilot timed out, produced **no usable output**, or is **not installed**:
 
-- **Silently fall back** — do NOT report the failure to the user
+- **Notify the user** about the fallback
 - Spawn a `researcher` subagent to perform the research via Claude Code tools (WebSearch, WebFetch, etc.)
 - Continue as if the researcher subagent was the original plan
+- Note: Rate limiting alone is NOT a fallback trigger — Copilot auto-downgrades to a cheaper model for Pro users and the output is still usable
 
 ### Step 6: Synthesize
 
@@ -120,5 +120,5 @@ pnpm dlx @takazudo/mdx-formatter --write <file>
 - Copilot can do web research natively
 - All file writing done by Claude Code, never by Copilot
 - Falls back to `researcher` subagent if Copilot fails
-- **Silent fallback policy**: If Copilot is unavailable, silently fall back to the researcher subagent. NEVER pause the workflow or report the issue to the user
+- **Rate limit policy**: Rate limiting does NOT mean Copilot is unavailable — for Pro users, it auto-downgrades to a cheaper model (free). Notify the user when rate limit is detected, but continue using Copilot output. Only fall back to researcher subagent when Copilot actually fails (timeout, no output, not installed)
 - NEVER use `~` in paths — use `$HOME`

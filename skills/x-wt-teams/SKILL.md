@@ -1,7 +1,7 @@
 ---
 name: x-wt-teams
 description: "Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', or 'parallel development', (3) User says 'split into topics' or 'multi-topic development'. This skill is FULLY AUTONOMOUS — it creates worktrees, spawns agent teams, and coordinates everything automatically. No manual child sessions needed."
-argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [--no-issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [--model <opus|sonnet|haiku>] [#issue-number] <instructions>"
+argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [--no-issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [-nor|--no-raise-issues] [--model <opus|sonnet|haiku>] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -17,6 +17,7 @@ By default, create a GitHub issue at the start to track progress. The manager an
 - **`-l` or `--review-loop`**: Replace the Step 9 deep review with `/review-loop 5 --aggressive` instead of `/deep-review`. By default, this also passes `--issues` to create GitHub issues for considerable review findings. See "Review Loop Mode" below.
 - **`-v` or `--verify-ui`**: After review fixes (Step 9), run `/verify-ui` to verify frontend/CSS/layout changes visually. See "Verify UI Mode" below.
 - **`--noi`, `--noissue`, or `--noissues`**: Only meaningful with `--review-loop`. Suppresses `--issues` flag on the review-loop invocation, so no GitHub issues are created for review findings.
+- **`-nor` or `--no-raise-issues`**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. See "Raising Issues for Unrelated Findings" below.
 - **`-co` or `--codex`**: Use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below.
 - **`-gco` or `--github-copilot`**: Use GitHub Copilot CLI for reviews and research. See "GitHub Copilot Mode" below. Mutually exclusive with `-co`.
 - **`-a` or `--auto`**: After the workflow completes (Step 15), automatically run `/pr-complete -c -w` to merge the PR, close the linked issue, and watch post-merge CI. Intended for full-auto, safe-to-merge work.
@@ -758,6 +759,45 @@ git pull origin "$TARGET_BRANCH"
 ```
 
 This leaves the user on the up-to-date target branch (e.g., `main`) after a fully automated workflow.
+
+---
+
+### Raising Issues for Unrelated Findings (Default Behavior)
+
+During coding and reviewing (both by the manager and child agents), you may discover problems that are **unrelated to the original topic** — e.g., pre-existing bugs, code smells in adjacent files, outdated dependencies, or inconsistencies in code that was not part of the task. By default, **always raise these as separate GitHub issues** so they are tracked and not lost.
+
+**When to raise:**
+
+- A reviewer flags a problem in code that was NOT modified by this workflow
+- You or a child agent notices a bug or code quality issue in adjacent code while implementing
+- A pre-existing test failure or lint warning is discovered
+- Any problem that is clearly outside the scope of the current task
+
+**How to raise:**
+
+```bash
+gh issue create \
+  --title "<concise description of the unrelated problem>" \
+  --body "$(cat <<'EOF'
+## Found during
+
+Root PR: <ROOT_PR_URL> (or branch: base/<project-name>)
+
+## Description
+
+<what the problem is, where it is, and why it matters>
+
+## Suggested fix
+
+<brief suggestion if obvious, otherwise omit>
+
+---
+*Discovered during `/x-wt-teams` workflow — not related to the original task.*
+EOF
+)"
+```
+
+**Suppressing with `--no-raise-issues` / `-nor`:** When `-nor` or `--no-raise-issues` is passed, do NOT raise GitHub issues for unrelated findings. Simply ignore them and focus only on the original task. Also pass this flag context to child agents so they skip raising issues too.
 
 ---
 

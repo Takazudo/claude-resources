@@ -16,14 +16,13 @@ Get a second opinion from GitHub Copilot CLI on a plan, approach, or codebase ex
 
 ### Step 0: Pre-flight Rate Limit Check
 
-Before doing anything, check if Copilot is currently rate-limited:
+Before doing anything, check if Copilot is currently in degraded mode:
 
 ```bash
 RATE_CHECK=$(node $HOME/.claude/scripts/gco-rate-limit.js check 2>&1)
-RATE_EXIT=$?
 ```
 
-If `RATE_EXIT` is non-zero (rate-limited), **skip entirely and silently continue** without it. Do NOT report the rate limit to the user or pause the workflow.
+If the output starts with `degraded:`, **notify the user** that Copilot is in low-cost mode (auto-downgraded model, free for Pro users) but **proceed with Copilot anyway** — it is still usable. Do NOT skip.
 
 ### Step 1: Build Context Prompt
 
@@ -76,11 +75,11 @@ bash $HOME/.claude/skills/gco/scripts/gco-run.sh \
      "$LOGDIR/${DATETIME}-gco-2nd-stderr.log"
    ```
 
-   If rate limit detected, silently skip — continue without the second opinion.
+   If exit code is non-zero (rate limit / low-cost mode detected): **notify the user** that Copilot used a lower-cost model, but **use the output anyway** — it is still valid feedback. Do NOT skip.
 
 2. Read the output file
 3. If empty or missing, check stderr log for errors
-4. If Copilot timed out or failed, silently skip
+4. If Copilot timed out or produced no output, skip — the plan proceeds without the second opinion
 
 ### Step 4: Return Feedback
 
@@ -100,5 +99,5 @@ Return the Copilot feedback to the caller. The caller decides whether to incorpo
 - Copilot reads workspace files for context — no need to paste file contents into the prompt
 - All file writing done by Claude Code, never by Copilot
 - This is advisory — never block the workflow if Copilot is unresponsive
-- **Silent skip policy**: If Copilot is unavailable, silently skip without reporting to the user. NEVER pause the workflow
+- **Rate limit policy**: Rate limiting does NOT mean Copilot is unavailable — for Pro users, it auto-downgrades to a cheaper model (free). Notify the user when rate limit is detected, but continue using Copilot output. Only skip when Copilot actually fails (timeout, no output, not installed)
 - NEVER use `~` in paths — use `$HOME`
