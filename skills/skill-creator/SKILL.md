@@ -1,7 +1,6 @@
 ---
 name: skill-creator
-description: "Guide for creating effective Claude Code skills that extend capabilities with specialized knowledge, workflows, or tool integrations. Use when: (1) User wants to create a new skill, (2) User wants to update/improve an existing skill, (3) User asks 'how to make a skill' or 'create skill for X'. Covers: skill anatomy (SKILL.md, scripts/, references/, assets/), progressive disclosure design, frontmatter requirements, bundled resources patterns, init_skill.py usage, iteration workflow, and packaging for distribution. Skills are modular packages providing domain expertise, tool integrations, and procedural knowledge."
-license: Complete terms in LICENSE.txt
+description: "Guide for creating effective Claude Code skills that extend capabilities with specialized knowledge, workflows, or tool integrations. Use when: (1) User wants to create a new skill, (2) User wants to update/improve an existing skill, (3) User asks 'how to make a skill' or 'create skill for X'. Covers: skill anatomy (SKILL.md, scripts/, references/, assets/), progressive disclosure design, frontmatter requirements, bundled resources patterns, init_skill.py usage, iteration workflow. Skills are modular packages providing domain expertise, tool integrations, and procedural knowledge."
 ---
 
 # Skill Creator
@@ -211,9 +210,8 @@ Skill creation involves these steps:
 4. Edit the skill (implement resources and write SKILL.md)
 5. Format SKILL.md with mdx-formatter
 6. Iterate based on real usage
-7. Package the skill (run package_skill.py) - **ONLY when distributing to others**
 
-Follow these steps in order. Step 7 (packaging) should be skipped for local development - only package when you need to share the skill with others.
+Follow these steps in order.
 
 ### Step 1: Understanding the Skill with Concrete Examples
 
@@ -354,37 +352,6 @@ After testing the skill, users may request improvements. Often this happens righ
 2. Notice struggles or inefficiencies
 3. Identify how SKILL.md or bundled resources should be updated
 4. Implement changes and test again
-
-### Step 7: Packaging a Skill (Optional - Only for Distribution)
-
-**Skip this step for local development.** Only package skills when you need to distribute them to others.
-
-When you need to share a skill, package it into a distributable .skill file. The packaging process automatically validates the skill first to ensure it meets all requirements:
-
-```bash
-scripts/package_skill.py <path/to/skill-folder>
-```
-
-Optional output directory specification:
-
-```bash
-scripts/package_skill.py <path/to/skill-folder> ./dist
-```
-
-The packaging script will:
-
-1. **Validate** the skill automatically, checking:
-
-- YAML frontmatter format and required fields
-- Skill naming conventions and directory structure
-- Description completeness and quality
-- File organization and resource references
-
-2. **Package** the skill if validation passes, creating a .skill file named after the skill (e.g., `my-skill.skill`) that includes all files and maintains the proper directory structure for distribution. The .skill file is a zip file with a .skill extension.
-
-If validation fails, the script will report the errors and exit without creating a package. Fix any validation errors and run the packaging command again.
-
-**Important:** For local development, you do not need to create .skill files. Skills work directly from their directory structure. Only create .skill files when you need to distribute them to others.
 
 ## Skill Locations
 

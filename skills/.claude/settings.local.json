@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"\")",
+      "Bash(git -C /Users/takazudo/.claude/skills status --porcelain)"
+    ]
+  }
+}

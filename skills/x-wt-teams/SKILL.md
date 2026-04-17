@@ -417,7 +417,7 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
         `gh issue comment <ISSUE_NUMBER> --body "### topic-<name> — completed\n\n<summary of work done>"`
 ```
 
-**Spawn all child agents in parallel** using multiple Task tool calls in a single message. Each agent should:
+**Spawn child agents in parallel — BUT capped at 6 concurrent agents.** Use multiple Task tool calls in a single message for the first batch. Each agent should:
 
 1. Work in its assigned worktree directory
 2. Implement the topic
@@ -426,6 +426,26 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
 7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, and log file path. Do NOT send full summaries — the log file has the detail. The manager can read it via `/logrefer` if needed
+
+#### Concurrency Limit: Max 6 Child Agents at Once
+
+**CPU load protection**: Never run more than **6 child agents concurrently**. Running 7+ parallel agents overloads the local machine (each agent runs code, tests, reviews, etc.).
+
+**How to enforce:**
+
+- **6 or fewer topics**: Spawn all in parallel as usual — no waiting needed.
+- **7 or more topics**: Spawn only the first 6 in parallel. Queue the remaining topics. When any active agent completes and reports back, spawn the next queued topic. Continue until the queue is empty.
+
+**Example with 8 topics:**
+
+1. Spawn topics 1–6 in parallel (single message, 6 Task tool calls)
+2. Wait for any one agent to complete (e.g., topic 3 finishes)
+3. Spawn topic 7
+4. Wait for another agent to complete (e.g., topic 1 finishes)
+5. Spawn topic 8
+6. Wait for all remaining agents (topics 2, 4, 5, 6, 7, 8) to complete
+
+This keeps the active agent count at ≤6 at all times. The overall wall-clock time is longer than full-parallel, but the machine stays responsive.
 
 ### Step 6: Review and Merge Topic Branches Locally
 
@@ -903,6 +923,7 @@ Even during cleanup, do NOT checkout main or the parent branch. Stay on whatever
 15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. Skip with `--no-issue` or if the user says not to. Close the issue when the root PR is merged
 16. **pnpm worktree cleanup breaks symlinks** — when worktrees are removed (Step 7), pnpm workspace symlinks in `node_modules/` may point to deleted worktree paths. Step 7 includes a `pnpm install --ignore-scripts` fix for this
 17. **NEVER auto-detect `--stay`** — always create a new base branch and root PR unless the user explicitly passes `--stay`. Do not infer `--stay` from branch state, existing PRs, or context
+18. **Max 6 concurrent child agents** — when spawning child agents in Step 5, never run more than 6 in parallel. If there are 7+ topics, queue the remainder and spawn them as earlier agents complete. This prevents CPU overload
 
 ## Prerequisites
 
