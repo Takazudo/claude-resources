@@ -126,7 +126,24 @@ On self-hosted runners, build tool caches (Cargo, Go modules, Gradle, etc.) **al
 # (no actions/cache step needed)
 ```
 
-### 8. Use Cache (Not Artifacts) for Inter-Job Data Sharing
+### 8. Avoid `curl | sh` Installers — Use Prebuilt-Binary Actions
+
+Installer scripts like `curl https://.../init.sh | sh` (wasm-pack, rustup, many language toolchains) do **one** HTTP request with no retry. A single transient 5xx from the redirect target (e.g., a GitHub release asset) kills the entire workflow. Seen in the wild: rustwasm.github.io → `github.com/rustwasm/wasm-pack/releases/...` returning 504 mid-deploy.
+
+```yaml
+# BAD — one curl, no retry, fails on any 5xx
+- name: Install wasm-pack
+  run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+# GOOD — prebuilt binary from GitHub releases, with retries + runner caching
+- uses: taiki-e/install-action@v2
+  with:
+    tool: wasm-pack
+```
+
+`taiki-e/install-action` covers most Rust/Go/Node tools (`wasm-pack`, `cargo-nextest`, `just`, `mdbook`, etc.). For tools it doesn't cover, use `actions/cache` on a pinned-version binary, or wrap the curl in a retry loop with `curl --retry 5 --retry-all-errors --retry-delay 5`.
+
+### 9. Use Cache (Not Artifacts) for Inter-Job Data Sharing
 
 `upload-artifact`/`download-artifact` counts toward **shared org storage** (often limited). For passing build output between jobs in the same workflow, use `actions/cache` instead — it has a **separate 10 GB per-repo limit**.
 
@@ -198,4 +215,5 @@ When reviewing or writing a workflow, verify:
 10. Deploy steps have retry logic for network operations
 11. `actions/checkout` has `set-safe-directory: false` on self-hosted runners (see rule 6)
 12. No `actions/cache` for build tools on self-hosted runners — disk cache is already local (see rule 7)
-13. Inter-job data sharing uses `actions/cache` not `upload-artifact` to avoid org storage limits (see rule 8)
+13. No `curl | sh` installers — use `taiki-e/install-action` or similar with retries (see rule 8)
+14. Inter-job data sharing uses `actions/cache` not `upload-artifact` to avoid org storage limits (see rule 9)

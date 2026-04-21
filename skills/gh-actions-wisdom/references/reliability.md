@@ -1,5 +1,42 @@
 # Reliability Patterns
 
+## Avoid `curl | sh` Installers
+
+Classic shell installers for language toolchains (`wasm-pack`, `rustup`, Deno, Bun, various CLIs) pipe a single `curl` into `sh`. One transient 5xx from the redirect target kills the build with no retry.
+
+**Real failure** (2026-04-18, production deploy on main):
+
+```
+curl: (22) The requested URL returned error: 504
+wasm-pack-init: failed to download https://github.com/rustwasm/wasm-pack/releases/download/v0.13.1/wasm-pack-v0.13.1-x86_64-unknown-linux-musl.tar.gz
+```
+
+**Fix options, in order of preference:**
+
+1. **Prebuilt-binary action (best).** `taiki-e/install-action@v2` covers a long list of Rust/Go/Node tools and handles retries + runner caching:
+
+   ```yaml
+   - uses: taiki-e/install-action@v2
+     with:
+       tool: wasm-pack
+   ```
+
+2. **`actions/cache` + pinned binary.** If the tool isn't supported by `taiki-e/install-action`, cache the downloaded binary keyed by version so the network hit only happens once per cache-miss.
+
+3. **Retry loop around curl (last resort).** Only when no cacheable binary exists:
+
+   ```yaml
+   - name: Install foo
+     run: |
+       for i in 1 2 3; do
+         curl --retry 5 --retry-all-errors --retry-delay 5 -sSf \
+           https://example.com/install.sh | sh && break
+         sleep $((i*5))
+       done
+   ```
+
+Never ship a bare `curl ... | sh` in a workflow you care about — it's a coin flip every run.
+
 ## Retry Logic for Network Operations
 
 Deploy steps can fail due to transient network issues. Use `nick-fields/retry`.

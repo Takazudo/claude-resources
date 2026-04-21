@@ -1,11 +1,6 @@
 ---
 name: skill-tweaker
-description: >-
-  Fix, improve, or update existing Claude Code skills. Use when: (1) User reports a skill isn't
-  working well or triggering incorrectly, (2) User wants to adjust skill behavior, (3) User says
-  'fix skill', 'update skill', 'tweak skill', 'skill not working', 'skill triggers too often'.
-  Handles: editing SKILL.md frontmatter and body, adjusting scripts/references/assets, debugging
-  trigger issues.
+description: "Fix, improve, or update existing Claude Code skills. Use when: (1) User reports a skill isn't working well or triggering incorrectly, (2) User wants to adjust skill behavior, (3) User says 'fix skill', 'update skill', 'tweak skill', 'skill not working', 'skill triggers too often'. Handles: editing SKILL.md frontmatter and body, adjusting scripts/references/assets, debugging trigger issues."
 ---
 
 # Tweak Existing Skill
@@ -41,6 +36,13 @@ Common problems and fixes:
 | Script fails | Bug or environment issue | Read and test the script |
 
 ### Step 3: Apply changes
+
+**Inserting a new step into a numbered step list:** When a skill is structured as `Step 1`, `Step 2`, `Step 3`, ... and you need to add a new step between existing ones, **renumber the steps** so the sequence stays contiguous. Do NOT introduce fractional numbers like "Step 2.5", and do NOT insert "Step 0" at the start. Examples:
+
+- Inserting between Step 2 and Step 3: the old Step 3 becomes Step 4, old Step 4 becomes Step 5, and so on. Update every reference to those numbers (body text, TODO checklists, cross-references, "proceed to Step N" wording).
+- Inserting before Step 1: shift everything up by one — the new step becomes Step 1, old Step 1 becomes Step 2, etc.
+
+After renumbering, grep the skill file for stale references (e.g., "Step 3" where you now mean "Step 4") and fix them. Also check any sibling files (scripts, references) that mention step numbers.
 
 **Frontmatter fields reference:**
 
