@@ -67,15 +67,13 @@ bash $HOME/.claude/skills/gco/scripts/gco-run.sh \
 
 ### Step 3: Collect Results
 
-1. Check for rate limiting in output files:
+1. **Check for quota fallback** — grep the stderr log for `GCO_USED_FALLBACK=`:
 
    ```bash
-   node $HOME/.claude/scripts/gco-rate-limit.js check-output \
-     "$LOGDIR/${DATETIME}-gco-2nd.md" \
-     "$LOGDIR/${DATETIME}-gco-2nd-stderr.log"
+   grep '^GCO_USED_FALLBACK=' "$LOGDIR/${DATETIME}-gco-2nd-stderr.log"
    ```
 
-   If exit code is non-zero (rate limit / low-cost mode detected): **notify the user** that Copilot used a lower-cost model, but **use the output anyway** — it is still valid feedback. Do NOT skip.
+   If found, `gco-run.sh` auto-retried with `gpt-4.1` because the primary model was out of quota. **Notify the user** with one line: **"Used gpt-4.1 instead of claude-opus-4.6 because of no quota."** Proceed — the feedback is still valid.
 
 2. Read the output file
 3. If empty or missing, check stderr log for errors
@@ -99,5 +97,6 @@ Return the Copilot feedback to the caller. The caller decides whether to incorpo
 - Copilot reads workspace files for context — no need to paste file contents into the prompt
 - All file writing done by Claude Code, never by Copilot
 - This is advisory — never block the workflow if Copilot is unresponsive
-- **Rate limit policy**: Rate limiting does NOT mean Copilot is unavailable — for Pro users, it auto-downgrades to a cheaper model (free). Notify the user when rate limit is detected, but continue using Copilot output. Only skip when Copilot actually fails (timeout, no output, not installed)
+- **Quota fallback policy**: When the primary model returns HTTP 402 no-quota, `gco-run.sh` auto-retries with `gpt-4.1` (free) and writes `GCO_USED_FALLBACK=gpt-4.1 ...` to the stderr file. Claude MUST check stderr for this marker and tell the user "Used gpt-4.1 instead of claude-opus-4.6 because of no quota." Feedback is still valid — only skip when Copilot actually fails (timeout, no output, not installed)
+- **Cheap variant**: Use `/gcoc-2nd` to skip opus entirely and run gpt-4.1 from the start
 - NEVER use `~` in paths — use `$HOME`

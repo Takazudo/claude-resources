@@ -2,7 +2,7 @@
 name: review-loop
 description: "Iterative code review loop that runs /deep-review multiple times, fixing issues each round. Finds bugs, improvements, and quality issues through repeated passes. Use when: (1) User says 'review-loop', 'review loop', or 'review repeat', (2) User wants continuous review+fix cycles to kill tiny problems, (3) User wants thorough multi-pass review before finalizing code, (4) User says 'review 5 rounds' or similar."
 user-invocable: true
-argument-hint: "[count] [--aggressive|--defensive] [--stay|--as-pr] [-co|--codex] [-gco|--github-copilot]"
+argument-hint: "[count] [--aggressive|--defensive] [--stay|--as-pr] [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap]"
 ---
 
 # Review Loop
@@ -18,8 +18,10 @@ Parse arguments to extract:
 - **--defensive** (default): Handle results carefully. Fix only clear bugs and convention violations. Use when the project is live and stability matters
 - **--stay** (default): Apply fixes directly to the current branch
 - **--as-pr**: Create a branch + draft PR, then apply fixes there. Follow the `/x-as-pr` workflow
+- **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Forwarded verbatim to `/deep-review` (or the backend `-review` variant if a backend flag is also set). Sets the Claude model for subagent reviewers. Pick at most one. Default: `-op` (matches `/deep-review`'s default).
 - **-co** or **--codex**: Use `/codex-review` instead of `/deep-review` for the review process. Codex review uses OpenAI Codex CLI for faster, cheaper reviews
-- **-gco** or **--github-copilot**: Use `/gco-review` (GitHub Copilot CLI) instead of `/deep-review` for the review process. Mutually exclusive with `-co`
+- **-gco** or **--github-copilot**: Use `/gco-review` (GitHub Copilot CLI) instead of `/deep-review` for the review process. Mutually exclusive with `-co` and `-gcoc`
+- **-gcoc** or **--github-copilot-cheap**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). Uses `/gcoc-review`. Mutually exclusive with `-co` and `-gco`
 
 ## Workflow
 
@@ -43,7 +45,7 @@ For each round (1 to N):
 
 #### 2a: Run review
 
-If `--codex` is set, invoke `/codex-review` using the Skill tool. `/codex-review` silently falls back to Claude Code reviewers if codex is rate-limited — no special handling needed here. If `--github-copilot` is set, invoke `/gco-review` using the Skill tool. `/gco-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed here. Otherwise, invoke `/deep-review`. Wait for all reviewers to complete.
+If `--codex` is set, invoke `/codex-review` using the Skill tool. `/codex-review` silently falls back to Claude Code reviewers if codex is rate-limited — no special handling needed here. If `--github-copilot` is set, invoke `/gco-review` using the Skill tool. `/gco-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed here. If `--github-copilot-cheap` is set, invoke `/gcoc-review` using the Skill tool. `/gcoc-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed here. Otherwise, invoke `/deep-review`. Wait for all reviewers to complete.
 
 #### 2b: Categorize findings
 
@@ -139,6 +141,14 @@ Uses `/codex-review` (OpenAI Codex CLI) instead of `/deep-review` for each round
 
 Uses `/gco-review` (GitHub Copilot CLI) instead of `/deep-review` for each round.
 
+### GitHub Copilot Cheap-powered review
+
+```
+/review-loop 3 --github-copilot-cheap
+```
+
+Uses `/gcoc-review` (GitHub Copilot CLI, forced to free `gpt-4.1` model) instead of `/deep-review` for each round.
+
 ### Quick single round
 
 ```
@@ -150,6 +160,7 @@ Uses `/gco-review` (GitHub Copilot CLI) instead of `/deep-review` for each round
 - Default review uses `/deep-review` with 3 Opus reviewers in PR mode (or 6 in full project mode)
 - With `--codex`, review uses `/codex-review` (OpenAI Codex CLI) instead — faster and cheaper. If codex is rate-limited, `/codex-review` silently falls back to Claude Code reviewers (no workflow interruption)
 - With `--github-copilot`, review uses `/gco-review` (GitHub Copilot CLI) instead. If Copilot is rate-limited, `/gco-review` silently falls back to Claude Code reviewers (no workflow interruption)
+- With `--github-copilot-cheap`, review uses `/gcoc-review` (GitHub Copilot CLI, forced `gpt-4.1`) instead. If Copilot is rate-limited, `/gcoc-review` silently falls back to Claude Code reviewers (no workflow interruption)
 - Later rounds often find fewer issues as earlier rounds fixed the low-hanging fruit
 - The `--aggressive` vs `--defensive` distinction controls the threshold for automatic fixes, not the review depth
 - Always run typecheck between rounds to catch regressions from fixes

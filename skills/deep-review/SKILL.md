@@ -1,6 +1,7 @@
 ---
 name: deep-review
-description: "Perform deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Auto-detects PR mode (3 Claude reviewers + 2 codex reviewers on diff) vs full project mode (6 Claude reviewers + 2 codex reviewers on entire codebase)."
+description: "Perform deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Auto-detects PR mode (3 Claude reviewers + optional codex/gco reviewers on diff) vs full project mode (6 Claude reviewers + optional codex/gco reviewers on entire codebase). Supports the unified `-haiku|-so|-op` (Claude model) and `-co|-gco|-gcoc` (external backend) flag vocabulary."
+argument-hint: "[-haiku|-so|-op] [-co|-gco|-gcoc]"
 ---
 
 # Deep Review
@@ -19,6 +20,28 @@ Perform a practical code quality review with priorities:
 
 - Security issues (XSS, injection, etc.)
 - Validation concerns
+
+## Flags
+
+### Model flags (pick at most one — sets Claude model for Claude reviewers)
+
+- `-haiku` / `--haiku` — Claude Haiku
+- `-so` / `--sonnet` — Claude Sonnet
+- `-op` / `--opus` — Claude Opus **(default)**
+
+Sets the `model:` field for every `code-reviewer` subagent spawned in Steps A-2 / B-2. Default: `opus`.
+
+If multiple model flags are passed, the last one wins.
+
+### Backend flags (combinable — external reviewers run in parallel)
+
+- `-co` / `--codex` — force the OpenAI Codex side-by-side review on (bypass the rate-limit gate's silent-skip behavior)
+- `-gco` / `--github-copilot` — also invoke `/gco-review` in parallel with the Claude reviewers
+- `-gcoc` / `--github-copilot-cheap` — also invoke `/gcoc-review` in parallel with the Claude reviewers
+
+Backend default: **opportunistic codex side-by-side** when available (current behavior — see Steps A-2b / A-2c / B-2b / B-2c). `-co` upgrades this from "opt-in when not rate-limited" to "force on and fail loudly if unavailable". `-gco` / `-gcoc` add additional external reviewers alongside.
+
+Multiple backend flags combine — every specified backend runs in parallel and all findings consolidate in Step 3.
 
 ## Review Process
 
@@ -56,7 +79,7 @@ git diff <base-branch>...HEAD
 
 ### Step A-2: Run 3 Parallel Reviews
 
-**Use Task tool with `subagent_type: "code-reviewer"` and `model: "opus"` THREE times in parallel**
+**Use Task tool with `subagent_type: "code-reviewer"` and `model` set to the resolved model flag (default `"opus"`) THREE times in parallel**
 
 **Reviewer 1: Bugs & Logic**
 
@@ -125,18 +148,21 @@ Then return to the caller ONLY:
 Do NOT return the full analysis — it is in the log file.
 ```
 
-**CRITICAL: Launch all 3 code-reviewer subagents in PARALLEL in a single message using Opus model**
+**CRITICAL: Launch all 3 code-reviewer subagents in PARALLEL in a single message using the resolved model (default Opus; override via `-haiku` / `-so` / `-op`).**
 
 ### Step A-2b: Run Codex Review in Parallel (if not rate-limited)
 
-**Pre-flight check**: Before launching any codex background tasks, check if codex is rate-limited:
+**Gate logic:**
 
-```bash
-RATE_CHECK=$(node $HOME/.claude/scripts/codex-rate-limit.js check 2>&1)
-RATE_EXIT=$?
-```
+- If `-co` / `--codex` was passed → **force codex on** (skip the rate-limit pre-flight; if codex is unreachable, surface the error instead of silently skipping).
+- Otherwise → run the **opportunistic pre-flight check**:
 
-If `RATE_EXIT` is non-zero, **silently skip ALL codex steps** (A-2b and A-2c). Do NOT report the rate limit to the user — just proceed with Claude Code reviewers only.
+  ```bash
+  RATE_CHECK=$(node $HOME/.claude/scripts/codex-rate-limit.js check 2>&1)
+  RATE_EXIT=$?
+  ```
+
+  If `RATE_EXIT` is non-zero, **silently skip ALL codex steps** (A-2b and A-2c). Do NOT report the rate limit to the user — just proceed with Claude Code reviewers only.
 
 **In addition to** the 3 Claude Code reviewers above, also launch a codex review in parallel as a background Bash task. This provides a cross-model perspective on the same diff:
 
@@ -204,6 +230,22 @@ ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} node "$CODEX_COMPANION" adversa
 - Together they provide comprehensive cross-model coverage
 - If codex fails or times out, proceed with other reviewers' results only
 
+### Step A-2d: Run GitHub Copilot Reviews in Parallel (if `-gco` / `-gcoc` passed)
+
+If `-gco` / `--github-copilot` was passed, invoke `/gco-review` in parallel with the Claude and codex reviewers:
+
+```
+Skill(skill="gco-review")
+```
+
+If `-gcoc` / `--github-copilot-cheap` was passed, invoke `/gcoc-review` instead (or in addition, if both flags were passed):
+
+```
+Skill(skill="gcoc-review")
+```
+
+Both `/gco-review` and `/gcoc-review` already silently fall back to Claude-based reviewers if Copilot is rate-limited — no extra handling needed. Their findings consolidate in Step 3 along with the other reviewers.
+
 ---
 
 ## Mode B: Full Project Review (6 Reviewers)
@@ -223,7 +265,7 @@ Read the project's CLAUDE.md, README, or similar to understand the project struc
 
 ### Step B-2: Run 6 Parallel Reviews
 
-**Use Task tool with `subagent_type: "code-reviewer"` and `model: "opus"` SIX times in parallel**
+**Use Task tool with `subagent_type: "code-reviewer"` and `model` set to the resolved model flag (default `"opus"`) SIX times in parallel**
 
 Each reviewer explores the entire codebase independently, focusing on their assigned area.
 
@@ -370,11 +412,11 @@ Then return to the caller ONLY:
 Do NOT return the full analysis — it is in the log file.
 ```
 
-**CRITICAL: Launch all 6 code-reviewer subagents in PARALLEL in a single message using Opus model**
+**CRITICAL: Launch all 6 code-reviewer subagents in PARALLEL in a single message using the resolved model (default Opus; override via `-haiku` / `-so` / `-op`).**
 
 ### Step B-2b: Run Codex Review in Parallel (if not rate-limited)
 
-**Pre-flight check**: Same as Step A-2b — check `codex-rate-limit.js check` first. If rate-limited, silently skip ALL codex steps (B-2b and B-2c).
+**Gate logic:** same as Step A-2b — if `-co` / `--codex` was passed, force codex on; otherwise use the silent `codex-rate-limit.js check` gate and skip on non-zero exit.
 
 **In addition to** the 6 Claude Code reviewers above, also launch a codex review in parallel as a background Bash task:
 
@@ -442,6 +484,15 @@ ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} node "$CODEX_COMPANION" adversa
 - If codex fails or times out, proceed with other reviewers' results only
 - Include findings in synthesis if available
 
+### Step B-2d: Run GitHub Copilot Reviews in Parallel (if `-gco` / `-gcoc` passed)
+
+Same pattern as A-2d:
+
+- `-gco` → `Skill(skill="gco-review")` in parallel with the other reviewers
+- `-gcoc` → `Skill(skill="gcoc-review")` in parallel with the other reviewers
+
+Each silently falls back if Copilot is rate-limited. Findings consolidate in Step 3.
+
 ---
 
 ## Post-Review Steps (both modes)
@@ -493,9 +544,9 @@ If this was a PR review (Mode A) and fixes were committed:
 
 ## Important Notes
 
-- **CRITICAL:** All reviews MUST be launched in parallel in a single message using Opus model
-- **PR mode:** 3 reviewers analyze the diff against the base branch
-- **Full project mode:** 6 reviewers scan the entire codebase independently
+- **CRITICAL:** All reviews MUST be launched in parallel in a single message using the resolved model (default Opus; override with `-haiku` / `-so` / `-op`)
+- **PR mode:** 3 Claude reviewers analyze the diff against the base branch, plus any backend reviewers (`-co` / `-gco` / `-gcoc`) in parallel
+- **Full project mode:** 6 Claude reviewers scan the entire codebase independently, plus any backend reviewers in parallel
 - **Primary focus:** Bugs, problems, and actionable improvements
 - **Secondary focus:** Security issues (point out if found, but not the main focus)
 - Focus on practical, actionable improvements

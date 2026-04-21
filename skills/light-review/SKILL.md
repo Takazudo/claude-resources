@@ -1,12 +1,12 @@
 ---
 name: light-review
-description: "Lightweight code review using 2 Sonnet reviewers. Faster and cheaper than /deep-review. Use when: (1) Quick review of a small change, (2) Child agents self-reviewing before reporting to manager, (3) User says 'light review' or 'quick review', (4) Review is needed but full /deep-review is overkill. Always uses PR mode (diff-based) with 2 reviewers."
-model: sonnet
+description: "Lightweight code review. Dispatches to GitHub Copilot CLI (`/gcoc-review`) by default, or to Claude / Codex / Copilot-Opus depending on flags. Use when: (1) Quick review of a small change, (2) Child agents self-reviewing before reporting to manager, (3) User says 'light review' or 'quick review', (4) Review is needed but full /deep-review is overkill. Always operates in PR/diff mode."
+argument-hint: "[-haiku|-so|-op] [-co|-gco|-gcoc]"
 ---
 
 # Light Review
 
-Lightweight code review — 2 Sonnet reviewers on the diff. Use this instead of `/deep-review` for smaller changes or when speed matters more than depth.
+Lightweight code review. Runs whichever reviewers are specified by flags; falls back to the skill's defaults when none are passed.
 
 ## Review Focus
 
@@ -14,6 +14,41 @@ Lightweight code review — 2 Sonnet reviewers on the diff. Use this instead of 
 - Missing error handling
 - Code quality and readability
 - Obvious refactoring opportunities
+
+## Flags
+
+### Model flags (pick at most one — sets Claude model for Claude-based reviewers)
+
+- `-haiku` / `--haiku` — Claude Haiku
+- `-so` / `--sonnet` — Claude Sonnet
+- `-op` / `--opus` — Claude Opus
+
+If none passed and no backend flag is passed either, the skill falls to the **backend default** (`-gcoc`) — no Claude reviewers run.
+
+If a model flag IS passed, it turns on the Claude-reviewers branch (2 `code-reviewer` subagents at that model).
+
+If multiple model flags are passed, the last one wins.
+
+### Backend flags (combinable — external review tools)
+
+- `-co` / `--codex` — OpenAI Codex CLI (`/codex-review`)
+- `-gco` / `--github-copilot` — GitHub Copilot CLI, Opus (`/gco-review`)
+- `-gcoc` / `--github-copilot-cheap` — GitHub Copilot CLI, GPT-4.1 free (`/gcoc-review`)
+
+Multiple backend flags may be combined — each specified backend runs in parallel and findings are consolidated.
+
+**Default for this skill**: `-gcoc` (used when neither a model flag nor any backend flag is passed).
+
+### Flag-resolution summary
+
+| Flags passed | What runs |
+|---|---|
+| (none) | `/gcoc-review` only |
+| `-op` (or `-so`, `-haiku`) | 2 Claude reviewers at that model |
+| `-gco` | `/gco-review` only |
+| `-co` | `/codex-review` only |
+| `-op -gco` | 2 Opus Claude reviewers **and** `/gco-review` in parallel |
+| `-co -gcoc` | `/codex-review` **and** `/gcoc-review` in parallel |
 
 ## Process
 
@@ -34,9 +69,13 @@ BASE=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
 git diff "$BASE"...HEAD
 ```
 
-### Step 2: Run 2 Parallel Reviews
+### Step 2: Dispatch Reviewers in Parallel
 
-**Launch 2 code-reviewer subagents in PARALLEL using Sonnet model.**
+Based on the flags, launch every selected reviewer in the **same message** (parallel).
+
+#### Claude branch (only when a model flag is passed)
+
+Launch 2 `code-reviewer` subagents with `model` set to `haiku` / `sonnet` / `opus` per the model flag.
 
 **Reviewer 1: Bugs & Logic**
 
@@ -75,13 +114,27 @@ Then return to the caller ONLY:
 Do NOT return the full analysis — it is in the log file.
 ```
 
-**CRITICAL: Launch both code-reviewer subagents in PARALLEL in a single message using Sonnet model.**
+#### Backend branch (only when a backend flag is passed)
+
+For each specified backend, invoke the matching skill in parallel (single message, multiple tool calls):
+
+- `-co` → `Skill(skill="codex-review")`
+- `-gco` → `Skill(skill="gco-review")`
+- `-gcoc` → `Skill(skill="gcoc-review")`
+
+Each backend skill already handles its own rate-limit / fallback behavior silently.
+
+#### Default (no flags)
+
+Equivalent to `-gcoc`. Invoke `/gcoc-review` only.
+
+**CRITICAL: Launch all reviewers (Claude + backend) in parallel in a single message.**
 
 ### Step 3: Synthesize and Apply
 
-After both reviewers complete (each returns high-priority items + log path):
+After all reviewers complete (each returns high-priority items + log path):
 
-1. Merge and deduplicate findings from brief returns
+1. Merge and deduplicate findings across all reviewers (Claude + backends)
 2. Categorize by priority (high / medium / low)
 3. If more detail is needed on a finding, read the reviewer's log file
 4. Apply high-priority fixes automatically
@@ -94,9 +147,7 @@ If fixes were applied, commit them with a descriptive message.
 
 ## Important Notes
 
-- This is a **lightweight** review — 2 reviewers, Sonnet model
-- Reviewers save full findings to log files, return only high-priority items + path
-- For thorough review (3-6 Opus reviewers), use `/deep-review` instead
-- Focus on real bugs and clear improvements, not style nitpicks
-- Keep it fast — the goal is a quick sanity check, not a deep audit
-- Log files are available via `/logrefer` for future sessions
+- This is a **lightweight** review — keep it fast. The goal is a quick sanity check, not a deep audit.
+- Reviewers save full findings to log files, return only high-priority items + path.
+- For thorough review (3–6 reviewers), use `/deep-review` instead.
+- Log files are available via `/logrefer` for future sessions.

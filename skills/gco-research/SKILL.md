@@ -67,19 +67,17 @@ bash $HOME/.claude/skills/gco/scripts/gco-run.sh \
 
 **Timeout: 15 minutes.**
 
-### Step 4: Collect Results and Check for Rate Limiting
+### Step 4: Collect Results and Check for Quota Fallback
 
 After Copilot completes (or times out):
 
-1. Check for rate limiting in output files:
+1. **Check for quota fallback** — grep the stderr log for `GCO_USED_FALLBACK=`:
 
    ```bash
-   node $HOME/.claude/scripts/gco-rate-limit.js check-output \
-     "$LOGDIR/${DATETIME}-gco-research-${SLUG}.md" \
-     "$LOGDIR/${DATETIME}-gco-research-${SLUG}-stderr.log"
+   grep '^GCO_USED_FALLBACK=' "$LOGDIR/${DATETIME}-gco-research-${SLUG}-stderr.log"
    ```
 
-   If exit code is non-zero (rate limit / low-cost mode detected): **notify the user** that Copilot used a lower-cost model, but **use the output anyway** — it is still valid research. Do NOT fall back.
+   If found, `gco-run.sh` auto-retried with `gpt-4.1` because the primary model was out of quota. **Notify the user** with one line: **"Used gpt-4.1 instead of claude-opus-4.6 because of no quota."** Proceed — the output is still valid.
 
 2. Read the output file
 3. If empty or missing, check stderr log for errors
@@ -120,5 +118,6 @@ pnpm dlx @takazudo/mdx-formatter --write <file>
 - Copilot can do web research natively
 - All file writing done by Claude Code, never by Copilot
 - Falls back to `researcher` subagent if Copilot fails
-- **Rate limit policy**: Rate limiting does NOT mean Copilot is unavailable — for Pro users, it auto-downgrades to a cheaper model (free). Notify the user when rate limit is detected, but continue using Copilot output. Only fall back to researcher subagent when Copilot actually fails (timeout, no output, not installed)
+- **Quota fallback policy**: When the primary model returns HTTP 402 no-quota, `gco-run.sh` auto-retries with `gpt-4.1` (free) and writes `GCO_USED_FALLBACK=gpt-4.1 ...` to the stderr file. Claude MUST check stderr for this marker and tell the user "Used gpt-4.1 instead of claude-opus-4.6 because of no quota." Output is still valid — do not fall back to the researcher subagent unless Copilot actually fails (timeout, no output, not installed)
+- **Cheap variant**: Use `/gcoc-research` to skip opus entirely and run gpt-4.1 from the start
 - NEVER use `~` in paths — use `$HOME`
