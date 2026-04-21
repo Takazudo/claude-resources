@@ -1,34 +1,84 @@
 ---
 name: x-wt-teams
-description: "Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', or 'parallel development', (3) User says 'split into topics' or 'multi-topic development'. This skill is FULLY AUTONOMOUS — it creates worktrees, spawns agent teams, and coordinates everything automatically. No manual child sessions needed."
-argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [--no-issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [-nor|--no-raise-issues] [--model <opus|sonnet|haiku>] [#issue-number] <instructions>"
+description: "Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', or 'parallel development', (3) User says 'split into topics' or 'multi-topic development'. This skill is FULLY AUTONOMOUS — it creates worktrees, spawns agent teams, and coordinates everything automatically. No manual child sessions needed. Also supports **Super-Epic child mode** — when given an `[Epic]` issue (created by `/big-plan` in Super-Epic mode) whose body contains `**Super-epic:** #N` markers, the session targets the super-epic base branch instead of main/invocation branch, producing an epic-PR that merges into the super-epic base."
+argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [-nor|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
 
 Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and Claude Code agent teams. **This is fully automated** — you (the manager) create the infrastructure and spawn child agents to do the work. Never ask the user to manually start sessions in worktrees.
 
+## Auto-Pilot Behavior (Always On)
+
+This skill orchestrates long-running autonomous parallel work (worktrees, agent teams, issue tracking, reviews, merges). When invoked, behave as if Auto Mode is active — regardless of session mode:
+
+1. **Execute immediately** — start implementing right away. Make reasonable assumptions and proceed on low-risk work.
+2. **Minimize interruptions** — prefer making reasonable assumptions over asking questions for routine decisions.
+3. **Prefer action over planning** — do not enter plan mode unless the user explicitly asks. When in doubt, start coding.
+4. **Expect course corrections** — treat mid-run user input as normal corrections, not failures.
+5. **Do not take overly destructive actions** — deleting data, force-pushing, or modifying shared/production systems still needs explicit confirmation.
+6. **Avoid data exfiltration** — do not post to external platforms or share secrets unless the user has authorized that specific destination.
+
+These rules apply to the manager session and are carried into child agent prompts so worktree teammates also operate in auto-pilot.
+
+## Playwright / Browser Verification — Isolated Subagent Only
+
+**HARD RULE**: Neither the manager nor any child agent may invoke `/headless-browser`, `/verify-ui`, or any other Playwright / Chrome DevTools-backed tool **directly**. Multiple concurrent browser-automation sessions (one per child worktree × N topics) will freeze the machine and burn huge token budgets.
+
+**Why**: Playwright/Chrome DevTools each launch a real browser process. With up to 6 concurrent child agents (see Step 5 concurrency cap), 6 simultaneous Chromium instances + their token-heavy trace/snapshot output overwhelms the local machine. Playwright tool calls also return large DOM/accessibility snapshots that balloon context windows fast.
+
+**The rule**:
+
+1. **Child agents**: NEVER invoke `/headless-browser` or `/verify-ui` directly. If a topic needs browser-based verification, the child agent commits its code and **reports back to the manager** that a browser check is requested (include the URL, what to check, and which selectors matter). The child does NOT run the check itself.
+2. **Manager**: Also NEVER invokes `/headless-browser` or `/verify-ui` in its own context. Instead, spawn a **fresh dedicated Opus subagent** via the Agent tool, let that subagent run the browser tool, collect its result, and **kill the subagent immediately after** the single confirmation returns.
+3. **One at a time, sequential only**: At most **one** browser-verification subagent may be alive across the entire workflow. Never spawn two in parallel — even if two topics want a UI check, queue them and run sequentially.
+4. **Kill after each confirmation**: After the subagent returns its result, do not keep it alive for follow-up checks. Each verification gets its own fresh subagent. This prevents the Playwright/DevTools context from accumulating tokens across checks.
+
+**How to dispatch a browser-verification subagent:**
+
+```
+Agent tool:
+  description: "UI verification via Playwright"
+  subagent_type: "general-purpose"
+  model: "opus"
+  prompt: "You are a disposable UI-verification subagent for the /x-wt-teams workflow.
+           Target URL: <url>
+           Branch under test: base/<project-name>
+           What to verify: <specific checks — e.g., 'confirm .sidebar width is 240px', 'screenshot the /settings page and confirm the new toggle is visible'>
+
+           Use /verify-ui (for computed-style checks) or /headless-browser (for screenshots / interactions), whichever fits.
+           Return a concise PASS/FAIL report with evidence (computed values, screenshot path, or error excerpt).
+           Do NOT attempt to fix any issues you find — only report them. The manager will dispatch fixes separately.
+
+           Keep the report under 200 words."
+```
+
+After the Agent call returns, the subagent is automatically torn down. Do not re-use it — spawn a new one for the next verification.
+
+**Applies to all browser tooling**: `/verify-ui`, `/headless-browser`, any Playwright MCP, any Chrome DevTools MCP, and any future tool that launches a real browser. When in doubt, route through the isolated subagent.
+
 ## GitHub Issue Tracking (Default)
 
 By default, create a GitHub issue at the start to track progress. The manager and child agents comment on this issue at the end of each step, providing a running log of progress.
 
 - **`--no-issue`**: Skip issue creation. Also skip if the user explicitly says not to create an issue.
-- **`--stay`**: **(OPT-IN ONLY — never auto-detect)** Use the current branch as the base branch instead of creating a new one. See "Using `--stay`" below. **Only apply when the user explicitly passes `--stay`.** Even if the current branch has an existing PR, even if it "seems logical" to stay — ALWAYS create a new branch unless `--stay` was literally typed by the user.
+- **`-s` or `--stay`**: **(OPT-IN ONLY — never auto-detect)** Use the current branch as the base branch instead of creating a new one. See "Using `--stay`" below. **Only apply when the user explicitly passes `-s` or `--stay`.** Even if the current branch has an existing PR, even if it "seems logical" to stay — ALWAYS create a new branch unless `-s` / `--stay` was literally typed by the user.
 - **`-l` or `--review-loop`**: Replace the Step 9 deep review with `/review-loop 5 --aggressive` instead of `/deep-review`. By default, this also passes `--issues` to create GitHub issues for considerable review findings. See "Review Loop Mode" below.
 - **`-v` or `--verify-ui`**: After review fixes (Step 9), run `/verify-ui` to verify frontend/CSS/layout changes visually. See "Verify UI Mode" below.
 - **`--noi`, `--noissue`, or `--noissues`**: Only meaningful with `--review-loop`. Suppresses `--issues` flag on the review-loop invocation, so no GitHub issues are created for review findings.
 - **`-nor` or `--no-raise-issues`**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. See "Raising Issues for Unrelated Findings" below.
 - **`-co` or `--codex`**: Use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below.
-- **`-gco` or `--github-copilot`**: Use GitHub Copilot CLI for reviews and research. See "GitHub Copilot Mode" below. Mutually exclusive with `-co`.
+- **`-gco` or `--github-copilot`**: Use GitHub Copilot CLI for reviews and research. See "GitHub Copilot Mode" below. Mutually exclusive with `-co` and `-gcoc`.
+- **`-gcoc` or `--github-copilot-cheap`**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). See "GitHub Copilot Cheap Mode" below. Mutually exclusive with `-co` and `-gco`.
 - **`-a` or `--auto`**: After the workflow completes (Step 15), automatically run `/pr-complete -c -w` to merge the PR, close the linked issue, and watch post-merge CI. Intended for full-auto, safe-to-merge work.
-- **`--model <opus|sonnet|haiku>`**: Override the model used for child agents (default: `sonnet`). Use `--model opus` for complex implementation tasks where you want maximum intelligence at higher token cost.
+- **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Claude model used for **child worktree agents** (Step 5) and for Claude-based reviewers in the manager's 2nd-opinion / confirmation / final `/deep-review` steps. Pick at most one. **Default: `-op` (Opus).** **Manager invariant**: the manager session itself ALWAYS runs as Opus regardless of this flag — if the user is on a non-Opus session, note it but proceed. See "Manager invariant & model delegation" below.
 - **Existing issue provided**: If the user provides an existing issue (number or URL), read it first with `gh issue view <number>`. The issue body typically contains implementation instructions or a prompt — use it as the primary input for planning topics and development. Reuse this issue for progress logging instead of creating a new one.
 - The issue number is passed to all child agents so they can comment on it too.
 - Comments should be concise step reports (what was done, outcome, any issues encountered).
 
-### Using `--stay` (Opt-In Only)
+### Using `-s` / `--stay` (Opt-In Only)
 
-When `--stay` is **explicitly passed by the user**, the current branch is reused as the base branch — no new `base/<project-name>` branch is created. This avoids deep nesting when running `/x-wt-teams` multiple times in sequence.
+When `-s` or `--stay` is **explicitly passed by the user**, the current branch is reused as the base branch — no new `base/<project-name>` branch is created. This avoids deep nesting when running `/x-wt-teams` multiple times in sequence.
 
 **Typical scenario:**
 
@@ -47,7 +97,7 @@ When `--stay` is **explicitly passed by the user**, the current branch is reused
 - Topics branch off `BASE_BRANCH` and merge back into it as usual
 - Everything else (worktrees, child agents, review, push) works the same
 
-**CRITICAL**: `--stay` is NEVER auto-detected. Do NOT decide to use `--stay` behavior just because the current branch already has a PR or because it "makes sense." The user must explicitly type `--stay`. Without it, ALWAYS create a new branch — even if you're on `topic/foo` with an existing PR targeting `main`. The new base branch will target `topic/foo`, producing a clean diff for just this session's work.
+**CRITICAL**: `-s` / `--stay` is NEVER auto-detected. Do NOT decide to use `--stay` behavior just because the current branch already has a PR or because it "makes sense." The user must explicitly type `-s` or `--stay`. Without it, ALWAYS create a new branch — even if you're on `topic/foo` with an existing PR targeting `main`. The new base branch will target `topic/foo`, producing a clean diff for just this session's work.
 
 ## Architecture
 
@@ -65,6 +115,8 @@ worktrees/
 ```
 
 Each topic gets its own worktree directory, its own branch, and its own PR targeting the base branch. The manager merges topic PRs into the base branch, then creates one root PR from base into the parent branch.
+
+**Super-Epic child variant** — when the input is an epic issue from `/big-plan` Super-Epic mode (see "Super-Epic child mode" in Step 1a), `<parent-branch>` is fixed to the super-epic base `base/<super-title>`, and `<project-name>` equals `<super-title>-<epic-slug>`. The root PR becomes the epic-PR and targets the super-epic base rather than main. Everything below that (topics, worktrees, merge flow) is identical.
 
 ## PR Body Reference Header
 
@@ -150,6 +202,49 @@ Use the issue body as the primary input for planning topics and the development 
 
 Do NOT re-plan or re-analyze the codebase. Do NOT update the epic issue body (it already has a complete spec). Just proceed to Step 2 with the extracted topics and base branch name.
 
+**Claim the epic issue:** Before Step 2, post a claim comment on the epic issue so other Claude Code sessions don't start parallel work on the same epic:
+
+```bash
+gh issue comment "$ISSUE_NUMBER" --body "🤖 Starting work on this epic in a Claude Code session (\`/x-wt-teams\`). To avoid conflicts, please check the latest comments before starting another session on this epic."
+```
+
+**Super-Epic child mode** — when the `[Epic]` issue body contains these three markers (the literal spellings matter; `/big-plan` Super-Epic mode writes them):
+
+```
+**Super-epic:** #<super-epic-issue-number>
+**Super-epic base branch:** `base/<super-title-slug>`
+**This epic's base branch:** `base/<super-title-slug>-<epic-slug>`
+```
+
+Then this session is a Super-Epic child. Handle it like the normal epic shortcut with these overrides:
+
+1. **Parent branch** = super-epic base branch from the marker (NOT main, NOT the invocation branch, NOT `--stay`). Treat as if the user explicitly passed this base.
+2. **Base branch** = the value in `**This epic's base branch:**`. Use it verbatim in Step 2 (`git checkout -b <that-name>`). Do not invent a project name.
+3. **Project name (topic-branch prefix)** = the epic base slug (everything after `base/`), so topic branches become `{super-title-slug}-{epic-slug}/<topic>`.
+4. **Topics** — this epic's body lists sub-tasks inline (not as separate `[Sub]` issues). Each inline sub-task becomes one topic.
+5. **Super-epic base must already exist** — `/big-plan` Super-Epic mode creates it at S-9. Defensively verify before proceeding:
+
+   ```bash
+   git fetch origin
+   git show-ref --verify --quiet refs/remotes/origin/base/<super-title-slug> || {
+     echo "Super-epic base 'base/<super-title-slug>' does not exist on origin."
+     echo "Re-run /big-plan Super-Epic mode (S-9) or create the super-epic anchor manually."
+     exit 1
+   }
+   ```
+
+6. **Root PR** (Step 2) **targets the super-epic base branch** (`--base base/<super-title-slug>`), not main. This makes the epic-PR a child of the super-PR.
+7. **Do NOT close the super-epic issue** at the end of this session. Only comment on it with a link to the merged epic-PR. The super-epic stays open until all its sibling epic PRs are merged.
+8. **Session scope is one epic only** — after the epic-PR is merged into the super-epic base, the workflow ends. The user runs `/x-wt-teams <next-epic-url>` in a fresh session for the next epic.
+
+Everything else (worktrees, child agents, review, push, CI watch, feedback loop) works the same as the normal epic shortcut.
+
+**Claim the epic issue (Super-Epic child):** After extracting topics and verifying the super-epic base, post a claim comment on **this epic's issue** (not the super-epic issue — sibling epics run in parallel in other sessions):
+
+```bash
+gh issue comment "$ISSUE_NUMBER" --body "🤖 Starting work on this epic in a Claude Code session (\`/x-wt-teams\` Super-Epic child). To avoid conflicts, please check the latest comments before starting another session on this epic."
+```
+
 **For non-epic issues:** Update the issue body with `gh issue edit` to add:
 
 1. A **Summary** section (if missing) — write 2-4 sentences explaining what this implementation does and why, based on the user's instructions and your planned approach
@@ -157,6 +252,12 @@ Do NOT re-plan or re-analyze the codebase. Do NOT update the epic issue body (it
 3. A **TODO checklist** of workflow steps (same as in 1b)
 
 This ensures the issue serves as a spec tracker that clearly communicates the implementation scope.
+
+**Claim the issue (non-epic):** Before Step 2, post a claim comment so other Claude Code sessions don't start parallel work on the same topic:
+
+```bash
+gh issue comment "$ISSUE_NUMBER" --body "🤖 Starting work on this issue in a Claude Code session (\`/x-wt-teams\`). To avoid conflicts, please check the latest comments before starting another session on this issue."
+```
 
 #### 1b: Create new issue (default)
 
@@ -234,7 +335,9 @@ This re-read step is **critical** — it prevents losing track of remaining step
 
 ### Codex 2nd Opinion (Planning Phase)
 
-After Step 1 and before Step 2, when the abstract concept of the task is understood and topics are planned:
+**SKIP THIS SECTION ENTIRELY if the issue was created by `/big-plan`** (i.e., the issue title contains `[Epic]`, or this is a Super-Epic child session). `/big-plan` already runs a 2nd opinion on the plan during its own workflow, so the topics and decomposition have already been validated. Re-running it here is wasteful — proceed directly to Step 2.
+
+For all other sessions (no issue, or a user-provided non-epic issue), after Step 1 and before Step 2, when the abstract concept of the task is understood and topics are planned:
 
 1. **Form an initial plan** — list the topics, what each will implement, and the overall approach
 2. **Invoke `/codex-2nd`** — send the plan to codex for a second opinion
@@ -246,6 +349,21 @@ This is advisory. If codex is unresponsive, proceed with the original plan.
 
 ---
 
+### Manager invariant & model delegation
+
+**The manager is ALWAYS Opus.** The manager session (this one) runs the full workflow at Opus, period. The model flags do NOT downgrade the manager. If the user is running this on a non-Opus session and passes e.g. `-so`, note it but proceed with what you have — the model flag still governs delegation below.
+
+**Where the resolved model flag IS applied:**
+
+1. **Child worktree agents** (Step 5) — every `Agent(...)` spawned for a topic gets `model:` set to the resolved Claude model (default `opus`).
+2. **2nd-opinion / confirmation step** — if you are invoking a Claude-side 2nd opinion (not `/codex-2nd` / `/gco-2nd`), spawn the reviewer at the resolved model.
+3. **Step 9 final quality assurance** — `/deep-review` (or `/review-loop`) is invoked with the same model/backend flags forwarded, so the Claude reviewers inside run at the resolved model.
+4. **Child self-review** (Step 5) — child agents run `/light-review` with whatever backend flag was set (`-co` / `-gco` / `-gcoc`); if no backend flag, `/light-review` falls to its own default (`-gcoc`). The model flag does NOT force Claude reviewers here — the backend default owns that path. If you explicitly want Claude-model self-review, pass both a model flag AND omit backend flags in the child's `/light-review` invocation.
+
+Model flags are **orthogonal** to `-co` / `-gco` / `-gcoc`. They can coexist.
+
+---
+
 ### Codex Mode (`-co` / `--codex`)
 
 When `-co` or `--codex` is passed, the following substitutions apply throughout the entire workflow:
@@ -254,13 +372,13 @@ When `-co` or `--codex` is passed, the following substitutions apply throughout 
 |---|---|---|
 | `/deep-review` | `/codex-review` | Step 9 quality assurance (manager review) |
 | `/review-loop N --aggressive` | `/codex-review` (run once) | Review loop mode review step |
-| `/codex-review` in child agents (Step 5) | No change (already codex) | Child agent self-review |
+| `/light-review` in child agents (Step 5) | `/light-review -co` | Child agent self-review (`/light-review` routes to `/codex-review` under the hood) |
 | Agent tool (web search, research) | `/codex-research` | Any web search or codebase research during planning/implementation |
 | Agent tool (doc writing) | `/codex-writer` | Writing documentation, README, or other text content |
 
 **How it affects the workflow:**
 
-- **Step 5 (child agents)**: Child agents already use `/codex-review` for self-review by default. No change needed.
+- **Step 5 (child agents)**: Child agents run `/light-review -co` for self-review. `/light-review` dispatches to `/codex-review`.
 - **Step 9 (quality assurance)**: Instead of `/deep-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
 - **Research during planning**: When you need to research libraries, APIs, or best practices, prefer `/codex-research` over the Agent tool or WebSearch.
 - **Documentation writing**: When writing README content, doc comments, or other prose, prefer `/codex-writer` over writing directly.
@@ -277,7 +395,7 @@ When `-gco` or `--github-copilot` is passed, the following substitutions apply t
 |---|---|---|
 | `/deep-review` | `/gco-review` | Step 9 quality assurance (manager review) |
 | `/review-loop N --aggressive` | `/gco-review` (run once) | Review loop mode review step |
-| `/gco-review` in child agents (Step 5) | No change (already gco) | Child agent self-review |
+| `/light-review` in child agents (Step 5) | `/light-review -gco` | Child agent self-review (`/light-review` routes to `/gco-review` under the hood) |
 | `/codex-2nd` (planning phase) | `/gco-2nd` | Second opinion on plans |
 | Agent tool (web search, research) | `/gco-research` | Any web search or codebase research during planning/implementation |
 
@@ -292,11 +410,36 @@ All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
 ---
 
+### GitHub Copilot Cheap Mode (`-gcoc` / `--github-copilot-cheap`)
+
+Same as `-gco` / `--github-copilot` above, but forces the free `gpt-4.1` model (skips the Premium opus attempt). Use this when Premium quota is exhausted or when the task is simple enough that `gpt-4.1` feedback is sufficient. Mutually exclusive with `-co` and `-gco`.
+
+When `-gcoc` or `--github-copilot-cheap` is passed, the following substitutions apply throughout the entire workflow:
+
+| Default tool | GCOC replacement | Used for |
+|---|---|---|
+| `/deep-review` | `/gcoc-review` | Step 9 quality assurance (manager review) |
+| `/review-loop N --aggressive` | `/gcoc-review` (run once) | Review loop mode review step |
+| `/light-review` in child agents (Step 5) | `/light-review -gcoc` | Child agent self-review (`/light-review` routes to `/gcoc-review` under the hood) |
+| `/codex-2nd` (planning phase) | `/gcoc-2nd` | Second opinion on plans |
+| Agent tool (web search, research) | `/gcoc-research` | Any web search or codebase research during planning/implementation |
+
+**How it affects the workflow:**
+
+- **Step 5 (child agents)**: Child agents use `/gcoc-review` for self-review. Pass the `-gcoc` flag context so they select the cheap variant. `/gcoc-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed.
+- **Step 9 (quality assurance)**: Instead of `/deep-review` or `/review-loop`, invoke `/gcoc-review`. If `-l`/`--review-loop` is also passed, still invoke `/gcoc-review` once (not multiple rounds).
+- **Second Opinion (planning phase)**: Instead of `/codex-2nd`, invoke `/gcoc-2nd`. If Copilot is rate-limited, `/gcoc-2nd` silently skips.
+- **Research during planning**: When you need to research libraries, APIs, or best practices, prefer `/gcoc-research` over the Agent tool or WebSearch.
+
+All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
+
+---
+
 ### Step 2: Create Base Branch and Root PR
 
-**CRITICAL: `--stay` is STRICTLY opt-in.** Only use the `--stay` flow below if the user explicitly passed `--stay`. Do NOT auto-detect `--stay` behavior based on the current branch state, existing PRs, or any other contextual clue. The default ALWAYS creates a new branch — even if you're on a branch that already has a PR.
+**CRITICAL: `-s` / `--stay` is STRICTLY opt-in.** Only use the `--stay` flow below if the user explicitly passed `-s` or `--stay`. Do NOT auto-detect `--stay` behavior based on the current branch state, existing PRs, or any other contextual clue. The default ALWAYS creates a new branch — even if you're on a branch that already has a PR.
 
-#### Default flow (no `--stay`) — ALWAYS used unless `--stay` explicitly passed
+#### Default flow (no `--stay`) — ALWAYS used unless `-s` / `--stay` explicitly passed
 
 The base branch is created from whichever branch is currently checked out. The current branch becomes the PR target. This is true regardless of whether the current branch has an existing PR or not.
 
@@ -337,7 +480,7 @@ EOF
 
 Save the root PR number — you will update it as topics are merged.
 
-#### If `--stay` is explicitly passed
+#### If `-s` / `--stay` is explicitly passed
 
 The current branch is reused as the base branch. No new branch or empty commit is created.
 
@@ -406,14 +549,15 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
    - team_name: "<project-name>"
    - name: "topic-<name>"  (e.g., "topic-topicA")
    - mode: "bypassPermissions"  (prevents child agents from prompting on file edits)
-   - model: the value from `--model` flag if provided (e.g., "opus", "sonnet", "haiku"); omit this field if no `--model` was passed (the agent's default model applies)
+   - model: the Claude model resolved from the model flag (`-haiku` / `-so` / `-op`). **Default: `opus`.** Always set `model:` explicitly on child agents (even at the default) so behavior is predictable.
    - prompt: Detailed instructions including:
      a. The worktree absolute path to work in
      b. What to implement for this topic
      c. Branch name: <project-name>/<topic-name>
      d. Base branch: base/<project-name>
      e. **COMMIT ONLY — DO NOT PUSH.** All commits stay local. Pushing happens later (Step 11) to save CI resources.
-     f. (If issue tracking is active) The ISSUE_NUMBER and instruction to comment on it when done:
+     f. **NO DIRECT BROWSER TOOLING.** Child agents must NEVER invoke `/headless-browser`, `/verify-ui`, or any Playwright / Chrome DevTools-backed tool. 6 concurrent Chromium instances will freeze the machine. If the topic needs browser-based verification, commit the code, then report back to the manager with: (1) the URL to check, (2) what to verify (specific selectors / computed styles / visual elements), (3) which branch. The manager will dispatch a dedicated one-shot Opus subagent for the browser check. See "Playwright / Browser Verification — Isolated Subagent Only" near the top of this skill.
+     g. (If issue tracking is active) The ISSUE_NUMBER and instruction to comment on it when done:
         `gh issue comment <ISSUE_NUMBER> --body "### topic-<name> — completed\n\n<summary of work done>"`
 ```
 
@@ -422,7 +566,7 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (pushing is deferred to Step 11)
-4. **Run `/codex-review`** to self-review their work — fix any clearly useful findings and commit. **If codex is rate-limited or unavailable, `/codex-review` silently falls back to `/light-review` style (2 Claude Code reviewers). Do NOT pause or report the rate limit — just continue.**
+4. **Run `/light-review`** to self-review their work — fix any clearly useful findings and commit. Forward whichever `-co` / `-gco` / `-gcoc` backend flags were on the original invocation. If no backend flag is active, `/light-review` falls to its own default (`-gcoc`). `/light-review` silently falls back if all routed backends are unavailable — no special handling needed.
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
 7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, and log file path. Do NOT send full summaries — the log file has the detail. The manager can read it via `/logrefer` if needed
@@ -604,8 +748,8 @@ If you are about to run `git push` and you have NOT yet invoked the review skill
 After the review step (Step 9) is complete and fixes are committed:
 
 1. **Launch a verification target** — start the project's dev server, use a PR preview URL, or any other means to get the implementation running in a browser
-2. **Invoke `/verify-ui`** to verify that frontend/CSS/layout changes were actually applied correctly
-3. If `/verify-ui` reveals issues, fix them and commit locally (do NOT push yet)
+2. **Dispatch a disposable Opus subagent to run `/verify-ui`** — do NOT invoke `/verify-ui` in the manager's own context. See "Playwright / Browser Verification — Isolated Subagent Only" above for the exact Agent-tool invocation pattern. The subagent loads Playwright, runs the check, returns a PASS/FAIL report, and is torn down when the Agent call returns. Spawn one subagent per discrete verification (sequential, never parallel).
+3. If the subagent reports issues, fix them **in the manager context** (no browser needed for the fix itself) and commit locally (do NOT push yet). Then spawn a **fresh** subagent for the re-verification pass — never reuse the earlier subagent.
 
 This step ensures that visual/UI changes are not just code-correct but render correctly in the browser. Skip if the changes are purely backend or non-visual.
 
@@ -922,8 +1066,9 @@ Even during cleanup, do NOT checkout main or the parent branch. Stay on whatever
 14. **Re-read the issue TODO after every step** — use `gh issue view` to check the TODO checklist and confirm what comes next. This prevents forgetting steps during long workflows
 15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. Skip with `--no-issue` or if the user says not to. Close the issue when the root PR is merged
 16. **pnpm worktree cleanup breaks symlinks** — when worktrees are removed (Step 7), pnpm workspace symlinks in `node_modules/` may point to deleted worktree paths. Step 7 includes a `pnpm install --ignore-scripts` fix for this
-17. **NEVER auto-detect `--stay`** — always create a new base branch and root PR unless the user explicitly passes `--stay`. Do not infer `--stay` from branch state, existing PRs, or context
+17. **NEVER auto-detect `-s` / `--stay`** — always create a new base branch and root PR unless the user explicitly passes `-s` or `--stay`. Do not infer `--stay` from branch state, existing PRs, or context
 18. **Max 6 concurrent child agents** — when spawning child agents in Step 5, never run more than 6 in parallel. If there are 7+ topics, queue the remainder and spawn them as earlier agents complete. This prevents CPU overload
+19. **Playwright / browser tools go through an isolated one-shot Opus subagent** — neither the manager nor any child agent may invoke `/headless-browser`, `/verify-ui`, or any other Playwright / Chrome DevTools-backed tool directly. Multiple concurrent browser instances freeze the machine and bloat context with huge snapshot output. Every browser check is dispatched to a fresh disposable Opus subagent (via the Agent tool) that runs one sequential confirmation and is torn down on return. At most one such subagent alive at a time. See "Playwright / Browser Verification — Isolated Subagent Only" near the top of this skill for the exact pattern
 
 ## Prerequisites
 

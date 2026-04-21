@@ -1,25 +1,38 @@
 ---
 name: x-as-pr
-description: "Start a development workflow as a draft PR. Fetches, creates a branch, makes an empty start commit, pushes, and opens a draft PR. Then starts implementation if instructions are provided. Also handles the case where implementation is already done on a topic branch — detects this and creates a PR from the current branch instead. When a GitHub issue URL is passed, treats it as an implementation request — read the issue and implement it. Use --make-issue to create a GitHub issue first describing the plan, then proceed. With linked issues, logs progress via issue comments. Use when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix development with a PR-first workflow, (3) User wants to set up a branch and draft PR before coding, (4) User has already implemented changes on a branch and wants to create a PR for them, (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' or '--issue' to create an issue first."
-argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [--make-issue|--issue] [--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [-nor|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
+description: "Start a development workflow as a draft PR. Fetches, creates a NEW branch from the current (invocation) branch, makes an empty start commit, pushes, and opens a draft PR targeting the current branch. Then starts implementation if instructions are provided. ALWAYS creates a new branch by default — even when the current branch already has its own PR (produces a nested PR-on-PR). Use --stay (or -s) to explicitly reuse the current branch (commit there, reuse/extend its PR) instead of nesting. NEVER auto-detect stay behavior based on branch state. When a GitHub issue URL is passed, treats it as an implementation request — read the issue and implement it. Use --make-issue to create a GitHub issue first describing the plan, then proceed. With linked issues, logs progress via issue comments. Use when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix development with a PR-first workflow, (3) User wants to set up a branch and draft PR before coding, (4) User passes --stay (or -s) to reuse the current branch instead of creating a new one, (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' or '--issue' to create an issue first."
+argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [-nor|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
 
 Start a development workflow by creating a branch and draft PR before implementation — or create a PR from existing work on the current branch.
 
+## Auto-Pilot Behavior (Always On)
+
+This skill orchestrates long-running autonomous work (branch setup, implementation, review, PR management). When invoked, behave as if Auto Mode is active — regardless of session mode:
+
+1. **Execute immediately** — start implementing right away. Make reasonable assumptions and proceed on low-risk work.
+2. **Minimize interruptions** — prefer making reasonable assumptions over asking questions for routine decisions.
+3. **Prefer action over planning** — do not enter plan mode unless the user explicitly asks. When in doubt, start coding.
+4. **Expect course corrections** — treat mid-run user input as normal corrections, not failures.
+5. **Do not take overly destructive actions** — deleting data, force-pushing, or modifying shared/production systems still needs explicit confirmation.
+6. **Avoid data exfiltration** — do not post to external platforms or share secrets unless the user has authorized that specific destination.
+
 ## Input Parsing
 
 Parse `$ARGUMENTS` to extract:
 
 - **`--make-issue` or `--issue` flag**: If present, create a GitHub issue before starting (see "Issue Creation Mode" below)
-- **`--stay` flag**: If present, stay on the current branch instead of creating a new one (see "Stay Mode" below)
+- **`-s` or `--stay` flag**: If present, stay on the current branch instead of creating a new one (see "Stay Mode" below). **Opt-in only — never auto-detected.**
 - **`-l` or `--review-loop` flag**: If present, replace the final review step with `/review-loop 5 --aggressive` instead of `/deep-review` (see "Review Loop Mode" below)
 - **`-v` or `--verify-ui` flag**: If present, run `/verify-ui` after review fixes to verify frontend changes visually (see "Verify UI Mode" below)
 - **`--noi`, `--noissue`, or `--noissues` flag**: Only meaningful with `--review-loop`. Suppresses GitHub issue creation for review findings. Without this flag, review-loop creates issues for considerable findings by default
 - **`-nor` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. See "Raising Issues for Unrelated Findings" below
-- **`-co` or `--codex` flag**: If present, use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below
-- **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot for reviews and research. See "GitHub Copilot Mode" below. Mutually exclusive with `-co`
+- **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Claude model used for subagents spawned during the workflow (notably the fix-delegation Agent after review) and passed through to `/deep-review` / `/review-loop`. Pick at most one. **Default: `-op` (Opus).** See "Claude Model Mode" below.
+- **`-co` or `--codex` flag**: If present, use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below. Can combine with `-gco` / `-gcoc` (multiple backends run in parallel for reviews / 2nd-opinions).
+- **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot for reviews and research. See "GitHub Copilot Mode" below. Can combine with `-co` and/or `-gcoc`.
+- **`-gcoc` or `--github-copilot-cheap` flag**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). See "GitHub Copilot Cheap Mode" below. Can combine with `-co` and/or `-gco`.
 - **`-a` or `--auto` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes. See "Auto-Complete Mode" below
 - **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
 - **Branch name**: Explicit branch name if provided (look for words like `branch:` or a slash-containing name like `topic/foo`)
@@ -30,16 +43,43 @@ Parse `$ARGUMENTS` to extract:
 
 If ambiguous, ask the user to clarify.
 
-## Stay Mode (`--stay`)
+## Default Behavior: ALWAYS Create a New Branch
 
-When `--stay` is passed, stay on the current branch instead of creating a new one. This avoids deep nesting when running `/x-as-pr` multiple times in sequence.
+**Unless `--stay` / `-s` is explicitly passed by the user, this skill ALWAYS creates a new branch from the current (invocation) branch** and opens a new PR targeting the current branch. This is the default and only behavior. It applies regardless of:
 
-**Typical scenario:**
+- Whether the current branch has an existing PR
+- Whether the current branch has uncommitted or unpushed commits
+- Whether there is existing work in progress
+- Whether "staying" would seem logical given the current branch state
 
-1. First round: `/x-as-pr` creates `topic/foo-impl` → `main`, work is done, PR merged
-2. Need more tweaks — you're still on `topic/foo-impl`
-3. Without `--stay`: creates `topic/foo-impl-v2` → `topic/foo-impl` → `main` (too nested)
-4. With `--stay`: stays on `topic/foo-impl`, reuses or creates a PR targeting `main`
+**CRITICAL — never auto-detect stay behavior.** Do NOT decide to commit on the current branch just because:
+
+- The current branch already has a PR (the expected behavior is to create a nested PR-on-PR, not to add to the existing PR)
+- The current branch has commits ahead of main (these are someone else's topic — make a new sub-branch from it)
+- It "makes sense" or "seems more efficient" to stay
+
+**If the user wants stay behavior, they MUST type `--stay` or `-s` explicitly.** There is no inference from context.
+
+### Scenarios
+
+| Current branch | User invocation | Result |
+|----------------|----------------|--------|
+| `main` | `/x-as-pr foo` | New branch `topic/foo` → PR targets `main` |
+| `topic/foo` (has PR → main) | `/x-as-pr bar` | New branch `topic/bar` → nested PR targets `topic/foo` |
+| `topic/foo` (has PR → main) | `/x-as-pr -s bar` | Stay on `topic/foo`, commit there, extend existing PR |
+| `topic/foo` (has commits, no PR) | `/x-as-pr bar` | New branch `topic/bar` → PR targets `topic/foo` |
+| `topic/foo` (has commits, no PR) | `/x-as-pr -s` | Stay on `topic/foo`, create PR from current work |
+
+---
+
+## Stay Mode (`-s` / `--stay`)
+
+When `-s` or `--stay` is **explicitly passed by the user**, stay on the current branch instead of creating a new one. This avoids deep nesting when running `/x-as-pr` multiple times in sequence, and is the way to create a PR from work already committed on the current branch.
+
+**Typical scenarios:**
+
+1. **Continuing work** — first round: `/x-as-pr` creates `topic/foo-impl` → `main`, PR merged. Need more tweaks, still on `topic/foo-impl` → run `/x-as-pr -s` to stay and extend.
+2. **Existing committed work** — you've been coding on `topic/bar` but forgot to start via `/x-as-pr`. Run `/x-as-pr -s` to create a PR from the existing commits.
 
 **How it works:**
 
@@ -48,37 +88,9 @@ When `--stay` is passed, stay on the current branch instead of creating a new on
 - Check if a PR already exists for this branch: `gh pr view --json baseRefName -q '.baseRefName'`
 - If yes, reuse that PR (record its number) — no new PR needed
 - If no PR exists, use the repository's default branch as `TARGET_BRANCH` and create a new draft PR
-3. If implementation instructions are provided, start implementation (commit locally, no push)
-4. All post-implementation steps (deep review, push, CI watch, PR revision) work the same
-
-When `--stay` is passed, skip Mode Detection entirely and go straight to implementation.
-
----
-
-## Mode Detection
-
-Before starting the workflow, detect which mode to use:
-
-### Check Current State
-
-```bash
-git fetch origin
-INVOCATION_BRANCH=$(git branch --show-current)  # Record this — default base for PRs
-DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
-```
-
-### Existing-Work Mode
-
-Use **Existing-Work Mode** when ALL of these are true:
-
-1. The current branch is NOT the default branch (e.g., not `main` or `master`)
-2. There are commits on the current branch that are not on the default branch (`git log origin/$DEFAULT_BRANCH..$INVOCATION_BRANCH --oneline` shows commits)
-3. No PR already exists for this branch (`gh pr view $INVOCATION_BRANCH` returns error / not found)
-4. No explicit branch name or implementation instructions were provided in `$ARGUMENTS` (if the user provided these, always use Fresh-Start Mode — the user wants to create a new sub-branch from the current one)
-
-### Fresh-Start Mode
-
-Use **Fresh-Start Mode** in all other cases (on the default branch, no extra commits, or a PR already exists).
+3. If there are uncommitted changes, commit them with a descriptive message (no empty commits)
+4. If implementation instructions are provided, start implementation (commit locally, no push)
+5. All post-implementation steps (deep review, push, CI watch, PR revision) work the same
 
 ---
 
@@ -113,7 +125,7 @@ EOF
 )"
 ```
 
-Record the created issue number as `ISSUE_NUM`. From here, proceed with the normal workflow (Fresh-Start or Existing-Work mode) using this issue.
+Record the created issue number as `ISSUE_NUM`. From here, proceed with the normal workflow using this issue.
 
 ### Step 3: If User Clarifies
 
@@ -222,7 +234,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 
 ## Codex 2nd Opinion (Planning Phase)
 
-Before starting implementation (in either Fresh-Start or Existing-Work mode), when the abstract concept of the task is understood:
+Before starting implementation, when the abstract concept of the task is understood:
 
 1. **Form an initial plan** — understand what needs to be done, which files are involved, and the approach
 2. **Invoke `/codex-2nd`** — send the plan to codex for a second opinion
@@ -231,6 +243,23 @@ Before starting implementation (in either Fresh-Start or Existing-Work mode), wh
 5. **Finalize and proceed** — once the plan is stable, begin implementation
 
 This step is advisory. If codex is unresponsive or provides no useful feedback, proceed with the original plan.
+
+---
+
+## Claude Model Mode (`-haiku` / `-so` / `-op`)
+
+Pick at most one. **Default: `-op` (Opus).**
+
+When a model flag is passed (or left at default), it governs:
+
+- The `model:` field of the fresh **fix-delegation Agent** spawned after review (see "Delegating Review Fixes to a Fresh Agent" below).
+- Any other subagents spawned during implementation.
+- Forwarded verbatim to `/deep-review` / `/review-loop` so their Claude reviewers run at the same model.
+- Forwarded to the fix-delegation agent's own `/light-review` self-check — though if no model flag was explicitly passed, `/light-review` falls to its own default (`-gcoc`).
+
+Multiple model flags → last one wins (documented, not an error).
+
+Model flags are **orthogonal** to `-co` / `-gco` / `-gcoc`. They can coexist — e.g. `-so -gco` means Sonnet for Claude subagents **and** `/gco-review` as the review backend.
 
 ---
 
@@ -276,9 +305,32 @@ All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
 ---
 
-## Fresh-Start Mode (default)
+## GitHub Copilot Cheap Mode (`-gcoc` / `--github-copilot-cheap`)
 
-This is the original workflow for starting new work.
+Same as `-gco` / `--github-copilot` above, but forces the free `gpt-4.1` model (skips the Premium opus attempt). Use this when Premium quota is exhausted or when the task is simple enough that `gpt-4.1` feedback is sufficient. Mutually exclusive with `-co` and `-gco`.
+
+When `-gcoc` or `--github-copilot-cheap` is passed, the following substitutions apply throughout the entire workflow:
+
+| Default tool | GCOC replacement | Used for |
+|---|---|---|
+| `/deep-review` | `/gcoc-review` | Post-implementation code review |
+| `/review-loop N --aggressive` | `/gcoc-review` (run once) | Review loop mode review step |
+| `/codex-2nd` (planning phase) | `/gcoc-2nd` | Second opinion on plans |
+| Agent tool (web search, research) | `/gcoc-research` | Any web search or codebase research during planning/implementation |
+
+**How it affects the workflow:**
+
+- **Post-Implementation Review**: Instead of `/deep-review` or `/review-loop`, invoke `/gcoc-review`. If `-l`/`--review-loop` is also passed, still invoke `/gcoc-review` once (not multiple rounds). `/gcoc-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed here.
+- **Second Opinion (planning phase)**: Instead of `/codex-2nd`, invoke `/gcoc-2nd`. If Copilot is rate-limited, `/gcoc-2nd` silently skips.
+- **Research during planning/implementation**: When you need to research libraries, APIs, or best practices (web search or codebase exploration), prefer `/gcoc-research` over the Agent tool or WebSearch.
+
+All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
+
+---
+
+## Default Workflow (create new branch)
+
+This is the only default workflow. (See "Stay Mode" above for the opt-in `--stay` / `-s` variant.)
 
 ### Step 1: Read Issue (if specified)
 
@@ -293,6 +345,26 @@ gh issue view <issue-num>
 Use the issue title and body as context for branch naming and implementation. **The issue content IS the implementation request** — implement what the issue describes.
 
 Record the issue number as `ISSUE_NUM` for progress logging.
+
+#### Claim the Issue (Prevent Session Conflicts)
+
+**Immediately after reading a pre-existing issue passed by the user**, post a claim comment so other Claude Code sessions don't start parallel work on the same topic:
+
+```bash
+gh issue comment "$ISSUE_NUM" --body "🤖 Starting work on this issue in a Claude Code session (\`/x-as-pr\`). To avoid conflicts, please check the latest comments before starting another session on this issue."
+```
+
+**When to post:**
+
+- Any pre-existing issue passed by the user as argument (issue URL or number)
+- This applies to **all pre-existing issues including epic issues** — always claim before starting
+
+**When to skip:**
+
+- `--make-issue` / `--issue` was used (the issue was just created by this session — no conflict risk)
+- No issue is linked
+
+This claim happens **before** any branch creation or implementation work. Its sole purpose is to mark the issue as "in progress" so concurrent sessions can see someone is already on it.
 
 ### Step 2: Determine Branch Name
 
@@ -357,81 +429,13 @@ If no instructions were provided, report the PR URL and wait for further directi
 
 ---
 
-## Existing-Work Mode
-
-Use this when implementation is already done (or nearly done) on the current branch.
-
-### Step 1: Gather Context
-
-```bash
-# Identify current branch and base
-INVOCATION_BRANCH=$(git branch --show-current)
-DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
-
-# Review what was done
-git log origin/$DEFAULT_BRANCH..$INVOCATION_BRANCH --oneline
-git diff origin/$DEFAULT_BRANCH...$INVOCATION_BRANCH --stat
-```
-
-Determine `TARGET_BRANCH`:
-
-- If the user specified a base branch, use it
-- Otherwise, use `DEFAULT_BRANCH` as the fallback (since `INVOCATION_BRANCH` is the working branch itself in this mode)
-
-If the user specified an issue, read it for PR title/body context.
-
-### Step 2: Stage and Commit Remaining Work (if any)
-
-If there are uncommitted changes (staged or unstaged):
-
-```bash
-git add <relevant-files>
-git commit -m "<descriptive message>"
-```
-
-Follow normal commit conventions — no empty commits, meaningful messages.
-
-### Step 3: Push and Create Draft PR
-
-```bash
-# Push current branch to remote
-git push -u origin $INVOCATION_BRANCH
-
-# Create draft PR against TARGET_BRANCH
-gh pr create \
-  --base <TARGET_BRANCH> \
-  --title "<PR_TITLE>" \
-  --body "$(cat <<'EOF'
-## Summary
-<brief description based on commits and diff>
-
-## Changes
-- <list actual changes from the diff/commits>
-
-## Test Plan
-- <describe how changes were tested, if known>
-EOF
-)" \
-  --draft
-```
-
-The PR title and body should reflect the **actual work done** (derived from commit messages and diff), not placeholder text.
-
-### Step 4: Continue or Report (Push-Forbid Mode)
-
-If the user provided additional implementation instructions, continue working on the branch. **Commit frequently but DO NOT push** — pushing is deferred to the post-implementation phase to save CI resources.
-
-If no further instructions were provided, report the PR URL and wait for direction.
-
----
-
 ## Examples
 
-### Fresh-start: with issue number
+### Default: with issue number
 
 ```
 /x-as-pr 42
--> Fetch, detect on main → Fresh-Start Mode
+-> Fetch, on main
 -> Read issue #42 "Add dark mode support"
 -> Branch: issue-#42/add-dark-mode-support
 -> Base: main
@@ -439,54 +443,54 @@ If no further instructions were provided, report the PR URL and wait for directi
 -> Start implementing based on issue
 ```
 
-### Fresh-start: with explicit branch and base
+### Default: with explicit branch and base
 
 ```
 /x-as-pr branch:feature/new-auth base:develop
--> Fetch, detect on develop → Fresh-Start Mode
+-> Fetch, on develop
 -> Branch: feature/new-auth
 -> Base: develop
 -> Empty commit, push, draft PR
 ```
 
-### Fresh-start: with instructions only
+### Default: with instructions only
 
 ```
 /x-as-pr add pagination to the user list page
--> Fetch, detect on main → Fresh-Start Mode
+-> Fetch, on main
 -> Branch: topic/add-pagination-user-list
 -> Base: main
 -> Empty commit, push, draft PR
 -> Start implementing pagination
 ```
 
-### Fresh-start: from a non-default branch (invocation branch as base)
+### Default: from a non-default branch (nested PR)
 
 ```
 /x-as-pr add search to the sidebar
--> Fetch, detect on topic/foobar → Fresh-Start Mode
--> Branch: topic/add-search-sidebar
--> Base: topic/foobar (INVOCATION_BRANCH, not main)
--> Empty commit, push, draft PR targeting topic/foobar
+-> Fetch, on topic/foobar (even if it has its own PR)
+-> Branch: topic/add-search-sidebar (new)
+-> Base: topic/foobar (INVOCATION_BRANCH)
+-> Empty commit, push, draft PR targeting topic/foobar (nested PR-on-PR)
 -> Start implementing search
 ```
 
-### Existing-work: implementation already done on branch
+### Stay Mode: reuse current branch
 
 ```
-/x-as-pr
--> Fetch, detect on topic/add-search-feature with 3 commits ahead → Existing-Work Mode
--> Push branch, create draft PR with summary from actual commits
--> Report PR URL
+/x-as-pr -s more tweaks to search
+-> Fetch, on topic/add-search-sidebar (has existing PR → main)
+-> Stay on current branch, reuse existing PR
+-> Start implementing
 ```
 
-### Existing-work: with issue reference for context
+### Stay Mode: create PR from already-committed work
 
 ```
-/x-as-pr 42
--> Fetch, detect on issue-#42/add-dark-mode with commits ahead → Existing-Work Mode
--> Read issue #42 for PR title/body context
--> Push branch, create draft PR
+/x-as-pr --stay
+-> Fetch, on topic/add-search-feature with 3 commits ahead, no PR
+-> Stay on current branch
+-> Push branch, create draft PR targeting main with summary from actual commits
 -> Report PR URL
 ```
 
@@ -611,13 +615,19 @@ After the review produces findings that require code changes, **delegate the fix
    ```
    Agent tool:
      description: "Fix review findings"
+     model: <resolved Claude model flag; default "opus">
      prompt: "You are on branch <BRANCH_NAME> in <repo-path>.
               Read GitHub issue #<FIX_ISSUE_NUM> with `gh issue view <FIX_ISSUE_NUM>`.
               Fix all issues described there.
               Commit fixes locally — do NOT push.
+              After committing, run `/light-review <forwarded backend flags>` as a self-check
+              and address any high-priority findings it flags.
               When done, close the issue with a summary of what was fixed."
      mode: "bypassPermissions"
    ```
+
+- **Model**: set `model:` from the resolved Claude model flag (default `"opus"`). Skip the `model:` field if you want to inherit the manager's model — pick one convention and stick with it.
+- **Backend flags forwarded to `/light-review`**: pass whichever of `-co` / `-gco` / `-gcoc` were on the original invocation. If none were passed, omit them — `/light-review` falls to its own default (`-gcoc`).
 
 3. **Verify** — after the agent returns, confirm fixes were committed (`git log --oneline -5`)
 4. **Close the fix issue** if the agent didn't already
@@ -627,7 +637,7 @@ After the review produces findings that require code changes, **delegate the fix
 
 Do NOT run deep review if:
 
-- No implementation was done (e.g., Existing-Work Mode with no additional instructions)
+- No implementation was done (e.g., `--stay` used to just create a PR from existing commits with no additional instructions)
 - The user was asked for confirmation or clarification during implementation
 - Errors occurred that required user intervention
 - The user explicitly asked to skip review
@@ -683,7 +693,7 @@ After implementation, deep review, push, and CI watch are complete (or skipped),
 
 ### When to Run
 
-Run `/pr-revise` when implementation was performed (in either Fresh-Start or Existing-Work mode). The PR was created at the start with placeholder or initial content, and the implementation may have gone beyond the original scope.
+Run `/pr-revise` when implementation was performed. The PR was created at the start with placeholder or initial content, and the implementation may have gone beyond the original scope.
 
 ### Action
 
@@ -694,7 +704,7 @@ Invoke `/pr-revise` to analyze the full diff and update the PR title and descrip
 Do NOT run PR revision if:
 
 - No implementation was done (PR was just created with no instructions)
-- The PR was just created in Existing-Work Mode with an already-accurate description (the body was derived from actual commits/diff)
+- The PR was just created with `--stay` from already-committed work and has an already-accurate description (the body was derived from actual commits/diff)
 
 ---
 

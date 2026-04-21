@@ -1,23 +1,31 @@
 ---
 name: x
-description: >-
-  Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic
-  parallel). Use when: (1) User says '/x' followed by development instructions, (2) User wants to
-  start development without deciding between /x-as-pr and /x-wt-teams, (3) User says 'dev',
-  'implement', or 'build' with a task description. Examines the request and chooses the right
-  strategy. Default options: -l -v (review-loop + verify-ui).
-argument-hint: "[-co|--codex] [-gco|--github-copilot] [-a|--auto] [options] <instructions>"
+description: "Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic parallel). Use when: (1) User says '/x' followed by development instructions, (2) User wants to start development without deciding between /x-as-pr and /x-wt-teams, (3) User says 'dev', 'implement', or 'build' with a task description. Examines the request and chooses the right strategy. Default options: -l -v (review-loop + verify-ui)."
+argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [-s|--stay] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
 
 Route development requests to the right workflow skill: `/x-as-pr` (single-topic) or `/x-wt-teams` (multi-topic parallel).
 
+## Auto-Pilot Behavior (Always On)
+
+This skill is an orchestration entry point for long-running autonomous work. When invoked, behave as if Auto Mode is active — regardless of session mode:
+
+1. **Execute immediately** — start implementing right away. Make reasonable assumptions and proceed on low-risk work.
+2. **Minimize interruptions** — prefer making reasonable assumptions over asking questions for routine decisions.
+3. **Prefer action over planning** — do not enter plan mode unless the user explicitly asks. When in doubt, start coding.
+4. **Expect course corrections** — treat mid-run user input as normal corrections, not failures.
+5. **Do not take overly destructive actions** — deleting data, force-pushing, or modifying shared/production systems still needs explicit confirmation.
+6. **Avoid data exfiltration** — do not post to external platforms or share secrets unless the user has authorized that specific destination.
+
+These rules apply to the facade itself and propagate to the chosen downstream skill (`/x-as-pr` or `/x-wt-teams`), which carry the same auto-pilot defaults.
+
 ## Input Parsing
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`--make-issue`, `--issue`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `--noi`, `--no-issue`, `-co`, `--codex`, `-a`, `--auto`, etc.)
+- **All flags from both skills** (`-haiku`, `--haiku`, `-so`, `--sonnet`, `-op`, `--opus`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `--noi`, `--no-issue`, `-co`, `--codex`, `-gco`, `--github-copilot`, `-gcoc`, `--github-copilot-cheap`, `-a`, `--auto`, etc.)
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
@@ -30,13 +38,21 @@ If NO flags are passed (just instructions or an issue), apply these defaults:
 
 If any flags ARE passed explicitly, use those as-is — do NOT add defaults.
 
+### Claude Model Mode (`-haiku` / `-so` / `-op`)
+
+When a model flag is passed, forward it to the chosen skill. It controls the Claude model used for Claude subagents (child worktree agents in `/x-wt-teams`, fix-delegation agents in `/x-as-pr`, and the Claude-side reviewers inside `/deep-review`/`/review-loop`). **Default: `-op` (Opus)** when no model flag is passed. Orthogonal to `-co` / `-gco` / `-gcoc` — they can coexist. See the target skill for details.
+
 ### Codex Mode (`-co` / `--codex`)
 
 When `-co` or `--codex` is passed, forward it to the chosen skill. This switches reviews, doc writing, and research to use codex-based alternatives (`/codex-review`, `/codex-writer`, `/codex-research`). See `/x-as-pr` and `/x-wt-teams` for details.
 
 ### GitHub Copilot Mode (`-gco` / `--github-copilot`)
 
-When `-gco` or `--github-copilot` is passed, forward it to the chosen skill. This switches reviews and research to use GitHub Copilot CLI (`/gco`). Mutually exclusive with `-co`. See `/x-as-pr` and `/x-wt-teams` for details.
+When `-gco` or `--github-copilot` is passed, forward it to the chosen skill. This switches reviews and research to use GitHub Copilot CLI (`/gco`). Mutually exclusive with `-co` and `-gcoc`. See `/x-as-pr` and `/x-wt-teams` for details.
+
+### GitHub Copilot Cheap Mode (`-gcoc` / `--github-copilot-cheap`)
+
+When `-gcoc` or `--github-copilot-cheap` is passed, forward it to the chosen skill. Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). Switches reviews and research to use `/gcoc-*` variants. Mutually exclusive with `-co` and `-gco`. See `/x-as-pr` and `/x-wt-teams` for details.
 
 ### Auto-Complete Mode (`-a` / `--auto`)
 
@@ -103,3 +119,4 @@ Pass through ALL arguments (flags + instructions) to the chosen skill.
 - This is a thin router — all logic lives in `/x-as-pr` and `/x-wt-teams`
 - When in doubt, choose `/x-as-pr` — it's simpler and the user can always re-run with `/x-wt-teams`
 - Tell the user which strategy was chosen: "Routing to `/x-as-pr`" or "Routing to `/x-wt-teams`"
+- **Issue claim is inherited** — when an existing issue (including epic issues) is passed, the chosen downstream skill posts a claim comment on the issue immediately after reading it, so concurrent Claude Code sessions don't start parallel work on the same topic. No extra work is needed at the facade level.
