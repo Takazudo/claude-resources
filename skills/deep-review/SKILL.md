@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: "Perform deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Auto-detects PR mode (3 Claude reviewers + optional codex/gco reviewers on diff) vs full project mode (6 Claude reviewers + optional codex/gco reviewers on entire codebase). Supports the unified `-haiku|-so|-op` (Claude model) and `-co|-gco|-gcoc` (external backend) flag vocabulary."
+description: "Perform deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Default strategy is `/gcoc-review` (GitHub Copilot cheap — zero Premium consumption). Opt into Claude reviewers with `-haiku|-so|-op`: auto-detects PR mode (3 Claude reviewers on diff) vs full project mode (6 Claude reviewers on entire codebase). Supports the unified `-haiku|-so|-op` (Claude model) and `-co|-gco|-gcoc` (external backend) flag vocabulary."
 argument-hint: "[-haiku|-so|-op] [-co|-gco|-gcoc]"
 ---
 
@@ -23,13 +23,15 @@ Perform a practical code quality review with priorities:
 
 ## Flags
 
-### Model flags (pick at most one — sets Claude model for Claude reviewers)
+**Default (no flags):** delegate to `/gcoc-review` — see Step 1.
+
+### Model flags (pick at most one — enables Claude reviewers and sets the model)
 
 - `-haiku` / `--haiku` — Claude Haiku
 - `-so` / `--sonnet` — Claude Sonnet
-- `-op` / `--opus` — Claude Opus **(default)**
+- `-op` / `--opus` — Claude Opus
 
-Sets the `model:` field for every `code-reviewer` subagent spawned in Steps A-2 / B-2. Default: `opus`.
+Passing any model flag opts in to the full Claude reviewer workflow (3 reviewers on a PR diff, 6 reviewers on a full project scan) and sets the `model:` field for every `code-reviewer` subagent spawned in Steps A-2 / B-2.
 
 If multiple model flags are passed, the last one wins.
 
@@ -37,15 +39,29 @@ If multiple model flags are passed, the last one wins.
 
 - `-co` / `--codex` — force the OpenAI Codex side-by-side review on (bypass the rate-limit gate's silent-skip behavior)
 - `-gco` / `--github-copilot` — also invoke `/gco-review` in parallel with the Claude reviewers
-- `-gcoc` / `--github-copilot-cheap` — also invoke `/gcoc-review` in parallel with the Claude reviewers
+- `-gcoc` / `--github-copilot-cheap` — **default strategy.** Invokes `/gcoc-review`. Also combinable with Claude model flags to run alongside Claude reviewers.
 
-Backend default: **opportunistic codex side-by-side** when available (current behavior — see Steps A-2b / A-2c / B-2b / B-2c). `-co` upgrades this from "opt-in when not rate-limited" to "force on and fail loudly if unavailable". `-gco` / `-gcoc` add additional external reviewers alongside.
+When a Claude model flag is passed, codex side-by-side runs opportunistically (see Steps A-2b / A-2c / B-2b / B-2c). `-co` upgrades this from "opt-in when not rate-limited" to "force on and fail loudly if unavailable". `-gco` / `-gcoc` add additional external reviewers alongside Claude reviewers.
 
 Multiple backend flags combine — every specified backend runs in parallel and all findings consolidate in Step 3.
 
 ## Review Process
 
-### Step 1: Determine Review Mode
+### Step 1: Resolve Strategy
+
+**Default strategy — delegate to `/gcoc-review`.**
+
+If the invocation has **no flags**, or only the `-gcoc` / `--github-copilot-cheap` flag, delegate to `/gcoc-review` and return its findings. Do NOT spawn Claude reviewers, do NOT run the codex side-by-side pre-flight, and do NOT continue with Steps A-1 / B-1:
+
+```
+Skill(skill="gcoc-review")
+```
+
+`/gcoc-review` already handles PR-vs-default-branch detection internally, so the rest of this workflow can be skipped in the default case. Once it returns, jump straight to **Step 3: Synthesize Review Results** to present its findings (and apply Step 5 / Step 6 / Step 7 as usual).
+
+**Only continue below when a Claude model flag (`-haiku` / `-so` / `-op`) or a non-gcoc backend flag (`-co` / `-gco`) was passed.** Those flags opt in to the Claude reviewer workflow; `-gcoc` can still be combined with them to add `/gcoc-review` alongside the Claude reviewers in Step A-2d / B-2d.
+
+### Step 2: Determine Review Mode
 
 **CRITICAL: Detect whether this is a PR review or a full-project review.**
 
@@ -499,7 +515,9 @@ Each silently falls back if Copilot is rate-limited. Findings consolidate in Ste
 
 ### Step 3: Synthesize Review Results
 
-After receiving review results from code-reviewer subagents (each returns high-priority items + log path):
+**Default path (`/gcoc-review` only):** `/gcoc-review` already returns a consolidated report — skip this step and go straight to Step 4.
+
+**Flag-driven path (Claude reviewers + optional backends):** after receiving review results from the code-reviewer subagents and any external backends (each returns high-priority items + log path):
 
 1. **Merge and deduplicate findings** from all reviewers' brief returns
 2. **Categorize all findings by priority**
@@ -544,7 +562,8 @@ If this was a PR review (Mode A) and fixes were committed:
 
 ## Important Notes
 
-- **CRITICAL:** All reviews MUST be launched in parallel in a single message using the resolved model (default Opus; override with `-haiku` / `-so` / `-op`)
+- **Default strategy:** `/gcoc-review` (zero Premium consumption). The Claude reviewer workflow is opt-in via `-haiku` / `-so` / `-op`.
+- **CRITICAL (flag-driven path):** when a Claude model flag is passed, all reviews MUST be launched in parallel in a single message using the resolved model
 - **PR mode:** 3 Claude reviewers analyze the diff against the base branch, plus any backend reviewers (`-co` / `-gco` / `-gcoc`) in parallel
 - **Full project mode:** 6 Claude reviewers scan the entire codebase independently, plus any backend reviewers in parallel
 - **Primary focus:** Bugs, problems, and actionable improvements
