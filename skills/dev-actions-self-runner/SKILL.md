@@ -136,6 +136,66 @@ And update the comment to: `# Requires RUNNER_CHECK_TOKEN secret (PAT with admin
 
 For each workflow, add the detect-runner call and update `runs-on`. By default, put all jobs on dynamic runner. If the user prefers, keep lightweight jobs (deploy, notify) on `ubuntu-latest`.
 
+### Gate `actions/setup-node` and `actions/cache` to GH-hosted only
+
+**On self-hosted runners these actions are pure overhead** — node is pre-installed and tool caches like `~/.cache/ms-playwright` or `~/.cache/pnpm` persist between runs naturally. But `actions/setup-node` will redownload/reextract node every run, and `actions/cache` will upload/download the cache to GitHub-hosted storage every run.
+
+Real-world cost (zudo-pattern-gen run [#24927434497](https://github.com/zudolab/zudo-pattern-gen/actions/runs/24927434497/job/72999635846), self-hosted WSL2 runner that had degraded into a stuck state):
+
+| Step | Cancelled run (`x0x-wsl2-zudolab-4`) | Healthy run (`x0x-wsl2-zudolab`) |
+|---|---|---|
+| `Setup Node.js` | **5m 58s** | 1s |
+| `Cache Playwright browsers` (restore) | **10m 12s** | 1s |
+| `Post Cache Playwright browsers` (save) | 24s (cancelled) | **5m 29s** every run |
+
+Even on a healthy self-hosted runner, the post-cache save step burned ~5 min uploading 200MB for a directory that was already on disk. On the degraded runner the same steps appeared to hang.
+
+**Pattern — gate both with the same `if:` used for `Install Playwright system deps (GH-hosted only)`:**
+
+```yaml
+# Self-hosted runners have node pre-installed; setup-node would
+# redownload/reextract it every run.
+- name: Setup Node.js (GH-hosted only)
+  if: needs.detect-runner.outputs.runner == 'ubuntu-latest'
+  uses: actions/setup-node@v5
+  with:
+    node-version: 22
+
+# On GH-hosted, cache the browser binaries so reinstalling chromium only
+# happens when the Playwright version bumps. On self-hosted runners,
+# ~/.cache/ms-playwright persists between runs naturally — using
+# actions/cache there costs ~10 min restore + ~5 min save uploading
+# 200MB to GitHub for a directory that is already on disk.
+- name: Cache Playwright browsers (GH-hosted only)
+  if: needs.detect-runner.outputs.runner == 'ubuntu-latest'
+  uses: actions/cache@v4
+  with:
+    path: ~/.cache/ms-playwright
+    key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+    restore-keys: |
+      ${{ runner.os }}-playwright-
+```
+
+Apply the same gate to any other `actions/cache` step whose `path:` is a tool cache that would naturally persist (Playwright, pnpm store, Cypress, Puppeteer, etc.). Project-source caches (e.g., `node_modules` build outputs that are populated by job steps) usually don't need this — they're not "naturally" present on a fresh checkout.
+
+### Per-step `timeout-minutes` as a fail-fast safety net
+
+Job-level `timeout-minutes: 25` lets a stuck cache or setup-node burn the full budget before the workflow gives up. For steps that have historically hung on degraded runners (`Setup Node.js`, `Cache Playwright browsers`, `pnpm install` on a corrupted store), add a tight per-step timeout so the workflow fails fast and a re-trigger lands on a healthy runner:
+
+```yaml
+- name: Cache Playwright browsers (GH-hosted only)
+  if: needs.detect-runner.outputs.runner == 'ubuntu-latest'
+  timeout-minutes: 3
+  uses: actions/cache@v4
+  # ...
+```
+
+Suggested values: 3–5 min for cache restore/save, 3 min for setup-node. If the step usually completes in <30s on a healthy runner, 3 min is generous. The worst case is one wasted run that fails fast instead of a 25 min hang plus a manual cancel.
+
+### If a single self-hosted runner is consistently slow
+
+The runner detection logic returns "any online runner" — it does not load-balance across multiple registered runners or detect degraded ones. If one specific runner (e.g., `x0x-wsl2-zudolab-4` in the example above) is consistently slower than its siblings, that is a host-level issue: check WSL2 disk/memory limits in `.wslconfig`, VHDX size and free space, and whether multiple runners on the same Windows host are competing for IO. Workflow-level gating + per-step timeouts make degraded runners survivable, but they don't fix the underlying host.
+
 ### Replacing Docker container jobs (e.g., Playwright)
 
 If a workflow uses `container:` with a Docker image (e.g., `mcr.microsoft.com/playwright:v1.59.1-noble`), **replace it with direct tool installation**. Docker may not be available on self-hosted runners.

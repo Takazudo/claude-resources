@@ -1,7 +1,7 @@
 ---
 name: big-plan
-description: "Planning skill for breaking down implementation work into an epic GitHub issue + child sub-issues. Use when: (1) User says '/big-plan', (2) User wants to plan any implementation (small or large) before coding, (3) User wants to split a feature into small issues for parallel agent team work, (4) User references existing issues to plan from (e.g. 'implement issue #123', 'plan all open issues', 'make plan for recent 3 open issues'). Supports `-co`/`--codex` and/or `-gco`/`--github-copilot` (or `-gcoc`/`--github-copilot-cheap`) flags to get second opinions on the plan before creating issues — multiple flags can be combined, in which case every specified reviewer runs in parallel and their feedback is consolidated. Saves a plan log to $HOME/cclogs/{slug}/ and verifies the original requirements are preserved in the created issues. Also supports **Super-Epic mode** — when the plan is too big to complete in one `/x-wt-teams` session (2+ distinct themes, or enough sub-tasks that a single session would overflow context), proposes splitting into a hierarchy of super-epic base → multiple epic bases, with each epic run as its own `/x-wt-teams` session to save token cost. Planning only — no code changes (except the super-epic anchor branch when Super-Epic mode is selected)."
-argument-hint: <description-or-issue-refs> [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap]
+description: "Planning skill for breaking down implementation work into an epic GitHub issue + child sub-issues. Use when: (1) User says '/big-plan', (2) User wants to plan any implementation (small or large) before coding, (3) User wants to split a feature into small issues for parallel agent team work, (4) User references existing issues to plan from (e.g. 'implement issue #123', 'plan all open issues', 'make plan for recent 3 open issues'). Auto-reads any project-scope `l-lessons-*` skills relevant to the topic (written by `/retro-notes`) before planning, so prior attempts in the same area inform the plan. Supports `-co`/`--codex` and/or `-gco`/`--github-copilot` (or `-gcoc`/`--github-copilot-cheap`) flags to get second opinions on the plan AND to run the post-creation verification step — when these flags are present, the matching reviewers handle Step 9 verification instead of the default Sonnet subagent; multiple flags can be combined and every specified reviewer runs in parallel with their findings consolidated. Saves a plan log to $HOME/cclogs/{slug}/ and verifies the original requirements are preserved in the created issues. Also supports **Super-Epic mode** — when the plan is too big to complete in one `/x-wt-teams` session (2+ distinct themes, or enough sub-tasks that a single session would overflow context), proposes splitting into a hierarchy of super-epic base → multiple epic bases, with each epic run as its own `/x-wt-teams` session to save token cost. Planning only — no code changes (except the super-epic anchor branch when Super-Epic mode is selected)."
+argument-hint: <description-or-issue-refs> [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-nor|--no-review]
 ---
 
 # Big Plan
@@ -19,6 +19,7 @@ Parse `$ARGUMENTS` to extract:
 - **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot CLI for second opinion and research. See "GitHub Copilot Mode" section. Can be combined with `-co`. **Mutually exclusive with `-gcoc`** (same tool, different model — pick one).
 - **`-gcoc` or `--github-copilot-cheap` flag**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). See "GitHub Copilot Cheap Mode" section. Can be combined with `-co`. **Mutually exclusive with `-gco`** (same tool, different model — pick one).
 - **Multiple reviewer flags** — when `-co` is combined with `-gco` (or `-gcoc`), every specified reviewer is invoked in parallel during Step 5 and their feedback is consolidated into a single `## Review Notes` section before user confirmation.
+- **`-nor` or `--no-review` flag**: If present, run the planning end-to-end with no confirmation gates and no review steps. Skips Step 5 (second opinion), Step 6 (propose-to-user wait), Step 9 (requirements verification), the Step 3.5 Super-Epic confirmation prompt (auto-accept if triggered), and the equivalent S-5 / S-6 steps in Super-Epic mode. The plan is drafted, the log is saved, the issues are created, and the session ends. Use when you've already decided what to plan and just want the issues created. Mutually compatible with `-co` / `-gco` / `-gcoc` — but those reviewer flags become no-ops when `-nor` is also present (no review runs).
 - **Existing issue references** — any of these trigger _existing-issue mode_ (see Step 1b):
   - A GitHub issue URL: `https://github.com/owner/repo/issues/123`
   - An issue number: `#123` or bare `123`
@@ -27,6 +28,32 @@ Parse `$ARGUMENTS` to extract:
 - **Everything else**: free-text description of what to implement.
 
 You can also receive a mix (e.g. "plan #45 and #47 with some auth cleanup on top"). Treat the issue refs as source material AND incorporate the extra free-text context.
+
+## Branch Context (detect first, do NOT skip)
+
+Before running any workflow step, capture the **current branch** — this is the **parent branch** the new implementation base branch will be created from and the branch its eventual PR will target.
+
+```bash
+PARENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "Parent branch: $PARENT_BRANCH"
+```
+
+**Why this matters — read carefully:**
+
+`/big-plan` is typically invoked **on the branch the new feature will land on**. The default assumption is NOT "PR into `main`" — it is "PR into whatever branch I'm on right now."
+
+- If `$PARENT_BRANCH` is `main` (the common case) → new `base/{impl-title-slug}` is branched from `main` and its PR targets `main`. Behave as before.
+- If `$PARENT_BRANCH` is anything else (e.g. `base/foo-impl`, `feature/x`, `develop`) → new `base/{impl-title-slug}` is branched from `$PARENT_BRANCH` and its PR targets `$PARENT_BRANCH`. This is the **nested-base** pattern (e.g. `base/new-impl` → `base/foo-impl` → `main`). It is intentional and common — do **NOT** silently swap in `main`.
+
+**Use `$PARENT_BRANCH` everywhere this skill previously hardcoded `main`:**
+
+- Step 7 epic body — "merges into `$PARENT_BRANCH` as one PR" (not "merges into main")
+- Step S-7 super-epic body — "targets `$PARENT_BRANCH` via super-PR"
+- Step S-9 — `git checkout "$PARENT_BRANCH"`, `git pull origin "$PARENT_BRANCH"`, `gh pr create --base "$PARENT_BRANCH"`
+- Branch hierarchy diagrams in Super-Epic mode — root node is `$PARENT_BRANCH`, not `main`
+- All hand-off messages mentioning the eventual merge target
+
+**Surface the parent branch to the user in Step 6 (proposal)** so they can correct it if they accidentally invoked from the wrong branch. If `$PARENT_BRANCH` is not `main`, call it out explicitly as a confirmation gate — this is the case the user has historically had to fight.
 
 ## Workflow
 
@@ -64,6 +91,28 @@ Read every fetched `issue.md` file and any images in `assets/`. Understand the r
 
 **Track the source issue numbers/URLs and their local `issue.md` paths** — you'll need them for verification (Step 9) and closing (Step 10).
 
+### 1c. Read project lessons
+
+Project-scope lessons skills (`l-lessons-*`) capture root-cause notes from previous attempts in the same area, written by `/retro-notes`. Read any that apply before planning so prior pain becomes permanent leverage.
+
+```bash
+ls .claude/skills/l-lessons-*/SKILL.md 2>/dev/null
+```
+
+For each `l-lessons-{area}` skill found, check whether `{area}` matches the topic being planned by reading its frontmatter `description`. For every relevant one, read its full `SKILL.md` content.
+
+If you find one or more relevant lessons files, surface them to the user explicitly:
+
+> Found {N} project lessons file(s) relevant to this area: `{l-lessons-foo}`, `{l-lessons-bar}`. Reading them before planning.
+
+Use the lessons — especially the **Watch for next time** and **Would-skip-if-redoing** sections — to inform the plan in Step 3:
+
+- When a sub-task is shaped by a past lesson, call it out under that sub-task in the plan log: `> Shaped by lesson: {trap or skip-if-redoing summary}`.
+- If a previous attempt's "Would-skip-if-redoing" advice contradicts a sub-task you'd otherwise add, drop or simplify the sub-task.
+- If a "Watch for next time" trap suggests a structural choice (e.g. "invert the transform at the input boundary"), bake that choice into the relevant sub-task's description rather than leaving it for the implementer to discover again.
+
+If no `l-lessons-*` skills exist or none match the topic, skip silently and proceed to Step 2. This is enrichment, not a blocking step — never fail planning because lessons aren't there.
+
 ### 2. Explore the codebase
 
 Do a thorough exploration of all relevant code. Read existing patterns, understand the architecture, identify what files will need to change and what new ones will be created. Be comprehensive — this is the expensive step that justifies a dedicated session.
@@ -92,9 +141,11 @@ Before saving the plan log, decide which of the two modes applies.
 
 If Super-Epic applies, **propose it to the user now, before writing the plan log or creating any issues**:
 
-> "This plan has N sub-tasks across M distinct themes: {theme 1}, {theme 2}, .... Running it as one `/x-wt-teams` session risks overflowing context and costs significant tokens. I recommend splitting it into M separate epics, each run in its own `/x-wt-teams` session. Proposed structure: super-epic base `base/{super-title-slug}` → `main`, then each epic base `base/{super-title-slug}-{theme}` → super-base. Shall I proceed in Super-Epic mode?"
+> "This plan has N sub-tasks across M distinct themes: {theme 1}, {theme 2}, .... Running it as one `/x-wt-teams` session risks overflowing context and costs significant tokens. I recommend splitting it into M separate epics, each run in its own `/x-wt-teams` session. Proposed structure: super-epic base `base/{super-title-slug}` → `$PARENT_BRANCH` (substitute the actual current branch, e.g. `main` or `base/foo-impl`), then each epic base `base/{super-title-slug}-{theme}` → super-base. Shall I proceed in Super-Epic mode?"
 
 Wait for confirmation. If the user accepts, jump to the [Super-Epic Mode](#super-epic-mode) section. If declined, continue with Step 4 as normal.
+
+**`-nor` / `--no-review` override:** Skip the confirmation wait entirely. If Super-Epic triggers based on the criteria above, auto-proceed to Super-Epic mode without asking. If it does not trigger, continue to Step 4. Tell the user which mode was selected, but do not pause.
 
 ### 4. Save plan log to cclogs
 
@@ -128,6 +179,8 @@ Report the path to the user: `Plan saved: $PLAN_FILE`.
 
 ### 5. (Optional) Second opinion — `-co` / `--codex`, `-gco` / `--github-copilot`, or `-gcoc` / `--github-copilot-cheap`
 
+**Skip this step entirely if `-nor` / `--no-review` was passed**, even if one of the reviewer flags is also present. No `## Review Notes` section is added to `$PLAN_FILE`. Proceed directly to Step 6.
+
 Only if one or more of `-co`/`--codex`, `-gco`/`--github-copilot`, or `-gcoc`/`--github-copilot-cheap` was in `$ARGUMENTS`. Multiple flags may be specified — `-co` combines with `-gco` or `-gcoc` (but `-gco` and `-gcoc` are mutually exclusive since they are the same tool with different models).
 
 The review questions are the same regardless of tool:
@@ -139,6 +192,8 @@ The review questions are the same regardless of tool:
 5. Are any original requirements from the source missing from the plan?
 
 **Run every specified reviewer in parallel.** Determine which flags are active, then invoke the corresponding sub-skills concurrently (single assistant turn, multiple tool calls). Each reviewer reads the same `$PLAN_FILE` and answers the same questions above — they don't need to coordinate.
+
+> **Skill names are top-level, not plugin-namespaced.** Invoke via `Skill(skill="codex-2nd")`, `Skill(skill="gco-2nd")`, `Skill(skill="gcoc-2nd")`. Do **NOT** use `codex:codex-2nd` — that namespace belongs to the openai-codex plugin and does not contain these skills.
 
 **Per-flag invocation:**
 
@@ -176,7 +231,8 @@ Present the (optionally refined) plan to the user:
 
 - Plan log path: `$PLAN_FILE`
 - Proposed `impl-title`
-- Suggested base branch: `base/{impl-title-slug}`
+- **Parent branch (detected current branch): `$PARENT_BRANCH`** — the new base branch will be created from this and the eventual PR will target this. If this is **not** `main`, explicitly call it out: "We are on `$PARENT_BRANCH`, so the new `base/{impl-title-slug}` will branch off `$PARENT_BRANCH` and PR into it (nested base). Confirm this is what you want — if you meant `main`, switch branches and re-run." Do not assume `main`.
+- Suggested base branch: `base/{impl-title-slug}` (parent: `$PARENT_BRANCH`)
 - List of sub-tasks with dependency notes
 - Source issues (if existing-issue mode)
 - Review notes (if any of `-co` / `-gco` / `-gcoc` was used — may contain multiple reviewer subsections when flags were combined)
@@ -184,6 +240,8 @@ Present the (optionally refined) plan to the user:
 Ask: "Does this look right? Should I adjust anything before creating the issues?"
 
 **Wait for confirmation before proceeding.** If the user requests changes, update `$PLAN_FILE` and re-confirm.
+
+**`-nor` / `--no-review` override:** Skip the question and the wait. Print the same proposal as a one-shot summary so the user can see what's about to be created, then proceed straight to Step 7. The user opted in to no-confirmation mode by passing the flag.
 
 ### 7. Create the epic issue
 
@@ -203,7 +261,8 @@ Example: `[Team Feature][Epic] Team management and workspace sharing`
 - Overview of what's being built
 - Source issues section (if existing-issue mode): "Supersedes: #A, #B, #C"
 - Base branch: `base/{impl-title-slug}` — all sub-issue PRs target this branch
-- Note: "Implementation will be done via `/x-wt-teams` — child branches merge into the base branch, which then merges into main as one PR"
+- **Parent branch:** `$PARENT_BRANCH` (the branch this base will eventually PR into — substitute the actual branch name, e.g. `main` or `base/foo-impl`)
+- Note: "Implementation will be done via `/x-wt-teams` — child branches merge into the base branch, which then merges into `$PARENT_BRANCH` as one PR" (substitute the actual parent branch name)
 - **Sub-issues table** listing all child issues (fill in URLs in Step 9 — or note "see comments below")
 - "Close each sub-issue as its implementation is merged."
 
@@ -228,16 +287,28 @@ Then the rest of the body: what needs to be done, which files to touch, what the
 Include at the bottom:
 
 ```
-**Base branch:** `base/{impl-title-slug}` — PR targets this branch, not main.
+**Base branch:** `base/{impl-title-slug}` — PR targets this branch (which itself targets `$PARENT_BRANCH`, e.g. `main` or `base/foo-impl` — substitute the actual parent name).
 ```
 
 Then update the epic issue body to include the full list of sub-issue URLs (`gh issue edit {epic-number} --body "$(cat <<'EOF' ... EOF)"`).
 
 ### 9. Verify original requirements are preserved
 
-**This step is critical.** We've had cases where the original requirements were lost when rearranged into epic + sub-issues. A Sonnet subagent cross-checks the created issues against the original source.
+**Skip this step entirely if `-nor` / `--no-review` was passed.** Do not spawn the verification reviewer, do not write a `## Verification Report` to `$PLAN_FILE`, do not block before Step 10. Proceed directly to Step 10. The user opted out of verification by passing the flag.
 
-Spawn a `general-purpose` agent with `model: sonnet` via the Agent tool. Prompt it to:
+**This step is critical.** We've had cases where the original requirements were lost when rearranged into epic + sub-issues. One or more verification reviewers cross-check the created issues against the original source.
+
+**Pick the verification reviewer(s) based on flags** (the same flags that drive Step 5):
+
+- **No external reviewer flag** (default) → spawn a `general-purpose` agent with `model: sonnet` via the Agent tool.
+- **`-co` / `--codex`** → use `/codex-2nd` for verification.
+- **`-gco` / `--github-copilot`** → use `/gco-2nd` for verification.
+- **`-gcoc` / `--github-copilot-cheap`** → use `/gcoc-2nd` for verification.
+- **Multiple flags combined** → run every specified external reviewer **in parallel** (single assistant turn, multiple tool calls) and consolidate their findings into a single `## Verification Report`. When reviewers disagree, prefer findings flagged by multiple reviewers; use your own judgment for one-off claims.
+- **Fallback** — if a flagged external reviewer's pre-flight rate-limit check fails or it times out, fall back to the Sonnet subagent **for that reviewer only** (other reviewers still run as usual). If all flagged reviewers skip and there is no Sonnet result either, run the Sonnet subagent once so verification still happens — never proceed to Step 10 with zero verification.
+- The Sonnet subagent is also acceptable as an additional reviewer alongside flagged ones if you want extra coverage, but it is **not required** when at least one external reviewer succeeds.
+
+The verification task is the **same regardless of which tool runs it**:
 
 1. Read the original source:
 - Free-text mode: the user's original description (paste it into the prompt, plus `$PLAN_FILE`)
@@ -268,18 +339,26 @@ Spawn a `general-purpose` agent with `model: sonnet` via the Agent tool. Prompt 
 <list of source items that were correctly covered — can be brief>
 ```
 
-Example Agent tool call shape (written out for clarity, not a literal JSON):
+**Sonnet subagent invocation (default / fallback)** — example Agent tool call shape (written out for clarity, not a literal JSON):
 
 - `subagent_type`: `general-purpose`
 - `model`: `sonnet`
 - `description`: `Verify issues preserve source requirements`
 - `prompt`: self-contained prompt with the source, issue numbers, and the report format above
 
+**External reviewer invocation (when `-co` / `-gco` / `-gcoc` is passed):**
+
+For each active flag, follow the invocation pattern in the corresponding skill's SKILL.md (`$HOME/.claude/skills/codex-2nd/SKILL.md`, `$HOME/.claude/skills/gco-2nd/SKILL.md`, `$HOME/.claude/skills/gcoc-2nd/SKILL.md`). These are top-level skills — invoke via `Skill(skill="codex-2nd")` / `Skill(skill="gco-2nd")` / `Skill(skill="gcoc-2nd")`, never `codex:codex-2nd`. Replace each tool's default "review the plan" prompt with the verification prompt structured as above. The prompt MUST include:
+
+- The original source (paste the free-text description verbatim, or list every source `issue.md` path)
+- The full list of created issue numbers (epic + every sub-issue) and a note that the reviewer can run `gh issue view {number}` to inspect each issue body
+- The exact report format above so output is consistent across reviewers
+
 **Handling the report:**
 
 - If **all clear** with no issues, report the verification result to the user and proceed to Step 10.
-- If anything is missing/misinterpreted/ambiguous, **fix the issues directly** using `gh issue edit {number} --body "$(cat <<'EOF' ... EOF)"`. Edit the relevant sub-issue (or epic) body to include the missing requirement. Re-spawn the verification agent on the fixed issues to confirm.
-- Save the final verification report to `$PLAN_FILE` under a `## Verification Report` section.
+- If anything is missing/misinterpreted/ambiguous, **fix the issues directly** using `gh issue edit {number} --body "$(cat <<'EOF' ... EOF)"`. Edit the relevant sub-issue (or epic) body to include the missing requirement. Re-run the verification on the fixed issues to confirm — re-using whichever reviewer(s) flagged the gap is fine.
+- Save the final verification report to `$PLAN_FILE` under a `## Verification Report` section. When multiple reviewers ran in parallel, save one subsection per reviewer (e.g. `### Codex verification`, `### GitHub Copilot verification`, `### Sonnet verification`). If a flagged reviewer was skipped (rate limit / timeout) and Sonnet ran as fallback, note the skip under its own subsection.
 
 Do not skip this step even if the plan looks obviously complete.
 
@@ -391,9 +470,11 @@ A single `/x-wt-teams` session has real scaling limits: max 6 concurrent child a
 
 ### Branch hierarchy
 
+The root of the hierarchy is **`$PARENT_BRANCH` (the branch the user invoked `/big-plan` from)** — usually `main`, but can be any branch (e.g. `base/foo-impl`) when nesting bases. Substitute the actual branch name in the diagram below; never hardcode `main`.
+
 ```
-main
-  └── base/{super-title-slug}                       (super-epic base — long-lived anchor; super-PR → main)
+$PARENT_BRANCH                                       (current branch at /big-plan invocation — usually main, but could be base/foo-impl etc.)
+  └── base/{super-title-slug}                       (super-epic base — long-lived anchor; super-PR → $PARENT_BRANCH)
         ├── base/{super-title-slug}-{epicA-slug}    (epic base; epic-PR → super-base)
         │     ├── {super-title-slug}-{epicA-slug}/topic1
         │     └── {super-title-slug}-{epicA-slug}/topic2
@@ -424,9 +505,13 @@ Same as Step 4, but the plan log should state this is a Super-Epic and list each
 
 Same as Step 5. Ask the reviewer to additionally confirm: (a) the split into epics is sensible, (b) the dependency order is correct, (c) no sub-task belongs to a different epic than proposed.
 
+**`-nor` / `--no-review` override:** Skip this step entirely (same rule as Step 5).
+
 ### S-6. Propose the Super-Epic structure to user
 
 Show the user: super-epic base branch, each epic base branch, epic dependency order, sub-tasks per epic. Wait for confirmation before creating anything.
+
+**`-nor` / `--no-review` override:** Print the same proposal as a one-shot summary, then proceed straight to S-7 without waiting (same rule as Step 6).
 
 ### S-7. Create the super-epic issue
 
@@ -442,10 +527,10 @@ Body includes:
 
 - "This is a **Super-Epic** tracking issue for the **{Impl Title}** implementation."
 - Overview of what's being built and why it was split
-- **Super-epic base branch:** `base/{super-title-slug}` (targets `main` via super-PR)
+- **Super-epic base branch:** `base/{super-title-slug}` (targets `$PARENT_BRANCH` via super-PR — substitute the actual parent branch name)
 - Super-PR URL (filled in at S-9)
 - **Epic issues table** (filled in at S-8 — URL, title, epic base branch, dependency order)
-- "Each epic is implemented via its own `/x-wt-teams` session. Epic PRs target `base/{super-title-slug}`. Once all epic PRs are merged, the super-PR becomes ready to merge into `main`."
+- "Each epic is implemented via its own `/x-wt-teams` session. Epic PRs target `base/{super-title-slug}`. Once all epic PRs are merged, the super-PR becomes ready to merge into `$PARENT_BRANCH`." (substitute the actual parent branch name)
 
 ### S-8. Create one epic issue per cluster
 
@@ -497,20 +582,22 @@ Then update the super-epic issue (S-7) to list all epic issue URLs in dependency
 
 Super-Epic mode **does** create the super-epic anchor branch. This is the single exception to big-plan's usual "no branches" rule — the super-PR must exist before any epic session starts, so epic PRs have a target, and the super-PR accumulates every merged epic.
 
+**Use `$PARENT_BRANCH` (captured in "Branch Context" before Step 1) — do NOT hardcode `main`.** If the user invoked from `base/foo-impl`, the super-epic anchor must branch off `base/foo-impl` and the super-PR must target `base/foo-impl`, not `main`.
+
 ```bash
-git checkout main
-git pull origin main
+git checkout "$PARENT_BRANCH"
+git pull origin "$PARENT_BRANCH"
 git checkout -b base/{super-title-slug}
 git commit --allow-empty -m "= start {super-title-slug} super-epic ="
 git push -u origin base/{super-title-slug}
 
 SUPER_PR_URL=$(gh pr create \
-  --base main \
+  --base "$PARENT_BRANCH" \
   --title "{Impl Title}: super-epic root PR" \
-  --body "$(cat <<'EOF'
+  --body "$(cat <<EOF
 ## Summary
 
-Super-epic root PR for **{Impl Title}**. This PR accumulates all epic PRs merged into `base/{super-title-slug}` and will be merged into `main` when all epics are complete.
+Super-epic root PR for **{Impl Title}**. This PR accumulates all epic PRs merged into \`base/{super-title-slug}\` and will be merged into \`$PARENT_BRANCH\` when all epics are complete.
 
 Tracking super-epic issue: {super-epic-issue-url}
 
@@ -522,13 +609,15 @@ EOF
   --draft)
 ```
 
+(Heredoc is unquoted so `$PARENT_BRANCH` expands. The literal-text placeholders like `{super-title-slug}` are still substituted by you when writing the actual command.)
+
 Edit the super-epic issue to record `SUPER_PR_URL`.
 
 **Do not create the epic base branches or epic-PRs here.** Each `/x-wt-teams` session creates its own epic base off `base/{super-title-slug}`.
 
 ### S-10. Verification
 
-Run the same Sonnet verification agent from Step 9, but point it at the super-epic issue + all epic issues (not `[Sub]` issues — they do not exist in Super-Epic mode). Confirm every original requirement maps to exactly one sub-task inside one epic.
+Run the same verification flow from Step 9 (same flag-driven reviewer selection — Sonnet by default, or `/codex-2nd` / `/gco-2nd` / `/gcoc-2nd` in parallel when their flags were passed; same fallback to Sonnet on rate limit), but point the reviewer(s) at the super-epic issue + all epic issues (not `[Sub]` issues — they do not exist in Super-Epic mode). Confirm every original requirement maps to exactly one sub-task inside one epic.
 
 ### S-11. Hand-off message
 
@@ -539,7 +628,7 @@ Print:
 
 Plan log: {PLAN_FILE}
 Super-epic issue: {super-epic-url}
-Super-epic base: base/{super-title-slug}  (super-PR: {SUPER_PR_URL} → main)
+Super-epic base: base/{super-title-slug}  (super-PR: {SUPER_PR_URL} → $PARENT_BRANCH)
 
 Epics (run each in a FRESH session, in dependency order):
 
@@ -559,7 +648,7 @@ Verification: {all clear / N fixes applied}
 
 This session is done. Token cost grows quadratically with session length —
 start a **fresh session** for each epic. After all epic PRs are merged into
-base/{super-title-slug}, the super-PR will be ready to merge into main.
+base/{super-title-slug}, the super-PR will be ready to merge into $PARENT_BRANCH.
 ```
 
 Do NOT start implementing. Do NOT create any epic base branch or worktree. The next session (a fresh `/x-wt-teams` per epic) handles all of that.
@@ -602,10 +691,12 @@ All other workflow steps (issue creation, verification, etc.) remain unchanged.
 
 ## Key Principles
 
-- **No code changes in this session** — planning and issue creation only
+- **Parent branch is the current branch — NOT `main`** — `/big-plan` is invoked on the branch the new feature will land on. Capture `$PARENT_BRANCH = git rev-parse --abbrev-ref HEAD` first and use it everywhere a base branch parent or PR target is needed. Do not silently assume `main`. Surface the detected `$PARENT_BRANCH` to the user in Step 6 (especially when it is not `main`) so they can correct it
+- **No code changes in this session** — planning and issue creation only (sole exception: the super-epic anchor branch in Super-Epic mode, branched off `$PARENT_BRANCH`)
+- **Read project lessons before planning** — Step 1c auto-reads any matching `l-lessons-*` skills (written by `/retro-notes`) so previous attempts in the same area inform the plan. Skip silently if none apply
 - **Save the plan log first** — before codex, before confirmation, before issues. It's the source of truth
 - **Confirm before creating** — always show the plan to the user first
-- **Verify after creating** — always run the Sonnet verification agent so original requirements aren't lost
+- **Verify after creating** — always verify so original requirements aren't lost. Default reviewer is the Sonnet subagent; when `-co`/`-gco`/`-gcoc` is passed, those tools handle verification (in parallel if multiple), with Sonnet as fallback if any are rate-limited
 - **Small issues win** — an issue that takes 15 agent exchanges is better than one that takes 50
 - **Self-contained sub-issues** — each issue body must be readable standalone, without needing this session's context
 - **Fresh session next** — always end by instructing the user to start a new session with `/x-wt-teams`

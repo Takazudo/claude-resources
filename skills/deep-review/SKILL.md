@@ -1,7 +1,7 @@
 ---
 name: deep-review
-description: "Perform deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Default strategy is `/gcoc-review` (GitHub Copilot cheap — zero Premium consumption). Opt into Claude reviewers with `-haiku|-so|-op`: auto-detects PR mode (3 Claude reviewers on diff) vs full project mode (6 Claude reviewers on entire codebase). Supports the unified `-haiku|-so|-op` (Claude model) and `-co|-gco|-gcoc` (external backend) flag vocabulary."
-argument-hint: "[-haiku|-so|-op] [-co|-gco|-gcoc]"
+description: "Perform deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Default strategy is `/gcoc-review` (GitHub Copilot cheap — zero Premium consumption). Opt into Claude reviewers with `-haiku|-so|-op`: auto-detects PR mode (3 Claude reviewers on diff) vs full project mode (6 Claude reviewers on entire codebase). Supports the unified `-haiku|-so|-op` (Claude model) and `-co|-gco|-gcoc` (external backend) flag vocabulary. By default also runs in **team-fix mode (`-t`)** — after collecting findings, delegates the actual fixes to a parallel `/x-wt-teams --no-review --stay` session so the manager context stays light. Pass `-nt` / `--no-team` to keep the legacy inline-fix flow."
+argument-hint: "[-haiku|-so|-op] [-co|-gco|-gcoc] [-t|-nt]"
 ---
 
 # Deep Review
@@ -45,6 +45,13 @@ When a Claude model flag is passed, codex side-by-side runs opportunistically (s
 
 Multiple backend flags combine — every specified backend runs in parallel and all findings consolidate in Step 3.
 
+### Team-fix flags (default `-t`)
+
+- `-t` / `--team` — **DEFAULT.** After review findings are presented, delegate the fix work to a fresh `/x-wt-teams --no-review --stay` session so the manager context stays light. The team session creates a worktree, spawns a fix agent, commits, merges back into the current branch, and pushes. **Recursion-safe** because the inner `/x-wt-teams` is invoked with `--no-review`, which skips its own Step 9 and prevents an infinite review-fix loop.
+- `-nt` / `--no-team` — Opt out of team-fix mode. Apply fixes inline in the manager context (legacy behavior — Steps 5/6/7 below). Use this when you are calling `/deep-review` from a context that already has its own fix delegation, when there is no PR / branch to merge into, or when the change is too small to justify the worktree machinery.
+
+If both flags are passed, the last one wins. Team-fix only runs when findings are actually actionable — if the review reports "no issues," Steps 5–7 are skipped regardless of the flag.
+
 ## Review Process
 
 ### Step 1: Resolve Strategy
@@ -57,7 +64,7 @@ If the invocation has **no flags**, or only the `-gcoc` / `--github-copilot-chea
 Skill(skill="gcoc-review")
 ```
 
-`/gcoc-review` already handles PR-vs-default-branch detection internally, so the rest of this workflow can be skipped in the default case. Once it returns, jump straight to **Step 3: Synthesize Review Results** to present its findings (and apply Step 5 / Step 6 / Step 7 as usual).
+`/gcoc-review` already handles PR-vs-default-branch detection internally, so the rest of this workflow can be skipped in the default case. Once it returns, jump straight to **Step 3: Synthesize Review Results** to present its findings, then proceed to Step 4 (Present Findings) and Step 5 (which branches on `-t` / `-nt`). Team-fix mode applies regardless of how the review was produced — `/gcoc-review` findings get the same `-t` delegation treatment as Claude-reviewer findings.
 
 **Only continue below when a Claude model flag (`-haiku` / `-so` / `-op`) or a non-gcoc backend flag (`-co` / `-gco`) was passed.** Those flags opt in to the Claude reviewer workflow; `-gcoc` can still be combined with them to add `/gcoc-review` alongside the Claude reviewers in Step A-2d / B-2d.
 
@@ -529,7 +536,53 @@ Each silently falls back if Copilot is rate-limited. Findings consolidate in Ste
 
 Present a clear summary synthesized from all reviewers. Include log file paths so the user (or a future session via `/logrefer`) can access the full analysis.
 
-### Step 5: Apply Fixes
+If the review reports **no actionable issues**, stop here — Steps 5–7 are skipped regardless of `-t` / `-nt`.
+
+### Step 5: Apply Fixes — branch on team-fix mode
+
+The fix path depends on whether `-t` (default) or `-nt` was active.
+
+#### Step 5a: Team-fix mode (`-t`, DEFAULT)
+
+When the team-fix flag is on (the default), do NOT apply fixes inline. Instead, hand the findings off to a fresh `/x-wt-teams --no-review --stay` session that creates a worktree, spawns a fix agent, commits, merges back into the current branch, and pushes.
+
+**Why this exists:** the manager that just ran the review is already token-heavy from collecting findings. Doing the fixes inline grows that context further. Delegating to `/x-wt-teams --no-review --stay` keeps the fix work in fresh subagent contexts and reuses the existing worktree / merge / push / CI machinery.
+
+**Recursion guard:** the inner `/x-wt-teams` MUST be invoked with `--no-review` so its Step 9 is skipped. Without that flag, the inner session would call `/deep-review` again (which defaults back to `-t`), spawning another `/x-wt-teams`, ad infinitum. **Always pass `--no-review` here, never omit it.**
+
+**Procedure:**
+
+1. **Build the fix instructions block.** Combine the high-priority and medium-priority findings into a single instruction string, with file paths and line numbers, grouped by area or severity. Keep low-priority findings out unless the user explicitly asked for an aggressive pass.
+
+   **Workspace package rebuild rule (must include in the brief when applicable).** If the project has a workspace/monorepo layout (check the repo's `CLAUDE.md` and/or `pnpm-workspace.yaml` / `package.json` `workspaces` field) and any finding's file path lives inside a workspace package whose consumer imports through a built artifact (e.g. an `exports` map → `./dist/...`), append an explicit rebuild checklist item to the fix instructions, listing the affected packages by name and the rebuild command the project uses. Example wording to forward:
+
+   > After applying the source fixes, rebuild each touched workspace package (e.g. `pnpm --filter <name> build`) and commit the resulting build output in the same PR. The package is consumed through its built artifact, so a missing rebuild leaves the consumer importing stale compiled output. Skip only if the package has no build step. A failed build is a blocker.
+
+   Without this, the inner `/x-wt-teams` fix agent may commit source-only changes and ship a stale-dist bug. When the project's `CLAUDE.md` names the workspace root and rebuild command, defer to it; otherwise, infer from the repo layout.
+2. **Capture the current branch** as the merge target — `/x-wt-teams --stay` will treat this branch as its base:
+
+   ```bash
+   CURRENT_BRANCH=$(git branch --show-current)
+   ```
+
+3. **Invoke `/x-wt-teams --no-review --stay <fix-instructions>`** as the next action. Forward the same model / backend flags (`-haiku|-so|-op`, `-co|-gco|-gcoc`) that this `/deep-review` invocation received so the inner session uses consistent reviewers (its own internal child self-review still runs — only the manager-level Step 9 is suppressed by `--no-review`).
+
+   **Single fix topic by default.** Bundle all findings into ONE topic so the inner session spawns a single fix agent in a single worktree. Multiple parallel fix topics would risk conflicting edits on overlapping files. If the findings are genuinely independent and span clearly separate file sets, you may split into multiple topics — but the default is one.
+
+   Concrete invocation:
+
+   ```
+   Skill(skill="x-wt-teams", args="--no-review --stay <forwarded model/backend flags> Fix the review findings listed below. Single topic — apply all fixes in one worktree. <fix instructions including file paths, line numbers, what to change and why>")
+   ```
+
+4. **Wait for `/x-wt-teams` to complete.** When it returns, the fixes are already merged into `CURRENT_BRANCH`, pushed, and (if applicable) the root PR is updated. There is **NO Step 6 / Step 7 to run** in team-fix mode — `/x-wt-teams` already handled commits, push, and PR revise inside its own workflow.
+5. **Do NOT run `/deep-review` again** to verify the fixes. That would re-trigger another `-t` cycle and loop forever. The team session's own child self-review (`/light-review`) is the verification pass — trust it and stop.
+
+After `/x-wt-teams` returns, end the `/deep-review` session.
+
+#### Step 5b: Inline fix mode (`-nt`)
+
+When `-nt` was passed, apply fixes directly in the current manager context (legacy behavior).
 
 For **High Priority** fixes:
 
@@ -544,15 +597,17 @@ For **Low Priority** fixes:
 
 - Ask user if they want these implemented
 
-### Step 6: Commit Changes
+Then proceed to Step 6 and Step 7 below.
 
-After applying fixes:
+### Step 6: Commit Changes (`-nt` only)
+
+After applying fixes inline:
 
 1. Run type check: `npm run typeCheck`
 2. Create a descriptive commit message listing all fixes
 3. Use the standard commit format with footer
 
-### Step 7: Revise PR (PR mode only)
+### Step 7: Revise PR (`-nt` only, PR mode only)
 
 If this was a PR review (Mode A) and fixes were committed:
 
@@ -560,9 +615,12 @@ If this was a PR review (Mode A) and fixes were committed:
 2. This ensures the PR metadata reflects the full implementation including the review fixes
 3. Skip this step if no fixes were applied or if running in full project mode (Mode B)
 
+In team-fix mode (`-t`), `/x-wt-teams` runs its own `/pr-revise` at Step 13, so this step is not needed here.
+
 ## Important Notes
 
 - **Default strategy:** `/gcoc-review` (zero Premium consumption). The Claude reviewer workflow is opt-in via `-haiku` / `-so` / `-op`.
+- **Default fix strategy:** `-t` team-fix mode. After findings are presented, the actual fix work is delegated to `/x-wt-teams --no-review --stay`. Pass `-nt` / `--no-team` to keep fixes inline. The recursion guard is the `--no-review` flag on the inner `/x-wt-teams` — never omit it.
 - **CRITICAL (flag-driven path):** when a Claude model flag is passed, all reviews MUST be launched in parallel in a single message using the resolved model
 - **PR mode:** 3 Claude reviewers analyze the diff against the base branch, plus any backend reviewers (`-co` / `-gco` / `-gcoc`) in parallel
 - **Full project mode:** 6 Claude reviewers scan the entire codebase independently, plus any backend reviewers in parallel

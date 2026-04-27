@@ -1,11 +1,21 @@
 ---
 name: claude-resources-share
 description: "Publish Claude Code resources (commands, skills, agents, hooks, scripts, CLAUDE.md) from the private $HOME/.claude repo to the public claude-resources repo. One-direction copy with a safety gate: scans for private info before copying, requires user confirmation. Use when: (1) User says 'share resources', 'publish resources', 'sync public repo', (2) User wants to update the public claude-resources repo."
+argument-hint: "[-a|--auto]"
 ---
 
 # Claude Resources Share
 
 One-direction publish from `$HOME/.claude/` (private) to `$HOME/repos/p/claude-resources` (public).
+
+## Auto mode
+
+If the user passes `-a` or `--auto` (e.g. `/claude-resources-share -a`, `/claude-resources-share --auto`, or wording like "auto", "if no problems do copy and push", "do it all if clean"), enable **auto mode**:
+
+- **Step 1**: still run the scan, but if findings are clean (no HIGH/MEDIUM priority issues per `/purge-private-info`), skip the user-confirmation gate and proceed automatically. If findings are NOT clean, stop and report — do not auto-proceed.
+- **Step 6**: skip the choice prompt and run `/commits` with push (option 1) automatically.
+
+In normal mode (no flag), follow the original gates: ask for confirmation after the scan and ask which commit option to use.
 
 ## Paths
 
@@ -49,6 +59,8 @@ Invoke the `/purge-private-info` command, targeting the source directories liste
 - Hardcoded absolute paths containing usernames (e.g., `$HOME/`)
 
 Present all findings to the user. **Do NOT proceed until the user explicitly confirms** there are no problems or that findings are acceptable.
+
+In **auto mode** (`-a` / `--auto`): if the scan reports no HIGH/MEDIUM priority findings (clean result), skip the confirmation gate and proceed to Step 2. If anything is flagged, stop and report — auto mode never auto-confirms a non-clean scan.
 
 ### Step 2: Prepare target directory and pull latest
 
@@ -134,15 +146,17 @@ done
 echo "CLAUDE.md: 1 file"
 ```
 
-### Step 6: Commit and push (user choice)
+### Step 6: Commit and push
 
-Ask the user whether they want to commit and push the changes to the target repo. **Do NOT auto-commit or auto-push.** Present the options:
+**Normal mode**: Ask the user whether they want to commit and push the changes to the target repo. **Do NOT auto-commit or auto-push.** Present the options:
 
 1. Commit and push
 2. Commit only (no push)
 3. Skip (leave changes uncommitted)
 
 If the user chooses to commit, use the `/commits` skill to commit inside the target repo directory. If they also want to push, push after committing.
+
+**Auto mode** (`-a` / `--auto`): skip the prompt. Run `/commits` inside the target repo directory and push (equivalent to option 1) without asking. Report the commit and push result back to the user.
 
 ## Scan whitelist
 
@@ -156,5 +170,5 @@ The following items are known and acceptable — do NOT flag them during the Ste
 
 - **Never copy from public to private.** This is strictly one-direction.
 - **Never skip Step 1.** The safety scan is mandatory every time.
-- **Never auto-confirm.** Always wait for explicit user approval after the scan.
+- **Never auto-confirm a non-clean scan.** In auto mode, only proceed when the scan is fully clean; any HIGH/MEDIUM finding stops the flow and requires user input. In normal mode, always wait for explicit user approval after the scan.
 - **Never store rsync excludes in a shell variable.** Pass each `--exclude` flag inline to avoid glob expansion issues.

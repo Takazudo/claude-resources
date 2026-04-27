@@ -1,12 +1,44 @@
 ---
 name: x-as-pr
 description: "Start a development workflow as a draft PR. Fetches, creates a NEW branch from the current (invocation) branch, makes an empty start commit, pushes, and opens a draft PR targeting the current branch. Then starts implementation if instructions are provided. ALWAYS creates a new branch by default — even when the current branch already has its own PR (produces a nested PR-on-PR). Use --stay (or -s) to explicitly reuse the current branch (commit there, reuse/extend its PR) instead of nesting. NEVER auto-detect stay behavior based on branch state. When a GitHub issue URL is passed, treats it as an implementation request — read the issue and implement it. Use --make-issue to create a GitHub issue first describing the plan, then proceed. With linked issues, logs progress via issue comments. Use when: (1) User says 'dev as pr', (2) User wants to start a new feature/fix development with a PR-first workflow, (3) User wants to set up a branch and draft PR before coding, (4) User passes --stay (or -s) to reuse the current branch instead of creating a new one, (5) User passes a GitHub issue URL to implement, (6) User says '--make-issue' or '--issue' to create an issue first."
-argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [--noi] [-nor|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
+argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [--noi] [-noi|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
 
 Start a development workflow by creating a branch and draft PR before implementation — or create a PR from existing work on the current branch.
+
+## !! CRITICAL — PR TARGET BRANCH RULE !!
+
+**The new PR's base MUST be the current (invocation) branch, NOT the repository's default branch.**
+
+As the very first action in this skill, record the current branch:
+
+```bash
+INVOCATION_BRANCH=$(git branch --show-current)
+```
+
+Every `gh pr create` call in this skill must pass `--base "$INVOCATION_BRANCH"` (or a user-specified base) — NEVER omit `--base`, because `gh pr create` defaults to the repo's default branch (usually `main`), which is almost always wrong here.
+
+**Concrete example (this is the bug this rule prevents):**
+
+```
+Current branch: topic/foo-bar
+User runs:      /x-as-pr do blah blah...
+CORRECT:        new branch topic/moo-mew → PR targets topic/foo-bar
+WRONG:          new branch topic/moo-mew → PR targets main   ← DO NOT DO THIS
+```
+
+This applies regardless of:
+
+- Whether the current branch already has a PR
+- Whether the current branch has commits ahead of main
+- Whether `main` "seems more natural" as the base
+- Whether the current branch looks like a work-in-progress topic
+
+If the user wants the PR to target a different branch, they pass it explicitly via `base:<name>` or as a trailing arg. If not specified, the answer is ALWAYS `$INVOCATION_BRANCH`.
+
+(See Step 3 "Determine Target (Base) Branch" for the full mechanism, and the Scenarios table under "Default Behavior" for every case.)
 
 ## Auto-Pilot Behavior (Always On)
 
@@ -28,7 +60,8 @@ Parse `$ARGUMENTS` to extract:
 - **`-l` or `--review-loop` flag**: If present, replace the final review step with `/review-loop 5 --aggressive` instead of `/deep-review` (see "Review Loop Mode" below)
 - **`-v` or `--verify-ui` flag**: If present, run `/verify-ui` after review fixes to verify frontend changes visually (see "Verify UI Mode" below)
 - **`--noi`, `--noissue`, or `--noissues` flag**: Only meaningful with `--review-loop`. Suppresses GitHub issue creation for review findings. Without this flag, review-loop creates issues for considerable findings by default
-- **`-nor` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. See "Raising Issues for Unrelated Findings" below
+- **`-nor` or `--no-review` flag**: Skip the post-implementation review entirely (no `/deep-review`, no `/review-loop`, no fix-delegation Agent). Just do the implementation, then proceed straight to verify-ui (if `-v` was passed), push, CI watch, and PR revision. See "No Review Mode" below
+- **`-noi` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. See "Raising Issues for Unrelated Findings" below
 - **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Claude model used for subagents spawned during the workflow (notably the fix-delegation Agent after review) and passed through to `/deep-review` / `/review-loop`. Pick at most one. **Default: `-op` (Opus).** See "Claude Model Mode" below.
 - **`-co` or `--codex` flag**: If present, use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below. Can combine with `-gco` / `-gcoc` (multiple backends run in parallel for reviews / 2nd-opinions).
 - **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot for reviews and research. See "GitHub Copilot Mode" below. Can combine with `-co` and/or `-gcoc`.
@@ -400,6 +433,9 @@ git commit --allow-empty -m "= start <SLUG> dev ="
 git push -u origin <BRANCH_NAME>
 
 # Create draft PR against TARGET_BRANCH
+# !! PR TARGET CHECK !! — <TARGET_BRANCH> MUST be INVOCATION_BRANCH (recorded at the start),
+# not the repo default branch. If you about to pass `--base main` on a session that was
+# invoked from `topic/foo`, STOP — that is the bug the top-of-file rule prohibits.
 gh pr create \
   --base <TARGET_BRANCH> \
   --title "<PR_TITLE>" \
@@ -555,9 +591,30 @@ EOF
 )"
 ```
 
-### Suppressing with `--no-raise-issues` / `-nor`
+### Suppressing with `--no-raise-issues` / `-noi`
 
-When `-nor` or `--no-raise-issues` is passed, **do NOT raise GitHub issues for unrelated findings**. Simply ignore them and focus only on the original task. This is useful when you want a lean workflow without side-effect issues.
+When `-noi` or `--no-raise-issues` is passed, **do NOT raise GitHub issues for unrelated findings**. Simply ignore them and focus only on the original task. This is useful when you want a lean workflow without side-effect issues.
+
+---
+
+## No Review Mode (`-nor` / `--no-review`)
+
+When `-nor` or `--no-review` is passed, **skip the entire post-implementation review step** — no `/deep-review`, no `/review-loop`, no fix-delegation Agent. Just do the implementation, then proceed straight to the remaining post-implementation steps (verify-ui if `-v` was passed, push, CI watch, PR revision, session report).
+
+**Effect on the workflow:**
+
+- "Post-Implementation: Automatic Deep Review" step → **skipped entirely**, including the fix-delegation Agent that would normally run after review findings
+- `-l` / `--review-loop` → **ignored** (no review at all overrides "more rigorous review")
+- `-v` / `--verify-ui` → still honored (verify-ui is independent of code review)
+- All other post-implementation steps (push, CI watch, PR revision, session report, requirements verification, auto-complete) → unchanged
+
+**Use when:**
+
+- You've already reviewed the changes yourself and want to skip the automated pass
+- The task is throwaway / exploratory and a review pass would be wasted effort
+- You want the fastest possible "implement → push → done" loop
+
+This is an explicit opt-in — never assume `--no-review` from context.
 
 ---
 
@@ -567,10 +624,11 @@ After implementation is complete (in either mode), evaluate whether to run an au
 
 ### Trigger Conditions (ALL must be true)
 
-1. Implementation was actually performed (not just PR creation with no instructions)
-2. The implementation completed without needing to ask the user for confirmation or clarification (no `AskUserQuestion` was used during implementation)
-3. No errors or failures occurred during implementation
-4. Changes were committed successfully
+1. `-nor` / `--no-review` was NOT passed (if it was, skip this entire section — see "No Review Mode" above)
+2. Implementation was actually performed (not just PR creation with no instructions)
+3. The implementation completed without needing to ask the user for confirmation or clarification (no `AskUserQuestion` was used during implementation)
+4. No errors or failures occurred during implementation
+5. Changes were committed successfully
 
 ### Action
 
@@ -637,6 +695,7 @@ After the review produces findings that require code changes, **delegate the fix
 
 Do NOT run deep review if:
 
+- `-nor` / `--no-review` was passed (see "No Review Mode" above)
 - No implementation was done (e.g., `--stay` used to just create a PR from existing commits with no additional instructions)
 - The user was asked for confirmation or clarification during implementation
 - Errors occurred that required user intervention

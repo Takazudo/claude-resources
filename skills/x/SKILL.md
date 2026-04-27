@@ -1,12 +1,37 @@
 ---
 name: x
 description: "Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic parallel). Use when: (1) User says '/x' followed by development instructions, (2) User wants to start development without deciding between /x-as-pr and /x-wt-teams, (3) User says 'dev', 'implement', or 'build' with a task description. Examines the request and chooses the right strategy. Default options: -l -v (review-loop + verify-ui)."
-argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [-s|--stay] [options] <instructions>"
+argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [-s|--stay] [-nor|--no-review] [-noi|--no-raise-issues] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
 
 Route development requests to the right workflow skill: `/x-as-pr` (single-topic) or `/x-wt-teams` (multi-topic parallel).
+
+## !! CRITICAL — PR TARGET BRANCH RULE !!
+
+**The downstream skill MUST target the current (invocation) branch, NOT the repository's default branch.**
+
+Before routing, record the current branch:
+
+```bash
+INVOCATION_BRANCH=$(git branch --show-current)
+```
+
+When you hand off to `/x-as-pr` or `/x-wt-teams`, the resulting PR's **base** (target) MUST be `$INVOCATION_BRANCH` — not `main`, not `master`, not the repo default — unless the user explicitly typed a different base.
+
+**Concrete example (this is the bug we are preventing):**
+
+```
+Current branch: topic/foo-bar
+User runs:      /x do blah blah...
+CORRECT:        new branch topic/moo-mew → PR targets topic/foo-bar
+WRONG:          new branch topic/moo-mew → PR targets main   ← DO NOT DO THIS
+```
+
+If you find yourself about to run `gh pr create` without `--base`, STOP — `gh` defaults to the repo default branch. Always pass `--base "$INVOCATION_BRANCH"` explicitly unless the user specified a different base.
+
+This rule propagates to the downstream skill. The downstream skill restates it, but the facade also carries it so the rule is visible from the first moment.
 
 ## Auto-Pilot Behavior (Always On)
 
@@ -25,7 +50,7 @@ These rules apply to the facade itself and propagate to the chosen downstream sk
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`-haiku`, `--haiku`, `-so`, `--sonnet`, `-op`, `--opus`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `--noi`, `--no-issue`, `-co`, `--codex`, `-gco`, `--github-copilot`, `-gcoc`, `--github-copilot-cheap`, `-a`, `--auto`, etc.)
+- **All flags from both skills** (`-haiku`, `--haiku`, `-so`, `--sonnet`, `-op`, `--opus`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `--noi`, `-noi`, `--no-raise-issues`, `--no-issue`, `-co`, `--codex`, `-gco`, `--github-copilot`, `-gcoc`, `--github-copilot-cheap`, `-a`, `--auto`, etc.)
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
@@ -57,6 +82,14 @@ When `-gcoc` or `--github-copilot-cheap` is passed, forward it to the chosen ski
 ### Auto-Complete Mode (`-a` / `--auto`)
 
 When `-a` or `--auto` is passed, forward it to the chosen skill. After the workflow completes, it automatically runs `/pr-complete -c -w` to merge the PR, close the linked issue, and watch post-merge CI. Intended for full-auto, safe-to-merge work.
+
+### No Review Mode (`-nor` / `--no-review`)
+
+When `-nor` or `--no-review` is passed, forward it to the chosen skill. The downstream skill skips the post-implementation review step entirely (no `/deep-review`, no `/review-loop`, no fix-delegation Agent) and goes straight from implementation to push / CI watch / PR revision. Use when the task is throwaway or you've already reviewed the changes yourself.
+
+### No-Raise-Issues Mode (`-noi` / `--no-raise-issues`)
+
+When `-noi` or `--no-raise-issues` is passed, forward it to the chosen skill. The downstream skill suppresses raising GitHub issues for unrelated problems found during coding or reviewing.
 
 ## Strategy Selection
 

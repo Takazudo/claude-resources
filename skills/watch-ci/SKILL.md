@@ -1,6 +1,6 @@
 ---
 name: watch-ci
-description: "Watch GitHub PR CI checks in the background and notify on completion. Use when: (1) User wants to monitor CI/CD pipeline status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait for CI', (3) User wants to know when PR checks pass or fail. Launches a background agent that polls CI every 30 seconds, sends macOS system notification on completion. Also handles merged PRs by watching the merge target branch CI instead."
+description: "Watch GitHub PR CI checks in the background and notify on completion. Use when: (1) User wants to monitor CI/CD pipeline status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait for CI', (3) User wants to know when PR checks pass or fail. Runs a background `gh` polling shell loop (NOT a subagent — near-zero token cost during the watch), sends macOS system notification on completion. Also handles merged PRs by watching the merge target branch CI instead."
 ---
 
 # Watch CI
@@ -8,9 +8,15 @@ description: "Watch GitHub PR CI checks in the background and notify on completi
 Monitor GitHub PR CI checks in the background, notify on completion via macOS system notification.
 Also supports watching CI on the merge target branch when a PR is already merged.
 
+The polling itself is a pure shell loop (`gh` CLI + `jq`) launched via `Bash` with `run_in_background: true`. No subagent is spawned — token cost is paid only at launch and at completion, not on every poll cycle.
+
 ## Scripts
 
-- **Notification**: `$HOME/.claude/skills/watch-ci/scripts/notify.sh`
+- `scripts/notify.sh` — macOS notification helper
+- `scripts/poll-pr-checks.sh <pr-number> [max-min]` — poll an open PR's checks until terminal, then notify
+- `scripts/poll-runs.sh <branch> <commit-sha> [max-min]` — poll workflow runs on a branch+commit until terminal, then notify
+
+All scripts default to a 60-minute cap and a 30-second poll interval.
 
 ## Workflow
 
@@ -64,43 +70,32 @@ When the PR is already merged:
 
 4. Proceed to **Step 3**.
 
-### Step 3: Launch Background Watch
+### Step 3: Launch Background Poll (CLI-only, no subagent)
 
-Launch a **background Agent** with `model: haiku` (cheap, sufficient for simple polling) to poll CI status. The agent should:
+**Do NOT launch a subagent.** Use the Bash tool with `run_in_background: true` to run the polling shell script. The script polls `gh` directly, exits when checks reach a terminal state, fires a macOS notification, and prints a final `RESULT:` line.
 
-- Poll every 30 seconds using `sleep 30` between checks
-- For open PRs: run `gh pr checks <PR_NUMBER> --json name,state,bucket` each cycle
-- For merged PRs: run `gh run list --branch <base-branch> --commit <sha> --json databaseId,name,status,conclusion --limit 20` each cycle
-- Print a brief progress update each cycle (e.g., "5/8 passed, 3 pending")
-- Stop when all checks reach a terminal state (all passed, or any failed)
-- On **success**: run `bash $HOME/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<number>"`
-- On **failure**: run `bash $HOME/.claude/skills/watch-ci/scripts/notify.sh error "CI check failed: <check-name>. PR #<number>"`
-- Maximum watch time: 60 minutes. After that, notify with warning and stop.
-
-**Agent prompt template** (adapt based on PR state):
+For an open PR:
 
 ```
-Watch CI for PR #<NUMBER> (<title>).
-Poll every 30 seconds until all checks complete.
-
-For each poll cycle:
-1. Run: gh pr checks <NUMBER> --json name,state,bucket
-2. Count passed/pending/failed from the bucket field
-3. Print progress: "Checking... X/Y passed, Z pending"
-4. If all terminal (no pending): stop and notify
-
-On completion:
-- If all passed: run bash $HOME/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<NUMBER>"
-- If any failed: run bash $HOME/.claude/skills/watch-ci/scripts/notify.sh error "CI check failed: <failed-check-names>. PR #<NUMBER>"
-  Then investigate: run gh run list --branch <branch> --status failure --limit 5 --json databaseId,name,conclusion
-  Then run gh run view <run-id> --log-failed for each failed run
-  Analyze the logs and report the root cause.
-
-Between each check: sleep 30
-Max duration: 60 minutes (warn and stop if exceeded)
+bash $HOME/.claude/skills/watch-ci/scripts/poll-pr-checks.sh <PR_NUMBER>
 ```
 
-Tell the user: "Watching CI in background. You'll be notified when it completes."
+For a merged PR:
+
+```
+bash $HOME/.claude/skills/watch-ci/scripts/poll-runs.sh <BASE_BRANCH> <MERGE_SHA>
+```
+
+Behaviour:
+
+- Polls every 30 seconds (open PR: `gh pr checks`; merged PR: `gh run list --branch ... --commit ...`)
+- On **success**: `notify.sh success` (Glass sound) + `RESULT: PASSED` to stdout, exit 0
+- On **failure**: `notify.sh error` (Basso sound) with failed check names + `RESULT: FAILED (<names>)`, exit 1
+- On **timeout** (default 60 min): `notify.sh warning` (Purr sound) + `RESULT: TIMEOUT`, exit 2
+
+After launching, tell the user: "Watching CI in background. You'll be notified when it completes."
+
+When the background task completes you'll be notified automatically. Read its output file to see the `RESULT:` line, report to the user, and — if FAILED — proceed to Step 5's investigation steps.
 
 ### Step 4: All Checks Passed (Foreground Fast Path)
 
@@ -136,9 +131,10 @@ If checks already failed at Step 2/2b:
 
 ## Notes
 
-- Uses background Agent for polling — the main conversation stays free
-- No custom shell scripts for checking — uses `gh` commands directly
-- System notifications use macOS `osascript` via notify.sh
+- Polling is a pure shell loop run via `Bash run_in_background: true` — no subagent, no per-cycle token cost. The main conversation only pays at launch and at completion.
+- System notifications use macOS `osascript` via `notify.sh`
 - The `gh` CLI must be authenticated and have access to the repository
 - 30-second polling interval balances responsiveness with API rate limits
+- Default cap 60 minutes; override with the optional `[max-min]` arg to either script
 - For merged PRs, watches workflow runs on the target branch filtered by merge commit SHA
+- The script's stdout (progress lines + final `RESULT:` line) is captured by the background task — read the output file when you get the completion notification
