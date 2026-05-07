@@ -1,6 +1,6 @@
 ---
 name: gh-issue-with-imgs
-description: "Create GitHub issues with embedded images via CLI. Uploads images as GitHub release assets and embeds them in the issue body. Use when: (1) Creating a GitHub issue that needs screenshots or images attached, (2) Agent needs to programmatically attach images to issues without browser UI, (3) User says 'issue with images', 'gh issue with imgs', or 'create issue with screenshots'."
+description: "Create GitHub issues with embedded images via CLI. Uploads images as GitHub release assets and embeds them in the issue body. Use when: (1) Creating an issue that needs screenshots, (2) Programmatically attaching images without browser UI, (3) User says 'issue with images', 'gh issue with imgs', or 'create issue with screenshots'."
 user-invocable: true
 argument-hint: <owner/repo> <title> --body <body> --img <path> [--img <path>...]
 allowed-tools:

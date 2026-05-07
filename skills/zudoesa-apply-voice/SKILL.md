@@ -1,6 +1,6 @@
 ---
 name: zudoesa-apply-voice
-description: "Apply Takazudo's esa writing voice and vocabulary rules to text. Use when: (1) User wants to write or rewrite text in Takazudo's esa style, (2) User says 'apply voice', 'esa voice', 'esa文体で', 'esa風に書いて', '文体を適用', (3) User provides text and wants it transformed to match the esa writing style. Reads the writing-style.md and vocabulary-rule.md from the takazudo-esa-writing repo and applies those rules to the given text."
+description: "Apply Takazudo's esa writing voice and vocabulary rules to text. Use when: (1) User wants to write/rewrite text in Takazudo's esa style, (2) User says 'apply voice', 'esa voice', 'esa文体で', 'esa風に書いて', '文体を適用', (3) User provides text to transform to esa style. Reads writing-style.md and vocabulary-rule.md from takazudo-esa-writing repo and applies the rules."
 ---
 
 # Apply esa Voice

@@ -1,6 +1,6 @@
 ---
 name: lighthouse-audit
-description: "Run Lighthouse audits on a project's built site, create a GitHub issue with findings, then optionally fix issues via /x-wt-teams. Use when: (1) User says 'lighthouse audit', 'lighthouse', 'performance audit', or 'audit website', (2) User wants to improve web performance, accessibility, SEO, or best practices, (3) User says 'lighthouse-audit'. Takes optional URL argument; default flow builds project and serves locally."
+description: "Run Lighthouse audits on a project's built site, create a GitHub issue with findings, then optionally fix via /x-wt-teams. Use when: (1) User says 'lighthouse audit', 'lighthouse', 'performance audit', or 'audit website', (2) User wants to improve performance, accessibility, SEO, or best practices. Optional URL argument; default flow builds project and serves locally."
 argument-hint: "[url] [--desktop] [--mobile] [--both]"
 user-invocable: true
 ---

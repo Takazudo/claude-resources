@@ -1,16 +1,6 @@
 ---
 name: netlify-cli
-description: >-
-  Use this skill when writing or debugging GitHub Actions workflows that deploy to Netlify using
-  `netlify-cli`, or when running `netlify dev` / `netlify functions:serve` locally. This skill
-  contains critical knowledge about common pitfalls and solutions for: (1) Monorepo 'Projects
-  detected' errors, (2) pnpm workspace deployments, (3) Deploying pre-built directories, (4)
-  Capturing deployment URLs, (5) Setting up GitHub secrets for Netlify, (6) netlify.toml inheritance
-  issues with branch deploys, (7) Isolating sub-site deploys from main site config, (8) Local
-  development with `netlify dev` including monorepo --filter flag, pnpm 10.x trust store errors, CLI
-  crash workarounds, and running functions separately. Keywords: netlify deploy, github actions
-  netlify, netlify-cli, monorepo deploy, pnpm workspace netlify, netlify dev, netlify functions
-  serve, local development.
+description: "GitHub Actions workflows that deploy to Netlify with netlify-cli, or running 'netlify dev' / 'netlify functions:serve' locally. Covers monorepo 'Projects detected' errors, pnpm workspace deploys, deploying pre-built directories, capturing deploy URLs, GitHub secrets setup, netlify.toml inheritance with branch deploys, isolating sub-site deploys, netlify dev with --filter, pnpm 10.x trust store errors, CLI crash workarounds. Keywords: netlify deploy, github actions netlify, netlify-cli, monorepo deploy, pnpm workspace netlify, netlify dev, netlify functions serve."
 ---
 
 # Netlify CLI for GitHub Actions
@@ -98,6 +88,7 @@ To prevent the root `netlify.toml` from affecting a sub-site deploy, deploy from
 ```
 
 Key points:
+
 - `working-directory: deploy-output` makes the CLI find the local `netlify.toml` instead of the root one
 - `--functions=.empty-functions` overrides the root's functions directory to avoid bundling errors
 - The local `netlify.toml` has no redirects, so no circular proxy issues
@@ -266,6 +257,7 @@ jobs:
 
 - **Cause**: The CLI picks up functions from the root `netlify.toml` config, even when deploying a sub-site that doesn't need functions
 - **Solution**: Use `--functions=<empty-dir>` to override. Create an empty directory and point to it:
+
   ```bash
   mkdir -p .empty-functions
   netlify deploy --functions=.empty-functions ...
@@ -372,12 +364,14 @@ The `PNPM_DISABLE_TRUST_STORE=true` env var may **not** work with `pnpm dlx` eve
 **Workarounds**:
 
 1. **Install netlify-cli globally** instead of using `pnpm dlx`:
+
    ```bash
    npm install -g netlify-cli
    netlify dev --functions=netlify/functions --offline --filter my-package
    ```
 
 2. **Use npx** (if the global install exists):
+
    ```bash
    npx netlify-cli dev --functions=netlify/functions --offline --filter my-package
    ```

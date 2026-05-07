@@ -1,6 +1,6 @@
 ---
 name: pr-complete
-description: "Complete a pull request by monitoring CI checks and merging when ready. Use when: (1) User says 'complete pr', 'merge pr', or 'finish pr', (2) PR is reviewed and ready to merge but CI checks may still be running, (3) User wants to wait for CI and auto-merge."
+description: "Complete a pull request by monitoring CI checks and merging when ready. Use when: (1) User says 'complete pr', 'merge pr', or 'finish pr', (2) PR is reviewed and ready but CI may still be running, (3) User wants to wait for CI and auto-merge."
 argument-hint: "[-c/--close] [-k/--keep-issue] [-w/--watch-ci] [-now/--no-wait]"
 ---
 

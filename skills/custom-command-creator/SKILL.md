@@ -1,6 +1,6 @@
 ---
 name: custom-command-creator
-description: "Create and manage custom slash commands in Claude Code. Use when: (1) User wants to create a new slash command, (2) User asks about /commands or custom commands, (3) User wants to automate frequently used prompts, (4) User says 'create global command' or 'create local command', (5) User mentions 'command-creator'. Covers: command creation (global and local), command anatomy, frontmatter options, argument handling, bash execution, file references, namespacing, and command vs skill comparison."
+description: "Create and manage custom slash commands in Claude Code. Use when: (1) User wants to create a new slash command, (2) User asks about /commands or custom commands, (3) User wants to automate frequent prompts, (4) User says 'create global command' or 'create local command', (5) User mentions 'command-creator'. Covers creation (global/local), command anatomy, frontmatter, arguments, bash, file references, namespacing, command vs skill comparison."
 ---
 
 # Custom Command Creator

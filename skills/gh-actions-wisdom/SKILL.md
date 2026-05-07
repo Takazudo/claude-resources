@@ -1,6 +1,6 @@
 ---
 name: gh-actions-wisdom
-description: "GitHub Actions workflow best practices and pitfalls reference. Use when: (1) Writing or reviewing GitHub Actions workflows (.yml), (2) Setting up CI/CD pipelines with GitHub Actions, (3) Debugging slow, expensive, or stuck workflow runs, (4) User says 'gh actions', 'github actions', 'workflow best practices', (5) Before creating or modifying any .github/workflows/ file. Keywords: GitHub Actions, CI/CD, workflow, timeout, concurrency, security, caching."
+description: "GitHub Actions workflow best practices and pitfalls reference. Use when: (1) Writing or reviewing .yml workflows, (2) Setting up CI/CD pipelines, (3) Debugging slow, expensive, or stuck workflow runs, (4) User says 'gh actions', 'github actions', 'workflow best practices', (5) Before creating or modifying any .github/workflows/ file. Keywords: GitHub Actions, CI/CD, workflow, timeout, concurrency, security, caching."
 ---
 
 # GitHub Actions Wisdom

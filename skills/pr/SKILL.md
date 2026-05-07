@@ -1,10 +1,6 @@
 ---
 name: pr
-description: >-
-  Create a pull request with intelligent base branch detection. Use when: (1) User says 'create pr',
-  'make pr', or 'open pr', (2) User wants to create a PR from the current branch, (3) User has
-  finished work on a feature branch and needs a PR. Auto-detects base branch from conversation
-  context, git history, or repository default.
+description: "Create a pull request with intelligent base branch detection. Use when: (1) User says 'create pr', 'make pr', or 'open pr', (2) User wants to create a PR from the current branch, (3) User has finished work on a feature branch and needs a PR. Auto-detects base branch from conversation, git history, or repo default."
 argument-hint: "[target-branch]"
 ---
 

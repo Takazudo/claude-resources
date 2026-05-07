@@ -1,6 +1,6 @@
 ---
 name: jlcpcb-component-finder
-description: "Search the JLCPCB electronic components database (~7 million parts) for hardware/electronics projects. Use when the user needs to: (1) Find electronic components (resistors, capacitors, inductors, ICs, connectors, diodes, transistors, MOSFETs, op-amps, microcontrollers, sensors, LEDs, etc.), (2) Look up specific part numbers, LCSC numbers (C-prefix), or manufacturer part numbers, (3) Find alternatives or equivalents for components, (4) Check component availability and stock at JLCPCB/LCSC, (5) Get component specifications (package type, footprint, description), (6) Search for parts for PCB assembly (PCBA) projects, (7) Find SMD or through-hole components, (8) Look up voltage regulators (LDO, linear, switching), audio jacks, connectors, or any other electronic parts. Keywords: JLCPCB, LCSC, electronic components, PCB parts, SMT assembly, BOM, bill of materials, component sourcing."
+description: "Search the JLCPCB electronic components database (~7M parts) for hardware projects. Use when: (1) Finding components (resistors, capacitors, inductors, ICs, connectors, diodes, transistors, MOSFETs, op-amps, microcontrollers, sensors, LEDs, voltage regulators, audio jacks, etc.), (2) Looking up part numbers, LCSC (C-prefix), or manufacturer part numbers, (3) Finding alternatives/equivalents, (4) Checking stock at JLCPCB/LCSC, (5) Getting specs (package, footprint), (6) Searching SMD or through-hole parts. Keywords: JLCPCB, LCSC, PCB parts, SMT, PCBA, BOM, component sourcing."
 allowed-tools:
   - Bash
 ---

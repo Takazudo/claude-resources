@@ -1,6 +1,6 @@
 ---
 name: review-loop
-description: "Iterative code review loop that runs /deep-review multiple times, fixing issues each round. Finds bugs, improvements, and quality issues through repeated passes. Use when: (1) User says 'review-loop', 'review loop', or 'review repeat', (2) User wants continuous review+fix cycles to kill tiny problems, (3) User wants thorough multi-pass review before finalizing code, (4) User says 'review 5 rounds' or similar."
+description: "Iterative code review loop running /deep-review multiple times, fixing issues each round. Finds bugs and quality issues through repeated passes. Use when: (1) User says 'review-loop', 'review loop', or 'review repeat', (2) User wants continuous review+fix cycles, (3) User wants thorough multi-pass review before finalizing code, (4) User says 'review 5 rounds' or similar."
 user-invocable: true
 argument-hint: "[count] [--aggressive|--defensive] [--stay|--as-pr] [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap]"
 ---

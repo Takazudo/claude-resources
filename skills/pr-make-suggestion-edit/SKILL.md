@@ -1,10 +1,6 @@
 ---
 name: pr-make-suggestion-edit
-description: >-
-  Review current PR and make improvement edits without committing. Use when: (1) User says
-  'suggestion edit', 'suggest improvements', or 'review and edit', (2) User wants code quality
-  improvements applied as unstaged edits for selective PR creation. Companion to
-  /pr-make-suggestion-to-pr.
+description: "Review current PR and make improvement edits without committing. Use when: (1) User says 'suggestion edit', 'suggest improvements', or 'review and edit', (2) User wants code quality improvements as unstaged edits for selective PR creation. Companion to /pr-make-suggestion-to-pr."
 ---
 
 # PR Make Suggestion Edit

@@ -1,6 +1,6 @@
 ---
 name: x
-description: "Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic parallel). Use when: (1) User says '/x' followed by development instructions, (2) User wants to start development without deciding between /x-as-pr and /x-wt-teams, (3) User says 'dev', 'implement', or 'build' with a task description. Examines the request and chooses the right strategy. Default options: -l -v (review-loop + verify-ui)."
+description: "Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing between /x-as-pr and /x-wt-teams, (3) User says 'dev', 'implement', or 'build' with a task. Default options: -l -v (review-loop + verify-ui)."
 argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [-s|--stay] [-nor|--no-review] [-noi|--no-raise-issues] [options] <instructions>"
 ---
 

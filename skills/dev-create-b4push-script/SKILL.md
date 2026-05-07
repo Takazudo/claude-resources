@@ -1,12 +1,6 @@
 ---
 name: dev-create-b4push-script
-description: >-
-  Create a comprehensive before-push validation script (b4push) and project-level b4push skill for
-  any project. Analyzes the project structure, identifies check steps (quality, build, test, doc
-  site, e2e), generates scripts/run-b4push.sh, adds package.json entry, and creates
-  .claude/skills/b4push/skill.md. Use when: (1) User says 'create b4push', 'add b4push', 'before
-  push script', (2) Setting up a new project's CI/validation workflow, (3) User wants comprehensive
-  pre-push checks for a project.
+description: "Create a before-push validation script (b4push) and project-level b4push skill. Analyzes the project, identifies check steps (quality, build, test, doc site, e2e), generates scripts/run-b4push.sh, adds package.json entry, creates .claude/skills/b4push/skill.md. Use when: (1) User says 'create b4push', 'add b4push', 'before push script', (2) Setting up a new project's CI/validation workflow."
 user-invocable: true
 allowed-tools:
   - Bash

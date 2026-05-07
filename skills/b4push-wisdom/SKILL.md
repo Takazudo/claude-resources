@@ -1,11 +1,6 @@
 ---
 name: b4push-wisdom
-description: >-
-  Complete guide for setting up before-push validation (b4push) and CI checking in any project.
-  Covers: analyzing project structure, creating run-b4push.sh script, adding package.json entry,
-  creating project-specific b4push skill, and setting up GitHub Actions CI workflow.
-  Use when: (1) User says 'set up b4push', 'add CI', 'before push checks', (2) Setting up a new
-  project's validation workflow, (3) User wants to add CI + local validation to a project.
+description: "Guide for setting up before-push validation (b4push) and CI checking. Covers analyzing project structure, creating run-b4push.sh, adding package.json entry, creating project-specific b4push skill, setting up GitHub Actions CI. Use when: (1) User says 'set up b4push', 'add CI', 'before push checks', (2) Setting up a new project's validation workflow, (3) User wants CI + local validation."
 user-invocable: true
 allowed-tools:
   - Bash
@@ -19,6 +14,7 @@ allowed-tools:
 # B4Push Wisdom — Full Validation Setup Guide
 
 Set up comprehensive before-push validation and CI for any project. This covers three parts:
+
 1. **b4push script** — local validation before pushing
 2. **b4push skill** — Claude Code skill to run b4push with auto-fix
 3. **CI workflow** — GitHub Actions to enforce checks on PRs and main
@@ -102,6 +98,7 @@ fi
 ```
 
 Key rules:
+
 - `set -euo pipefail` for strict error handling
 - Continue all steps even if some fail (collect in FAILURES array)
 - Subshell execution `(cd "$ROOT_DIR" && command)` to isolate
@@ -199,6 +196,7 @@ jobs:
 The CI workflow should mirror the b4push steps so local and CI validation are consistent.
 
 Key CI patterns:
+
 - Cancel previous runs for same PR (`concurrency` group)
 - Use `pnpm/action-setup@v4` + `actions/setup-node@v4` with cache
 - `pnpm install --frozen-lockfile` for reproducible installs
@@ -211,6 +209,7 @@ Run `pnpm b4push` to verify all steps execute correctly. Fix any issues found.
 ## Reference projects
 
 These projects have working b4push setups:
+
 - **message (zudomessages)**: 4 steps (workspace tests, app tests, doc checks, doc build), ~1-2 min
 - **mdx-formatter**: 6 steps (quality, build, test, doc data, doc quality, doc build), ~40s
 - **zmod**: 9 steps including e2e with production server, ~3-4 min

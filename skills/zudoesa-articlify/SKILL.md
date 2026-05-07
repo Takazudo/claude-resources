@@ -1,6 +1,6 @@
 ---
 name: zudoesa-articlify
-description: "Convert conversation context into an esa article by delegating to the zudoesa-writer subagent. Use when: (1) User wants to write an esa article based on what was discussed, (2) User says 'write esa article', 'esa記事', 'esaに書いて', 'articlify for esa'. This skill gathers context from the conversation, creates a detailed writing brief, and delegates to the writer subagent."
+description: "Convert conversation context into an esa article via the zudoesa-writer subagent. ONLY invoke when the user explicitly asks — NEVER proactively propose. Triggers: 'write esa article', 'esa記事', 'esaに書いて', 'articlify for esa', or /zudoesa-articlify. Gathers context, creates a writing brief, delegates to the writer subagent."
 ---
 
 # Articlify for esa

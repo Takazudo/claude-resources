@@ -1,6 +1,6 @@
 ---
 name: zpaper-apply-voice
-description: "Apply Takazudo's zpaper blog writing voice and vocabulary rules to text. Use when: (1) User wants to write or rewrite text in Takazudo's zpaper blog style, (2) User says 'apply voice', 'zpaper voice', 'zpaper文体で', 'zpaper風に書いて', 'ブログ文体を適用', (3) User provides text and wants it transformed to match the zpaper blog writing style. Reads the writing-style.md and vocabulary-rule.md from the zpaper repo and applies those rules to the given text."
+description: "Apply Takazudo's zpaper blog writing voice and vocabulary rules to text. Use when: (1) User wants to write/rewrite text in Takazudo's zpaper style, (2) User says 'apply voice', 'zpaper voice', 'zpaper文体で', 'zpaper風に書いて', 'ブログ文体を適用', (3) User provides text to transform to zpaper style. Reads writing-style.md and vocabulary-rule.md from the zpaper repo and applies the rules."
 ---
 
 # Apply zpaper Voice

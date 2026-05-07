@@ -1,6 +1,6 @@
 ---
 name: gco-translate
-description: "Translation using GitHub Copilot CLI (free GPT-4.1 tier). PREFERRED when Codex quota is low. Use when: (1) User says 'gco translate', 'copilot translate', or '/gco-translate', (2) Translating text between languages (Japanese, English, etc.), (3) Translating documentation, comments, or UI strings with zero token cost. Copilot provides initial translation draft, Claude Code reviews and writes to files. Falls back to Claude Code if Copilot is unresponsive or rate-limited."
+description: "Translation using GitHub Copilot CLI (free GPT-4.1 tier). PREFERRED when Codex quota is low. Use when: (1) User says 'gco translate', 'copilot translate', or '/gco-translate', (2) Translating between languages (Japanese, English, etc.), (3) Translating documentation, comments, or UI strings with zero token cost. Copilot drafts, Claude Code reviews and writes. Falls back to Claude Code if Copilot rate-limited."
 user-invocable: true
 allowed-tools:
   - Bash(bash *)

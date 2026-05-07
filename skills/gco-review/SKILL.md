@@ -1,6 +1,6 @@
 ---
 name: gco-review
-description: "Code review using GitHub Copilot CLI. Use when: (1) User says 'gco review' or 'copilot review', (2) After implementation for quality check, (3) Child agents self-reviewing. Runs Copilot to review the diff, collects results, and synthesizes findings. Falls back to Claude Code if Copilot unavailable."
+description: "Code review using GitHub Copilot CLI. Use when: (1) User says 'gco review' or 'copilot review', (2) After implementation for quality check, (3) Child agents self-reviewing. Runs Copilot to review the diff, synthesizes findings. Falls back to Claude Code if Copilot unavailable."
 allowed-tools:
   - Bash(bash *)
   - Bash(timeout *)

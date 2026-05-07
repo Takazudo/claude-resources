@@ -1,10 +1,6 @@
 ---
 name: w-update-wording-rule
-description: >-
-  Add or update wording rules (表記ルール) in the w repo's vocabulary-rule.md files. Use when: (1) User
-  says 'add wording rule', 'update wording rule', '表記ルール追加', (2) User wants to add a new
-  kanji/hiragana usage rule, (3) User provides a rule like 'X should be Y' with examples. Takes the
-  rule description as argument.
+description: "Add or update wording rules (表記ルール) in the w repo's vocabulary-rule.md files. Use when: (1) User says 'add wording rule', 'update wording rule', '表記ルール追加', (2) User wants to add a kanji/hiragana usage rule, (3) User provides a rule like 'X should be Y' with examples."
 user-invocable: true
 argument-hint: rule description (e.g., ふうに should be 風に)
 allowed-tools:
@@ -30,12 +26,14 @@ All 4 files must be updated identically:
 ## Process
 
 1. Read the argument to understand the new rule. Expect format like:
+
    ```
    ふうに should be 風に
 
    そういうふうに → そういう風に
    そういうふうな → そういう風な
    ```
+
    The first line is the rule summary. Following lines are examples.
 
 2. Read one of the target files to understand current structure and the last rule entry.

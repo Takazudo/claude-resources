@@ -9,6 +9,14 @@
 
 - Prefer kebab-case for file names to avoid case-sensitivity issues, unless the project uses a different convention
 
+## Code Comments — Capture Hidden Spec/Context
+
+- Default is **no comments** — well-named identifiers should explain what the code does.
+- Exception: when code embeds knowledge that lives **outside the codebase** — a product spec, an external API contract, a magic value imposed by a partner service, an undocumented platform quirk — leave a short comment. A future reader cannot recover this context by reading more code, and the source-of-truth document may be scattered, behind a login, or nowhere written down.
+- Concrete case: a frontend payload field like `bdidso: 10` is opaque on its own. Even if a spec exists somewhere, the next reader has no idea where to look. A one-liner — `// product-specific param required by API X; value is fixed by spec` — saves them from a fruitless search.
+- Test before adding: *"If I delete this comment, can a reasonable reader recover the meaning from code, identifiers, or obvious docs?"* If no, the comment earns its place.
+- Keep it to a single line of **why** / **where it comes from** — not a tutorial, not a re-statement of what the code already says.
+
 ## Git Safety
 
 - No force push, no `--amend` unless explicitly permitted
@@ -35,6 +43,14 @@ Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (s
 - When user says "it's still broken" after you tested, escalate to a deeper testing level -- do not re-run the same test
 - Invoke `/test-wisdom` when unsure which testing approach fits the current situation
 - **NEVER suggest "clear browser cache" or "hard refresh" as a solution.** If the user says it's still broken, the code is still broken. Investigate the actual cause instead of blaming cache.
+
+## Reviewers & `-gcoc` (cheap-model) Caveat
+
+- Skills with a `-gcoc` variant (e.g. `/gcoc-review`, `/gcoc-2nd`, `/gcoc-research`, `/gcoc-stack-trace-read`) run Copilot CLI on the free/cheap GPT-4.1 tier. That model is smaller and lower-budget than the manager model running this session.
+- Treat `-gcoc` output like a **linter / surface-level mistake catcher**: typos, obvious bugs, missing null checks, style nits, simple logic errors. Useful, cheap, fast.
+- Be skeptical when `-gcoc` returns **architectural / design-level feedback** (suggesting refactors, alternate patterns, structural rewrites, "this should be a class/strategy/etc."). The manager model is usually larger and more capable, so weigh such feedback critically rather than applying it blindly.
+- This caution applies to all external reviewers in principle, but especially to `-gcoc` because of the model size gap.
+- When the user explicitly picks `-gcoc`, do not silently upgrade to a non-cheap reviewer — just stay aware of the limitation when synthesizing the result.
 
 ## GitHub Issues
 

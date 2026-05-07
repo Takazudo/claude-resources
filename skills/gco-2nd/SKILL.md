@@ -1,6 +1,6 @@
 ---
 name: gco-2nd
-description: "Get a second opinion from GitHub Copilot CLI on a plan or approach. Use when: (1) During planning phase of /x-as-pr or /x-wt-teams to validate the approach, (2) User says 'gco 2nd', 'copilot 2nd', or 'copilot opinion', (3) When exploring a codebase and want an alternative perspective before committing to a plan."
+description: "Get a second opinion from GitHub Copilot CLI on a plan or approach. Use when: (1) Planning phase of /x-as-pr or /x-wt-teams to validate the approach, (2) User says 'gco 2nd', 'copilot 2nd', or 'copilot opinion', (3) Wanting an alternative perspective before committing to a plan."
 allowed-tools:
   - Bash(bash *)
   - Bash(timeout *)

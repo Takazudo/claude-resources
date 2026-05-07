@@ -1,6 +1,6 @@
 ---
 name: codex-2nd
-description: "Get a second opinion from OpenAI Codex CLI on a plan or approach. Use when: (1) During planning phase of /x-as-pr or /x-wt-teams to validate the approach, (2) User says 'codex 2nd', 'second opinion', or 'codex opinion', (3) When exploring a codebase and want an alternative perspective before committing to a plan. Sends context and plan to codex, collects feedback, and returns it for plan refinement. Called automatically by /x-as-pr and /x-wt-teams during their planning phase."
+description: "Get a second opinion from OpenAI Codex CLI on a plan or approach. Use when: (1) During planning phase of /x-as-pr or /x-wt-teams to validate the approach, (2) User says 'codex 2nd', 'second opinion', or 'codex opinion', (3) Wanting an alternative perspective before committing to a plan. Sends context and plan to codex, returns feedback. Called automatically by /x-as-pr and /x-wt-teams during planning."
 allowed-tools:
   - Bash(node *)
   - Bash(timeout *)

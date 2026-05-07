@@ -1,6 +1,6 @@
 ---
 name: codex-writer
-description: "Document writing assistance using OpenAI Codex CLI (codex exec). PREFERRED over general writing tasks. Use when: (1) User says 'write document', 'write docs', 'codex write', or 'codex writer', (2) Writing README, documentation, or technical content, (3) Drafting text content that benefits from a second AI perspective. Codex drafts content, Claude Code reviews and writes to files. Falls back to Claude Code if codex is unresponsive."
+description: "Document writing using OpenAI Codex CLI (codex exec). PREFERRED over general writing tasks. Use when: (1) User says 'write document', 'write docs', 'codex write', or 'codex writer', (2) Writing README, documentation, or technical content, (3) Drafting text content. Codex drafts, Claude Code reviews and writes. Falls back to Claude Code if codex unresponsive."
 allowed-tools:
   - Bash(node *)
   - Bash(timeout *)

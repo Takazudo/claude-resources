@@ -1,6 +1,6 @@
 ---
 name: sync-force-to
-description: "Force-sync current branch into a remote target branch by deleting the remote target and re-pushing. Before overwriting, creates a backup PR so the old state can be restored via GitHub's \"Restore branch\" button. Use when 'sync-to' failed due to conflicts, or when user says 'sync force to', 'force sync to', 'force push to branch', or wants to overwrite a target branch with their current branch."
+description: "Force-sync current branch into a remote target branch by deleting and re-pushing. Creates a backup PR before overwriting so the old state can be restored via GitHub's 'Restore branch'. Use when 'sync-to' failed due to conflicts, or when user says 'sync force to', 'force sync to', 'force push to branch'."
 argument-hint: <target-branch> | --setup
 allowed-tools: Bash(bash *), Glob, Grep, Read, Edit
 ---

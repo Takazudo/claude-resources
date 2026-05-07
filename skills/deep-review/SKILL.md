@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: "Perform deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation is complete and quality check is needed, (3) Before marking a PR as ready for review. Default strategy is `/gcoc-review` (GitHub Copilot cheap — zero Premium consumption). Opt into Claude reviewers with `-haiku|-so|-op`: auto-detects PR mode (3 Claude reviewers on diff) vs full project mode (6 Claude reviewers on entire codebase). Supports the unified `-haiku|-so|-op` (Claude model) and `-co|-gco|-gcoc` (external backend) flag vocabulary. By default also runs in **team-fix mode (`-t`)** — after collecting findings, delegates the actual fixes to a parallel `/x-wt-teams --no-review --stay` session so the manager context stays light. Pass `-nt` / `--no-team` to keep the legacy inline-fix flow."
+description: "Deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation when a quality check is needed, (3) Before marking a PR as ready. Default backend is /gcoc-review (zero Premium). Opt into Claude reviewers with -haiku|-so|-op (auto-detects PR vs full-project mode). Supports -co|-gco|-gcoc external backends. Default team-fix mode (-t) delegates fixes to /x-wt-teams --no-review --stay; pass -nt/--no-team for inline fixes."
 argument-hint: "[-haiku|-so|-op] [-co|-gco|-gcoc] [-t|-nt]"
 ---
 
@@ -559,6 +559,7 @@ When the team-fix flag is on (the default), do NOT apply fixes inline. Instead, 
    > After applying the source fixes, rebuild each touched workspace package (e.g. `pnpm --filter <name> build`) and commit the resulting build output in the same PR. The package is consumed through its built artifact, so a missing rebuild leaves the consumer importing stale compiled output. Skip only if the package has no build step. A failed build is a blocker.
 
    Without this, the inner `/x-wt-teams` fix agent may commit source-only changes and ship a stale-dist bug. When the project's `CLAUDE.md` names the workspace root and rebuild command, defer to it; otherwise, infer from the repo layout.
+
 2. **Capture the current branch** as the merge target — `/x-wt-teams --stay` will treat this branch as its base:
 
    ```bash

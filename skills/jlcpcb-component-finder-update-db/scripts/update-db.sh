@@ -49,9 +49,9 @@ if [ "$HTTP_CODE" != "200" ]; then
   exit 1
 fi
 
-# Discover how many split parts exist (try z01 through z30)
+# Discover how many split parts exist (probe until first 404; archive grows over time)
 PARTS=()
-for i in $(seq -w 1 30); do
+for i in $(seq -w 1 99); do
   URL="$BASE_URL/cache.z$i"
   CODE=$(curl -sI -o /dev/null -w "%{http_code}" "$URL")
   if [ "$CODE" = "200" ]; then

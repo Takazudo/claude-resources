@@ -1,12 +1,6 @@
 ---
 name: claudemd-refactor
-description: >-
-  Refactor and optimize CLAUDE.md files in a repository. Analyzes the existing CLAUDE.md setup,
-  explores the repo structure, and proposes splitting or reorganizing CLAUDE.md into a hierarchical
-  directory-scoped structure. Use when: (1) User wants to optimize their CLAUDE.md, (2) Root
-  CLAUDE.md is too large, (3) User wants to split CLAUDE.md into directory-scoped files, (4) User
-  mentions 'refactor CLAUDE.md', 'split CLAUDE.md', or 'organize CLAUDE.md'. Keywords: CLAUDE.md,
-  refactor, split, organize, directory-scoped.
+description: "Refactor and optimize CLAUDE.md files in a repository. Analyzes the existing setup, explores repo structure, proposes splitting CLAUDE.md into a hierarchical directory-scoped structure. Use when: (1) User wants to optimize CLAUDE.md, (2) Root CLAUDE.md is too large, (3) User wants to split CLAUDE.md into directory-scoped files, (4) User mentions 'refactor CLAUDE.md', 'split CLAUDE.md', or 'organize CLAUDE.md'."
 ---
 
 # Refactor CLAUDE.md
@@ -31,6 +25,7 @@ When deciding where to place information, follow this hierarchy (most to least r
 ### Phase 1: Explore and Analyze
 
 1. **Find all existing CLAUDE.md files** in the repo
+
    ```
    Glob: **/CLAUDE.md
    ```
@@ -58,6 +53,7 @@ Present the user with a concrete proposal. Include:
 - Content categories identified
 
 2. **Proposed CLAUDE.md structure** — show a tree like:
+
    ```
    repo/
    ├── CLAUDE.md              # Global: project overview, tech stack, universal conventions

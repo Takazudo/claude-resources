@@ -1,6 +1,6 @@
 ---
 name: ascii-circuit-diagram-creator
-description: Create and validate ASCII circuit diagrams with automatic rule checking and iterative refinement. Use when the user requests circuit diagrams in ASCII/text format, or when creating technical documentation with embedded circuit schematics. Automatically ensures diagrams follow golden rules (no line crossings without junctions, no lines crossing labels, proper component connections, correct polarity). Includes preview validation using monospace rendering.
+description: Create and validate ASCII circuit diagrams with automatic rule checking and iterative refinement. Use when the user requests circuit diagrams in ASCII/text format, or when creating technical documentation with embedded schematics. Ensures golden rules (no line crossings without junctions, no lines crossing labels, proper component connections, correct polarity). Includes preview validation using monospace rendering.
 ---
 
 # ASCII Circuit Diagram Creator

@@ -1,9 +1,6 @@
 ---
 name: pr-split
-description: >-
-  Split a multi-feature pull request into smaller, focused PRs. Use when: (1) User says 'split pr'
-  or 'break up pr', (2) A PR contains multiple independent features that should be reviewed
-  separately, (3) User wants to decompose a large PR into smaller reviewable units.
+description: "Split a multi-feature pull request into smaller, focused PRs. Use when: (1) User says 'split pr' or 'break up pr', (2) A PR contains multiple independent features that should be reviewed separately, (3) User wants to decompose a large PR."
 ---
 
 # PR Split Command

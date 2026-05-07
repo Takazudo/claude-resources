@@ -1,9 +1,6 @@
 ---
 name: commits-auto
-description: >-
-  Enable automatic committing mode. From now on, commit changes automatically without asking for
-  permission during development. Use when: (1) User says 'commits auto', 'auto commit', 'commit
-  automatically', (2) User wants hands-off development where commits happen as work progresses.
+description: "Enable automatic committing mode. From now on, commit changes automatically without asking for permission. Use when: (1) User says 'commits auto', 'auto commit', 'commit automatically', (2) User wants hands-off development."
 ---
 
 # Commits Auto

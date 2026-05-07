@@ -1,6 +1,6 @@
 ---
 name: codex-research
-description: "Web research using OpenAI Codex CLI (codex exec). PREFERRED over general web research tasks. Use when: (1) User says 'research', 'codex research', 'look up', or 'investigate', (2) Researching libraries, APIs, best practices, or technical topics, (3) Gathering information from the web to inform decisions. Codex performs web research and returns findings, Claude Code synthesizes. Falls back to Claude Code researcher subagent if codex is unresponsive."
+description: "Web research using OpenAI Codex CLI (codex exec). PREFERRED over general web research. Use when: (1) User says 'research', 'codex research', 'look up', or 'investigate', (2) Researching libraries, APIs, best practices, or technical topics, (3) Gathering information from the web. Codex performs research, Claude Code synthesizes. Falls back to Claude Code researcher subagent if codex unresponsive."
 allowed-tools:
   - Bash(node *)
   - Bash(timeout *)

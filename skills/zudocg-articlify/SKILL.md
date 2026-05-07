@@ -1,6 +1,6 @@
 ---
 name: zudocg-articlify
-description: "Convert conversation context into a CodeGrid article by delegating to the zudocg-writer subagent. Use when: (1) User wants to write a CodeGrid article based on what was discussed, (2) User says 'write codegrid article', 'CodeGrid記事', 'codegridに書いて', 'articlify for codegrid'. This skill gathers context from the conversation, creates a detailed writing brief, and delegates to the writer subagent."
+description: "Convert conversation context into a CodeGrid article via the zudocg-writer subagent. ONLY invoke when the user explicitly asks — NEVER proactively propose. Triggers: 'write codegrid article', 'CodeGrid記事', 'codegridに書いて', 'articlify for codegrid', or /zudocg-articlify. Gathers context, creates a writing brief, delegates to the writer subagent."
 ---
 
 # Articlify for CodeGrid

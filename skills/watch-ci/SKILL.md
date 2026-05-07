@@ -1,6 +1,6 @@
 ---
 name: watch-ci
-description: "Watch GitHub PR CI checks in the background and notify on completion. Use when: (1) User wants to monitor CI/CD pipeline status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait for CI', (3) User wants to know when PR checks pass or fail. Runs a background `gh` polling shell loop (NOT a subagent — near-zero token cost during the watch), sends macOS system notification on completion. Also handles merged PRs by watching the merge target branch CI instead."
+description: "Watch GitHub PR CI checks in the background and notify on completion. Use when: (1) User wants to monitor CI/CD status, (2) User says 'watch CI', 'check CI', 'monitor checks', or 'wait for CI', (3) User wants to know when checks pass or fail. Runs a background gh polling shell loop (NOT a subagent — near-zero token cost), sends macOS notification on completion. Also handles merged PRs by watching the target branch CI."
 ---
 
 # Watch CI

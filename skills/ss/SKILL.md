@@ -1,6 +1,6 @@
 ---
 name: ss
-description: Load screenshot images or other files from Dropbox screenshots directory. Use when user invokes /ss directly. IMPORTANT - NEVER manually list or read files from the screenshots directory. This skill handles Dropbox sync delays, freshness checks, and retry logic that manual file reads will miss, resulting in stale/wrong files being loaded. Supports /ss 2 (latest 2 images), /ss latest3, /ss filename.png (exact or substring match), /ss full-path. Also supports non-image files (e.g., /ss pattern-4-variations.html) to read files shared via the screenshots dir.
+description: "Load screenshot images or other files from Dropbox screenshots directory. Use when user invokes /ss directly. NEVER manually list/read files from the screenshots dir — this skill handles Dropbox sync delays, freshness checks, retry logic that manual reads miss. Supports: /ss 2 (latest 2), /ss latest3, /ss filename.png (exact/substring), /ss full-path. Also non-image files (e.g., /ss pattern-4-variations.html)."
 disable-model-invocation: false
 argument-hint: "[N | latestN | filename]"
 allowed-tools: Read, Bash(ls *), Bash(find *), Bash(for *), Bash(stat *), Bash(sleep *)

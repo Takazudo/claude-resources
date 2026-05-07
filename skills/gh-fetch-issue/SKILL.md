@@ -1,6 +1,6 @@
 ---
 name: gh-fetch-issue
-description: "Fetch a GitHub issue with all attachments (images, screenshots) downloaded locally so Claude can read them. Use this skill PROACTIVELY whenever: (1) User provides a GitHub issue URL, (2) User asks to read/view/check a GitHub issue, (3) User references an issue number and wants to see its content, (4) User asks about issue screenshots or images. This skill ensures Claude can see issue-embedded images that are otherwise inaccessible via API."
+description: "Fetch a GitHub issue with all attachments (images, screenshots) downloaded locally so Claude can read them. Use PROACTIVELY when: (1) User provides a GitHub issue URL, (2) User asks to read/view/check a GitHub issue, (3) User references an issue number, (4) User asks about issue screenshots or images. Ensures Claude can see issue-embedded images that are otherwise inaccessible via API."
 user-invocable: true
 argument-hint: <issue-url-or-number> [--repo owner/repo]
 allowed-tools:

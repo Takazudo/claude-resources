@@ -1,6 +1,6 @@
 ---
 name: light-review
-description: "Lightweight code review. Dispatches to GitHub Copilot CLI (`/gcoc-review`) by default, or to Claude / Codex / Copilot-Opus depending on flags. Use when: (1) Quick review of a small change, (2) Child agents self-reviewing before reporting to manager, (3) User says 'light review' or 'quick review', (4) Review is needed but full /deep-review is overkill. Always operates in PR/diff mode."
+description: "Lightweight code review. Dispatches to GitHub Copilot CLI (/gcoc-review) by default, or to Claude / Codex / Copilot-Opus depending on flags. Use when: (1) Quick review of a small change, (2) Child agents self-reviewing before reporting to manager, (3) User says 'light review' or 'quick review', (4) Review is needed but /deep-review is overkill. Always operates in PR/diff mode."
 argument-hint: "[-haiku|-so|-op] [-co|-gco|-gcoc]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: schemdraw-circuit-generator
-description: Generate high-quality professional circuit diagrams using schemdraw Python library. Creates vector graphics (SVG/PDF/PNG) from natural language circuit descriptions. Supports extensive component library including resistors, capacitors, inductors, diodes, transistors, opamps, ICs, logic gates, and more. Use when (1) User requests circuit diagrams or schematics, (2) User wants professional/publication-quality output, (3) User needs vector graphics (SVG/PDF) for documentation, (4) Creating complex circuits with ICs opamps or digital logic, (5) User explicitly mentions schemdraw or wants alternative to ASCII circuits, (6) User needs diagrams for papers documentation or presentations.
+description: "Generate professional circuit diagrams using schemdraw Python library. Creates vector graphics (SVG/PDF/PNG) from natural language descriptions. Components: resistors, capacitors, inductors, diodes, transistors, opamps, ICs, logic gates, etc. Use when: (1) User requests circuit diagrams or schematics, (2) User wants publication-quality output, (3) User needs SVG/PDF for documentation, (4) Complex circuits with ICs/opamps/digital logic, (5) User mentions schemdraw or wants alternative to ASCII circuits."
 ---
 
 # Schemdraw Circuit Generator

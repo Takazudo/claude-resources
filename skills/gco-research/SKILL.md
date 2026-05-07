@@ -1,6 +1,6 @@
 ---
 name: gco-research
-description: "Web research using GitHub Copilot CLI. Use when: (1) User says 'gco research', 'copilot research', or 'copilot look up', (2) Researching libraries, APIs, best practices, or technical topics, (3) Gathering information from the web to inform decisions. Copilot performs web research and returns findings, Claude Code synthesizes. Falls back to Claude Code researcher subagent if Copilot unavailable."
+description: "Web research using GitHub Copilot CLI. Use when: (1) User says 'gco research', 'copilot research', or 'copilot look up', (2) Researching libraries, APIs, best practices, or technical topics, (3) Gathering information from the web. Copilot performs research, Claude Code synthesizes. Falls back to Claude Code researcher subagent if Copilot unavailable."
 allowed-tools:
   - Bash(bash *)
   - Bash(timeout *)

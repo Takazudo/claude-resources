@@ -1,10 +1,6 @@
 ---
 name: dev-seo-ogp
-description: >-
-  Add Open Graph (OGP) and Twitter Card meta tags to a web project for social media link previews.
-  Use when: (1) User says 'add OGP', 'og tags', 'social preview', 'link preview',
-  (2) Setting up SEO meta tags for a new site, (3) User wants og:image or Twitter cards,
-  (4) User mentions 'OGP', 'Open Graph', 'twitter:card', 'social sharing'.
+description: "Add Open Graph (OGP) and Twitter Card meta tags for social media link previews. Use when: (1) User says 'add OGP', 'og tags', 'social preview', 'link preview', (2) Setting up SEO meta tags for a new site, (3) User wants og:image or Twitter cards, (4) User mentions 'OGP', 'Open Graph', 'twitter:card', 'social sharing'."
 user-invocable: true
 argument-hint: "[project path or URL]"
 ---
@@ -153,6 +149,7 @@ themeConfig: {
 ## Same OG Image for All Pages
 
 When using one OG image site-wide:
+
 - Place it at `public/img/ogp.png`
 - Reference it with an absolute URL in meta tags
 - `og:title` and `og:description` should still be per-page
@@ -160,6 +157,7 @@ When using one OG image site-wide:
 ## Validation & Testing
 
 After adding tags, validate with:
+
 - [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/)
 - [Twitter Card Validator](https://cards-dev.twitter.com/validator)
 - [LinkedIn Post Inspector](https://www.linkedin.com/post-inspector/)

@@ -1,14 +1,6 @@
 ---
 name: dev-npm-package
-description: |
-  Develop npm packages with Node.js and TypeScript following modern best practices.
-  Use when: (1) Creating a new npm package from scratch, (2) Setting up package.json exports
-  for dual ESM/CJS or ESM-only, (3) Configuring TypeScript for library authoring (Bundler or
-  Node16 moduleResolution), (4) Building and publishing npm packages (tsup or tsc-only),
-  (5) Creating CLI tools with bin field, (6) Setting up testing with vitest,
-  (7) Configuring CI/CD for npm publishing, (8) Troubleshooting ESM/CJS interop issues,
-  (9) User mentions 'npm package', 'publish to npm', 'library development',
-  or 'create npm module'.
+description: "Develop npm packages with Node.js and TypeScript following modern best practices. Use when: (1) Creating a new npm package, (2) Setting up package.json exports (dual ESM/CJS or ESM-only), (3) Configuring TypeScript for library authoring (Bundler or Node16 moduleResolution), (4) Building/publishing with tsup or tsc, (5) Creating CLI tools with bin field, (6) Testing with vitest, (7) CI/CD for npm publishing, (8) ESM/CJS interop issues. Keywords: npm package, publish to npm, library development."
 ---
 
 # npm Package Development

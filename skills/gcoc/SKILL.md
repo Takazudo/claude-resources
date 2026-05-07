@@ -1,6 +1,6 @@
 ---
 name: gcoc
-description: "GitHub Copilot CLI (cheap mode) — same as /gco but forces the free gpt-4.1 model. Use when: (1) User says 'gcoc', 'copilot cheap', or 'ask copilot cheap', (2) Premium quota is low/exhausted and you want to skip the opus attempt and go straight to free gpt-4.1, (3) The task doesn't need opus-level reasoning — simple lookups, quick reviews, translations. Runs read-only (no file writes)."
+description: "GitHub Copilot CLI cheap mode — same as /gco but forces the free gpt-4.1 model. Use when: (1) User says 'gcoc', 'copilot cheap', or 'ask copilot cheap', (2) Premium quota is low/exhausted, (3) Task doesn't need opus reasoning — simple lookups, quick reviews, translations. Read-only (no file writes)."
 user-invocable: true
 argument-hint: <prompt>
 allowed-tools:

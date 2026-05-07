@@ -1,6 +1,6 @@
 ---
 name: dev-electron
-description: "Electron app development patterns for thin wrapper apps around dev servers. Use when: (1) Building Electron apps as thin wrappers around web apps, (2) Managing dev server processes in Electron, (3) Handling nodenv/anyenv PATH issues in spawned processes, (4) Packaging Electron apps with electron-builder, (5) Sharing modules across multiple Electron apps (extraResources pattern), (6) Dynamic project root resolution in packaged apps, (7) Opening external links in default browser."
+description: "Electron app development patterns for thin wrapper apps around dev servers. Use when: (1) Building Electron apps as thin wrappers around web apps, (2) Managing dev server processes in Electron, (3) Handling nodenv/anyenv PATH issues in spawned processes, (4) Packaging with electron-builder, (5) Sharing modules across multiple Electron apps (extraResources), (6) Dynamic project root resolution in packaged apps, (7) Opening external links in default browser."
 ---
 
 # Electron Development

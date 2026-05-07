@@ -1,6 +1,6 @@
 ---
 name: jlcpcb-bom-generate-from-kicad
-description: "Convert KiCad exported BOM and position files to JLCPCB PCBA (PCB Assembly) order format. Use when: (1) User has KiCad BOM CSV and .pos position files, (2) User needs to prepare files for JLCPCB PCBA ordering, (3) User mentions converting KiCad exports for JLCPCB, (4) User asks about CPL (Component Placement List) format. Handles BOM conversion (Designation→Comment, sorting designators), CPL conversion (negating Y coordinates, adding mm suffix, normalizing rotation), and can integrate with jlcpcb-component-finder skill to add LCSC part numbers. Includes ready-to-use Python scripts."
+description: "Convert KiCad exported BOM and position files to JLCPCB PCBA order format. Use when: (1) User has KiCad BOM CSV and .pos files, (2) User needs to prepare files for JLCPCB PCBA ordering, (3) User mentions converting KiCad exports for JLCPCB, (4) User asks about CPL (Component Placement List) format. Handles BOM conversion (Designation→Comment, sorting), CPL conversion (negating Y, adding mm suffix), integrates with jlcpcb-component-finder for LCSC numbers."
 ---
 
 # KiCad to JLCPCB BOM/CPL Converter

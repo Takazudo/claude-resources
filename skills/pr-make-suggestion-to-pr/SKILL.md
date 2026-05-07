@@ -1,9 +1,6 @@
 ---
 name: pr-make-suggestion-to-pr
-description: >-
-  Create separate suggestion PRs from unstaged edits, each based on current PR branch. Use when: (1)
-  User says 'suggestion to pr' or 'create suggestion PRs', (2) After /pr-make-suggestion-edit has
-  left unstaged changes that need to be turned into separate PRs by topic.
+description: "Create separate suggestion PRs from unstaged edits, each based on the current PR branch. Use when: (1) User says 'suggestion to pr' or 'create suggestion PRs', (2) After /pr-make-suggestion-edit has left unstaged changes that need to be turned into separate PRs by topic."
 ---
 
 # PR Make Suggestion To PR

@@ -1,10 +1,6 @@
 ---
 name: lazy-dev
-description: >-
-  Enable autonomous testing and verification mode where Claude thoroughly tests its own work. Use
-  when: (1) User says 'lazy dev', 'test your own work', or 'verify it yourself', (2) User is busy
-  and wants Claude to autonomously test and iterate on changes, (3) User wants hands-off development
-  where Claude finds and fixes issues independently.
+description: "Enable autonomous testing and verification mode where Claude thoroughly tests its own work. Use when: (1) User says 'lazy dev', 'test your own work', or 'verify it yourself', (2) User is busy and wants Claude to autonomously test and iterate, (3) User wants hands-off development where Claude finds and fixes issues."
 ---
 
 # Lazy Dev Mode

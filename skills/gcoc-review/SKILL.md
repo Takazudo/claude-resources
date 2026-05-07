@@ -1,6 +1,6 @@
 ---
 name: gcoc-review
-description: "Code review using GitHub Copilot CLI (cheap mode) — same as /gco-review but forces the free gpt-4.1 model. Use when: (1) User says 'gcoc review' or 'copilot cheap review', (2) Premium quota is exhausted and you want zero Premium consumption, (3) The diff is small/simple and doesn't need opus-level review."
+description: "Code review using GitHub Copilot CLI cheap mode — same as /gco-review but forces the free gpt-4.1 model. Use when: (1) User says 'gcoc review' or 'copilot cheap review', (2) Premium quota is exhausted and you want zero Premium consumption, (3) Diff is small/simple."
 allowed-tools:
   - Bash(bash *)
   - Bash(timeout *)

@@ -1,6 +1,6 @@
 ---
 name: claude-resources-share
-description: "Publish Claude Code resources (commands, skills, agents, hooks, scripts, CLAUDE.md) from the private $HOME/.claude repo to the public claude-resources repo. One-direction copy with a safety gate: scans for private info before copying, requires user confirmation. Use when: (1) User says 'share resources', 'publish resources', 'sync public repo', (2) User wants to update the public claude-resources repo."
+description: "Share Claude Code resources (memories, settings, skills, hooks, etc.) across projects via the centralized claude-settings repo. Use when: (1) User says 'share claude resource', 'sync settings', or 'export to claude-settings', (2) User wants to copy .claude/* files to the central repo, (3) Reusing memory or skills across projects, (4) Backing up local Claude config to the global repo."
 argument-hint: "[-a|--auto]"
 ---
 

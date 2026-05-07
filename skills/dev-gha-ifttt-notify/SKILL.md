@@ -1,6 +1,6 @@
 ---
 name: dev-gha-ifttt-notify
-description: "Add IFTTT webhook notification to a GitHub Actions workflow for mobile push notifications on deploy success/failure. Use when: (1) Adding deploy notifications to CI/CD, (2) Setting up IFTTT webhook in GitHub Actions, (3) User mentions 'IFTTT notify', 'deploy notification', 'push notification for CI'"
+description: "Add IFTTT webhook notification to a GitHub Actions workflow for mobile push notifications on deploy success/failure. Use when: (1) Adding deploy notifications to CI/CD, (2) Setting up IFTTT webhook in GitHub Actions, (3) User mentions 'IFTTT notify', 'deploy notification', 'push notification for CI'."
 ---
 
 # IFTTT Deploy Notification for GitHub Actions

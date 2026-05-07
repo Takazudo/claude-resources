@@ -1,6 +1,6 @@
 ---
 name: l-ccresdoc-build
-description: "Build and install the CCResDoc Tauri app locally. Use when: (1) User says 'build ccresdoc', 'rebuild ccresdoc', 'install ccresdoc', or 'l-ccresdoc-build', (2) User wants a fresh CCResDoc.app after changing Rust, frontend loading page, or doc site code under $HOME/.claude/doc/. Runs cargo clean -p, cargo tauri build, then kills the running app, moves the old bundle aside, copies the fresh one to /Applications, clears quarantine, and verifies the binary timestamp."
+description: "Build and install the CCResDoc Tauri app locally. Use when: (1) User says 'build ccresdoc', 'rebuild ccresdoc', 'install ccresdoc', or 'l-ccresdoc-build', (2) User wants a fresh CCResDoc.app after changing Rust, frontend loading page, or doc site code under $HOME/.claude/doc/. Runs cargo clean -p, cargo tauri build, kills running app, replaces /Applications copy, clears quarantine."
 ---
 
 # Local CCResDoc Build & Install

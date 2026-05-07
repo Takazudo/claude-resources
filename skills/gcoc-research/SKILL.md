@@ -1,6 +1,6 @@
 ---
 name: gcoc-research
-description: "Web research using GitHub Copilot CLI (cheap mode) — same as /gco-research but forces the free gpt-4.1 model. Use when: (1) User says 'gcoc research' or 'copilot cheap research', (2) Premium quota is exhausted and you want zero Premium consumption, (3) The research topic is simple and doesn't need opus-level reasoning."
+description: "Web research using GitHub Copilot CLI cheap mode — same as /gco-research but forces the free gpt-4.1 model. Use when: (1) User says 'gcoc research' or 'copilot cheap research', (2) Premium quota is exhausted, (3) Research topic is simple and doesn't need opus reasoning."
 allowed-tools:
   - Bash(bash *)
   - Bash(timeout *)

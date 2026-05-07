@@ -1,12 +1,6 @@
 ---
 name: dev-npxify
-description: >
-  Audit project dependencies and replace CLI-only tools with npx/pnpm dlx to reduce installed
-  packages.
-
-  Use when: (1) User wants to reduce dependencies, (2) User says 'npxify', 'dlxify', 'reduce deps',
-
-  (3) User wants to clean up package.json, (4) User asks which deps can use npx/pnpm dlx.
+description: "Audit project dependencies and replace CLI-only tools with npx/pnpm dlx to reduce installed packages. Use when: (1) User wants to reduce dependencies, (2) User says 'npxify', 'dlxify', 'reduce deps', (3) User wants to clean up package.json, (4) User asks which deps can use npx/pnpm dlx."
 ---
 
 # Dependency NPXification

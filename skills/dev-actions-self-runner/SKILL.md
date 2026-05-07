@@ -1,6 +1,6 @@
 ---
 name: dev-actions-self-runner
-description: "Add self-hosted runner support with automatic fallback to GitHub-hosted runners in GitHub Actions workflows. Use when: (1) User wants to add self-hosted runner support to CI, (2) User says 'self-hosted runner', 'add self runner', 'self-hosted fallback', (3) User wants to save GitHub Actions minutes, (4) User asks about runner detection or runner fallback in GitHub Actions."
+description: "Add self-hosted runner support with automatic fallback to GitHub-hosted runners in GitHub Actions workflows. Use when: (1) User wants to add self-hosted runner support, (2) User says 'self-hosted runner', 'add self runner', 'self-hosted fallback', (3) User wants to save GitHub Actions minutes."
 ---
 
 # Self-Hosted Runner with Fallback

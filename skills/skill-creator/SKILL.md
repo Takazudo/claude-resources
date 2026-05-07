@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: "Guide for creating effective Claude Code skills that extend capabilities with specialized knowledge, workflows, or tool integrations. Use when: (1) User wants to create a new skill, (2) User wants to update/improve an existing skill, (3) User asks 'how to make a skill' or 'create skill for X'. Covers: skill anatomy (SKILL.md, scripts/, references/, assets/), progressive disclosure design, frontmatter requirements, bundled resources patterns, init_skill.py usage, iteration workflow. Skills are modular packages providing domain expertise, tool integrations, and procedural knowledge."
+description: "Guide for creating effective Claude Code skills (specialized knowledge, workflows, tool integrations). Use when: (1) User wants to create a new skill, (2) User wants to improve an existing skill, (3) User asks 'how to make a skill' or 'create skill for X'. Covers skill anatomy (SKILL.md, scripts/, references/, assets/), progressive disclosure, frontmatter, bundled resources, init_skill.py, iteration workflow."
 ---
 
 # Skill Creator
@@ -217,6 +217,8 @@ Follow these steps in order.
 
 Skip this step only when the skill's usage patterns are already clearly understood. It remains valuable even when working with an existing skill.
 
+**Capture intent from the current conversation first.** If the user says something like "turn this into a skill" or "make this a skill", extract answers from the conversation history before asking questions: the tools used, the sequence of steps, corrections the user made, input/output formats already observed. Then confirm gaps with the user instead of starting an interview from scratch.
+
 To create an effective skill, clearly understand concrete examples of how the skill will be used. This understanding can come from either direct user examples or generated examples that are validated with user feedback.
 
 For example, when building an image-editor skill, relevant questions include:
@@ -329,6 +331,7 @@ Basic example:
 - `name`: The skill name
 - `description`: Primary triggering mechanism. Include what the skill does AND when to use it.
   - Example: "Comprehensive document editing with tracked changes. Use when: (1) Creating new documents, (2) Modifying content, (3) Working with tracked changes"
+  - **Be slightly pushy.** Claude tends to undertrigger skills — to skip them when they'd be useful. Counter this by making the description explicit about when to use the skill, even on near-misses. Instead of "How to build a fast dashboard for internal data.", write "How to build a fast dashboard for internal data. Make sure to use this skill whenever the user mentions dashboards, data visualization, internal metrics, or wants to display any kind of company data, even if they don't explicitly ask for a 'dashboard.'"
 
 ##### Body
 
@@ -352,6 +355,13 @@ After testing the skill, users may request improvements. Often this happens righ
 2. Notice struggles or inefficiencies
 3. Identify how SKILL.md or bundled resources should be updated
 4. Implement changes and test again
+
+**Writing principles when revising:**
+
+- **Generalize from feedback, don't overfit.** A skill is meant to be used many times across many prompts. If a fix only works for the one example you tested on, it's noise. Reach for a different metaphor or pattern instead of piling on rigid rules.
+- **Keep the prompt lean.** Remove instructions that aren't pulling their weight. If you can read the skill's transcript and see Claude wasting time on something the skill told it to do, cut that part.
+- **Explain the why, don't pile on MUSTs.** Today's models have good theory of mind — when you explain *why* something matters, they handle edge cases on their own. Heavy-handed all-caps "ALWAYS" / "NEVER" / "MUST" is a yellow flag: usually you can reframe with a one-sentence explanation of the underlying reason and get better results with less rigidity.
+- **Look for repeated work → bundle as scripts.** If you notice Claude rewriting the same helper across multiple uses of the skill (a parser, a formatter, a config builder), that's a strong signal to write it once into `scripts/` and have the skill point to it.
 
 ## Skill Locations
 
@@ -387,6 +397,10 @@ Where a skill is stored determines its scope:
 Skill descriptions share a character budget (default 15,000). Run `/context` to check for excluded skills. Increase with `SLASH_COMMAND_TOOL_CHAR_BUDGET` environment variable.
 
 ## Advanced Patterns
+
+### Eval-Driven Skill Development
+
+This skill is intentionally a lightweight scaffolder. For skills that need to be reliable across many uses (team-shared, public release, business-critical), Anthropic ships a heavier eval-driven version of skill-creator at github.com/anthropics/skills (install via `/plugin marketplace add anthropics/skills`). It runs parallel subagent test cases, produces benchmark.json with mean ± stddev, opens an HTML eval viewer, and includes a description-optimization loop. Use that one when the skill quality matters enough to justify the token cost and setup time.
 
 ### Visual Output
 

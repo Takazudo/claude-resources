@@ -1,6 +1,6 @@
 ---
 name: dependabot-resolve
-description: "Comprehensive dependency update workflow for resolving Dependabot alerts and PRs. Use when: (1) User wants to update dependencies, (2) User mentions 'dependabot', 'security vulnerabilities', or 'dependency updates', (3) User asks to run security audit, (4) User wants to create a deps-update PR. Analyzes Dependabot issues, runs security audit (pnpm audit), creates update branch, applies updates, runs quality checks (typecheck, lint, test, build), handles Playwright Docker image sync, and creates PR with full changelog."
+description: "Comprehensive dependency update workflow for resolving Dependabot alerts and PRs. Use when: (1) User wants to update dependencies, (2) User mentions 'dependabot', 'security vulnerabilities', or 'dependency updates', (3) User asks to run security audit, (4) User wants to create a deps-update PR. Analyzes Dependabot issues, runs pnpm audit, applies updates, runs quality checks (typecheck, lint, test, build), handles Playwright Docker image sync, creates PR with changelog."
 ---
 
 # Dependabot Resolution Workflow
@@ -52,10 +52,11 @@ Some packages require coordinated updates across multiple files. Check for these
 When updating `@playwright/test` or `playwright` in package.json:
 
 1. **Check current versions**:
-   - `package.json`: Look for `@playwright/test` and `playwright` versions
-   - `.github/workflows/*.yml`: Search for `mcr.microsoft.com/playwright:v` Docker image tags
+- `package.json`: Look for `@playwright/test` and `playwright` versions
+- `.github/workflows/*.yml`: Search for `mcr.microsoft.com/playwright:v` Docker image tags
 
 2. **Update Docker image tag** to match the npm package version:
+
    ```yaml
    # In workflow files using Playwright Docker container
    container:
@@ -65,8 +66,8 @@ When updating `@playwright/test` or `playwright` in package.json:
 3. **Verify image exists** at https://mcr.microsoft.com/v2/playwright/tags/list or check Microsoft's Playwright Docker documentation
 
 4. **Example**: If updating `@playwright/test` from `1.57.0` to `1.58.0`:
-   - Update package.json: `"@playwright/test": "^1.58.0"`
-   - Update workflow: `image: mcr.microsoft.com/playwright:v1.58.0-noble`
+- Update package.json: `"@playwright/test": "^1.58.0"`
+- Update workflow: `image: mcr.microsoft.com/playwright:v1.58.0-noble`
 
 ### Other Common Pairs to Watch
 
@@ -108,11 +109,13 @@ Once all checks pass:
     - List of updated packages and versions
     - Summary of security fixes (if any)
     - Links to Dependabot issues being resolved using list format:
+
       ```
       - 関連Issue
           - https://github.com/<owner>/<repo>/issues/<issue-1>
           - https://github.com/<owner>/<repo>/issues/<issue-2>
       ```
+
     - Note that all quality checks passed
   - **Use full URLs** (not #<number>) so GitHub auto-expands them to show issue titles
 

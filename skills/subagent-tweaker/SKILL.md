@@ -1,6 +1,6 @@
 ---
 name: subagent-tweaker
-description: "Fix, improve, or update existing Claude Code custom agents (subagents). Use when: (1) User reports an agent isn't working well, (2) User wants to adjust agent behavior, tools, or model, (3) User says 'fix agent', 'update agent', 'tweak agent', 'agent not working'. Handles: editing agent frontmatter, adjusting tool restrictions, updating prompts, debugging issues."
+description: "Fix, improve, or update existing Claude Code custom agents (subagents). Use when: (1) User reports an agent isn't working well, (2) User wants to adjust agent behavior, tools, or model, (3) User says 'fix agent', 'update agent', 'tweak agent', 'agent not working'. Edits agent frontmatter, tool restrictions, prompts."
 ---
 
 # Tweak Custom Agent

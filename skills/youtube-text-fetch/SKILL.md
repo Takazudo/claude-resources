@@ -1,6 +1,6 @@
 ---
 name: youtube-text-fetch
-description: "Fetch transcript/caption text from YouTube videos using youtube-transcript-api Python package. Use when: (1) User wants to get text from a YouTube video, (2) User provides YouTube URLs and needs transcript data, (3) User says 'fetch youtube text', 'get captions', 'youtube transcript'. Outputs plain text transcript saved to $HOME/cclogs/{slug}/."
+description: "Fetch transcript/caption text from YouTube videos using youtube-transcript-api. Use when: (1) User wants text from a YouTube video, (2) User provides YouTube URLs and needs transcripts, (3) User says 'fetch youtube text', 'get captions', 'youtube transcript'. Outputs plain text saved to $HOME/cclogs/{slug}/."
 user_invocable: true
 argument_description: "YouTube URL(s) — space-separated if multiple. Optional flags: --timestamps (include timestamps in output)"
 ---

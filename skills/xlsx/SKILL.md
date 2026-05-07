@@ -1,11 +1,6 @@
 ---
 name: xlsx
-description: >-
-  Comprehensive spreadsheet creation, editing, and analysis with support for formulas, formatting,
-  data analysis, and visualization. When Claude needs to work with spreadsheets (.xlsx, .xlsm, .csv,
-  .tsv, etc) for: (1) Creating new spreadsheets with formulas and formatting, (2) Reading or
-  analyzing data, (3) Modify existing spreadsheets while preserving formulas, (4) Data analysis and
-  visualization in spreadsheets, or (5) Recalculating formulas
+description: "Spreadsheet creation, editing, and analysis. Use when working with .xlsx, .xlsm, .csv, .tsv files for: (1) Creating spreadsheets with formulas and formatting, (2) Reading or analyzing data, (3) Modifying existing spreadsheets while preserving formulas, (4) Data analysis and visualization, (5) Recalculating formulas."
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
@@ -149,18 +144,20 @@ This applies to ALL calculations - totals, percentages, ratios, differences, etc
 3. **Modify**: Add/edit data, formulas, and formatting
 4. **Save**: Write to file
 5. **Recalculate formulas (MANDATORY IF USING FORMULAS)**: Use the recalc.py script
+
    ```bash
    python recalc.py output.xlsx
    ```
+
 6. **Verify and fix any errors**:
-  - The script returns JSON with error details
-  - If `status` is `errors_found`, check `error_summary` for specific error types and locations
-  - Fix the identified errors and recalculate again
-  - Common errors to fix:
-    - `#REF!`: Invalid cell references
-    - `#DIV/0!`: Division by zero
-    - `#VALUE!`: Wrong data type in formula
-    - `#NAME?`: Unrecognized formula name
+- The script returns JSON with error details
+- If `status` is `errors_found`, check `error_summary` for specific error types and locations
+- Fix the identified errors and recalculate again
+- Common errors to fix:
+  - `#REF!`: Invalid cell references
+  - `#DIV/0!`: Division by zero
+  - `#VALUE!`: Wrong data type in formula
+  - `#NAME?`: Unrecognized formula name
 
 ### Creating new Excel files
 
@@ -227,11 +224,13 @@ python recalc.py <excel_file> [timeout_seconds]
 ```
 
 Example:
+
 ```bash
 python recalc.py output.xlsx 30
 ```
 
 The script:
+
 - Automatically sets up LibreOffice macro on first run
 - Recalculates all formulas in all sheets
 - Scans ALL cells for Excel errors (#REF!, #DIV/0!, etc.)
@@ -266,6 +265,7 @@ Quick checks to ensure formulas work correctly:
 ### Interpreting recalc.py Output
 
 The script returns JSON with error details:
+
 ```json
 {
   "status": "success",           // or "errors_found"
@@ -304,11 +304,13 @@ The script returns JSON with error details:
 ## Code Style Guidelines
 
 **IMPORTANT**: When generating Python code for Excel operations:
+
 - Write minimal, concise Python code without unnecessary comments
 - Avoid verbose variable names and redundant operations
 - Avoid unnecessary print statements
 
 **For Excel files themselves**:
+
 - Add comments to cells with complex formulas or important assumptions
 - Document data sources for hardcoded values
 - Include notes for key calculations and model sections

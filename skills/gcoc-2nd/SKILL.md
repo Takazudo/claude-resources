@@ -1,6 +1,6 @@
 ---
 name: gcoc-2nd
-description: "Second opinion from GitHub Copilot CLI (cheap mode) — same as /gco-2nd but forces the free gpt-4.1 model. Use when: (1) User says 'gcoc 2nd' or 'copilot cheap 2nd', (2) Premium quota is exhausted and you still want a quick external perspective, (3) The plan is simple enough that gpt-4.1 feedback is sufficient."
+description: "Second opinion from GitHub Copilot CLI cheap mode — same as /gco-2nd but forces the free gpt-4.1 model. Use when: (1) User says 'gcoc 2nd' or 'copilot cheap 2nd', (2) Premium quota is exhausted, (3) Plan is simple enough that gpt-4.1 feedback suffices."
 allowed-tools:
   - Bash(bash *)
   - Bash(timeout *)

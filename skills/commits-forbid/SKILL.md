@@ -1,10 +1,6 @@
 ---
 name: commits-forbid
-description: >-
-  Disable automatic committing. From now on, do NOT make commits unless the user explicitly asks.
-  Used during try-and-error development where the user is exploring implementation directions. Use
-  when: (1) User says 'commits forbid', 'no auto commit', 'don't commit automatically', (2) User
-  wants to experiment without committing.
+description: "Disable automatic committing. From now on, do NOT make commits unless the user explicitly asks. Used during try-and-error development. Use when: (1) User says 'commits forbid', 'no auto commit', 'don't commit automatically', (2) User wants to experiment without committing."
 ---
 
 # Commits Forbid

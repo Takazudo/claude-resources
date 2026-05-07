@@ -1,6 +1,6 @@
 ---
 name: log-conversation
-description: "Record the current Claude Code conversation (user + assistant turns, tool calls, tool results) as a markdown file under $HOME/cclogs/{slug}/ so it can be reused later for memos, blog drafts, esa, etc. Use when: (1) User says 'log conversation', 'record conversation', 'log-conversation', 'start logging', 'stop logging', (2) User invokes /log-conversation directly with args like `-a`, `--all`, `-e`, `--end`, or a number like `3`, (3) User wants to snapshot the current chat so they can articlify or quote from it later."
+description: "Record the current Claude Code conversation as a markdown file under $HOME/cclogs/{slug}/ for later reuse (memos, blog drafts, esa). Use when: (1) User says 'log conversation', 'record conversation', 'log-conversation', 'start logging', 'stop logging', (2) User invokes /log-conversation directly with args like -a, --all, -e, --end, or a number, (3) User wants to snapshot the chat to articlify or quote later."
 argument-hint: "[N | -a | --all] [-e | --end]"
 allowed-tools: Bash, Read
 ---

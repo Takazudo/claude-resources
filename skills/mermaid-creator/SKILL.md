@@ -1,13 +1,6 @@
 ---
 name: mermaid-creator
-description: >-
-  ALWAYS use this skill proactively whenever generating, writing, or outputting Mermaid diagram code
-  — whether in markdown code blocks, .md files, documentation, or any other context. This includes
-  flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, gantt charts, pie
-  charts, mindmaps, timelines, and all other Mermaid diagram types. Applies strict syntax rules to
-  prevent common rendering errors (HTML tags, style directives, invalid escapes). No need for the
-  user to explicitly request this skill — load it automatically whenever Mermaid syntax is being
-  produced.
+description: Use proactively whenever generating Mermaid diagram code in any context (markdown blocks, .md files, docs). Covers flowcharts, sequence, class, state, ER, gantt, pie, mindmaps, timelines, and all Mermaid types. Applies strict syntax rules to prevent rendering errors (HTML tags, style directives, invalid escapes). No explicit request needed — load automatically when Mermaid syntax is being produced.
 ---
 
 # Mermaid Creator
@@ -82,6 +75,7 @@ sequenceDiagram
 ```
 
 **Key rules:**
+
 - Use `participant X as Long Name` for readable labels
 - Arrow types: `->`, `-->`, `->>`, `-->>` (solid/dotted, with/without arrow)
 - Keep messages concise (no line breaks)
@@ -106,6 +100,7 @@ flowchart TD
 ```
 
 **Key rules:**
+
 - Direction: `TD` (top-down), `LR` (left-right), `BT` (bottom-top), `RL` (right-left)
 - Shapes: `[]` rectangle, `()` rounded, `{}` diamond, `[[]]` subroutine
 - Use quotes for labels with special chars: `A["Label: special"]`
@@ -135,6 +130,7 @@ classDiagram
 ```
 
 **Key rules:**
+
 - Visibility: `+` public, `-` private, `#` protected
 - Relationships: `<|--` inheritance, `*--` composition, `-->` association
 - Keep type annotations simple
@@ -156,6 +152,7 @@ stateDiagram-v2
 ```
 
 **Key rules:**
+
 - Use `stateDiagram-v2` (v2 is current version)
 - `[*]` represents start/end states
 - Avoid special characters in state names
@@ -183,6 +180,7 @@ erDiagram
 ```
 
 **Key rules:**
+
 - Cardinality: `||--||` one-to-one, `||--o{` one-to-many, `}o--o{` many-to-many
 - Use hyphens in multi-word entity names: `USER-ACCOUNT`
 - Keep attribute types simple
@@ -214,6 +212,7 @@ Before finalizing any Mermaid diagram:
 ### references/syntax-guide.md
 
 Comprehensive syntax reference with:
+
 - Detailed syntax for all diagram types
 - Common pitfalls with examples
 - Validation checklist

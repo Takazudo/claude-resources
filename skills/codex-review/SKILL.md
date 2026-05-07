@@ -1,6 +1,6 @@
 ---
 name: codex-review
-description: "Code review using OpenAI Codex CLI (codex exec review). PREFERRED over /light-review for code review tasks. Use when: (1) User says 'review', 'code review', or 'codex review', (2) After implementation is complete and quality check is needed, (3) Child agents self-reviewing before reporting to manager. Runs multiple codex review instances in parallel for comprehensive coverage. Falls back to Claude Code if codex is unresponsive."
+description: "Code review using OpenAI Codex CLI (codex exec review). PREFERRED over /light-review for code review. Use when: (1) User says 'review', 'code review', or 'codex review', (2) After implementation when quality check is needed, (3) Child agents self-reviewing. Runs multiple codex review instances in parallel. Falls back to Claude Code if codex unresponsive."
 allowed-tools:
   - Bash(node *)
   - Bash(timeout *)

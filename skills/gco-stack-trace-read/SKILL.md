@@ -1,7 +1,7 @@
 ---
 name: gco-stack-trace-read
 user-invocable: true
-description: "Stack trace / error analysis using GitHub Copilot CLI. Use when: (1) User says 'read stack trace', 'debug this error', 'what does this trace mean', (2) User pastes a stack trace or error output, (3) User provides a file path containing an error log. Passes the trace to Copilot for structured debugging pointers. Does NOT attempt fixes — diagnostic only. Falls back to Claude-direct analysis if Copilot unavailable."
+description: "Stack trace / error analysis using GitHub Copilot CLI. Use when: (1) User says 'read stack trace', 'debug this error', 'what does this trace mean', (2) User pastes a stack trace or error output, (3) User provides a file path with an error log. Passes the trace to Copilot for structured debugging pointers. Diagnostic only — no fixes. Falls back to Claude direct analysis if Copilot unavailable."
 argument-hint: <trace-or-file-path>
 allowed-tools:
   - Bash(bash *)

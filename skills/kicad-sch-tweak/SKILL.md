@@ -1,12 +1,6 @@
 ---
 name: kicad-sch-tweak
-description: >-
-  Edit and create KiCad schematic (.kicad_sch) files. Use when user says 'edit schematic', 'modify
-  kicad', 'add component', 'change resistor value', 'update schematic', or similar. Capabilities:
-  (1) Modify existing schematics (change values, add/remove components, update connections), (2)
-  Create new schematic content from specifications or ASCII diagrams, (3) Analyze schematic file
-  structure. Works with KiCad 6+ S-expression format. Can generate draft schematics that may need
-  layout adjustment in KiCad GUI.
+description: "Edit and create KiCad schematic (.kicad_sch) files. Use when user says 'edit schematic', 'modify kicad', 'add component', 'change resistor value', 'update schematic'. Capabilities: (1) Modify schematics (change values, add/remove components, update connections), (2) Create new schematic content from specs or ASCII diagrams, (3) Analyze structure. KiCad 6+ S-expression format. Generated schematics may need GUI layout adjustment."
 ---
 
 # KiCad Schematic Editor
@@ -22,18 +16,18 @@ Edit KiCad 6+ schematic files (.kicad_sch) using S-expression text format.
 **Best practice for adding components:**
 
 1. **User adds components via KiCad GUI**: Use KiCad's graphical interface to add new symbol types. This automatically:
-  - Populates the `lib_symbols` section with full symbol definitions
-  - Ensures correct UUID formats
-  - Handles footprint assignments
-  - Places components roughly where needed
+- Populates the `lib_symbols` section with full symbol definitions
+- Ensures correct UUID formats
+- Handles footprint assignments
+- Places components roughly where needed
 
 2. **AI performs text-based tweaks**: After user adds components, AI can efficiently:
-  - Add/modify global labels and net labels
-  - Add wires and junctions
-  - Change component values
-  - Adjust coordinates
-  - Add text annotations
-  - Duplicate existing components (copy from file)
+- Add/modify global labels and net labels
+- Add wires and junctions
+- Change component values
+- Adjust coordinates
+- Add text annotations
+- Duplicate existing components (copy from file)
 
 **Why this workflow?**
 
@@ -74,6 +68,7 @@ Clarify with user if needed:
 Use the Edit tool for targeted changes. **Always copy patterns from existing components in the same file.**
 
 **Change component value:**
+
 ```lisp
 (property "Value" "10k"   ;; Change to new value
 ```
@@ -88,6 +83,7 @@ Use the Edit tool for targeted changes. **Always copy patterns from existing com
 - Instance path (copy from similar component, update reference)
 
 **Add wire:**
+
 ```lisp
 (wire
   (pts (xy X1 Y1) (xy X2 Y2))
@@ -97,6 +93,7 @@ Use the Edit tool for targeted changes. **Always copy patterns from existing com
 ```
 
 **Add net label:**
+
 ```lisp
 (label "SIGNAL_NAME"
   (at X Y rotation)
@@ -283,6 +280,7 @@ KiCad caches symbol definitions inside the schematic file. If you add a symbol i
 3. **Add symbol instance** referencing the same lib_id
 
 Example lib_symbols entry:
+
 ```lisp
 (lib_symbols
 	(symbol "library-name:SymbolName"
@@ -313,6 +311,7 @@ Example lib_symbols entry:
 ### UUID Format (CRITICAL - causes crashes if wrong!)
 
 Check how UUIDs appear in the existing file:
+
 ```lisp
 ;; Some projects use UNQUOTED UUIDs:
 (uuid 26efc87e-0264-438c-bf9f-152a5d6f0f11)
@@ -326,6 +325,7 @@ Check how UUIDs appear in the existing file:
 ### Pin Format
 
 Pins should have uuid on its own line:
+
 ```lisp
 (pin "1"
 	(uuid 00000001-0001-0001-0001-000000000002)
@@ -335,6 +335,7 @@ Pins should have uuid on its own line:
 ### Instances Format
 
 The path should have reference and unit on separate lines:
+
 ```lisp
 (instances
 	(project ""
@@ -349,6 +350,7 @@ The path should have reference and unit on separate lines:
 ### Text Elements
 
 Text elements should NOT have `(exclude_from_sim no)`:
+
 ```lisp
 ;; CORRECT:
 (text "POWER INPUT"
@@ -368,6 +370,7 @@ Text elements should NOT have `(exclude_from_sim no)`:
 ### Labels Format
 
 Net labels follow this format:
+
 ```lisp
 (label "SIGNAL_NAME"
 	(at X Y rotation)
@@ -384,6 +387,7 @@ Net labels follow this format:
 ## sym-lib-table Required
 
 If the project doesn't have a `sym-lib-table` file, create one:
+
 ```lisp
 (sym_lib_table
   (version 7)
@@ -414,6 +418,7 @@ If schematic won't open in KiCad:
 3. Symbol name exists in the `.kicad_sym` file
 
 **Revert changes**:
+
 ```bash
 git checkout -- path/to/file.kicad_sch
 ```

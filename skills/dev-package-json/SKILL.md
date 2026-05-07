@@ -1,20 +1,6 @@
 ---
 name: dev-package-json
-description: >
-  Organize and maintain package.json and npm-related config files (.npmrc, etc.) for readability,
-  maintainability, and security. Use when: (1) Reorganizing a large package.json scripts section,
-  (2) Adding comment separators to group scripts, (3) Extracting complex multi-process commands into
-  shell scripts, (4) Setting up multi-environment dev commands (local/preview/production), (5)
-  Handling pnpm "Ignored build scripts" warnings or evaluating dependency build scripts, (6)
-  Configuring .npmrc security settings (strictDepBuilds, allowBuilds, ignoredBuilds), (7) Managing
-  pnpm versions via corepack and packageManager field, (8) Adding predev port cleanup to kill stale
-  processes before dev server starts, (9) User mentions 'organize package.json', 'package.json
-  readability', 'script sections', 'multi-process dev script', 'build scripts warning', 'npmrc',
-  'allowBuilds', 'ignoredBuilds', 'supply chain security', 'corepack', 'packageManager', 'pnpm
-  version', 'pnpm self-update', 'predev', 'kill port', or 'port in use'. Keywords: package.json, npm
-  scripts, organize, separator, shell script, multi-process, dev environment, .npmrc, pnpm, build
-  scripts, security, supply chain, allowBuilds, ignoredBuilds, corepack, packageManager, version
-  pinning, predev, port cleanup, kill port, port in use.
+description: "Organize and maintain package.json and npm config (.npmrc) for readability and security. Use when: (1) Reorganizing scripts section or adding separators, (2) Extracting multi-process commands into shell scripts, (3) Setting up multi-environment dev commands (local/preview/prod), (4) Handling pnpm \"Ignored build scripts\" warnings, (5) Configuring .npmrc security (strictDepBuilds, allowBuilds, ignoredBuilds), (6) Managing pnpm via corepack and packageManager field, (7) Adding predev port cleanup. Keywords: package.json, npm scripts, .npmrc, pnpm, build scripts, supply chain, corepack, packageManager, predev, kill port, port in use."
 ---
 
 # package.json & npm Config Management
@@ -56,6 +42,7 @@ Add a `predev` script that kills stale processes on dev server ports before star
 ```
 
 How it works:
+
 - `lsof -ti :PORT` — finds PIDs listening on specified ports (`-t` = terse/PID-only, `-i` = internet addresses)
 - Comma-separated ports: `:5173,:8787` checks multiple ports at once
 - `xargs kill` — sends SIGTERM (graceful) to found processes
@@ -110,6 +97,7 @@ For apps with local/preview/production API targets:
 ### Detailed Patterns
 
 See [references/patterns.md](references/patterns.md) for:
+
 - Full list of suggested section names
 - Namespace prefixing for monorepo sub-packages
 - Internal/private script conventions (`_` prefix)
@@ -157,6 +145,7 @@ AI tools and automation sometimes add `corepack use pnpm@latest` to setup steps.
 Evaluate and manage dependency build scripts for supply chain security.
 
 See [references/npmrc-build-scripts.md](references/npmrc-build-scripts.md) for:
+
 - The full evaluation workflow for "Ignored build scripts" warnings
 - Decision criteria for allowBuilds vs ignoredBuilds
 - Common package evaluations (reference table)

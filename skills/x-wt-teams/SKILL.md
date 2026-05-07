@@ -1,12 +1,24 @@
 ---
 name: x-wt-teams
-description: "Parallel multi-topic development using git worktrees with a base branch strategy and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', or 'parallel development', (3) User says 'split into topics' or 'multi-topic development'. This skill is FULLY AUTONOMOUS — it creates worktrees, spawns agent teams, and coordinates everything automatically. No manual child sessions needed. Also supports **Super-Epic child mode** — when given an `[Epic]` issue (created by `/big-plan` in Super-Epic mode) whose body contains `**Super-epic:** #N` markers, the session targets the super-epic base branch instead of main/invocation branch, producing an epic-PR that merges into the super-epic base."
+description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main)."
 argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [--noi] [-noi|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
 
 Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and Claude Code agent teams. **This is fully automated** — you (the manager) create the infrastructure and spawn child agents to do the work. Never ask the user to manually start sessions in worktrees.
+
+## References
+
+Detail lives in `references/` so this file stays a workflow spine. Open the relevant reference whenever the workflow touches its topic — these are not optional:
+
+- **`references/arguments.md`** — every flag (model, backend, `-s` / `-a` / `--no-review`, etc.), how they combine, manager-invariant rule.
+- **`references/super-epic-mode.md`** — Super-Epic child mode lifecycle: detection markers, Step 1a / Step 2 overrides, mandatory epic-PR merge, Auto-Suggest variant, why `-a` is ignored.
+- **`references/reviewer-modes.md`** — `-co` / `-gco` / `-gcoc` substitution tables and Combined Reviewer Mode (run all selected backends).
+- **`references/execution-modes.md`** — subagents vs teams routing: how `/big-plan`'s `Execution mode:` markers are read, default-to-teams fallback, mixed-mode degradation, Step 5 / Step 7 path differences, drift sanity check.
+- **`references/per-topic-models.md`** — per-topic Claude model resolution: how `/big-plan`'s `Model:` markers are read, manual `-haiku`/`-so`/`-op` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
+- **`references/issue-templates.md`** — tracking issue body, claim comments, unrelated-findings issue, Step 14 session report, Step 15 verification comments, accumulating-epic Auto-Suggest hand-off.
+- **`references/resource-coordination.md`** — Playwright / browser isolation rule and port-binding `flock` rule (full patterns).
 
 ## !! CRITICAL — ROOT PR TARGET BRANCH RULE !!
 
@@ -36,9 +48,7 @@ This applies regardless of:
 - Whether `main` "seems more natural" as the base
 - Whether the current branch looks like a work-in-progress topic
 
-The only exceptions are (a) the user explicitly specifies a different parent branch, or (b) this is a Super-Epic child session (see Step 1a — parent branch is fixed to the super-epic base). Both are explicit, never inferred.
-
-(See Step 2 "Create Base Branch and Root PR" for the full mechanism.)
+The only exceptions are (a) the user explicitly specifies a different parent branch, or (b) this is a Super-Epic child session — parent branch is fixed to the super-epic base. See `references/super-epic-mode.md`. Both are explicit, never inferred.
 
 ## Auto-Pilot Behavior (Always On)
 
@@ -53,103 +63,19 @@ This skill orchestrates long-running autonomous parallel work (worktrees, agent 
 
 These rules apply to the manager session and are carried into child agent prompts so worktree teammates also operate in auto-pilot.
 
-## Playwright / Browser Verification — Isolated Subagent Only
+## Resource Coordination — top-level summary
 
-**HARD RULE**: Neither the manager nor any child agent may invoke `/headless-browser`, `/verify-ui`, or any other Playwright / Chrome DevTools-backed tool **directly**. Multiple concurrent browser-automation sessions (one per child worktree × N topics) will freeze the machine and burn huge token budgets.
+**Playwright / browser tools**: Neither manager nor child agents may invoke `/headless-browser`, `/verify-ui`, or any Playwright / Chrome DevTools-backed tool directly. Every browser check is dispatched to a fresh disposable Opus subagent (one alive at a time, sequential only, killed on return).
 
-**Why**: Playwright/Chrome DevTools each launch a real browser process. With up to 6 concurrent child agents (see Step 5 concurrency cap), 6 simultaneous Chromium instances + their token-heavy trace/snapshot output overwhelms the local machine. Playwright tool calls also return large DOM/accessibility snapshots that balloon context windows fast.
+**Heavy / port-based tests**: Child agents must NOT run full e2e / integration suites, long builds, or hold a dev server (`pnpm dev` etc.) open for verification. Children commit + report back; the manager runs these sequentially on the merged base. Legitimate short port-binding work uses `flock` on `/tmp/x-wt-teams-<repo>-locks/port-<N>.lock`.
 
-**The rule**:
-
-1. **Child agents**: NEVER invoke `/headless-browser` or `/verify-ui` directly. If a topic needs browser-based verification, the child agent commits its code and **reports back to the manager** that a browser check is requested (include the URL, what to check, and which selectors matter). The child does NOT run the check itself.
-2. **Manager**: Also NEVER invokes `/headless-browser` or `/verify-ui` in its own context. Instead, spawn a **fresh dedicated Opus subagent** via the Agent tool, let that subagent run the browser tool, collect its result, and **kill the subagent immediately after** the single confirmation returns.
-3. **One at a time, sequential only**: At most **one** browser-verification subagent may be alive across the entire workflow. Never spawn two in parallel — even if two topics want a UI check, queue them and run sequentially.
-4. **Kill after each confirmation**: After the subagent returns its result, do not keep it alive for follow-up checks. Each verification gets its own fresh subagent. This prevents the Playwright/DevTools context from accumulating tokens across checks.
-
-**How to dispatch a browser-verification subagent:**
-
-```
-Agent tool:
-  description: "UI verification via Playwright"
-  subagent_type: "general-purpose"
-  model: "opus"
-  prompt: "You are a disposable UI-verification subagent for the /x-wt-teams workflow.
-           Target URL: <url>
-           Branch under test: base/<project-name>
-           What to verify: <specific checks — e.g., 'confirm .sidebar width is 240px', 'screenshot the /settings page and confirm the new toggle is visible'>
-
-           Use /verify-ui (for computed-style checks) or /headless-browser (for screenshots / interactions), whichever fits.
-           Return a concise PASS/FAIL report with evidence (computed values, screenshot path, or error excerpt).
-           Do NOT attempt to fix any issues you find — only report them. The manager will dispatch fixes separately.
-
-           Keep the report under 200 words."
-```
-
-After the Agent call returns, the subagent is automatically torn down. Do not re-use it — spawn a new one for the next verification.
-
-**Applies to all browser tooling**: `/verify-ui`, `/headless-browser`, any Playwright MCP, any Chrome DevTools MCP, and any future tool that launches a real browser. When in doubt, route through the isolated subagent.
-
-## Port-Based Servers & Heavy Local Tests — Resource Coordination
-
-Parallel child worktrees can fight over the same port (multiple `pnpm dev` on :3000) or thrash the CPU (heavy integration suites running concurrently). Two rules prevent this.
-
-### Rule 1 — Defer heavy & port-binding tests to the manager
-
-Child agents must NOT run:
-
-- Full e2e / integration test suites that bind ports or spawn servers
-- Playwright / browser-based tests (already covered above)
-- Long-running build-and-test cycles (`pnpm build` + full test run, production server boots, etc.)
-- Any `pnpm dev` / `npm run dev` / `vite` / similar dev-server process held open for verification
-
-Instead, the child:
-
-1. Commits its code locally (per the push-forbid rule)
-2. Reports back to the manager with: "integration check needed — URL/endpoint, what to verify, branch name"
-3. Manager runs these sequentially on the merged base branch after Step 6. The natural homes are Step 9 (quality assurance on the base) and, for UI-specific checks, Step 10 (`/verify-ui` via the isolated browser subagent pattern)
-
-Child agents CAN run: unit tests, type-check, lint, component tests, and anything that does NOT bind a port. These are fast and do not conflict across worktrees.
-
-### Rule 2 — `flock` serialization for legitimate short port work
-
-If a child genuinely must bind a port during implementation (e.g., 10-second smoke test of a new API route), serialize across worktrees with `flock`. All worktrees share the host filesystem, so one lock file per port is sufficient. This is the escape hatch, NOT the default — prefer Rule 1.
-
-**Pattern** (child agents use this in their bash scripts):
-
-```bash
-REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
-LOCK_DIR="/tmp/x-wt-teams-${REPO_NAME}-locks"
-mkdir -p "$LOCK_DIR"
-(
-  flock -w 600 9 || { echo "port lock timeout after 600s"; exit 1; }
-  PORT=3000 pnpm dev &
-  SERVER_PID=$!
-  # ... quick check (under a minute) ...
-  kill $SERVER_PID 2>/dev/null; wait $SERVER_PID 2>/dev/null
-) 9>"$LOCK_DIR/port-3000.lock"
-```
-
-**Rules for child agents using `flock`:**
-
-- Hold the lock for the shortest possible time (start → check → stop → release)
-- ALWAYS kill the server inside the locked block — a zombie server steals the port from the next waiter
-- Never hold a lock across a > 5-minute operation; redesign the check if it takes longer
-- One lock file per port number (e.g., `port-3000.lock`, `port-5173.lock`) — do NOT share one file for multiple ports
-- `flock` releases automatically on subshell exit (including on process kill), so stale locks are self-healing
-
-**Manager responsibility:**
-
-- Lock files live under `/tmp/x-wt-teams-<repo-name>-locks/` — outside the repo, no `.gitignore` concern
-- When the workflow ends or aborts, the locks clear themselves (flock on subshell exit). No manual cleanup required
-- If a child reports a port-lock timeout (600s exceeded), that means another child held the port too long — treat as a bug in that child's logic, not a resource-contention fact of life
-
-**Decision rule:** if you're reaching for `flock`, first ask: "Could I defer this to the manager instead?" If yes, do that (Rule 1). `flock` is only for cases where the check genuinely must run in the child context during implementation.
+**See `references/resource-coordination.md` for the full dispatch pattern, lock pattern, and rationale. Both rules are HARD — they prevent local-machine freezes and token blow-ups.**
 
 ## SendMessage Content — No Markdown Code Spans (Ink Crash Workaround)
 
 **HARD RULE**: Every `SendMessage` tool call — manager → child, child → manager, or peer → peer — MUST use plain prose in the `message` content. No backticks, no triple-backtick code fences, no inline markdown code formatting of any kind. Reference file paths, function names, shell commands, and identifiers as unquoted words.
 
-**Why**: Claude Code v2.1.117 has an unfixed Ink rendering bug ([anthropics/claude-code#51855](https://github.com/anthropics/claude-code/issues/51855)). When a teammate's message contains inline code spans, Claude Code's `※ recap:` summary line crashes with `<Box> can't be nested inside <Text>` at `createInstance` (`cli.js:495:249`). The crashed pane then tears down the whole `~/.claude/teams/<name>/` directory, cascading to all other teammates. In a 6-way parallel workflow, one stray backtick in one message can kill the entire run. Receive-side stalls have also been observed, so the rule applies in both directions.
+**Why**: Claude Code v2.1.117 has an unfixed Ink rendering bug ([anthropics/claude-code#51855](https://github.com/anthropics/claude-code/issues/51855)). When a teammate's message contains inline code spans, Claude Code's `※ recap:` summary line crashes with `<Box> can't be nested inside <Text>` at `createInstance` (`cli.js:495:249`). The crashed pane then tears down the whole `$HOME/.claude/teams/<name>/` directory, cascading to all other teammates. In a 6-way parallel workflow, one stray backtick in one message can kill the entire run. Receive-side stalls have also been observed, so the rule applies in both directions.
 
 **Examples:**
 
@@ -159,49 +85,6 @@ mkdir -p "$LOCK_DIR"
 - Good: "See the log file at {logdir}/… for the diff"
 
 **Scope**: Applies ONLY to `SendMessage` tool calls. Markdown (including backticks and code fences) is still fine everywhere else — commits, PR bodies, issue comments, log files, TaskCreate descriptions, source code. When the upstream bug is fixed, revisit and drop this workaround.
-
-## GitHub Issue Tracking (Default)
-
-By default, create a GitHub issue at the start to track progress. The manager and child agents comment on this issue at the end of each step, providing a running log of progress.
-
-- **`--no-issue`**: Skip issue creation. Also skip if the user explicitly says not to create an issue.
-- **`-s` or `--stay`**: **(OPT-IN ONLY — never auto-detect)** Use the current branch as the base branch instead of creating a new one. See "Using `--stay`" below. **Only apply when the user explicitly passes `-s` or `--stay`.** Even if the current branch has an existing PR, even if it "seems logical" to stay — ALWAYS create a new branch unless `-s` / `--stay` was literally typed by the user.
-- **`-l` or `--review-loop`**: Replace the Step 9 deep review with `/review-loop 5 --aggressive` instead of `/deep-review`. By default, this also passes `--issues` to create GitHub issues for considerable review findings. See "Review Loop Mode" below.
-- **`--no-review` or `-nor`**: Skip Step 9 (Quality Assurance) entirely. **Used internally by `/deep-review -t`** when it spawns this skill to apply review fixes — without this flag, the inner session would call `/deep-review` again (which defaults back to `-t`), causing infinite recursion. Manual users may also pass this flag to opt out of the final review pass and just do the implementation.
-- **`-v` or `--verify-ui`**: After review fixes (Step 9), run `/verify-ui` to verify frontend/CSS/layout changes visually. See "Verify UI Mode" below.
-- **`--noi`, `--noissue`, or `--noissues`**: Only meaningful with `--review-loop`. Suppresses `--issues` flag on the review-loop invocation, so no GitHub issues are created for review findings.
-- **`-noi` or `--no-raise-issues`**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. See "Raising Issues for Unrelated Findings" below.
-- **`-co` or `--codex`**: Use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below. Can be combined with `-gco` and/or `-gcoc` — see "Combined Reviewer Mode" below.
-- **`-gco` or `--github-copilot`**: Use GitHub Copilot CLI for reviews and research. See "GitHub Copilot Mode" below. Can be combined with `-co` and/or `-gcoc` — see "Combined Reviewer Mode" below.
-- **`-gcoc` or `--github-copilot-cheap`**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). See "GitHub Copilot Cheap Mode" below. Can be combined with `-co` and/or `-gco` — see "Combined Reviewer Mode" below.
-- **`-a` or `--auto`**: After the workflow completes (Step 15), automatically run `/pr-complete -c -w` to merge the PR, close the linked issue, and watch post-merge CI. Intended for full-auto, safe-to-merge work. **Ignored in Super-Epic child mode** — the epic-PR → super-epic base merge is already mandatory there, and `-a` does NOT escalate further to merge the super-epic base into main. Do not pass `-a` for Super-Epic sessions; if it is passed, treat it as a no-op and proceed with the mandatory merge step.
-- **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Claude model used for **child worktree agents** (Step 5) and for Claude-based reviewers in the manager's 2nd-opinion / confirmation / final `/deep-review` steps. Pick at most one. **Default: `-op` (Opus).** **Manager invariant**: the manager session itself ALWAYS runs as Opus regardless of this flag — if the user is on a non-Opus session, note it but proceed. See "Manager invariant & model delegation" below.
-- **Existing issue provided**: If the user provides an existing issue (number or URL), read it first with `gh issue view <number>`. The issue body typically contains implementation instructions or a prompt — use it as the primary input for planning topics and development. Reuse this issue for progress logging instead of creating a new one.
-- The issue number is passed to all child agents so they can comment on it too.
-- Comments should be concise step reports (what was done, outcome, any issues encountered).
-
-### Using `-s` / `--stay` (Opt-In Only)
-
-When `-s` or `--stay` is **explicitly passed by the user**, the current branch is reused as the base branch — no new `base/<project-name>` branch is created. This avoids deep nesting when running `/x-wt-teams` multiple times in sequence.
-
-**Typical scenario:**
-
-1. First round: `/x-wt-teams` creates `base/foo-impl` → `main`, work is done, PR merged
-2. Need more tweaks — you're still on `base/foo-impl`
-3. Without `--stay`: creates `base/foo-impl-v2` → `base/foo-impl` → `main` (too nested)
-4. With `--stay`: reuses `base/foo-impl` as the base, topics branch off it, root PR targets `main`
-
-**How it works:**
-
-- The current branch becomes `BASE_BRANCH` directly (no new branch, no empty commit)
-- The parent branch (for the root PR target) is determined by:
-  1. Checking if a PR already exists for this branch: `gh pr view --json baseRefName -q '.baseRefName'`
-  2. If yes, reuse that PR (record its number) and use its base as the parent branch
-  3. If no PR exists, use the repository's default branch as the parent and create a new root PR
-- Topics branch off `BASE_BRANCH` and merge back into it as usual
-- Everything else (worktrees, child agents, review, push) works the same
-
-**CRITICAL**: `-s` / `--stay` is NEVER auto-detected. Do NOT decide to use `--stay` behavior just because the current branch already has a PR or because it "makes sense." The user must explicitly type `-s` or `--stay`. Without it, ALWAYS create a new branch — even if you're on `topic/foo` with an existing PR targeting `main`. The new base branch will target `topic/foo`, producing a clean diff for just this session's work.
 
 ## Architecture
 
@@ -220,7 +103,7 @@ worktrees/
 
 Each topic gets its own worktree directory, its own branch, and its own PR targeting the base branch. The manager merges topic PRs into the base branch, then creates one root PR from base into the parent branch.
 
-**Super-Epic child variant** — when the input is an epic issue from `/big-plan` Super-Epic mode (see "Super-Epic child mode" in Step 1a), `<parent-branch>` is fixed to the super-epic base `base/<super-title>`, and `<project-name>` equals `<super-title>-<epic-slug>`. The root PR becomes the epic-PR and targets the super-epic base rather than main. Everything below that (topics, worktrees, merge flow) is identical.
+**Super-Epic child variant** — `<parent-branch>` is fixed to the super-epic base `base/<super-title>`, and `<project-name>` equals `<super-title>-<epic-slug>`. The root PR becomes the epic-PR and targets the super-epic base rather than main. See `references/super-epic-mode.md`.
 
 ## PR Body Reference Header
 
@@ -286,135 +169,39 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 
 ### Step 1: Resolve GitHub Tracking Issue
 
-There are three modes depending on user input:
+Three modes depending on user input.
 
 #### 1a: Existing issue provided
 
-If the user provides an existing issue number or URL, **read it first** — it usually contains implementation instructions or a prompt:
+Read it first — it usually contains implementation instructions:
 
 ```bash
 gh issue view <number>
 ```
 
-Use the issue body as the primary input for planning topics and the development approach. Set `ISSUE_NUMBER=<number>` and reuse this issue for progress logging (no new issue needed).
+Use the issue body as the primary input for planning. Set `ISSUE_NUMBER=<number>`; reuse this issue for progress logging (no new issue needed).
 
-**Epic issue shortcut (created by `/big-plan`):** If the issue title contains `[Epic]`, the planning is already done. Extract directly from the issue body:
+**Epic issue shortcut (`[Epic]` in title, created by `/big-plan`):** Planning is already done. Extract directly from the issue body:
 
-- **Topics** — use the child sub-issues listed in the issue (each `[Sub]` issue becomes one topic)
-- **Base branch** — use the `base/...` name stated in the issue body (do NOT invent a new one)
-- **Dependency order** — respect the dependency graph in the issue body; start with independent topics first
+- **Topics** — use the child sub-issues listed (each `[Sub]` issue becomes one topic). For Super-Epic child sessions, topics come from inline sub-tasks in the epic body instead.
+- **Base branch** — use the `base/...` name stated in the issue body (do NOT invent)
+- **Dependency order** — respect the dependency graph; start with independent topics first
+- **Execution mode per topic** — extract the `**Execution mode:** {subagents|teams}` marker from each `[Sub]` issue body (or each inline sub-task in Super-Epic mode). This drives Step 5's spawn path. See `references/execution-modes.md` for the parsing logic, default-to-teams fallback, and mixed-mode degradation rule.
+- **Model per topic** — extract the `**Model:** {opus|sonnet|haiku}` marker from each `[Sub]` issue body (or each inline sub-task in Super-Epic mode). This drives the per-child model assignment in Step 5. A manual `-haiku` / `-so` / `-op` flag on this invocation OVERRIDES per-topic markers session-wide. Default-when-missing-and-no-flag: `opus`. See `references/per-topic-models.md` for the resolution table.
 
-Do NOT re-plan or re-analyze the codebase. Do NOT update the epic issue body (it already has a complete spec). Just proceed to Step 2 with the extracted topics and base branch name.
+Do NOT re-plan or re-analyze. Do NOT update the epic issue body. Proceed to Step 2 with the extracted topics, base branch, and per-topic execution mode.
 
-**Claim the epic issue:** Before Step 2, post a claim comment on the epic issue so other Claude Code sessions don't start parallel work on the same epic:
+**Super-Epic child mode** — if the epic body also contains `**Super-epic:** #N` (and the two related markers), this is a Super-Epic child session. Apply ALL Step 1a / Step 2 overrides from `references/super-epic-mode.md`: parent branch is the super-epic base (NOT invocation branch), `EPIC_BASE` is verbatim from the marker, topics come from inline sub-tasks, super-epic base existence is verified, and `SUPER_EPIC_NUMBER` / `SUPER_EPIC_BASE` / `EPIC_BASE` are captured for later steps.
 
-```bash
-gh issue comment "$ISSUE_NUMBER" --body "🤖 Starting work on this epic in a Claude Code session (\`/x-wt-teams\`). To avoid conflicts, please check the latest comments before starting another session on this epic."
-```
+**Claim the issue** — post a claim comment so other Claude Code sessions don't start parallel work. See `references/issue-templates.md` for the per-mode wording.
 
-**Super-Epic child mode** — when the `[Epic]` issue body contains these three markers (the literal spellings matter; `/big-plan` Super-Epic mode writes them):
-
-```
-**Super-epic:** #<super-epic-issue-number>
-**Super-epic base branch:** `base/<super-title-slug>`
-**This epic's base branch:** `base/<super-title-slug>-<epic-slug>`
-```
-
-Then this session is a Super-Epic child. Handle it like the normal epic shortcut with these overrides:
-
-1. **Parent branch** = super-epic base branch from the marker (NOT main, NOT the invocation branch, NOT `--stay`). Treat as if the user explicitly passed this base.
-2. **Base branch** = the value in `**This epic's base branch:**`. Use it verbatim in Step 2 (`git checkout -b <that-name>`). Do not invent a project name.
-3. **Project name (topic-branch prefix)** = the epic base slug (everything after `base/`), so topic branches become `{super-title-slug}-{epic-slug}/<topic>`.
-4. **Topics** — this epic's body lists sub-tasks inline (not as separate `[Sub]` issues). Each inline sub-task becomes one topic.
-5. **Super-epic base must already exist** — `/big-plan` Super-Epic mode creates it at S-9. Defensively verify before proceeding:
-
-   ```bash
-   git fetch origin
-   git show-ref --verify --quiet refs/remotes/origin/base/<super-title-slug> || {
-     echo "Super-epic base 'base/<super-title-slug>' does not exist on origin."
-     echo "Re-run /big-plan Super-Epic mode (S-9) or create the super-epic anchor manually."
-     exit 1
-   }
-   ```
-
-6. **Root PR** (Step 2) **targets the super-epic base branch** (`--base base/<super-title-slug>`), not main. This makes the epic-PR a child of the super-PR.
-7. **Do NOT close the super-epic issue** at the end of this session. Only comment on it with a link to the merged epic-PR. The super-epic stays open until all its sibling epic PRs are merged.
-8. **Session scope is one epic only, AND the epic-PR MUST be merged before STOP** — do not leave the epic-PR open for the user to merge later. The merge is handled by the mandatory "Super-Epic: Merge Epic-PR into Super-Epic Base" step before STOP. **`-a` / `--auto` is NOT required for this merge** and is ignored in Super-Epic child mode (it would be confusing — it could be misread as also merging the super-epic base into main, which this skill never does). After the merge, the workflow ends and the user runs `/x-wt-teams <next-epic-url>` in a fresh session for the next epic. At session end, the manager auto-suggests the next epic URL (see "Auto-Suggest Next Command" before STOP). Skipping the merge breaks the multi-epic stacking strategy: the next epic would branch off a stale super-epic base, and sibling epic-PRs would collide.
-9. **Capture the super-epic number for end-of-session hand-off:**
-
-   ```bash
-   # Extract the super-epic issue number from the marker line in this epic's body
-   SUPER_EPIC_NUMBER=$(gh issue view "$ISSUE_NUMBER" --json body --jq .body \
-     | grep -oE '\*\*Super-epic:\*\* #[0-9]+' | grep -oE '[0-9]+' | head -1)
-   ```
-
-   Keep `SUPER_EPIC_NUMBER` around — it's used at session end to suggest the next epic.
-
-Everything else (worktrees, child agents, review, push, CI watch, feedback loop) works the same as the normal epic shortcut.
-
-**Claim the epic issue (Super-Epic child):** After extracting topics and verifying the super-epic base, post a claim comment on **this epic's issue** (not the super-epic issue — sibling epics run in parallel in other sessions):
-
-```bash
-gh issue comment "$ISSUE_NUMBER" --body "🤖 Starting work on this epic in a Claude Code session (\`/x-wt-teams\` Super-Epic child). To avoid conflicts, please check the latest comments before starting another session on this epic."
-```
-
-**For non-epic issues:** Update the issue body with `gh issue edit` to add:
-
-1. A **Summary** section (if missing) — write 2-4 sentences explaining what this implementation does and why, based on the user's instructions and your planned approach
-2. A **Topics** section listing each topic with a 1-sentence description
-3. A **TODO checklist** of workflow steps (same as in 1b)
-
-This ensures the issue serves as a spec tracker that clearly communicates the implementation scope.
-
-**Claim the issue (non-epic):** Before Step 2, post a claim comment so other Claude Code sessions don't start parallel work on the same topic:
-
-```bash
-gh issue comment "$ISSUE_NUMBER" --body "🤖 Starting work on this issue in a Claude Code session (\`/x-wt-teams\`). To avoid conflicts, please check the latest comments before starting another session on this issue."
-```
+**For non-epic issues:** Update the issue body via `gh issue edit` to add a Summary, a Topics section, and the TODO checklist (same as 1b). This makes the issue a spec tracker, not just a step log.
 
 #### 1b: Create new issue (default)
 
-Unless `--no-issue` is passed or the user explicitly says not to create an issue, create a new GitHub issue to track progress. **The issue serves as a spec tracker** — it should clearly communicate what is being implemented and why, not just log steps.
+Unless `--no-issue` is passed, create a new tracking issue. **The issue is a spec tracker** — Summary should answer "what are we doing and why?" before listing steps. See `references/issue-templates.md` for the full body template and the per-step progress comment pattern.
 
-**Before creating the issue**, analyze the user's instructions and plan the topics. Then write a concise but informative summary that answers: "What are we doing and why?" This summary should be enough for someone unfamiliar with the task to understand the scope. Not too detailed (that's for the PR), not too brief (that's useless).
-
-```bash
-ISSUE_URL=$(gh issue create \
-  --title "<project-name>: <concise description of what's being done>" \
-  --body "$(cat <<'EOF'
-## Summary
-
-<2-4 sentences explaining what this implementation does and why. What problem does it solve? What's the approach?>
-
-### Topics
-
-- **<topic-A>**: <1 sentence — what this topic covers>
-- **<topic-B>**: <1 sentence — what this topic covers>
-
-### TODO
-- [ ] Step 1: Resolve GitHub tracking issue
-- [ ] Step 2: Create base branch and root PR
-- [ ] Step 3: Create worktrees
-- [ ] Step 4: Environment setup
-- [ ] Step 5: Spawn child agents (implementation)
-- [ ] Step 6: Review and merge topic PRs
-- [ ] Step 7: Shut down child agents
-- [ ] Step 8: Sync local base branch
-- [ ] Step 9: Quality assurance (deep review or review-loop)
-- [ ] Step 10: Verify UI (if --verify-ui)
-- [ ] Step 11: Push all changes to remote
-- [ ] Step 12: CI watch (verify CI passes)
-- [ ] Step 13: Update root PR and mark ready
-- [ ] Step 14: Session report
-- [ ] Step 15: Requirements verification (if issue linked)
-- [ ] Step 16: Cleanup
-
-### Progress Log
-Comments below contain step-by-step progress reports.
-EOF
-)")
-ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
-```
+After creation, capture `ISSUE_NUMBER` from the URL.
 
 #### 1c: No issue (`--no-issue`)
 
@@ -422,209 +209,58 @@ Skip issue creation entirely. All `gh issue comment` calls throughout the workfl
 
 ---
 
-Save `ISSUE_NUMBER` (from 1a or 1b) — it will be passed to all child agents and used for progress comments throughout the workflow.
-
-**Progress reporting pattern**: At the end of each subsequent step:
-
-1. **Check off the completed step** in the issue body's TODO checklist (use `gh issue edit` to update the body, changing `- [ ]` to `- [x]` for the completed step)
-2. **Comment** on the issue with a brief report:
-
-   ```bash
-   gh issue comment "$ISSUE_NUMBER" --body "$(cat <<'EOF'
-   ### Step N: <step name> — completed
-
-   <concise summary of what was done, outcome, any issues>
-   EOF
-   )"
-   ```
-
-3. **Re-read the issue** to check the TODO list and confirm what comes next:
-
-```bash
-gh issue view "$ISSUE_NUMBER"
-```
-
-This re-read step is **critical** — it prevents losing track of remaining steps during long workflows with many interactions. Always check the TODO list to determine "What's next?" before proceeding.
+Save `ISSUE_NUMBER` (from 1a or 1b) — passed to all child agents and used for progress comments throughout. After every subsequent step: check off the TODO line in the issue body, comment a brief report, then re-read the issue to confirm what's next. Re-reading is **critical** to prevent losing track during long workflows.
 
 ### Codex 2nd Opinion (Planning Phase)
 
-**SKIP THIS SECTION ENTIRELY if the issue was created by `/big-plan`** (i.e., the issue title contains `[Epic]`, or this is a Super-Epic child session). `/big-plan` already runs a 2nd opinion on the plan during its own workflow, so the topics and decomposition have already been validated. Re-running it here is wasteful — proceed directly to Step 2.
+**SKIP ENTIRELY if the issue was created by `/big-plan`** (`[Epic]` in title, or Super-Epic child session). `/big-plan` already validated the plan during its workflow — re-running here is wasteful.
 
-For all other sessions (no issue, or a user-provided non-epic issue), after Step 1 and before Step 2, when the abstract concept of the task is understood and topics are planned:
+For all other sessions (no issue, or user-provided non-epic issue), after Step 1 and before Step 2, when topics are planned:
 
-1. **Form an initial plan** — list the topics, what each will implement, and the overall approach
-2. **Invoke `/codex-2nd`** — send the plan to codex for a second opinion
-3. **Review feedback** — if codex returns useful, actionable feedback (e.g., missing topics, better decomposition, risk areas), update the plan
-4. **Optionally re-run** — if the plan changed significantly, invoke `/codex-2nd` again (up to 3 iterations total)
-5. **Finalize and proceed** — once stable, continue to Step 2
+1. Form an initial plan — list topics, what each will implement, and the overall approach.
+2. Invoke `/codex-2nd` (or backend variants per active flags — see `references/reviewer-modes.md`).
+3. If feedback is useful (missing topics, better decomposition, risk areas), update the plan.
+4. Optionally re-run (up to 3 iterations).
+5. Finalize and proceed to Step 2.
 
 This is advisory. If codex is unresponsive, proceed with the original plan.
 
----
+### Manager invariant & reviewer-mode flags
 
-### Manager invariant & model delegation
+**The manager session is ALWAYS Opus.** Model flags (`-haiku` / `-so` / `-op`) do NOT downgrade the manager. When a flag is present, it acts as a session-wide manual override for child delegation, replacing any per-topic `Model:` annotations from `/big-plan`. When no flag is present, each child's model is resolved per-topic from the annotation (default `opus`). See `references/arguments.md` for the four delegation points and `references/per-topic-models.md` for the override + per-topic resolution.
 
-**The manager is ALWAYS Opus.** The manager session (this one) runs the full workflow at Opus, period. The model flags do NOT downgrade the manager. If the user is running this on a non-Opus session and passes e.g. `-so`, note it but proceed with what you have — the model flag still governs delegation below.
-
-**Where the resolved model flag IS applied:**
-
-1. **Child worktree agents** (Step 5) — every `Agent(...)` spawned for a topic gets `model:` set to the resolved Claude model (default `opus`).
-2. **2nd-opinion / confirmation step** — if you are invoking a Claude-side 2nd opinion (not `/codex-2nd` / `/gco-2nd`), spawn the reviewer at the resolved model.
-3. **Step 9 final quality assurance** — `/deep-review` (or `/review-loop`) is invoked with the same model/backend flags forwarded, so the Claude reviewers inside run at the resolved model.
-4. **Child self-review** (Step 5) — child agents run `/light-review` with whatever backend flag was set (`-co` / `-gco` / `-gcoc`); if no backend flag, `/light-review` falls to its own default (`-gcoc`). The model flag does NOT force Claude reviewers here — the backend default owns that path. If you explicitly want Claude-model self-review, pass both a model flag AND omit backend flags in the child's `/light-review` invocation.
-
-Model flags are **orthogonal** to `-co` / `-gco` / `-gcoc`. They can coexist. The backend flags (`-co`, `-gco`, `-gcoc`) can ALSO coexist with each other — passing multiple backend flags runs all their reviewers for improved quality coverage. See "Combined Reviewer Mode" below.
-
----
-
-### Codex Mode (`-co` / `--codex`)
-
-When `-co` or `--codex` is passed, the following substitutions apply throughout the entire workflow:
-
-| Default tool | Codex replacement | Used for |
-|---|---|---|
-| `/deep-review` | `/codex-review` | Step 9 quality assurance (manager review) |
-| `/review-loop N --aggressive` | `/codex-review` (run once) | Review loop mode review step |
-| `/light-review` in child agents (Step 5) | `/light-review -co` | Child agent self-review (`/light-review` routes to `/codex-review` under the hood) |
-| Agent tool (web search, research) | `/codex-research` | Any web search or codebase research during planning/implementation |
-| Agent tool (doc writing) | `/codex-writer` | Writing documentation, README, or other text content |
-
-**How it affects the workflow:**
-
-- **Step 5 (child agents)**: Child agents run `/light-review -co` for self-review. `/light-review` dispatches to `/codex-review`.
-- **Step 9 (quality assurance)**: Instead of `/deep-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
-- **Research during planning**: When you need to research libraries, APIs, or best practices, prefer `/codex-research` over the Agent tool or WebSearch.
-- **Documentation writing**: When writing README content, doc comments, or other prose, prefer `/codex-writer` over writing directly.
-
-All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
-
----
-
-### GitHub Copilot Mode (`-gco` / `--github-copilot`)
-
-When `-gco` or `--github-copilot` is passed, the following substitutions apply throughout the entire workflow:
-
-| Default tool | GCO replacement | Used for |
-|---|---|---|
-| `/deep-review` | `/gco-review` | Step 9 quality assurance (manager review) |
-| `/review-loop N --aggressive` | `/gco-review` (run once) | Review loop mode review step |
-| `/light-review` in child agents (Step 5) | `/light-review -gco` | Child agent self-review (`/light-review` routes to `/gco-review` under the hood) |
-| `/codex-2nd` (planning phase) | `/gco-2nd` | Second opinion on plans |
-| Agent tool (web search, research) | `/gco-research` | Any web search or codebase research during planning/implementation |
-
-**How it affects the workflow:**
-
-- **Step 5 (child agents)**: Child agents use `/gco-review` for self-review. `/gco-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed.
-- **Step 9 (quality assurance)**: Instead of `/deep-review` or `/review-loop`, invoke `/gco-review`. If `-l`/`--review-loop` is also passed, still invoke `/gco-review` once (not multiple rounds).
-- **Second Opinion (planning phase)**: Instead of `/codex-2nd`, invoke `/gco-2nd`. If Copilot is rate-limited, `/gco-2nd` silently skips.
-- **Research during planning**: When you need to research libraries, APIs, or best practices, prefer `/gco-research` over the Agent tool or WebSearch.
-
-All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
-
----
-
-### GitHub Copilot Cheap Mode (`-gcoc` / `--github-copilot-cheap`)
-
-Same as `-gco` / `--github-copilot` above, but forces the free `gpt-4.1` model (skips the Premium opus attempt). Use this when Premium quota is exhausted or when the task is simple enough that `gpt-4.1` feedback is sufficient. Can be combined with `-co` and/or `-gco` — see "Combined Reviewer Mode" below.
-
-When `-gcoc` or `--github-copilot-cheap` is passed, the following substitutions apply throughout the entire workflow:
-
-| Default tool | GCOC replacement | Used for |
-|---|---|---|
-| `/deep-review` | `/gcoc-review` | Step 9 quality assurance (manager review) |
-| `/review-loop N --aggressive` | `/gcoc-review` (run once) | Review loop mode review step |
-| `/light-review` in child agents (Step 5) | `/light-review -gcoc` | Child agent self-review (`/light-review` routes to `/gcoc-review` under the hood) |
-| `/codex-2nd` (planning phase) | `/gcoc-2nd` | Second opinion on plans |
-| Agent tool (web search, research) | `/gcoc-research` | Any web search or codebase research during planning/implementation |
-
-**How it affects the workflow:**
-
-- **Step 5 (child agents)**: Child agents use `/gcoc-review` for self-review. Pass the `-gcoc` flag context so they select the cheap variant. `/gcoc-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed.
-- **Step 9 (quality assurance)**: Instead of `/deep-review` or `/review-loop`, invoke `/gcoc-review`. If `-l`/`--review-loop` is also passed, still invoke `/gcoc-review` once (not multiple rounds).
-- **Second Opinion (planning phase)**: Instead of `/codex-2nd`, invoke `/gcoc-2nd`. If Copilot is rate-limited, `/gcoc-2nd` silently skips.
-- **Research during planning**: When you need to research libraries, APIs, or best practices, prefer `/gcoc-research` over the Agent tool or WebSearch.
-
-All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
-
----
-
-### Combined Reviewer Mode (multiple backend flags)
-
-The backend flags `-co`, `-gco`, and `-gcoc` are **NOT mutually exclusive** — they can be freely combined. When the user passes more than one (e.g. `-co -gcoc -gco`), run **all** of the selected reviewer backends, not just one. Multiple independent reviewers from different backends catch different classes of issues, so combining them is an explicit quality-coverage choice by the user.
-
-**Rule: if multiple backend flags are passed, run them all — never pick one and drop the others.** Do not treat this as redundant or "pick the best." The user is paying (in time, in quota) for multi-angle review on purpose.
-
-**Which backends → which reviewers:**
-
-| Flag present | Reviewer invoked | 2nd-opinion invoked | Child self-review flag |
-|---|---|---|---|
-| `-co` | `/codex-review` | `/codex-2nd` | `-co` |
-| `-gco` | `/gco-review` | `/gco-2nd` | `-gco` |
-| `-gcoc` | `/gcoc-review` | `/gcoc-2nd` | `-gcoc` |
-
-**How combinations apply to each affected step:**
-
-- **Step 5 (child self-review)**: Forward every active backend flag to `/light-review`. Example: `/light-review -co -gco -gcoc`. `/light-review` is expected to dispatch to each backend's reviewer in turn (or fall back silently for any unavailable backend). If the child only supports one flag at a time, fire `/light-review` once per backend sequentially.
-- **Step 9 (quality assurance)**: Invoke each selected reviewer **sequentially** on the same `base/<project-name>` branch. Collect findings from every run into a single combined fix issue before delegating fixes. Do not stop after the first reviewer — even if it reports "no issues," still run the others. If `-l`/`--review-loop` is also passed, each backend still runs once (no multi-round per backend).
-- **Planning-phase 2nd opinion**: When multiple backend flags are active, invoke every matching `*-2nd` command in sequence and read all of their feedback before finalizing the plan. Silent fallbacks (rate limits, unavailable CLIs) are fine — do not block on them.
-- **Research and doc writing (`-co` interactions)**: When `-co` is combined with `-gco`/`-gcoc`, codex still owns `/codex-research` and `/codex-writer` for research/docs. For research specifically, you may additionally invoke `/gco-research` / `/gcoc-research` in parallel when the topic benefits from cross-source coverage, but this is optional — only `/codex-review` vs `/gco-review` vs `/gcoc-review` are **required** to all run.
-
-**Fix delegation with combined findings:**
-
-When creating the fix issue in Step 9, label findings by their source backend so the fix agent can weight them:
-
-```markdown
-## Review Findings to Fix
-
-### From /codex-review
-- ...
-
-### From /gco-review
-- ...
-
-### From /gcoc-review
-- ...
-```
-
-This preserves the quality-coverage benefit of running multiple reviewers — the fix agent sees agreements (stronger signal) and disagreements (judgment calls) rather than a flattened, homogenized list.
-
-**If only one backend flag is passed**, behave exactly as described in the single-mode sections above (Codex Mode / GCO Mode / GCOC Mode). Combined Reviewer Mode activates only when ≥2 backend flags are present on the invocation.
-
----
+`-co` / `-gco` / `-gcoc` substitute reviewers, 2nd-opinions, and research/writer tools throughout the workflow. Multiple backend flags can be combined (run them all, never pick one). Full substitution tables and Combined Reviewer Mode rules: `references/reviewer-modes.md`.
 
 ### Step 2: Create Base Branch and Root PR
 
-**CRITICAL: `-s` / `--stay` is STRICTLY opt-in.** Only use the `--stay` flow below if the user explicitly passed `-s` or `--stay`. Do NOT auto-detect `--stay` behavior based on the current branch state, existing PRs, or any other contextual clue. The default ALWAYS creates a new branch — even if you're on a branch that already has a PR.
+**CRITICAL: `-s` / `--stay` is STRICTLY opt-in.** Only use the `--stay` flow if the user explicitly passed `-s` or `--stay`. Do NOT auto-detect. Default ALWAYS creates a new branch — even if the current branch has an existing PR. See `references/arguments.md` for the full `--stay` mechanism.
+
+**Super-Epic child mode**: parent branch is `$SUPER_EPIC_BASE`, base branch is `$EPIC_BASE` verbatim (from the marker). Root PR targets `$SUPER_EPIC_BASE`. See `references/super-epic-mode.md`.
 
 #### Default flow (no `--stay`) — ALWAYS used unless `-s` / `--stay` explicitly passed
 
-The base branch is created from whichever branch is currently checked out. The current branch becomes the PR target. This is true regardless of whether the current branch has an existing PR or not.
+Base branch is created from the currently checked-out branch; that branch becomes the root-PR target. True regardless of whether it has an existing PR.
 
 ```bash
 INVOCATION_BRANCH=$(git branch --show-current)  # Record before any checkout
 ```
 
-**Determine `<parent-branch>`**: If the user specified a parent/base branch, use it. Otherwise, **default to the branch that was checked out when the command was invoked** (`INVOCATION_BRANCH`). For example, if invoked on `topic/foobar`, the parent branch is `topic/foobar`, not `main`.
+**Determine `<parent-branch>`**: If the user specified one, use it. Otherwise default to `INVOCATION_BRANCH`.
 
 **CRITICAL**: Create the root PR immediately with an empty commit. This locks in the correct parent branch from the start.
 
 ```bash
-# Ensure parent branch is up to date
 git checkout <parent-branch>
 git pull origin <parent-branch>
 
-# Create the base branch
 git checkout -b base/<project-name>
 
-# Create empty start commit and push
 git commit --allow-empty -m "= start <project-name> dev ="
 git push -u origin base/<project-name>
 
-# Create the root PR immediately (draft, targeting parent branch)
-# !! PR TARGET CHECK !! — <parent-branch> MUST be INVOCATION_BRANCH (recorded at Step 2 start),
-# not the repo default branch. If the session was invoked from `topic/foo`, this MUST be
-# `topic/foo`, not `main`. NEVER omit `--base` — `gh pr create` falls back to the repo default
-# branch (usually main). That is the bug the top-of-file rule prohibits.
+# !! PR TARGET CHECK !! — <parent-branch> MUST be INVOCATION_BRANCH (recorded above) for non-Super-Epic
+# sessions, or $SUPER_EPIC_BASE for Super-Epic child mode. NEVER omit --base — `gh pr create` falls
+# back to the repo default branch (usually main). That is the bug the top-of-file rule prohibits.
 gh pr create \
   --base <parent-branch> \
   --title "<project-name>: root PR title" \
@@ -643,31 +279,27 @@ Save the root PR number — you will update it as topics are merged.
 
 #### If `-s` / `--stay` is explicitly passed
 
-The current branch is reused as the base branch. No new branch or empty commit is created.
+The current branch is reused as the base branch. No new branch or empty commit. Parent branch is determined from any existing PR on the current branch, or the repo default branch if none. See `references/arguments.md` for the full mechanism.
 
 ```bash
-INVOCATION_BRANCH=$(git branch --show-current)  # This IS the base branch
+INVOCATION_BRANCH=$(git branch --show-current)
 BASE_BRANCH="$INVOCATION_BRANCH"
 
-# Determine the parent branch for the root PR target
 PARENT_BRANCH=$(gh pr view "$BASE_BRANCH" --json baseRefName -q '.baseRefName' 2>/dev/null)
 if [ -z "$PARENT_BRANCH" ]; then
   PARENT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
 fi
 
-# Check if a root PR already exists for this branch
 EXISTING_PR=$(gh pr view "$BASE_BRANCH" --json number -q '.number' 2>/dev/null)
 ```
 
-- If `EXISTING_PR` exists: reuse it as the root PR (record its number). No new PR needed.
-- If no PR exists: create a new draft PR targeting `PARENT_BRANCH` (same as the normal flow above, but skip branch creation and empty commit).
+If `EXISTING_PR` exists: reuse it. If not: create a new draft PR targeting `PARENT_BRANCH`.
 
 ### Step 3: Create Worktrees
 
 For each topic:
 
 ```bash
-# Create worktree with a topic branch based on the base branch
 git worktree add worktrees/<topic-name> -b <project-name>/<topic-name> base/<project-name>
 ```
 
@@ -698,9 +330,34 @@ for wt in worktrees/*/; do
 done
 ```
 
-### Step 5: Spawn Child Agents via Teams
+### Step 5: Spawn Child Agents
 
-Use TeamCreate to create a team, then use the Task tool to spawn child agents — one per topic. Each agent works in its own worktree directory.
+#### Pick the spawn path first
+
+Before any TeamCreate or Agent call, decide whether this session uses **teams** (default, current behavior) or **subagents** based on the per-topic execution-mode markers extracted in Step 1a:
+
+- All topics marked `subagents` → **subagents path** (skip TeamCreate; spawn each topic as a one-shot Agent call).
+- Any topic marked `teams`, OR any topic missing the marker → **teams path** (full team workflow below).
+
+Tell the user which path was chosen with one line: which path, and why (e.g. "Execution mode: subagents (all 3 topics marked subagents)" or "Execution mode: teams (no `Execution mode` markers found — defaulting to teams)"). Then run a brief drift sanity check per topic.
+
+Full routing logic, marker grep patterns, drift sanity check, and the subagents-path Step 5 / Step 7 behavior live in `references/execution-modes.md` — read it once when the spawn path resolves to subagents, or when any marker is ambiguous.
+
+#### Resolve model per topic
+
+The downstream child model is **per-topic**, not session-wide. Resolve in this order:
+
+1. **Manual flag override** — if the invocation has `-haiku`, `-so`, or `-op`, that flag applies to ALL topics. This is a deliberate manual override; the per-topic markers are ignored. Tell the user explicitly: "Manual override: all topics use {model} (-{flag})."
+2. **Per-topic annotation** — otherwise, use the `**Model:**` marker extracted from each topic's `[Sub]` issue body (or inline sub-task) in Step 1a.
+3. **Default** — if a topic has no marker AND no flag was passed, default to `opus`.
+
+Tell the user the resolution before spawning, e.g. "Models per topic: topicA=opus, topicB=sonnet, topicC=opus." When children spawn (either path), set each one's model parameter to its own resolved value — children in the same session may run different models, that's fine.
+
+Full table and rationale: `references/per-topic-models.md`.
+
+#### Teams path (default)
+
+Use TeamCreate to create a team, then the Task tool to spawn child agents — one per topic. Each agent works in its own worktree directory.
 
 ```
 1. TeamCreate with team_name: "<project-name>"
@@ -709,66 +366,73 @@ Use TeamCreate to create a team, then use the Task tool to spawn child agents �
    - subagent_type: "frontend-worktree-child" (or "general-purpose" for non-frontend topics)
    - team_name: "<project-name>"
    - name: "topic-<name>"  (e.g., "topic-topicA")
-   - (**Do NOT pass a `mode:` param.** Agent-team teammates inherit the lead's permission mode at spawn time and per-teammate modes cannot be set — see [agent-teams docs](https://code.claude.com/docs/en/agent-teams#permissions). Permission prompts on file edits are handled entirely by the PreToolUse hook at `$HOME/.claude/hooks/allow-worktree-teammate-edits.sh`, which auto-approves Edit/Write/NotebookEdit when **either** the session cwd **or** the target file path sits under a `worktrees/<topic>/` segment. This covers both `frontend-worktree-child` teammates — which also carry `permissionMode: acceptEdits` in their agent definition — and `general-purpose` teammates used for non-frontend topics, whose session cwd inherits the lead's cwd and would otherwise block on every Edit. Confirm the hook is registered in `settings.json` before first use.)
-   - model: the Claude model resolved from the model flag (`-haiku` / `-so` / `-op`). **Default: `opus`.** Always set `model:` explicitly on child agents (even at the default) so behavior is predictable.
+   - (Do NOT pass a `mode:` param. Agent-team teammates inherit the lead's permission mode at spawn
+     time; per-teammate modes cannot be set. Permission prompts on file edits are handled by the
+     PreToolUse hook at $HOME/.claude/hooks/allow-worktree-teammate-edits.sh, which auto-approves
+     Edit/Write/NotebookEdit when either the session cwd or the target file path sits under a
+     worktrees/<topic>/ segment. Confirm the hook is registered in settings.json before first use.)
+   - model: the per-topic resolved model — see "Resolve model per topic" above. Always set explicitly per child; different children in the same session may run different models.
    - prompt: Detailed instructions including:
      a. The worktree absolute path to work in
      b. What to implement for this topic
      c. Branch name: <project-name>/<topic-name>
      d. Base branch: base/<project-name>
-     e. **COMMIT ONLY — DO NOT PUSH.** All commits stay local. Pushing happens later (Step 11) to save CI resources.
-     f. **NO DIRECT BROWSER TOOLING.** Child agents must NEVER invoke `/headless-browser`, `/verify-ui`, or any Playwright / Chrome DevTools-backed tool. 6 concurrent Chromium instances will freeze the machine. If the topic needs browser-based verification, commit the code, then report back to the manager with: (1) the URL to check, (2) what to verify (specific selectors / computed styles / visual elements), (3) which branch. The manager will dispatch a dedicated one-shot Opus subagent for the browser check. See "Playwright / Browser Verification — Isolated Subagent Only" near the top of this skill.
-     g. **NO HEAVY / PORT-BASED TESTS DURING IMPLEMENTATION.** Child agents must NOT run full e2e / integration suites, long-running builds, or hold a dev server (`pnpm dev`, `vite`, etc.) open for verification. Running these in parallel across worktrees causes port conflicts and CPU thrashing. Instead: commit the code and report back with "integration check needed — URL/endpoint, what to verify, branch." The manager runs these sequentially on the merged base branch. Unit tests, type-check, and lint are fine (they do not bind ports). If a short port-binding check is genuinely unavoidable, use the `flock` pattern in "Port-Based Servers & Heavy Local Tests — Resource Coordination" near the top of this skill to serialize across worktrees.
-     h. (If issue tracking is active) The ISSUE_NUMBER and instruction to comment on it when done:
-        `gh issue comment <ISSUE_NUMBER> --body "### topic-<name> — completed\n\n<summary of work done>"`
-     i. **NO BACKTICKS / CODE FENCES IN SendMessage.** When reporting back to the manager or messaging peers via `SendMessage`, the `message` content must be plain prose — no backticks, no triple-backtick fences, no inline markdown code formatting. Write "src/foo.ts line 42", not the backtick-quoted form. This is a workaround for Claude Code Ink rendering bug #51855: any inline code span in a teammate message crashes the pane and tears down the whole team. Markdown is still fine in commits, PR bodies, issue comments, log files, and source code — just not in `SendMessage`. See "SendMessage Content — No Markdown Code Spans" near the top of this skill.
-     j. **REBUILD TOUCHED WORKSPACE PACKAGES BEFORE REPORTING DONE.** If the project has a workspace/monorepo layout and the agent's commits touched source inside a package whose consumer imports through a built artifact (e.g. an `exports` map → `./dist/...`), the agent MUST rebuild that package and commit the resulting build output before declaring done. Editing source without rebuilding leaves the consumer loading stale compiled output — a classic stale-dist bug. The project's `CLAUDE.md` should name the workspace root (`packages/`, `sub-packages/`, `apps/`, etc.) and the rebuild command (`pnpm --filter <name> build`, `npm run build -w <name>`, etc.); the agent should defer to it. Skip silently only if the touched package has no `build` script or its build output is gitignored AND consumers import from source. A failed build is a blocker. (The `frontend-worktree-child` agent definition also carries this rule; the duplication here covers `general-purpose` teammates spawned for non-frontend topics.)
+     e. COMMIT ONLY — DO NOT PUSH. All commits stay local. Pushing happens in Step 11.
+     f. NO DIRECT BROWSER TOOLING. Children must NEVER invoke /headless-browser, /verify-ui, or any
+        Playwright / Chrome DevTools-backed tool. If browser verification is needed, commit and
+        report back to the manager with URL + what to verify + branch. Manager dispatches a fresh
+        disposable Opus subagent. See references/resource-coordination.md.
+     g. NO HEAVY / PORT-BASED TESTS DURING IMPLEMENTATION. Children must NOT run full e2e suites,
+        long builds, or hold dev servers open. Commit + report back; manager runs sequentially on
+        merged base. For unavoidable short port-binding work, use the flock pattern in
+        references/resource-coordination.md.
+     h. (If issue tracking is active) ISSUE_NUMBER and instruction to comment on it when done:
+        gh issue comment <ISSUE_NUMBER> --body "### topic-<name> — completed\n\n<summary>"
+     i. NO BACKTICKS / CODE FENCES IN SendMessage. When reporting via SendMessage, message content
+        must be plain prose. Markdown is still fine in commits, PR bodies, issue comments, log
+        files, source code — just not in SendMessage. See "SendMessage Content" rule above.
+     j. REBUILD TOUCHED WORKSPACE PACKAGES BEFORE REPORTING DONE. If the project has a workspace/
+        monorepo layout and commits touched source inside a package whose consumer imports through
+        a built artifact (e.g. an `exports` map → ./dist/...), the agent MUST rebuild that package
+        and commit the build output before declaring done. Editing source without rebuilding leaves
+        the consumer loading stale compiled output. Defer to project CLAUDE.md for workspace root
+        and rebuild command. Skip silently only if the touched package has no build script or its
+        build output is gitignored AND consumers import from source. A failed build is a blocker.
 ```
 
-**Spawn child agents in parallel — BUT capped at 6 concurrent agents.** Use multiple Task tool calls in a single message for the first batch. Each agent should:
+**Spawn child agents in parallel — capped at 6 concurrent.** Use multiple Task tool calls in a single message for the first batch. Each agent should:
 
 1. Work in its assigned worktree directory
 2. Implement the topic
-3. **Commit changes locally only — DO NOT push** (pushing is deferred to Step 11)
-4. **Run `/light-review`** to self-review their work — fix any clearly useful findings and commit. Forward whichever `-co` / `-gco` / `-gcoc` backend flags were on the original invocation. If no backend flag is active, `/light-review` falls to its own default (`-gcoc`). `/light-review` silently falls back if all routed backends are unavailable — no special handling needed.
+3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
+4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever `-co` / `-gco` / `-gcoc` backend flags were on the original invocation. If no backend flag is active, `/light-review` falls to its own default (`-gcoc`).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
-7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, and log file path. Do NOT send full summaries — the log file has the detail. The manager can read it via `/logrefer` if needed. **Plain prose only — no backticks or code fences in the `SendMessage` content** (see "SendMessage Content — No Markdown Code Spans" rule; Claude Code bug #51855 crashes the pane on inline code spans).
+7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. No backticks / code fences in SendMessage.
 
 #### Concurrency Limit: Max 6 Child Agents at Once
 
-**CPU load protection**: Never run more than **6 child agents concurrently**. Running 7+ parallel agents overloads the local machine (each agent runs code, tests, reviews, etc.).
+**CPU load protection**: Never run more than **6 child agents concurrently**. Running 7+ parallel agents overloads the local machine.
 
-**How to enforce:**
+- **6 or fewer topics**: Spawn all in parallel.
+- **7+ topics**: Spawn the first 6 in parallel, queue the rest. As each active agent completes and reports back, spawn the next queued topic. Continue until the queue is empty.
 
-- **6 or fewer topics**: Spawn all in parallel as usual — no waiting needed.
-- **7 or more topics**: Spawn only the first 6 in parallel. Queue the remaining topics. When any active agent completes and reports back, spawn the next queued topic. Continue until the queue is empty.
-
-**Example with 8 topics:**
-
-1. Spawn topics 1–6 in parallel (single message, 6 Task tool calls)
-2. Wait for any one agent to complete (e.g., topic 3 finishes)
-3. Spawn topic 7
-4. Wait for another agent to complete (e.g., topic 1 finishes)
-5. Spawn topic 8
-6. Wait for all remaining agents (topics 2, 4, 5, 6, 7, 8) to complete
-
-This keeps the active agent count at ≤6 at all times. The overall wall-clock time is longer than full-parallel, but the machine stays responsive.
+The active agent count stays at ≤6 at all times.
 
 ### Step 6: Review and Merge Topic Branches Locally
 
-Since child agents committed locally without pushing, merge their topic branches into the base branch **locally** using git:
+Children committed locally without pushing. Merge their branches into base **locally** with git:
 
 ```bash
 git checkout base/<project-name>
 
-# Merge each topic branch into base (regular merge, not squash)
+# Regular merge, NOT squash
 git merge <project-name>/topicA
 git merge <project-name>/topicB
 git merge <project-name>/topicC
 ```
 
-Review the combined diff to make sure everything looks right:
+Review the combined diff:
 
 ```bash
 git diff <parent-branch>...base/<project-name> --stat
@@ -776,18 +440,20 @@ git diff <parent-branch>...base/<project-name> --stat
 
 ### Step 7: Shut Down Child Agents and Remove Worktrees
 
-All child agents are done and their branches have been merged. Shut down the team and clean up worktrees immediately.
+All child agents are done; their branches are merged. Clean up worktrees and (if a team was created in Step 5) shut the team down.
 
-1. **Send shutdown to each agent individually** (structured messages cannot be broadcast to `"*"`):
+**Subagents path**: skip steps 1 and 2 below entirely — there is no team. One-shot Agent calls already terminated when each returned. Jump straight to step 3 (worktree removal).
 
-```
-For each child agent (e.g., "topic-topicA", "topic-topicB", ...):
-  SendMessage: to="topic-<name>", message={type: "shutdown_request", reason: "All topics merged into base branch. Work complete."}
-```
+1. **(Teams path only)** **Send shutdown to each agent individually** (structured messages cannot be broadcast to `"*"`):
 
-Send all shutdown messages in parallel (multiple SendMessage calls in a single response).
+   ```
+   For each child agent (e.g., "topic-topicA", "topic-topicB", ...):
+     SendMessage: to="topic-<name>", message={type: "shutdown_request", reason: "All topics merged into base branch. Work complete."}
+   ```
 
-2. **Wait for shutdown confirmations**, then **delete the team**:
+   Send all shutdown messages in parallel (multiple SendMessage calls in one response).
+
+2. **(Teams path only)** **Wait for shutdown confirmations**, then **delete the team**:
 
    ```
    TeamDelete
@@ -803,46 +469,46 @@ Send all shutdown messages in parallel (multiple SendMessage calls in a single r
 
 4. **Fix pnpm symlinks** if the project uses pnpm workspaces (worktree removal can break symlinks):
 
-```bash
-pnpm install --ignore-scripts 2>/dev/null || true
-```
+   ```bash
+   pnpm install --ignore-scripts 2>/dev/null || true
+   ```
 
-This closes the tmux panes for all child agents and frees disk space. The rest of the workflow (review, push, CI) is handled by the manager alone.
+This closes the tmux panes and frees disk space. The rest of the workflow (review, push, CI) is handled by the manager alone.
 
 ### Step 8: Sync Local Base Branch
 
-Ensure the base branch is up to date with any remote changes (e.g., if the root PR's empty commit was pushed in Step 2):
+Ensure the base branch is up to date with any remote changes:
 
 ```bash
 git fetch origin base/<project-name>
 git merge origin/base/<project-name>
 ```
 
-After syncing, **re-read the issue TODO** to confirm the next step:
+Re-read the issue TODO to confirm the next step:
 
 ```bash
 gh issue view "$ISSUE_NUMBER"
 ```
 
-The next step is **Step 9: Quality Assurance**. You MUST run it before pushing. Do NOT skip ahead to pushing.
+Next is **Step 9: Quality Assurance**. You MUST run it before pushing. Do NOT skip ahead.
 
 ---
 
 ### !! MANDATORY CHECKPOINT: Step 9 — Quality Assurance !!
 
-**STOP. Before you push ANYTHING, you MUST run the review step.** This step is the most commonly skipped step in long workflows because the context gets long after managing multiple child agents. **Read this carefully and execute it.**
+**STOP. Before you push ANYTHING, you MUST run the review step.** This is the most commonly skipped step in long workflows because the context gets long after managing multiple child agents. **Read this carefully and execute it.**
 
-**CRITICAL: The review MUST run on the base branch in the main repo directory** (NOT in a worktree or isolated context). At this point, topic branches have been merged locally but NOT pushed — the merged commits only exist in the local base branch. Reviewers spawned with `isolation: "worktree"` or in separate worktrees will NOT see the unpushed merged changes and will report "no code to review." Always run the review from the main repo root on `base/<project-name>`.
+**CRITICAL: The review MUST run on the base branch in the main repo directory** (NOT in a worktree or isolated context). At this point, topic branches are merged locally but NOT pushed — the merged commits only exist in the local base branch. Reviewers spawned with `isolation: "worktree"` or in separate worktrees will NOT see the unpushed merged changes and will report "no code to review." Always run from the main repo root on `base/<project-name>`.
 
 #### `--no-review` opt-out (skip Step 9 entirely)
 
-If `--no-review` or `-nor` was passed on the invocation, **skip this step entirely** — do not invoke any review skill, do not delegate fixes, do not block before Step 11. Proceed straight to Step 10 (if `--verify-ui` was passed) or Step 11 (push).
+If `--no-review` or `-nor` was passed, **skip this step entirely** — do not invoke any review skill, do not delegate fixes, do not block before Step 11. Proceed straight to Step 10 (if `--verify-ui`) or Step 11 (push).
 
-This flag exists for one purpose: when `/deep-review -t` (the default team-fix path) spawns a child `/x-wt-teams --no-review --stay` to apply fixes, the child must NOT run its own `/deep-review` again — that would loop forever (`/deep-review -t` → `/x-wt-teams` → `/deep-review -t` → …). Manual users almost never pass this flag.
+This flag's purpose: when `/deep-review -t` (default team-fix path) spawns a child `/x-wt-teams --no-review --stay` to apply fixes, the child must NOT run `/deep-review` again — that would loop forever. Manual users almost never pass this. See `references/arguments.md`.
 
 #### Review Loop Mode (`-l` / `--review-loop`)
 
-If `-l` or `--review-loop` was passed (and `--no-review` was NOT), invoke `/review-loop 5 --aggressive --issues` instead of `/deep-review`. If `--noi` / `--noissue` / `--noissues` was also passed, omit the `--issues` flag (i.e., invoke `/review-loop 5 --aggressive`). This runs 5 rounds of aggressive review-fix cycles for thorough quality improvement.
+If `-l` was passed (and `--no-review` was NOT), invoke `/review-loop 5 --aggressive --issues` instead of `/deep-review`. If `--noi` / `--noissue` / `--noissues` was also passed, omit `--issues`:
 
 ```
 Skill tool: skill="review-loop", args="5 --aggressive --issues"
@@ -852,26 +518,30 @@ Skill tool: skill="review-loop", args="5 --aggressive"
 
 #### Default Mode
 
-If neither `--review-loop` nor `--no-review` was passed, invoke `/deep-review` as usual:
+If neither flag was passed, invoke `/deep-review`:
 
 ```
 Skill tool: skill="deep-review"
 ```
 
-`/deep-review` defaults to `-t` team-fix mode, which means **it handles its own fix delegation internally** — after collecting findings, it spawns a fresh `/x-wt-teams --no-review --stay` session that creates a fix worktree, applies the fixes, commits, merges back into `base/<project-name>`, and pushes. By the time `/deep-review` returns, fixes are already committed and pushed (and the inner session also ran `/pr-revise` on the root PR). You do NOT need to create a fix issue, spawn an Agent, or call `/pr-revise` from this step — that is all done inside `/deep-review`.
+`/deep-review` defaults to `-t` team-fix mode — it handles its own fix delegation by spawning a fresh `/x-wt-teams --no-review --stay`, applying fixes, committing, merging back into `base/<project-name>`, pushing, and running `/pr-revise`. By the time `/deep-review` returns, fixes are already committed and pushed. You do NOT need to create a fix issue, spawn an Agent, or call `/pr-revise` from this step.
 
-If you specifically want the legacy inline-fix flow (manager applies fixes in its own context, no nested `/x-wt-teams`), invoke `/deep-review -nt` instead — useful in resource-constrained sessions or when the diff is tiny.
+For the legacy inline-fix flow (manager applies fixes in own context, no nested team), use `/deep-review -nt`.
 
-#### Common Steps
+#### Reviewer-mode substitution
 
-1. **Invoke the review skill** as described above (`/deep-review` for default mode, `/review-loop 5 --aggressive [--issues]` for `-l`).
-2. **Wait for it to complete** — when it returns:
-- If `/deep-review` ran in default `-t` mode: the fixes are already applied, committed, and pushed by the inner `/x-wt-teams --no-review --stay` session. The base branch is in its post-fix state.
-- If `/deep-review -nt` was invoked: fixes were applied inline; no inner team session ran.
-- If `/review-loop` ran: it ran multiple review-fix cycles internally.
-- If the review reported no actionable issues: nothing changed; just continue.
-3. **Confirm the base branch state** before proceeding (`git log --oneline -5`, `git status`) so you know whether new commits were added by the review skill.
-4. **Proceed to Step 10** (if `--verify-ui`) or Step 11.
+If `-co` / `-gco` / `-gcoc` is active, substitute the reviewer skill: `/codex-review` / `/gco-review` / `/gcoc-review`. With multiple flags, run all selected backends sequentially and merge findings. Full rules: `references/reviewer-modes.md`.
+
+#### Common steps
+
+1. Invoke the review skill as described above.
+2. Wait for it to complete:
+- `/deep-review -t`: fixes already applied, committed, and pushed by inner `/x-wt-teams --no-review --stay`. Base branch is in its post-fix state.
+- `/deep-review -nt`: fixes applied inline; no inner team session ran.
+- `/review-loop`: ran multiple review-fix cycles internally.
+- No actionable issues: nothing changed; continue.
+3. Confirm base branch state (`git log --oneline -5`, `git status`) so you know whether new commits were added.
+4. Proceed to Step 10 (if `--verify-ui`) or Step 11.
 
 If you are about to run `git push` and you have NOT yet invoked the review skill in this session (and `--no-review` was NOT passed), **STOP and go back to this step.**
 
@@ -879,23 +549,23 @@ If you are about to run `git push` and you have NOT yet invoked the review skill
 
 ### Step 10: Verify UI (optional)
 
-**Only run this step if `-v` / `--verify-ui` was passed.** Skip otherwise.
+**Only run if `-v` / `--verify-ui` was passed.** Skip otherwise.
 
-After the review step (Step 9) is complete and fixes are committed:
+After Step 9 fixes are committed:
 
-1. **Launch a verification target** — start the project's dev server, use a PR preview URL, or any other means to get the implementation running in a browser
-2. **Dispatch a disposable Opus subagent to run `/verify-ui`** — do NOT invoke `/verify-ui` in the manager's own context. See "Playwright / Browser Verification — Isolated Subagent Only" above for the exact Agent-tool invocation pattern. The subagent loads Playwright, runs the check, returns a PASS/FAIL report, and is torn down when the Agent call returns. Spawn one subagent per discrete verification (sequential, never parallel).
-3. If the subagent reports issues, fix them **in the manager context** (no browser needed for the fix itself) and commit locally (do NOT push yet). Then spawn a **fresh** subagent for the re-verification pass — never reuse the earlier subagent.
+1. **Launch a verification target** — start the project's dev server, use a PR preview URL, or any other means to get the implementation running in a browser.
+2. **Dispatch a disposable Opus subagent to run `/verify-ui`** — do NOT invoke `/verify-ui` in the manager's own context. See `references/resource-coordination.md` for the exact Agent-tool dispatch pattern. The subagent loads Playwright, runs the check, returns a PASS/FAIL report, and is torn down on return. Spawn one subagent per discrete verification (sequential, never parallel).
+3. If the subagent reports issues, fix them **in the manager context** (no browser needed for the fix itself) and commit locally (do NOT push yet). Spawn a **fresh** subagent for re-verification — never reuse the earlier one.
 
-This step ensures that visual/UI changes are not just code-correct but render correctly in the browser. Skip if the changes are purely backend or non-visual.
+Skip if changes are purely backend or non-visual.
 
 ---
 
 ### Step 11: Push All Changes to Remote
 
-**Pre-push gate**: Before pushing, confirm you have already run the quality assurance review (Step 9). If you skipped it, go back now.
+**Pre-push gate**: Confirm Step 9 has run. If skipped (and `--no-review` was NOT passed), go back now.
 
-Push everything to remote **in one batch**. This is the first time anything is pushed after the initial empty commit — saving CI resources by avoiding intermediate pushes.
+Push everything in one batch — first push after the initial empty commit. This avoids running CI on every intermediate commit.
 
 ```bash
 # Push the base branch (contains all merged topic work + review fixes)
@@ -909,12 +579,10 @@ done
 
 After pushing, create topic PRs for documentation/tracking, close them, then **immediately delete topic branches**.
 
-**IMPORTANT**: Topic branches were already merged locally into the base branch (Step 6). If the remote base branch already contains the topic commits (because the base was pushed first), `gh pr create` will fail with "No commits between base and head". Always guard against this — check if the PR was actually created before trying to close it. **Never call `gh pr close` with an empty PR number** — `gh` will default to closing the current branch's PR (the root PR), which is destructive.
+**IMPORTANT**: Topic branches are already merged locally into base (Step 6). If the remote base already contains the topic commits, `gh pr create` fails with "No commits between base and head". Always guard against this — check if the PR was actually created before trying to close it. **Never call `gh pr close` with an empty PR number** — `gh` will default to closing the current branch's PR (the root PR), which is destructive.
 
 ```bash
-# For each topic branch, create PR, close it, then delete the branch
 for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
-  # Attempt to create PR — may fail if topic is already merged into base
   if gh pr create --base base/<project-name> --head "$branch" --title "<topic> implementation" --body "Part of <project-name> development" --fill 2>/dev/null; then
     PR_NUM=$(gh pr list --head "$branch" --json number -q '.[0].number')
     if [ -n "$PR_NUM" ]; then
@@ -923,38 +591,37 @@ for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC;
   fi
 done
 
-# Clean up topic branches immediately (they're merged into base, PRs are closed)
+# Clean up topic branches immediately (merged into base, PRs are closed)
 for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
-  git branch -d "$branch"                 # delete local
-  git push origin --delete "$branch"      # delete remote
+  git branch -d "$branch"
+  git push origin --delete "$branch"
 done
 ```
 
-This prevents stale topic branches from accumulating. Only the base branch remains (needed for the root PR).
+Only the base branch remains.
 
 ### Step 12: CI Watch (Verify CI Passes)
 
-**Only perform this step if the project has CI configured.** Check with `gh pr checks <root-pr-number>` — if no checks exist, skip to Step 13.
+**Only if the project has CI configured.** Check with `gh pr checks <root-pr-number>` — if no checks exist, skip to Step 13.
 
-Invoke `/watch-ci <root-pr-number>` to monitor CI. The `/watch-ci` skill handles polling, notifications, and failure investigation internally.
+Invoke `/watch-ci <root-pr-number>` to monitor CI. The skill handles polling, notifications, and failure investigation internally.
 
-- **If CI passes**: Proceed to Step 13
-- **If CI fails**: Investigate and fix
-  - Fetch failed run logs: `gh run view <run-id> --log-failed`
-  - Fix the issue, commit, push, and re-watch CI
-  - **IMPORTANT**: Only attempt CI fixes if the failure is related to the changes made (not pre-existing failures or infrastructure issues)
-- **If CI still fails after a fix attempt**: Stop and ask the user for guidance. Explain what failed, what was tried, and why it could not be resolved automatically
+- **CI passes**: Proceed to Step 13.
+- **CI fails**: Investigate and fix.
+  - `gh run view <run-id> --log-failed` to fetch failed logs
+  - Fix, commit, push, re-watch
+  - Only attempt CI fixes if the failure is related to the changes (not pre-existing or infrastructure issues)
+- **CI still fails after a fix attempt**: Stop and ask the user. Explain what failed, what was tried, and why it could not be resolved automatically.
 
-If the task is intentionally CI-breaking (e.g., adding new linting rules, migrating frameworks), **skip CI verification** and inform the user.
+If the task is intentionally CI-breaking (new linting rules, framework migration), skip CI verification and inform the user.
 
 ### Step 13: Update Root PR and Mark Ready
 
-Invoke `/pr-revise` to analyze the full diff between the parent branch and `base/<project-name>`, and update the root PR title and description to accurately reflect all combined changes from the merged topics.
+Invoke `/pr-revise` to analyze the full diff between the parent branch and `base/<project-name>` and update the root PR title and description to accurately reflect all combined changes.
 
-After `/pr-revise` completes, mark the PR as ready:
+Mark the PR as ready:
 
 ```bash
-# Mark ready for review (remove draft status)
 gh pr ready <root-pr-number>
 ```
 
@@ -962,73 +629,22 @@ gh pr ready <root-pr-number>
 
 ### Step 14: Session Report
 
-Generate a structured session report. This report serves two purposes: (1) a log for future Claude Code sessions to reference via `/logrefer`, and (2) a GitHub issue comment for human visibility.
+Generate a structured report — a log for future Claude Code sessions to reference via `/logrefer`, and a GitHub issue comment for human visibility.
 
-#### Report Content
-
-Write a markdown report summarizing:
-
-- Project name and scope
-- Topics implemented (one bullet per topic with brief summary of what each child agent did)
-- Key decisions and architectural choices
-- Review findings and fixes applied (from `/deep-review`)
-- CI status (pass/fail/skipped)
-- Root PR URL and topic PR URLs
-
-#### Save to Log Directory
-
-```bash
-$HOME/.claude/scripts/save-file.js "{logdir}/{timestamp}-x-wt-teams-{slug}.md" "<report content>"
-```
-
-Where `{slug}` is derived from the project name (e.g., `marker-fix`).
-
-#### Post to GitHub Issue
-
-If a GitHub issue is linked (`ISSUE_NUMBER` is set), post the report as an issue comment:
-
-```bash
-gh issue comment "$ISSUE_NUMBER" --body "<report content>"
-```
+Save to `{logdir}/{timestamp}-x-wt-teams-{slug}.md` and (if issue is linked) post as a comment on `$ISSUE_NUMBER`. Full template and content checklist: `references/issue-templates.md`.
 
 ---
 
 ### Step 15: Requirements Verification
 
-**Only run this step when a GitHub issue is linked** (`ISSUE_NUMBER` is set — either passed as argument, provided by the user, or created in Step 1). Skip if no issue is linked (`--no-issue` was used).
+**Only when `ISSUE_NUMBER` is set.** Skip if `--no-issue` was used.
 
-After the session report, verify that the original requirements have been fully implemented:
+After the session report, verify the original requirements are fully implemented:
 
-#### 1. Re-read the Issue
-
-```bash
-gh issue view "$ISSUE_NUMBER"
-```
-
-Read the **initial issue body** and any **early comments** (especially the first 1-2 comments) to extract the original requirements. These represent what the user actually asked for.
-
-#### 2. Compare Against Implementation
-
-Check every requirement, acceptance criterion, and bullet point from the issue against what was actually implemented. Be thorough — check the code, not just commit messages.
-
-#### 3. Handle Missing Requirements
-
-- **If all requirements are met**: Proceed to STOP. Add a comment on the issue confirming:
-
-  ```bash
-  gh issue comment "$ISSUE_NUMBER" --body "All original requirements verified as implemented."
-  ```
-
-- **If requirements are missing**: Do NOT stop. Instead:
-  1. Comment on the issue listing the missing requirements:
-
-     ```bash
-     gh issue comment "$ISSUE_NUMBER" --body "### Requirements gap found\n\nMissing: <list of missing items>\n\nContinuing implementation..."
-     ```
-
-  2. **Re-run Steps 3–14 using `--stay` semantics** on the existing base branch — same as the Feedback Loop. Create new worktrees, spawn child agents, implement the missing parts, merge, review, push, CI watch, update PR
-  3. **Re-run this verification step** after the additional implementation is complete
-  4. Repeat until all original requirements are satisfied
+1. Re-read the issue with `gh issue view "$ISSUE_NUMBER"` — read the **initial issue body** and any **early comments** to extract original requirements.
+2. Compare every requirement, acceptance criterion, and bullet against actual implementation. Be thorough — check the code, not commit messages.
+3. **All met**: Comment confirming, then proceed to STOP. Wording in `references/issue-templates.md`.
+4. **Missing requirements**: Do NOT stop. Comment listing the gaps, then re-run Steps 3–14 using `--stay` semantics on the existing base branch (same as the Feedback Loop). Re-run Step 15 after the additional implementation. Repeat until everything is satisfied.
 
 This creates a self-correcting loop that ensures nothing from the original spec is missed, even in long workflows where context can drift.
 
@@ -1036,133 +652,95 @@ This creates a self-correcting loop that ensures nothing from the original spec 
 
 ### Super-Epic: Merge Epic-PR into Super-Epic Base (MANDATORY)
 
-**Only run when this session is Super-Epic child mode** — i.e., the epic issue body contained `**Super-epic:** #N` and `SUPER_EPIC_NUMBER` was captured in Step 1a item 9. Skip entirely for non-Super-Epic sessions (the non-Super-Epic session leaves its root PR open for the user to review and merge).
+**Only run when this session is Super-Epic child mode** — i.e., the epic issue body contained `**Super-epic:** #N` and `SUPER_EPIC_NUMBER` was captured in Step 1a. Skip entirely for non-Super-Epic sessions.
 
 **This step always runs in Super-Epic child mode, regardless of `-a` / `--auto`.** `-a` is intentionally ignored in Super-Epic mode (see "Auto-Complete Mode" below for the rationale) — do NOT skip this mandatory merge thinking `/pr-complete` will handle it.
 
-**Why this step is mandatory:** A super-epic stacks many epic-PRs on the same super-epic base branch, one per `/x-wt-teams` session. If an epic-PR is left open at STOP, the next epic's session branches off a stale super-epic base — its topics won't include this epic's work, sibling epic-PRs conflict on shared files, review context fragments across stacked branches, and the super-PR never converges. With many epics in flight, the backlog of unmerged epic-PRs becomes unrecoverable. **Each epic session must merge its own epic-PR before STOP — no exceptions, no "the user can merge it later" shortcuts.**
+**Why mandatory:** A super-epic stacks many epic-PRs on the same super-epic base. If an epic-PR is left open at STOP, the next epic session branches off a stale super-epic base, sibling epic-PRs collide, and the super-PR never converges. Each epic session must merge its own epic-PR before STOP — no exceptions.
 
-**1. Confirm CI is green on the root (epic) PR.** Step 12 already watched CI, but re-check before merging:
+The merge has 5 sub-steps: re-confirm CI green, `gh pr merge --merge --delete-branch`, comment on the super-epic issue (do NOT close it), and switch to the super-epic base while deleting the now-dead local epic base. Full sequence with the exact commands and Dead Branch Cleanup details: **`references/super-epic-mode.md`**.
 
-```bash
-gh pr checks <root-pr-number>
-```
-
-If any required check is failing, do NOT merge — fix the failures first using the same pattern as Step 12 (`gh run view --log-failed`, fix, commit, push, re-watch). Do not bypass a red check to satisfy the merge mandate.
-
-**2. Merge the epic-PR into the super-epic base.** Use a regular merge (not squash — matches Rule 5, preserves the topic merge commit history so the super-PR diff is reviewable per-epic):
-
-```bash
-gh pr merge <root-pr-number> --merge --delete-branch
-```
-
-`--delete-branch` deletes the remote epic base branch (`base/<super-title-slug>-<epic-slug>`) — the work now lives in the super-epic base. The local epic base branch still exists; do NOT delete it or switch off it (the STOP rules below still apply).
-
-**3. Comment on the super-epic issue** with a link to the merged epic-PR. This is how the super-epic tracks progress across its child epics (per Step 1a item 7):
-
-```bash
-EPIC_PR_URL=$(gh pr view <root-pr-number> --json url -q .url)
-gh issue comment "$SUPER_EPIC_NUMBER" --body "Epic #$ISSUE_NUMBER merged into the super-epic base: $EPIC_PR_URL"
-```
-
-**4. Do NOT close the super-epic issue.** It stays open until all sibling epic-PRs are merged. The "All epics complete" branch of the Auto-Suggest Next Command step below is where the user is told the super-PR is ready — closing the super-epic issue is not part of this skill.
-
-After this step, proceed to Close Tracking Issue → Auto-Suggest Next Command → STOP. The Auto-Suggest message's `Just finished: #N — merged into base/<super-title-slug>` line is accurate only because this step actually ran.
+After this step, proceed to Close Tracking Issue → Auto-Suggest Next Command (Super-Epic variant) → STOP.
 
 ---
 
 ### Auto-Complete Mode (`-a` / `--auto`)
 
-**Only run this step if `-a` or `--auto` was passed AND this session is NOT Super-Epic child mode.** Otherwise, skip to STOP below.
+**Only run if `-a` or `--auto` was passed AND this session is NOT Super-Epic child mode.** Otherwise skip to STOP.
 
-**Why `-a` is ignored in Super-Epic child mode:** The mandatory "Super-Epic: Merge Epic-PR into Super-Epic Base" step above already merges the epic-PR into the super-epic base — that's the only merge a Super-Epic child session is responsible for. Adding `-a` is redundant there, and the flag is also semantically misleading: a user might read "auto-merge" as "also merge the super-epic base into main / origin branch," which this skill never does (the super-PR is merged later, in a different session, by the user). To prevent that confusion, Super-Epic child sessions do NOT honor `-a` — the mandatory step always handles the epic-PR merge, and the super-epic base stays open for the next sibling epic.
+**Why `-a` is ignored in Super-Epic child mode:** The mandatory merge step above already merges the epic-PR into the super-epic base — the only merge a Super-Epic child session is responsible for. `-a` is redundant there and is also semantically misleading (a user might read "auto-merge" as "also merge the super-epic base into main," which this skill never does). Full rationale in `references/super-epic-mode.md`.
 
-After requirements verification passes (Step 15), automatically invoke `/pr-complete -c -w` to:
+After Step 15 passes, automatically invoke `/pr-complete -c -w` to:
 
 1. Wait for CI checks to pass
 2. Merge the root PR (`--merge --delete-branch`)
 3. Close the linked issue (`-c`)
 4. Watch post-merge CI on the target branch (`-w`)
 
-This is intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/pr-complete` will handle the error reporting.
+Intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/pr-complete` handles error reporting.
 
-**After `/pr-complete` succeeds**, checkout the merged target branch and pull:
+**After `/pr-complete` succeeds**, apply the Dead Branch Cleanup Principle (Important Rule 25): checkout the merged target branch, pull, and `git branch -d` the now-dead local source branch:
 
 ```bash
-# Determine the target branch the PR was merged into
 TARGET_BRANCH=$(gh pr view <root-pr-number> --json baseRefName -q '.baseRefName')
 
-# Checkout and pull the target branch
+DEAD_SOURCE_BRANCH=$(git branch --show-current)
+
 git checkout "$TARGET_BRANCH"
 git pull origin "$TARGET_BRANCH"
+
+# Use -d (NOT -D). If unmerged commits exist, surface as a loud failure rather than silently destroy.
+if [ "$DEAD_SOURCE_BRANCH" != "$TARGET_BRANCH" ]; then
+  git branch -d "$DEAD_SOURCE_BRANCH"
+fi
 ```
 
-This leaves the user on the up-to-date target branch (e.g., `main`) after a fully automated workflow.
+If `git branch -d` fails (unmerged commits), do NOT force with `-D`. Stop and report.
+
+This leaves the user on the up-to-date target branch (e.g., `main`) after a fully automated workflow, with no dead local branch left behind.
 
 ---
 
 ### Raising Issues for Unrelated Findings (Default Behavior)
 
-During coding and reviewing (both by the manager and child agents), you may discover problems that are **unrelated to the original topic** — e.g., pre-existing bugs, code smells in adjacent files, outdated dependencies, or inconsistencies in code that was not part of the task. By default, **always raise these as separate GitHub issues** so they are tracked and not lost.
+During coding and reviewing (manager and child agents), you may discover problems **unrelated to the original topic** — pre-existing bugs, code smells in adjacent files, outdated dependencies, etc. By default, **always raise these as separate GitHub issues** so they are tracked and not lost.
 
 **When to raise:**
 
-- A reviewer flags a problem in code that was NOT modified by this workflow
-- You or a child agent notices a bug or code quality issue in adjacent code while implementing
+- A reviewer flags a problem in code NOT modified by this workflow
+- You or a child notices a bug or quality issue in adjacent code while implementing
 - A pre-existing test failure or lint warning is discovered
-- Any problem that is clearly outside the scope of the current task
+- Any problem clearly outside the scope of the current task
 
-**How to raise:**
+**How to raise:** see the unrelated-findings template in `references/issue-templates.md`.
 
-```bash
-gh issue create \
-  --title "<concise description of the unrelated problem>" \
-  --body "$(cat <<'EOF'
-## Found during
-
-Root PR: <ROOT_PR_URL> (or branch: base/<project-name>)
-
-## Description
-
-<what the problem is, where it is, and why it matters>
-
-## Suggested fix
-
-<brief suggestion if obvious, otherwise omit>
-
----
-*Discovered during `/x-wt-teams` workflow — not related to the original task.*
-EOF
-)"
-```
-
-**Suppressing with `--no-raise-issues` / `-noi`:** When `-noi` or `--no-raise-issues` is passed, do NOT raise GitHub issues for unrelated findings. Simply ignore them and focus only on the original task. Also pass this flag context to child agents so they skip raising issues too.
+**Suppressing with `--no-raise-issues` / `-noi`:** Ignore unrelated findings and focus only on the original task. Pass this flag context to child agents so they skip too.
 
 ---
 
 ### Close Tracking Issue
 
-**Always close the tracking issue when the workflow ends** (unless `--no-issue` was used and no issue exists). The tracking issue is a workflow log — it has served its purpose once the PR is ready.
+**Always close the tracking issue when the workflow ends** (unless `--no-issue` was used). The tracking issue is a workflow log — it has served its purpose.
 
 ```bash
 gh issue close "$ISSUE_NUMBER" --comment "Workflow complete. Root PR: <ROOT_PR_URL>"
 ```
 
-If any problems were discovered during the workflow that need follow-up, raise them as **separate issues** before closing the tracking issue. The tracking issue itself should not remain open as a to-do item.
+If problems were discovered that need follow-up, raise them as **separate issues** before closing the tracking issue.
 
-**Exception**: If the issue was provided by the user (not created by this workflow), do NOT close it — the user may want it to remain open for other purposes.
+**Exception**: If the user provided the issue (not created by this workflow), do NOT close it.
 
 ---
 
 ### Auto-Suggest Next Command (MANDATORY when session is part of a multi-session plan)
 
-**You MUST run this step before STOP whenever this session is part of a multi-session plan.** Skipping it means the user has to manually type "give me next command" every time — defeating the whole point of the rule. This covers BOTH Super-Epic child mode AND `--stay` accumulating-epic wave sessions.
+**You MUST run this step before STOP whenever this session is part of a multi-session plan.** Skipping it means the user has to manually type "give me next command" every time. Covers BOTH Super-Epic child mode AND `--stay` accumulating-epic wave sessions.
 
-Print a concrete, copy-pasteable `/x-wt-teams <url> [flags] <instructions>` line as the final block of your session output (just before the generic "workflow complete" closing). Use the literal URL from `gh` output — do NOT reconstruct URLs.
+Print a concrete, copy-pasteable `/x-wt-teams <url> [flags] <instructions>` line as the final block of session output (just before the generic "workflow complete" closing). Use the literal URL from `gh` output — do NOT reconstruct.
 
-**When to fire — detect either of these signals:**
+**When to fire — detect either signal:**
 
-- **Signal A — Super-Epic child session**: the epic issue body contains a `**Super-epic:** #N` marker (captured as `SUPER_EPIC_NUMBER` in Step 1a item 9). → Use **Super-Epic variant** below.
+- **Signal A — Super-Epic child session**: epic issue body contains `**Super-epic:** #N` (captured as `SUPER_EPIC_NUMBER`). → **Super-Epic variant**. Full detection, sibling lookup, message templates, and last-epic all-done branch: `references/super-epic-mode.md`.
 - **Signal B — Accumulating-epic wave session**: the session was invoked with `-s` / `--stay` AND the user's original instructions contain ANY of:
   - "wave" / "Wave N<letter>" / "Sub N" / "next sub" / "next wave"
   - "accumulating epic PR" or "Do NOT ... merge PR #NNNN" or "Do NOT run /pr-complete"
@@ -1170,188 +748,25 @@ Print a concrete, copy-pasteable `/x-wt-teams <url> [flags] <instructions>` line
   - An enumerated list of remaining sub-issues / waves
   - The session merged a sub-issue into the epic base and the epic PR stayed open
 
-  → Use **Accumulating-epic variant** below.
+  → **Accumulating-epic variant**. Full detection, identification of `EPIC_BASE` / `EPIC_PR`, sub-issue lookup, hand-off message template, and no-next-found fallback: `references/issue-templates.md`.
 
 If neither signal applies, skip auto-suggest and fall through to STOP.
 
 ---
 
-#### Super-Epic variant
-
-**Only run when Super-Epic child mode is detected** (Signal A above). Skip entirely for non-Super-Epic sessions.
-
-After the tracking issue is closed, help the user pick up the next epic by inspecting the super-epic and printing a ready-to-run `/x-wt-teams` command.
-
-1. **List sibling open epic issues under this super-epic:**
-
-   ```bash
-   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-   gh issue list --repo "$REPO" --label epic --state open --limit 200 \
-     --json number,title,url,body \
-     --jq "[.[] | select(.body | contains(\"**Super-epic:** #$SUPER_EPIC_NUMBER\")) | select(.number != $ISSUE_NUMBER) | {number, title, url}]"
-   ```
-
-   This returns all OPEN sibling epics (excluding the current one, which was just completed). Epics whose PR is merged are closed by `/pr-complete` or the user, so they are naturally excluded.
-
-2. **Pick the next epic** — use the first remaining entry. The super-epic issue body lists epics in dependency order, and `gh issue list` returns them in creation order (which matches the order `/big-plan` created them). If you are uncertain about dependency order, fall back to reading the super-epic body:
-
-   ```bash
-   gh issue view "$SUPER_EPIC_NUMBER" --json body --jq .body
-   ```
-
-   and pick the earliest-listed open sibling.
-
-3. **Print the hand-off message** (this is the guidance the user sees at session end):
-
-   ```
-   ## Super-Epic: Next epic ready
-
-   Just finished: #<ISSUE_NUMBER> — merged into base/<super-title-slug>
-   Super-epic:    #<SUPER_EPIC_NUMBER>
-
-   Run the next epic in a FRESH session:
-
-       /x-wt-teams <next-epic-url>
-
-   Remaining open epics under this super-epic:
-   1. #<next-number>  <next-title>   ← run next
-   2. #<other-number> <other-title>
-   ...
-   ```
-
-   Use the literal URL from `gh issue list` output (`.url` field) so the user can copy-paste the command directly — do not reconstruct it.
-
-4. **If no open siblings remain** (all epics done), this is the **last** Super-Epic child session. Run the special "all-done" hand-off instead:
-
-   a. **Auto-checkout the super-epic base.** Up to this point the rule has been "stay on the epic base branch" — but now this epic-PR is merged into the super-epic base, so the epic base is finished work. Switching to the super-epic base puts the user on the branch that holds the entire super-epic and is the natural surface for the final quality pass.
-
-      ```bash
-      # Read the super-epic base from the epic issue body marker (already captured in Step 1a item 9).
-      SUPER_EPIC_BASE=$(gh issue view "$ISSUE_NUMBER" --json body --jq .body \
-        | grep -oE '\*\*Super-epic base branch:\*\* `base/[^`]+`' \
-        | sed -E 's/.*`base\/([^`]+)`.*/base\/\1/' | head -1)
-
-      git fetch origin "$SUPER_EPIC_BASE"
-      git checkout "$SUPER_EPIC_BASE"
-      git pull origin "$SUPER_EPIC_BASE"
-      ```
-
-      This is the **only** place in the entire skill where checking out a different branch at end-of-session is allowed (it overrides Important Rule 1). It is gated tightly: ALL sibling epics must be merged AND this must be Super-Epic child mode AND the auto-suggest detector saw zero open siblings. If any of those conditions are not true, do NOT switch branches — fall through to the "next epic ready" branch above.
-
-   b. **Print the all-done hand-off** with a concrete `/deep-review -t` suggestion as the next command:
-
-      ```
-      ## Super-Epic: All epics complete
-
-      Super-epic: #<SUPER_EPIC_NUMBER>
-      All child epics have been merged into <SUPER_EPIC_BASE>.
-
-      You are now on <SUPER_EPIC_BASE> (super-epic root branch). The super-PR is ready
-      for a final quality pass before being merged into main.
-
-      Run this in a FRESH session to do the final review-and-fix:
-
-          /deep-review -t
-
-      That review covers the full super-epic diff, finds quality issues across all the
-      merged epic work, and applies fixes via a fresh agent team merging back into
-      <SUPER_EPIC_BASE>. Once the review pass is clean, merge the super-PR into main.
-
-      See the super-epic issue for the super-PR URL.
-      ```
-
-   The `/deep-review -t` invocation here is the user's final action on the super-epic — `-t` is the default in `/deep-review`, but include it explicitly in the printed command so the user understands the team-fix mode is what makes this safe-to-run on a large multi-epic diff.
-
-This hand-off replaces the generic "workflow complete" closing when running under Super-Epic child mode — it keeps the user's momentum on the multi-epic plan without forcing them to go back to the super-epic issue to look up the next URL manually, and now also pre-positions them on the super-epic base so the final `/deep-review -t` runs on the right branch.
-
----
-
-#### Accumulating-epic variant
-
-**Only run when Signal B is detected** — the session used `-s` / `--stay` on an accumulating epic base branch, and the user's original instructions indicated a sequential wave/sub-issue pattern. Skip entirely otherwise.
-
-This covers the pattern where the user runs `/x-wt-teams <sub-issue-url> --stay ...` repeatedly against the same epic base branch (e.g., `base/design-token-panel`), merging one sub-issue at a time while the epic PR (e.g., #1440) stays open and accumulates changes. At session end, the user expects the next session's command to be pre-assembled.
-
-**1. Identify the accumulating epic PR and epic base branch** — both are usually already known from Step 2 / user instructions:
-
-```bash
-# Current branch is the accumulating epic base (we stayed on it)
-EPIC_BASE=$(git branch --show-current)   # e.g., base/design-token-panel
-
-# Accumulating epic PR number: parse from user's original instructions
-# (phrases like "PR #1440", "merge PR #NNNN", "accumulating epic PR #NNNN").
-# If not stated, fall back to: the open PR whose head is EPIC_BASE.
-EPIC_PR=$(gh pr list --head "$EPIC_BASE" --state open --json number --jq '.[0].number')
-```
-
-**2. Find remaining sub-issues.** Prefer (in order):
-
-1. An explicit enumerated list in the user's original instructions (e.g., "Sub 10a, Sub 10b, Sub 10c — run each in a fresh --stay session"). Pick the next one not yet closed.
-2. Sub-issues linked from the accumulating epic PR body / epic tracking issue. Fetch and filter to open ones:
-
-   ```bash
-   gh pr view "$EPIC_PR" --json body --jq .body
-   # Scan for "#NNNN" references; check each with `gh issue view <n> --json state` and keep open ones.
-   ```
-
-3. Sibling open issues under the same parent/epic issue (if one was referenced in user instructions).
-
-If you cannot confidently identify a next sub-issue, print the "no-next-found" fallback message (below) instead of guessing.
-
-**3. Print the hand-off message** with a concrete, copy-pasteable `/x-wt-teams` command mirroring this session's pattern:
-
-```
-## Accumulating Epic: Next sub ready
-
-Just finished: #<closed-sub-number> — merged into <EPIC_BASE>
-Accumulating epic PR: #<EPIC_PR> (stays open)
-
-Run the next sub in a FRESH session:
-
-    /x-wt-teams <next-sub-issue-url> <model-flags> <wave-label> only: <short sub description>. --stay on <EPIC_BASE>. Merge into base via --no-ff, push, then close the sub-issue. Do NOT run /pr-complete or merge PR #<EPIC_PR> (accumulating epic PR).
-
-Remaining open sub-issues:
-1. #<next-number>  <next-title>   ← run next
-2. #<other-number> <other-title>
-...
-```
-
-Key requirements for the printed command:
-
-- **Same model/backend flags** as this session (e.g., `-gcoc`, `-haiku`, `-co`). Forward whatever was used.
-- **`--stay` MUST be present** — this is an accumulating-epic continuation, not a fresh workflow.
-- **Wave/sub label** (e.g., "Wave 4b only: Sub 10b #1493 —") if the user's original instructions used one; omit if not.
-- **Explicit "Do NOT run /pr-complete or merge PR #<EPIC_PR> (accumulating epic PR)"** clause, so the next session preserves the accumulating pattern.
-- **Use the literal issue URL** from `gh` output — do not hand-construct `github.com/...` URLs.
-
-**4. No-next-found fallback.** If no remaining sub-issue can be confidently identified, print:
-
-```
-## Accumulating Epic: Last sub complete (or next sub unclear)
-
-Just finished: #<closed-sub-number> — merged into <EPIC_BASE>
-Accumulating epic PR: #<EPIC_PR> (stays open)
-
-Could not auto-detect the next sub-issue. If more waves remain, tell me the next sub-issue URL or point me at the tracking doc. Otherwise, the accumulating epic PR is ready for the final push / merge.
-```
-
-This hand-off keeps the wave cadence autonomous — the user's "give me next command" follow-up should become unnecessary.
-
----
-
 ### STOP — WORKFLOW ENDS HERE
 
-**After the tracking issue is closed (or skipped), auto-complete finishes (if applicable), AND the Auto-Suggest Next Command step above has run (whenever its signals matched), the automated workflow is DONE.** Report the root PR URL and wait for user response.
+**After the tracking issue is closed (or skipped), auto-complete finishes (if applicable), AND the Auto-Suggest Next Command step has run (whenever its signals matched), the automated workflow is DONE.** Report the root PR URL and wait for user response.
 
-**Before printing the final "workflow complete" block, verify that the Auto-Suggest Next Command step ran if its signals applied.** If Signal A (Super-Epic) or Signal B (`--stay` accumulating-epic wave) matched and you did NOT yet print a next-command hand-off, go back and print it now. The user should NEVER have to type "give me next command" for a session that was part of a multi-session plan.
+**Before printing the final "workflow complete" block, verify Auto-Suggest ran if its signals applied.** If Signal A or Signal B matched and you did NOT yet print a hand-off, go back and print it now. The user should NEVER have to type "give me next command" for a planned multi-session workflow.
 
 **CRITICAL RULES at this point:**
 
 - **If `-a` / `--auto` was used and the PR was merged**: You are already on the target branch (e.g., `main`) after the auto-complete checkout+pull. Stay there.
-- **If Super-Epic child mode AND this was the last epic** (all sibling epics already closed): You are already on the super-epic base after the all-done branch of Auto-Suggest Next Command did `git checkout <SUPER_EPIC_BASE> && git pull`. Stay there.
-- **Otherwise**: **Stay on `base/<project-name>`.** Do NOT checkout `main`, the parent branch, or any other branch.
-- **Do NOT run Step 16** (unless `-a` was used and the PR is already merged). Step 16 is cleanup that only happens later, after the user has reviewed and merged the PR.
-- **Do NOT delete any branches** (local or remote) unless `-a` was used (in which case the merge branch is already deleted by `--delete-branch`).
+- **If Super-Epic child mode** (any epic — not just the last): You are already on the super-epic base after the merge step's branch-cleanup. Stay there. The local epic base is already deleted; do not try to switch back to it.
+- **Otherwise (non-Super-Epic, non-`-a`)**: **Stay on `base/<project-name>`.** Do NOT checkout `main`, the parent branch, or any other branch.
+- **Do NOT run Step 16** (unless `-a` was used and the PR is merged). Step 16 is cleanup that only happens later, after the user has reviewed and merged the PR.
+- **Do NOT delete any branches** (local or remote) unless `-a` was used (the merge branch is already deleted by `--delete-branch`) or unless this is Super-Epic child mode (the local epic base was already deleted by the merge step). Beyond those, leave branches alone.
 - **Do NOT do anything else** unless the user asks.
 
 The user will review the PR and may:
@@ -1363,29 +778,29 @@ The user will review the PR and may:
 
 ### Feedback Loop: Iterating on User Feedback
 
-After you report the root PR, the user often replies with feedback — requests for changes, fixes, or improvements. This feedback can range from small single-file tweaks to substantial multi-area rework.
+After you report the root PR, the user often replies with feedback — requests for changes, fixes, or improvements. Range: small single-file tweaks to substantial multi-area rework.
 
-**When user feedback is received, re-run Steps 3–14 using `--stay` semantics on the existing base branch.** This spins up new agent teams to implement the fixes, following the same structured workflow. The base branch and root PR already exist — no need to recreate them.
+**When user feedback is received, re-run Steps 3–14 using `--stay` semantics on the existing base branch.** This spins up new agent teams to implement the fixes following the same workflow. Base branch and root PR already exist — no need to recreate.
 
 #### How it works
 
-1. **Analyze the feedback** — break it into discrete topics. Each heading, bullet group, or distinct concern becomes a separate topic. If there's only one small concern, a single topic is fine.
-2. **Create new worktrees and topic branches** off the existing base branch (Step 3)
+1. **Analyze the feedback** — break into discrete topics. Each heading, bullet group, or distinct concern becomes a topic. Single small concern is fine as one topic.
+2. **Create new worktrees and topic branches** off the existing base branch (Step 3).
 3. **Spawn new child agent teams** (Steps 4–5):
 - Use `TeamCreate` with an incremented team name: `<project-name>-v2`, `<project-name>-v3`, etc.
 - New topic branches: `<project-name>/<new-topic-name>`
 - New worktrees: `worktrees/<new-topic-name>`
-- Include the user's feedback verbatim in child agent prompts so they have full context
-4. **Follow the same workflow**: merge topics → shut down agents → sync → deep review → push → CI watch → update PR (Steps 6–14)
-5. **Report back** and wait for the next round of feedback
+- Include the user's feedback verbatim in child agent prompts.
+4. **Same workflow**: merge topics → shut down agents → sync → deep review → push → CI watch → update PR (Steps 6–14).
+5. **Report back** and wait for the next round.
 
 #### Key points
 
-- **No new base branch or root PR** — reuse what already exists. The root PR accumulates all iterations.
-- **New team name per iteration** — `<project-name>-v2`, `-v3`, etc. to avoid team name collisions.
-- **Issue tracking continues** — if `ISSUE_NUMBER` is set, comment on the issue with the feedback iteration progress.
-- **Repeat as needed** — each round of feedback triggers a new iteration. The loop continues until the user is satisfied and merges the PR.
-- **Small feedback** still uses this pattern — even a single-topic fix benefits from the structured workflow (worktree isolation, review, CI check).
+- **No new base branch or root PR** — reuse what already exists. The root PR accumulates iterations.
+- **New team name per iteration** — `-v2`, `-v3`, etc. to avoid team-name collisions.
+- **Issue tracking continues** — comment on the issue with iteration progress if `ISSUE_NUMBER` is set.
+- **Repeat as needed** — each round of feedback triggers a new iteration. Loop continues until the user is satisfied and merges the PR.
+- **Small feedback** still uses this pattern — even a single-topic fix benefits from worktree isolation, review, CI check.
 
 ---
 
@@ -1393,15 +808,27 @@ After you report the root PR, the user often replies with feedback — requests 
 
 **NEVER run this step automatically.** Only run when the user explicitly asks to clean up after the root PR has been merged.
 
-By this point, worktrees (Step 7) and topic branches (Step 11) have already been cleaned up. Only the base branch remains:
+By this point, worktrees (Step 7) and topic branches (Step 11) are already cleaned up. Only the base branch remains. This is also a Dead Branch Cleanup case — the merged PR's `--delete-branch` removed the remote, so the local `base/<project-name>` is a dead pointer.
 
 ```bash
-# Delete base branch (local + remote)
+# If the user is still on the dying branch, switch to the parent first —
+# `git branch -d` cannot delete the currently checked-out branch.
+CURRENT=$(git branch --show-current)
+if [ "$CURRENT" = "base/<project-name>" ]; then
+  git fetch origin --prune
+  git checkout <parent-branch>
+  git pull origin <parent-branch>
+fi
+
+# Use -d (NOT -D) — surface unmerged commits as a loud failure rather than silently destroy.
 git branch -d base/<project-name>
-git push origin --delete base/<project-name>
+
+# Delete the remote branch only if it still exists (Auto-Complete Mode and Super-Epic merge already
+# deleted it — defensive check).
+git push origin --delete base/<project-name> 2>/dev/null || true
 ```
 
-Even during cleanup, do NOT checkout main or the parent branch. Stay on whatever branch you are on.
+If `git branch -d` fails on unmerged commits, do NOT force with `-D`. Stop and ask the user to investigate.
 
 ## Branch Naming Conventions
 
@@ -1413,28 +840,38 @@ Even during cleanup, do NOT checkout main or the parent branch. Stay on whatever
 
 ## Important Rules
 
-1. **NEVER checkout main or parent branch** — after the workflow completes (Step 13), stay on `base/<project-name>`. Do NOT switch branches, do NOT delete branches, do NOT run Step 16. The workflow ends at Step 15. Step 16 is only run later when the user explicitly asks. **Exceptions**: (a) when `-a`/`--auto` is used and the PR is merged, checkout the target branch and pull; (b) in **Super-Epic child mode**, when the Auto-Suggest Next Command step detects this is the last epic (all siblings closed), checkout the **super-epic base branch** so the user is positioned for the final `/deep-review -t` pass — see "Auto-Suggest Next Command → Super-Epic variant → all-done branch" for the gating conditions
-2. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents
-3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts
-4. **Create the root PR immediately in Step 2** — an empty commit + draft PR locks in the correct parent branch
-5. **Never force push** — regular merge only, preserves history
-6. **Push-forbid during work** — child agents commit locally only. All pushing happens in Step 11 after deep review. This saves CI resources
-7. **Topic branches merge locally first** — the manager merges topic branches into base via `git merge`, not GitHub PR merge. Topic branches are pushed later for documentation only
-8. **Root PR targets the parent branch** — this is handled automatically by creating it in Step 2
-9. **worktrees/ must be in .gitignore** — worktrees are local only
-10. **Manager stays at repo root** — never cd into worktrees for git ops
-11. **Each child agent works in its worktree** — git ops affect that branch only
-12. **Quality assurance before pushing** — always run the review step after merging all topics (Step 9). This is mandatory, never skip it
-13. **CI watch after pushing** — if the project has CI, invoke `/watch-ci` on the root PR (Step 12). If CI fails, fix and re-push
-14. **Re-read the issue TODO after every step** — use `gh issue view` to check the TODO checklist and confirm what comes next. This prevents forgetting steps during long workflows
-15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. Skip with `--no-issue` or if the user says not to. Close the issue when the root PR is merged
-16. **pnpm worktree cleanup breaks symlinks** — when worktrees are removed (Step 7), pnpm workspace symlinks in `node_modules/` may point to deleted worktree paths. Step 7 includes a `pnpm install --ignore-scripts` fix for this
-17. **NEVER auto-detect `-s` / `--stay`** — always create a new base branch and root PR unless the user explicitly passes `-s` or `--stay`. Do not infer `--stay` from branch state, existing PRs, or context
-18. **Max 6 concurrent child agents** — when spawning child agents in Step 5, never run more than 6 in parallel. If there are 7+ topics, queue the remainder and spawn them as earlier agents complete. This prevents CPU overload
-19. **Playwright / browser tools go through an isolated one-shot Opus subagent** — neither the manager nor any child agent may invoke `/headless-browser`, `/verify-ui`, or any other Playwright / Chrome DevTools-backed tool directly. Multiple concurrent browser instances freeze the machine and bloat context with huge snapshot output. Every browser check is dispatched to a fresh disposable Opus subagent (via the Agent tool) that runs one sequential confirmation and is torn down on return. At most one such subagent alive at a time. See "Playwright / Browser Verification — Isolated Subagent Only" near the top of this skill for the exact pattern
-20. **No heavy / port-based tests in child agents** — full integration suites, long e2e runs, held-open dev servers, and anything that binds a port must NOT run in child agents during implementation. Running these in parallel across worktrees causes port conflicts and CPU thrashing. Children commit + report back; the manager runs these sequentially on the merged base branch (naturally during Step 9 quality assurance or Step 10 UI verification). Legitimate short port-binding work inside a child uses `flock` on `/tmp/x-wt-teams-<repo>-locks/port-<N>.lock` to serialize across worktrees. See "Port-Based Servers & Heavy Local Tests — Resource Coordination" near the top of this skill for the full pattern
-21. **Auto-Suggest Next Command is MANDATORY for multi-session plans** — before STOP, if the session is part of a multi-session plan (Super-Epic child marker present, OR `--stay` was used with "wave/sub/accumulating epic/Do NOT merge PR/close the sub-issue" signals in the user's original instructions), you MUST print a concrete, copy-pasteable `/x-wt-teams <next-url> [flags] <instructions>` command as the final block of session output. The user should never have to type "give me next command" for a planned multi-session workflow. See "Auto-Suggest Next Command" before STOP for the full detection + output pattern
-22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP** — when Super-Epic child mode is active (epic issue body has `**Super-epic:** #N`), the epic-PR is not a "leave-open for user review" PR like the normal root PR. Each epic-PR must land on the super-epic base so the next epic session branches off fresh state and sibling epic-PRs do not collide. Leaving an epic-PR open here means the backlog grows by one PR per session and the super-PR never converges. The "Super-Epic: Merge Epic-PR into Super-Epic Base" step before STOP is mandatory — run it whenever Super-Epic child mode is active. The only exception is `-a` / `--auto`, which merges the PR through `/pr-complete`. This rule OVERRIDES Rule 1's "Stay on `base/<project-name>`" default for the merge action. Normally you stay on the epic base branch afterward — but if Auto-Suggest detects this was the last epic (no open siblings remain), the all-done branch of that step ALSO checks out the super-epic base and pulls, so the user is positioned for the final `/deep-review -t` pass. That additional checkout is intentional and allowed; do not "correct" it back to the epic base.
+1. **NEVER checkout main or parent branch** — after the workflow completes (Step 13), stay on `base/<project-name>`. Do NOT switch branches, do NOT delete branches, do NOT run Step 16. Workflow ends at Step 15. **Exceptions** (all instances of Rule 25 Dead Branch Cleanup): (a) `-a` / `--auto` and PR merged → checkout the target branch, pull, `git branch -d` the now-dead local `base/<project-name>`. (b) **Super-Epic child mode** → ALWAYS check out `$SUPER_EPIC_BASE` and delete the now-dead local epic base after the mandatory epic-PR merge. Unconditional in Super-Epic child mode (whether or not it's the last epic). Performed by step 5 of `references/super-epic-mode.md`.
+2. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents.
+3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts.
+4. **Create the root PR immediately in Step 2** — empty commit + draft PR locks in the correct parent branch.
+5. **Never force push** — regular merge only, preserves history.
+6. **Push-forbid during work** — child agents commit locally only. All pushing happens in Step 11 after deep review. Saves CI resources.
+7. **Topic branches merge locally first** — manager merges via `git merge`, not GitHub PR merge. Topic branches are pushed later for documentation only.
+8. **Root PR targets the parent branch** — handled automatically by creating it in Step 2. Super-Epic child sessions target the super-epic base; see `references/super-epic-mode.md`.
+9. **worktrees/ must be in .gitignore** — worktrees are local only.
+10. **Manager stays at repo root** — never cd into worktrees for git ops.
+11. **Each child agent works in its worktree** — git ops affect that branch only.
+12. **Quality assurance before pushing** — always run Step 9 after merging all topics. Mandatory, never skip.
+13. **CI watch after pushing** — if the project has CI, invoke `/watch-ci` on the root PR (Step 12). Fix and re-push on red.
+14. **Re-read the issue TODO after every step** — `gh issue view` to check the TODO checklist and confirm what comes next. Prevents forgetting steps during long workflows.
+15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. Skip with `--no-issue`. Close when the root PR is merged.
+16. **pnpm worktree cleanup breaks symlinks** — Step 7 runs `pnpm install --ignore-scripts` to fix.
+17. **NEVER auto-detect `-s` / `--stay`** — always create a new base branch unless explicitly passed. Do not infer from branch state, existing PRs, or context.
+18. **Max 6 concurrent child agents** — Step 5 caps parallelism. With 7+ topics, queue the rest and spawn as earlier agents complete.
+19. **Playwright / browser tools go through an isolated one-shot Opus subagent** — see `references/resource-coordination.md`. Neither manager nor child may invoke browser tools directly. At most one browser-verification subagent alive at a time, sequential only.
+20. **No heavy / port-based tests in child agents** — see `references/resource-coordination.md`. Children commit + report; manager runs sequentially on merged base. Legitimate short port-binding work uses `flock`.
+21. **Auto-Suggest Next Command is MANDATORY for multi-session plans** — before STOP, if Signal A (Super-Epic) or Signal B (`--stay` accumulating-epic) applies, MUST print a copy-pasteable next command. The user should never have to type "give me next command" for a planned multi-session workflow.
+22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP, then switch to the super-epic base and delete the local epic base** — see `references/super-epic-mode.md`. The mandatory merge step is unconditional in Super-Epic child mode, runs even if `-a` was passed. This rule OVERRIDES Rule 1's "stay on `base/<project-name>`" default.
+23. **Execution mode is read from `/big-plan` annotations, not guessed** — when an `[Epic]` or Super-Epic child issue is the input, Step 1a extracts the per-topic `**Execution mode:** {subagents|teams}` markers and Step 5 routes accordingly. Default-when-missing is **teams** (preserves pre-annotation behavior). All-subagents → spawn one-shot Agent calls without TeamCreate. Any-teams or any-missing → full team workflow. The skill never auto-classifies execution mode itself — that decision belongs in `/big-plan`. Full routing logic, drift sanity check, and subagent-path differences live in `references/execution-modes.md`.
+24. **Per-topic model is read from `/big-plan` annotations, with manual flag override** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku}` marker and Step 5 spawns each child with its own model. A manual `-haiku` / `-so` / `-op` flag on the invocation OVERRIDES every topic's annotation as a session-wide manual override; without a flag, per-topic markers are honored. Default-when-missing-and-no-flag is **opus** (preserves pre-annotation behavior). The skill never auto-classifies the model itself — that decision belongs in `/big-plan` or in the user's flag. Full resolution table and rationale: `references/per-topic-models.md`.
+25. **Dead Branch Cleanup Principle (general meta-rule)** — whenever this skill orchestrates a merge (or watches one) where the source branch's work is absorbed into a parent **and** the source remote is deleted (e.g., `gh pr merge --delete-branch`, `/pr-complete`, equivalent), the local source branch is now a dead pointer and MUST be cleaned up before session ends. Pattern:
+
+1. Capture the dead branch name BEFORE switching off it: `DEAD_BRANCH=$(git branch --show-current)`
+2. `git fetch origin --prune` to drop the now-deleted remote refs
+3. `git checkout <parent-branch> && git pull origin <parent-branch>` to land on the absorbing branch
+4. `git branch -d "$DEAD_BRANCH"` — use **`-d` NOT `-D`**. If unmerged commits, `-d` refuses; surface as a loud failure rather than silently destroy work with `-D`.
+
+    Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Auto-Complete after `/pr-complete` (Rule 1 exception (a)), Step 16 manual cleanup. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged.
 
 ## Prerequisites
 

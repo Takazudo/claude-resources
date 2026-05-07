@@ -1,6 +1,6 @@
 ---
 name: format-md
-description: "Format markdown (.md) and MDX (.mdx) files using @takazudo/mdx-formatter npm package. Use when: (1) User wants to format markdown files, (2) User mentions 'format md', 'prettify markdown', or 'fix markdown formatting', (3) User has markdown/MDX files that need consistent formatting. Features: remark-based AST formatting, MDX support (JSX, imports/exports), Japanese text handling, HTML to markdown conversion, Docusaurus admonitions preservation, GFM features (tables, strikethrough, task lists)."
+description: "Format markdown (.md) and MDX (.mdx) files using @takazudo/mdx-formatter. Use when: (1) User wants to format markdown files, (2) User mentions 'format md', 'prettify markdown', or 'fix markdown formatting', (3) Markdown/MDX files need consistent formatting. Features: remark-based AST formatting, MDX (JSX, imports/exports), Japanese text, HTML→md conversion, Docusaurus admonitions, GFM (tables, strikethrough, task lists)."
 ---
 
 # Format Markdown/MDX Files

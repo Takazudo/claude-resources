@@ -1,6 +1,6 @@
 ---
 name: big-plan
-description: "Planning skill for breaking down implementation work into an epic GitHub issue + child sub-issues. Use when: (1) User says '/big-plan', (2) User wants to plan any implementation (small or large) before coding, (3) User wants to split a feature into small issues for parallel agent team work, (4) User references existing issues to plan from (e.g. 'implement issue #123', 'plan all open issues', 'make plan for recent 3 open issues'). Auto-reads any project-scope `l-lessons-*` skills relevant to the topic (written by `/retro-notes`) before planning, so prior attempts in the same area inform the plan. Supports `-co`/`--codex` and/or `-gco`/`--github-copilot` (or `-gcoc`/`--github-copilot-cheap`) flags to get second opinions on the plan AND to run the post-creation verification step — when these flags are present, the matching reviewers handle Step 9 verification instead of the default Sonnet subagent; multiple flags can be combined and every specified reviewer runs in parallel with their findings consolidated. Saves a plan log to $HOME/cclogs/{slug}/ and verifies the original requirements are preserved in the created issues. Also supports **Super-Epic mode** — when the plan is too big to complete in one `/x-wt-teams` session (2+ distinct themes, or enough sub-tasks that a single session would overflow context), proposes splitting into a hierarchy of super-epic base → multiple epic bases, with each epic run as its own `/x-wt-teams` session to save token cost. Planning only — no code changes (except the super-epic anchor branch when Super-Epic mode is selected)."
+description: "Plan implementation by breaking work into one epic GitHub issue + child sub-issues. Use when: (1) User says '/big-plan', (2) User wants to plan an implementation before coding, (3) User wants to split a feature into small issues for parallel agent team work, (4) User references existing issues (e.g. 'implement issue #123', 'plan all open issues', 'plan recent 3 open issues'). Auto-reads project-scope l-lessons-* skills (from /retro-notes) before planning. Supports -co/-gco/-gcoc flags for second opinions and post-creation verification (runnable in parallel). Large scope is kept in ONE epic and sequenced into dependency waves run via /x-wt-teams --stay. Planning only — no code changes."
 argument-hint: <description-or-issue-refs> [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-nor|--no-review]
 ---
 
@@ -14,12 +14,12 @@ This skill is useful for **almost every implementation task**, not just huge one
 
 Parse `$ARGUMENTS` to extract:
 
-- **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Claude model used for subagents in the downstream `/x-wt-teams` (or `/x-as-pr`) session. `/big-plan` itself plans in the current session and doesn't change its own model; it just forwards the flag. Pick at most one. Default: none (the downstream skill uses its own default, which is `-op`).
-- **`-co` or `--codex` flag**: If present, get a Codex second opinion on the saved plan before creating issues (see Step 5). Can be combined with `-gco` or `-gcoc` to run multiple reviewers in parallel.
-- **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot CLI for second opinion and research. See "GitHub Copilot Mode" section. Can be combined with `-co`. **Mutually exclusive with `-gcoc`** (same tool, different model — pick one).
-- **`-gcoc` or `--github-copilot-cheap` flag**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). See "GitHub Copilot Cheap Mode" section. Can be combined with `-co`. **Mutually exclusive with `-gco`** (same tool, different model — pick one).
+- **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Express the user's intent for the **planning session itself** — a paper trail of "I wanted to plan this with opus/sonnet/haiku." `/big-plan` cannot switch its own session's model, so the flag is recorded in the plan log and the epic body but otherwise informational. **NOT forwarded to the `/x-wt-teams` hand-off** (Step 11). Implementation-session model decisions live per sub-task in the created issue bodies (see Step 3 — _Pick the model per sub-task_); `/x-wt-teams` reads those annotations. If the user wants a session-wide model override on the implementation session, they add `-haiku`/`-so`/`-op` to `/x-wt-teams` manually at invocation time. Pick at most one.
+- **`-co` or `--codex` flag**: If present, get a Codex second opinion on the saved plan (Step 5) and use Codex as the verification reviewer (Step 9). Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Reviewer flags for the implementation session are the user's choice; they add `-co` to `/x-wt-teams` themselves at invocation time when they want one. Can be combined with `-gco` or `-gcoc` to run multiple reviewers in parallel.
+- **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot CLI for the Step 5 second opinion, the Step 9 verification reviewer, and any research during exploration (Step 2). See "GitHub Copilot Mode" section. Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Can be combined with `-co`. **Mutually exclusive with `-gcoc`** (same tool, different model — pick one).
+- **`-gcoc` or `--github-copilot-cheap` flag**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). See "GitHub Copilot Cheap Mode" section. Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Can be combined with `-co`. **Mutually exclusive with `-gco`** (same tool, different model — pick one).
 - **Multiple reviewer flags** — when `-co` is combined with `-gco` (or `-gcoc`), every specified reviewer is invoked in parallel during Step 5 and their feedback is consolidated into a single `## Review Notes` section before user confirmation.
-- **`-nor` or `--no-review` flag**: If present, run the planning end-to-end with no confirmation gates and no review steps. Skips Step 5 (second opinion), Step 6 (propose-to-user wait), Step 9 (requirements verification), the Step 3.5 Super-Epic confirmation prompt (auto-accept if triggered), and the equivalent S-5 / S-6 steps in Super-Epic mode. The plan is drafted, the log is saved, the issues are created, and the session ends. Use when you've already decided what to plan and just want the issues created. Mutually compatible with `-co` / `-gco` / `-gcoc` — but those reviewer flags become no-ops when `-nor` is also present (no review runs).
+- **`-nor` or `--no-review` flag**: If present, run the planning end-to-end with no confirmation gates and no review steps. Skips Step 5 (second opinion), Step 6 (propose-to-user wait), and Step 9 (requirements verification). The plan is drafted, the log is saved, the issues are created, and the session ends. Use when you've already decided what to plan and just want the issues created. Mutually compatible with `-co` / `-gco` / `-gcoc` — but those reviewer flags become no-ops when `-nor` is also present (no review runs).
 - **Existing issue references** — any of these trigger _existing-issue mode_ (see Step 1b):
   - A GitHub issue URL: `https://github.com/owner/repo/issues/123`
   - An issue number: `#123` or bare `123`
@@ -48,9 +48,7 @@ echo "Parent branch: $PARENT_BRANCH"
 **Use `$PARENT_BRANCH` everywhere this skill previously hardcoded `main`:**
 
 - Step 7 epic body — "merges into `$PARENT_BRANCH` as one PR" (not "merges into main")
-- Step S-7 super-epic body — "targets `$PARENT_BRANCH` via super-PR"
-- Step S-9 — `git checkout "$PARENT_BRANCH"`, `git pull origin "$PARENT_BRANCH"`, `gh pr create --base "$PARENT_BRANCH"`
-- Branch hierarchy diagrams in Super-Epic mode — root node is `$PARENT_BRANCH`, not `main`
+- Step 8 sub-issue bodies — `Base branch: base/{impl-title-slug}` ... "(which itself targets `$PARENT_BRANCH`)"
 - All hand-off messages mentioning the eventual merge target
 
 **Surface the parent branch to the user in Step 6 (proposal)** so they can correct it if they accidentally invoked from the wrong branch. If `$PARENT_BRANCH` is not `main`, call it out explicitly as a confirmation gate — this is the case the user has historically had to fight.
@@ -127,25 +125,77 @@ Break the implementation into sub-tasks that are:
 
 Identify the dependency order (which must come first, which can run in parallel).
 
-### 3.5. Assess plan size — single-epic vs Super-Epic
+#### Classify execution mode per sub-task
 
-Before saving the plan log, decide which of the two modes applies.
+For every sub-task, also pick how the downstream `/x-wt-teams` session should spawn its child:
 
-**Single-Epic (default)** — the drafted sub-tasks form a coherent scope that one `/x-wt-teams` session can handle. Proceed with Steps 4 onward as written.
+- **`subagents`** — sub-task is independent of its siblings. The child runs once, does its work, optionally self-reviews via `/light-review`, and reports back. No mid-flight communication with other children. **This is the right answer for most sub-tasks.**
+- **`teams`** — the child genuinely needs mid-flight coordination: depends on another sibling's output produced during the same session, peers another child for partial state, or expects to be re-engaged later with prior memory.
 
-**Super-Epic** — the plan is genuinely big. Switch to the hierarchical workflow described in the [Super-Epic Mode](#super-epic-mode) section below. Trigger Super-Epic when any of these are true:
+Default to **`subagents`** when in doubt. The criterion is "does this child need to talk to another child mid-task?" — not "is this child doing heavy work?" Heavy work is fine in a subagent.
 
-- The sub-tasks naturally cluster into **2 or more distinct themes/areas** (e.g., "admin top page", "auth flow", "test infra" are separable concerns that could each be their own `/x-wt-teams` session)
-- The total sub-task count is high enough that a single `/x-wt-teams` session would likely spill over the concurrency cap (>8 sub-tasks) or need multiple feedback-loop iterations to land
-- Dependency order between clusters is clear — one group must land before the next can start
+Record the choice and a one-line reason per sub-task. Both the plan log (Step 4) and the created sub-issue bodies (Step 8) carry this annotation so `/x-wt-teams` can route accordingly.
 
-If Super-Epic applies, **propose it to the user now, before writing the plan log or creating any issues**:
+#### Pick the model per sub-task
 
-> "This plan has N sub-tasks across M distinct themes: {theme 1}, {theme 2}, .... Running it as one `/x-wt-teams` session risks overflowing context and costs significant tokens. I recommend splitting it into M separate epics, each run in its own `/x-wt-teams` session. Proposed structure: super-epic base `base/{super-title-slug}` → `$PARENT_BRANCH` (substitute the actual current branch, e.g. `main` or `base/foo-impl`), then each epic base `base/{super-title-slug}-{theme}` → super-base. Shall I proceed in Super-Epic mode?"
+Independently of execution mode, classify which Claude model the downstream child should use.
 
-Wait for confirmation. If the user accepts, jump to the [Super-Epic Mode](#super-epic-mode) section. If declined, continue with Step 4 as normal.
+**Guiding principle:** `/big-plan` already captured the hard decisions — architecture, dependencies, trade-offs, acceptance criteria. Each sub-task is "follow this spec to land this change." For most sub-tasks, that's mechanical implementation work, and **Sonnet handles it correctly, faster, and cheaper**. Opus is reserved for sub-tasks whose deliverable specifically benefits from larger-model creative quality.
 
-**`-nor` / `--no-review` override:** Skip the confirmation wait entirely. If Super-Epic triggers based on the criteria above, auto-proceed to Super-Epic mode without asking. If it does not trigger, continue to Step 4. Tell the user which mode was selected, but do not pause.
+- **`sonnet`** (default) — pick for the bulk of implementation work: well-defined refactors, schema/migration changes, route plumbing, hook wiring, dispatcher logic, capability detection, lifecycle integration, test scaffolding, build/CI config, dep bumps, mechanical CLI flags, English technical documentation, follow-the-pattern code. Anything where the spec from `/big-plan` makes the answer clear and the agent is mostly executing.
+- **`opus`** — pick only when the sub-task's quality bar genuinely benefits from a larger model:
+  - **High-quality Japanese-language writing** — translation, native-feel prose, nuanced tone (esa / zpaper / CodeGrid articles, Japanese UI copy, marketing copy where reading like a native speaker matters).
+  - **Creative UI work** — original visual design, polished interaction design, layout judgment for a new surface, novel component look-and-feel. Generic "add a button to an existing surface" UI work is sonnet — opus is for when visual taste actually moves the result.
+  - **Pattern generation / visual-creative algorithms** — GLSL fragment shaders, generative art, noise/warp/distortion code, anything where "this looks right" depends on aesthetic judgment (e.g., the pgen app's pattern generators).
+  - **Genuinely difficult problem-solving** — subtle correctness questions, intricate algorithm work, complex async / state-machine logic, race-condition-prone code, novel architectural decisions that `/big-plan` couldn't fully spec out. If the sub-task needs real reasoning *beyond* "follow this spec," lean Opus. Rare when `/big-plan` did its job thoroughly, but **err on the side of Opus when difficulty is hard to judge** — paying for one Opus run is cheaper than re-doing a Sonnet run that got the subtle case wrong.
+- **`haiku`** — only for genuinely trivial work: a typo fix, a one-line config tweak, an obvious mechanical edit. Cautious by default — Haiku is a real downgrade on anything ambiguous.
+
+Default to **`sonnet`** when in doubt. Pick `opus` only when there's a clear creative-quality reason from the list above. `haiku` is rare.
+
+**Concrete examples:**
+
+| Sub-task type                                       | Model  | Why                                           |
+| --------------------------------------------------- | ------ | --------------------------------------------- |
+| Adding a new GLSL fragment-shader pattern           | opus   | Visual-creative; pattern-generation aesthetic |
+| Adding a new pgen Canvas2D pattern algorithm        | opus   | Same — visual-creative aesthetic judgment     |
+| Writing a Japanese esa/zpaper/CodeGrid article      | opus   | High-quality Japanese writing                 |
+| Designing a new UI surface from scratch             | opus   | Creative UI judgment                          |
+| Implementing a dispatcher per a planned spec        | sonnet | Mechanical wiring; spec is in the plan        |
+| Schema migration                                    | sonnet | Mechanical                                    |
+| Adding a CLI flag with documented behavior          | sonnet | Mechanical                                    |
+| Writing tests for a defined contract                | sonnet | Mechanical                                    |
+| English technical documentation page                | sonnet | Mechanical writing                            |
+| Plumbing a hook/lifecycle wiring                    | sonnet | Mechanical                                    |
+| Subtle async / race-prone correctness work          | opus   | Genuinely difficult — err Opus when in doubt  |
+| One-line config bump                                | haiku  | Trivial                                       |
+
+`/x-wt-teams` reads this annotation per topic and spawns each child with the matching model. A manual `-haiku` / `-so` / `-op` flag on the `/x-wt-teams` invocation **overrides every topic's annotation** session-wide (manual override). Without a flag, per-topic annotations are honored — different topics in the same session can run different models.
+
+Record the choice and a one-line reason per sub-task. The annotation goes next to the execution-mode line in both the plan log (Step 4) and the created sub-issue bodies (Step 8).
+
+### 3.5. Sequence sub-tasks into waves and insert confirm sub-issues at risky boundaries
+
+**Always one epic — never split into multiple epics.** Even when scope is large, the answer is more sub-issues sequenced into dependency waves under the same epic. Manager-context savings from splitting epics are not real in practice; managing one chained epic is simpler than juggling multiple sessions, and `/x-wt-teams` already supports running sub-issues in waves via `-s` / `--stay`.
+
+**Group sub-tasks into waves.** A wave is a set of sub-tasks that can run concurrently in one `/x-wt-teams` session. Waves run sequentially — wave N+1 starts only after every sub-task in wave N is merged into the epic base.
+
+- **Wave size ≤ 6** — `/x-wt-teams` caps concurrent child agents at 6 to avoid freezing the local machine. If a wave would exceed 6, split it into wave Na and wave Nb (still within the same dependency tier — order between Na and Nb is arbitrary, just not concurrent).
+- **A single huge plan stays one epic** — if you have 18 truly parallelizable sub-tasks, that's three waves of 6, not three epics. The user runs three sequential `--stay` sessions on the same epic base.
+- **A typical multi-phase plan is also one epic** — e.g., `wave 1: backend (4 sub-tasks)` → `wave 2: backend confirm (1 sub-task)` → `wave 3: frontend (3 sub-tasks)`. Three sessions, one epic, one PR.
+
+**Insert "confirm" sub-issues at risky cross-phase boundaries.** When a downstream wave depends on the previous wave's deliverable working correctly (not just landing), add a dedicated confirm sub-issue between them. The confirm sub-issue is a small, focused validation pass — its acceptance criteria are "exercise the upstream surface, run the integration check, fix anything broken." Treat it like any other sub-task: it has its own execution mode, model, and one-line reason.
+
+Reach for a confirm sub-issue when:
+
+- Wave N+1 calls into Wave N's API/contract and a regression there would silently break N+1 (e.g., backend returns the wrong shape and frontend ships looking fine because it never throws).
+- Wave N+1's correctness depends on a behavior that's hard to assert from inside an individual Wave N sub-task (cross-cutting integration, end-to-end smoke test, schema-level invariant).
+- Multiple Wave N sub-tasks land independently and their interaction needs a sanity check before Wave N+1 commits.
+
+A confirm sub-issue is normally `subagents` mode + `sonnet` model — its job is to validate, not invent. Acceptance criteria should name the exact checks to run.
+
+**Per sub-task, record its wave number** in the plan log (Step 4) and the sub-issue body (Step 8) so the user knows which sub-issues to claim per `/x-wt-teams --stay` session. Format: `**Wave:** {N}` on its own line, alongside the `Execution mode:` and `Model:` markers.
+
+**Dependency notes still belong on each sub-task** — call out specific upstream sub-issues (`Depends on: #N1, #N2`) separately from the wave number, so the user can verify the wave grouping before kicking off each session.
 
 ### 4. Save plan log to cclogs
 
@@ -166,12 +216,16 @@ Write the plan to `$PLAN_FILE` as a markdown document containing:
 - **Overview** — what's being built and why
 - **Base branch** — `base/{impl-title-slug}`
 - **Epic issue title** (proposed)
+- **Wave order** — list every wave with its sub-tasks (e.g. `Wave 1: backend (4 sub-tasks)`, `Wave 2: backend confirm (1 sub-task)`, `Wave 3: frontend (3 sub-tasks)`). Used by the user to plan their `--stay` sessions.
 - **Sub-tasks** — for each:
   - Proposed sub-issue title
   - Description
   - Files to touch / create
   - Acceptance criteria
-  - Dependencies on other sub-tasks
+  - **Wave**: `1`, `2`, ... — which wave this sub-task belongs to (see Step 3.5)
+  - Dependencies on other sub-tasks (specific `#N` references, separate from wave grouping)
+  - **Execution mode**: `subagents` or `teams` — with one-line reason (see Step 3 for criterion)
+  - **Model**: `opus`, `sonnet`, or `haiku` — with one-line reason (see Step 3 for criterion)
 - **Architectural decisions / rationale**
 - **Original requirements checklist** — bullet list of every concrete requirement from the source (free-text or source issues). Used in Step 9 for verification.
 
@@ -263,6 +317,7 @@ Example: `[Team Feature][Epic] Team management and workspace sharing`
 - Base branch: `base/{impl-title-slug}` — all sub-issue PRs target this branch
 - **Parent branch:** `$PARENT_BRANCH` (the branch this base will eventually PR into — substitute the actual branch name, e.g. `main` or `base/foo-impl`)
 - Note: "Implementation will be done via `/x-wt-teams` — child branches merge into the base branch, which then merges into `$PARENT_BRANCH` as one PR" (substitute the actual parent branch name)
+- **Wave plan** — list each wave with the sub-issues it contains. Tells the user how many sequential `/x-wt-teams --stay` sessions to run and what to expect from each. Example: `Wave 1 (parallel): #N1, #N2, #N3, #N4` / `Wave 2 (confirm): #N5` / `Wave 3 (parallel): #N6, #N7, #N8`.
 - **Sub-issues table** listing all child issues (fill in URLs in Step 9 — or note "see comments below")
 - "Close each sub-issue as its implementation is merged."
 
@@ -280,7 +335,13 @@ Example: `[Team Feature][Sub] D1 schema migration`
 - {epic-issue-url}
 
 ---
+
+**Wave:** {N}
+**Execution mode:** {subagents|teams} — {one-line reason from Step 3}
+**Model:** {opus|sonnet|haiku} — {one-line reason from Step 3}
 ```
+
+The `Execution mode:` and `Model:` marker lines are **mandatory** and exact-spelling matters — `/x-wt-teams` greps the body for `Execution mode:` to choose the spawn path and for `Model:` to pick each topic's model. The `Wave:` line is informational for the user (it tells them which `--stay` session this sub-issue belongs to); `/x-wt-teams` does not parse it. Place all three lines immediately after the `---` divider, on their own lines, in the order shown.
 
 Then the rest of the body: what needs to be done, which files to touch, what the acceptance criteria are. Be specific enough that an agent can implement it without this planning session's context.
 
@@ -380,7 +441,11 @@ Report each close to the user.
 
 ### 11. End the session
 
-Print a summary:
+Print a summary. **The decisions table is mandatory** — never omit it. The user reviews this table to confirm or override each sub-task's execution mode, model, and wave before running `/x-wt-teams`.
+
+**Default — one `/x-wt-teams {epic-issue-url}` invocation runs the entire plan.** `/x-wt-teams` reads the epic body, expands every sub-issue into a topic, respects each sub-issue's dependency order (so wave-N sub-issues run before wave-N+1 sub-issues), and caps concurrent children at 6. The "Wave" annotations are a planning aid for the human; execution sequencing is driven by the per-sub-issue `Depends on: #N1, #N2` notes and the concurrency cap.
+
+**No planning flags get forwarded.** Print the `/x-wt-teams` line without appending `-op`/`-so`/`-haiku` or `-co`/`-gco`/`-gcoc`, even when the user originally invoked `/big-plan` with them. Per-sub-task models are already recorded in the sub-issue bodies, and reviewer flags for the implementation session are the user's choice (they add `-gcoc -co`, etc., to `/x-wt-teams` manually when they want a reviewer on the implementation session).
 
 ```
 ## Plan complete
@@ -389,8 +454,10 @@ Plan log: {PLAN_FILE}
 Epic: {epic-url}
 
 Sub-issues:
-- {url} — {title}
-- {url} — {title}
+- Wave 1: {url} — {title}
+- Wave 1: {url} — {title}
+- Wave 2: {url} — {title}   (confirm)
+- Wave 3: {url} — {title}
 ...
 
 Base branch: base/{impl-title-slug}
@@ -398,15 +465,43 @@ Base branch: base/{impl-title-slug}
 Closed source issues: {list or "none"}
 Verification: {all clear / N fixes applied}
 
+## Decisions per sub-task — review and override if needed
+
+| # | Wave | Sub-issue | Mode | Model | Reason |
+|---|---|---|---|---|---|
+| 1 | 1 | [#N] {title} | subagents | opus | {one-line reason} |
+| 2 | 1 | [#N] {title} | subagents | sonnet | {one-line reason} |
+| 3 | 2 | [#N] {title} (confirm) | subagents | sonnet | {one-line reason} |
+| 4 | 3 | [#N] {title} | subagents | opus | {one-line reason} |
+...
+
+To override:
+- **Per sub-task mode/model** — edit the sub-issue body and change the `Execution mode:` or `Model:` marker line. `/x-wt-teams` reads these per topic.
+- **Per sub-task wave/dependencies** — edit the sub-issue body's `Wave:` line and `Depends on:` notes. `/x-wt-teams` honors the dependency notes when ordering topic spawning.
+- **Session-wide model** — pass `-haiku` / `-so` / `-op` to `/x-wt-teams` to force every topic to one model (overrides every annotation).
+
 ---
 
 This session is done. Token cost grows quadratically with session length —
 start a **fresh session** and run:
 
   /x-wt-teams {epic-issue-url}
+
+If the plan is large enough that running it in one session feels risky (likely
+context overflow, or you want a manual checkpoint between phases), run waves
+manually instead: close the epic's later-wave sub-issues temporarily, run
+`/x-wt-teams {epic-issue-url}` for Wave 1, reopen the next wave's sub-issues
+when ready, then check out `base/{impl-title-slug}` and re-run with `--stay`:
+
+  /x-wt-teams -s {epic-issue-url}
+
+The `--stay` flow reuses the existing epic base instead of creating a new one,
+so each wave's worktrees branch off the already-merged previous wave.
 ```
 
-Do NOT start implementing. Do NOT create the base branch. The next session handles that.
+Fill in every row from the per-sub-task classifications recorded in Step 3 / Step 3.5. The table must list every sub-issue created in Step 8, sorted by Wave then by creation order within each wave. The "Reason" column is the same one-line reason already stored in the plan log and the sub-issue body markers — copy it verbatim.
+
+Do NOT start implementing. Do NOT create the base branch. The next session (`/x-wt-teams`) handles that.
 
 ## Naming Conventions
 
@@ -419,26 +514,14 @@ Do NOT start implementing. Do NOT create the base branch. The next session handl
 | Base branch | `base/{impl-title-slug}` | `base/team-feature` |
 | Plan log file | `{YYYYMMDD_HHMMSS}-big-plan-{slug}.md` | `20260412_1530-big-plan-team-feature.md` |
 
-### Super-Epic extensions
-
-| Thing | Format | Example |
-|---|---|---|
-| Super-Epic issue title | `[{Impl Title}][Super-Epic] {description}` | `[Admin App][Super-Epic] Admin app dev` |
-| Epic issue title (under super-epic) | `[{Impl Title}][Epic] {theme}` | `[Admin App][Epic] Top page` |
-| Sub issue title (under epic) | `[{Impl Title}][Sub] {task}` | `[Admin App][Sub] Header nav component` |
-| Super-Epic base branch | `base/{super-title-slug}` | `base/admin-app-dev` |
-| Epic base branch (under super-epic) | `base/{super-title-slug}-{epic-slug}` | `base/admin-app-dev-top` |
-| Topic branch (under epic in `/x-wt-teams`) | `{super-title-slug}-{epic-slug}/{topic}` | `admin-app-dev-top/css` |
-
 ## Issue Labels
 
 Every issue this skill creates carries a tier label so the hierarchy is scannable at a glance in the GitHub issue list. Each tier uses a distinct color hue to make them easy to tell apart visually.
 
 | Tier | Label | Color | Used in |
 |---|---|---|---|
-| Super-Epic | `super-epic` | `#5319E7` (deep purple) | Step S-7 |
-| Epic | `epic` | `#1D76DB` (blue) | Step 7 (single-epic mode), Step S-8 (under a super-epic) |
-| Sub | `sub` | `#0E8A16` (green) | Step 8 (single-epic mode only) |
+| Epic | `epic` | `#1D76DB` (blue) | Step 7 |
+| Sub | `sub` | `#0E8A16` (green) | Step 8 |
 
 **Ensure labels exist before the first `gh issue create` call of the session.** Run this bootstrap block once per session. Safe to re-run — `gh label create` is only invoked when the label is missing, so pre-existing customized colors are preserved:
 
@@ -450,208 +533,11 @@ ensure_label() {
   fi
 }
 
-ensure_label "super-epic" "5319E7" "Big-plan super-epic tracking multiple epics"
-ensure_label "epic"       "1D76DB" "Big-plan epic tracking multiple sub-issues or topics"
-ensure_label "sub"        "0E8A16" "Big-plan sub-task under an epic"
+ensure_label "epic" "1D76DB" "Big-plan epic tracking multiple sub-issues"
+ensure_label "sub"  "0E8A16" "Big-plan sub-task under an epic"
 ```
 
-Apply `--label {tier}` on each `gh issue create`:
-
-- Single-epic mode → epic issue: `--label epic` (Step 7); each sub-issue: `--label sub` (Step 8).
-- Super-Epic mode → super-epic issue: `--label super-epic` (Step S-7); each epic issue: `--label epic` (Step S-8).
-
-## Super-Epic Mode
-
-This overlay replaces Steps 4 through 11 of the default flow when Super-Epic was confirmed in Step 3.5. All other steps (exploration, verification, second opinion) remain the same.
-
-### Why Super-Epic exists
-
-A single `/x-wt-teams` session has real scaling limits: max 6 concurrent child agents, manager context fills up during merge/review/CI, and every feedback round costs significant tokens. When a plan genuinely spans multiple themes, running it as one session means context compression, lost detail, and expensive reruns. The Super-Epic structure splits the work into independently runnable epics — each in its own fresh session — so **every epic starts with a clean context window**. The super-epic PR just accumulates the merged epic PRs into one reviewable whole.
-
-### Branch hierarchy
-
-The root of the hierarchy is **`$PARENT_BRANCH` (the branch the user invoked `/big-plan` from)** — usually `main`, but can be any branch (e.g. `base/foo-impl`) when nesting bases. Substitute the actual branch name in the diagram below; never hardcode `main`.
-
-```
-$PARENT_BRANCH                                       (current branch at /big-plan invocation — usually main, but could be base/foo-impl etc.)
-  └── base/{super-title-slug}                       (super-epic base — long-lived anchor; super-PR → $PARENT_BRANCH)
-        ├── base/{super-title-slug}-{epicA-slug}    (epic base; epic-PR → super-base)
-        │     ├── {super-title-slug}-{epicA-slug}/topic1
-        │     └── {super-title-slug}-{epicA-slug}/topic2
-        ├── base/{super-title-slug}-{epicB-slug}    (epic base; epic-PR → super-base)
-        │     └── ...
-        └── base/{super-title-slug}-{epicC-slug}    (epic base; epic-PR → super-base)
-              └── ...
-```
-
-### S-4. Save plan log (Super-Epic)
-
-Same as Step 4, but the plan log should state this is a Super-Epic and list each epic cluster with its sub-tasks. Use this structure in the log:
-
-- `# Super-Epic Plan: {Impl Title}`
-- **Source** (free-text or source issues)
-- **Overview**
-- **Super-epic base branch:** `base/{super-title-slug}`
-- **Super-epic issue title** (proposed)
-- **Epics** — for each:
-  - Proposed epic issue title and theme
-  - Epic base branch: `base/{super-title-slug}-{epic-slug}`
-  - Dependency note (which other epics must land first)
-  - Sub-tasks belonging to this epic (title, description, files, acceptance criteria)
-- **Architectural decisions / rationale**
-- **Original requirements checklist**
-
-### S-5. (Optional) Second opinion
-
-Same as Step 5. Ask the reviewer to additionally confirm: (a) the split into epics is sensible, (b) the dependency order is correct, (c) no sub-task belongs to a different epic than proposed.
-
-**`-nor` / `--no-review` override:** Skip this step entirely (same rule as Step 5).
-
-### S-6. Propose the Super-Epic structure to user
-
-Show the user: super-epic base branch, each epic base branch, epic dependency order, sub-tasks per epic. Wait for confirmation before creating anything.
-
-**`-nor` / `--no-review` override:** Print the same proposal as a one-shot summary, then proceed straight to S-7 without waiting (same rule as Step 6).
-
-### S-7. Create the super-epic issue
-
-**Before the first `gh issue create` of this session**, ensure the tier labels exist on the repo — see [Issue Labels](#issue-labels) and run the bootstrap block once.
-
-Create with `gh issue create --label super-epic`.
-
-```
-Title: [{Impl Title}][Super-Epic] {Feature name}
-```
-
-Body includes:
-
-- "This is a **Super-Epic** tracking issue for the **{Impl Title}** implementation."
-- Overview of what's being built and why it was split
-- **Super-epic base branch:** `base/{super-title-slug}` (targets `$PARENT_BRANCH` via super-PR — substitute the actual parent branch name)
-- Super-PR URL (filled in at S-9)
-- **Epic issues table** (filled in at S-8 — URL, title, epic base branch, dependency order)
-- "Each epic is implemented via its own `/x-wt-teams` session. Epic PRs target `base/{super-title-slug}`. Once all epic PRs are merged, the super-PR becomes ready to merge into `$PARENT_BRANCH`." (substitute the actual parent branch name)
-
-### S-8. Create one epic issue per cluster
-
-For each epic cluster, create a GitHub issue with `gh issue create --label epic`. **The body MUST include machine-readable markers that `/x-wt-teams` parses to detect Super-Epic parentage.**
-
-```
-Title: [{Impl Title}][Epic] {Theme}
-```
-
-Body template (the three marker lines are mandatory, exact spelling matters):
-
-```markdown
-- {super-epic-issue-url}
-
----
-
-**Super-epic:** #{super-epic-issue-number}
-**Super-epic base branch:** `base/{super-title-slug}`
-**This epic's base branch:** `base/{super-title-slug}-{epic-slug}`
-
-## Overview
-
-<1-2 sentences on what this epic covers and why>
-
-## Dependencies
-
-<Which other epics must land first, if any. "None" if independent.>
-
-## Sub-tasks
-
-- **{sub-task 1 title}** — <description, files, acceptance criteria>
-- **{sub-task 2 title}** — <...>
-...
-
-## Instructions for `/x-wt-teams`
-
-Run this epic in a fresh Claude Code session:
-
-    /x-wt-teams {this-epic-issue-url}
-
-The session will create `base/{super-title-slug}-{epic-slug}` off `base/{super-title-slug}` and merge the resulting epic-PR into the super-epic base.
-```
-
-Each sub-task becomes a topic inside that epic's `/x-wt-teams` session (`/x-wt-teams` reads them from the body). Do **not** create separate `[Sub]` issues in Super-Epic mode — the sub-tasks are already listed inline inside each epic body.
-
-Then update the super-epic issue (S-7) to list all epic issue URLs in dependency order.
-
-### S-9. Create the super-epic base branch + draft super-PR
-
-Super-Epic mode **does** create the super-epic anchor branch. This is the single exception to big-plan's usual "no branches" rule — the super-PR must exist before any epic session starts, so epic PRs have a target, and the super-PR accumulates every merged epic.
-
-**Use `$PARENT_BRANCH` (captured in "Branch Context" before Step 1) — do NOT hardcode `main`.** If the user invoked from `base/foo-impl`, the super-epic anchor must branch off `base/foo-impl` and the super-PR must target `base/foo-impl`, not `main`.
-
-```bash
-git checkout "$PARENT_BRANCH"
-git pull origin "$PARENT_BRANCH"
-git checkout -b base/{super-title-slug}
-git commit --allow-empty -m "= start {super-title-slug} super-epic ="
-git push -u origin base/{super-title-slug}
-
-SUPER_PR_URL=$(gh pr create \
-  --base "$PARENT_BRANCH" \
-  --title "{Impl Title}: super-epic root PR" \
-  --body "$(cat <<EOF
-## Summary
-
-Super-epic root PR for **{Impl Title}**. This PR accumulates all epic PRs merged into \`base/{super-title-slug}\` and will be merged into \`$PARENT_BRANCH\` when all epics are complete.
-
-Tracking super-epic issue: {super-epic-issue-url}
-
-## Epics
-
-(To be filled in as epic PRs are opened.)
-EOF
-)" \
-  --draft)
-```
-
-(Heredoc is unquoted so `$PARENT_BRANCH` expands. The literal-text placeholders like `{super-title-slug}` are still substituted by you when writing the actual command.)
-
-Edit the super-epic issue to record `SUPER_PR_URL`.
-
-**Do not create the epic base branches or epic-PRs here.** Each `/x-wt-teams` session creates its own epic base off `base/{super-title-slug}`.
-
-### S-10. Verification
-
-Run the same verification flow from Step 9 (same flag-driven reviewer selection — Sonnet by default, or `/codex-2nd` / `/gco-2nd` / `/gcoc-2nd` in parallel when their flags were passed; same fallback to Sonnet on rate limit), but point the reviewer(s) at the super-epic issue + all epic issues (not `[Sub]` issues — they do not exist in Super-Epic mode). Confirm every original requirement maps to exactly one sub-task inside one epic.
-
-### S-11. Hand-off message
-
-Print:
-
-```
-## Super-Epic plan complete
-
-Plan log: {PLAN_FILE}
-Super-epic issue: {super-epic-url}
-Super-epic base: base/{super-title-slug}  (super-PR: {SUPER_PR_URL} → $PARENT_BRANCH)
-
-Epics (run each in a FRESH session, in dependency order):
-
-1. {epic-A-url} — {theme A}
-     → /x-wt-teams {epic-A-url}
-
-2. {epic-B-url} — {theme B}   (depends on: epic A)
-     → /x-wt-teams {epic-B-url}
-
-3. {epic-C-url} — {theme C}   (depends on: epic A)
-     → /x-wt-teams {epic-C-url}
-
-Closed source issues: {list or "none"}
-Verification: {all clear / N fixes applied}
-
----
-
-This session is done. Token cost grows quadratically with session length —
-start a **fresh session** for each epic. After all epic PRs are merged into
-base/{super-title-slug}, the super-PR will be ready to merge into $PARENT_BRANCH.
-```
-
-Do NOT start implementing. Do NOT create any epic base branch or worktree. The next session (a fresh `/x-wt-teams` per epic) handles all of that.
+Apply `--label {tier}` on each `gh issue create` — epic issue: `--label epic` (Step 7); each sub-issue: `--label sub` (Step 8).
 
 ## GitHub Copilot Mode (`-gco` / `--github-copilot`)
 
@@ -692,12 +578,18 @@ All other workflow steps (issue creation, verification, etc.) remain unchanged.
 ## Key Principles
 
 - **Parent branch is the current branch — NOT `main`** — `/big-plan` is invoked on the branch the new feature will land on. Capture `$PARENT_BRANCH = git rev-parse --abbrev-ref HEAD` first and use it everywhere a base branch parent or PR target is needed. Do not silently assume `main`. Surface the detected `$PARENT_BRANCH` to the user in Step 6 (especially when it is not `main`) so they can correct it
-- **No code changes in this session** — planning and issue creation only (sole exception: the super-epic anchor branch in Super-Epic mode, branched off `$PARENT_BRANCH`)
+- **No code changes in this session** — planning and issue creation only. No branches, no commits, no pushes
+- **One epic per plan, no exceptions** — even huge plans stay in a single epic. Scale via more sub-issues sequenced into dependency waves, not via multiple epics. The user runs the waves as separate `/x-wt-teams --stay` sessions on the same epic base. Splitting into multiple epics costs more (multiple PRs to manage, manual cross-epic coordination) without saving meaningful manager-context tokens
 - **Read project lessons before planning** — Step 1c auto-reads any matching `l-lessons-*` skills (written by `/retro-notes`) so previous attempts in the same area inform the plan. Skip silently if none apply
 - **Save the plan log first** — before codex, before confirmation, before issues. It's the source of truth
 - **Confirm before creating** — always show the plan to the user first
 - **Verify after creating** — always verify so original requirements aren't lost. Default reviewer is the Sonnet subagent; when `-co`/`-gco`/`-gcoc` is passed, those tools handle verification (in parallel if multiple), with Sonnet as fallback if any are rate-limited
+- **Annotate execution mode per sub-task — mandatory** — every sub-task MUST be classified as `subagents` (default) or `teams` based on whether it needs mid-flight inter-agent communication. The annotation lives in the plan log, the created sub-issue body, AND the final summary table (Step 11). `/x-wt-teams` reads it per topic to choose how to spawn children. Default to subagents; only mark `teams` when a sub-task genuinely depends on another child's mid-task output
+- **Annotate model per sub-task — mandatory** — every sub-task MUST be classified `sonnet` (default), `opus`, or `haiku` based on the kind of work. The annotation lives next to the execution-mode line in the plan log, the sub-issue body, AND the final summary table (Step 11). `/x-wt-teams` reads it per topic and spawns each child with the matching model. A manual `-haiku` / `-so` / `-op` flag on `/x-wt-teams` overrides every topic's annotation as a session-wide manual override. **Default `sonnet` when in doubt** — `/big-plan` already settled the hard decisions; most sub-tasks are mechanical implementation. Pick `opus` only when the deliverable benefits from larger-model creative quality: high-quality Japanese-language writing, creative UI design, pattern-generation / visual-creative algorithms (e.g., pgen patterns or GLSL shaders). `haiku` is rare
+- **Annotate wave per sub-task — mandatory** — every sub-task MUST carry a `Wave:` number reflecting its position in the dependency chain (see Step 3.5). Wave size respects `/x-wt-teams`'s 6-concurrent-agent cap. Insert dedicated "confirm" sub-issues at risky cross-phase boundaries (e.g., between backend and frontend waves) rather than splitting into multiple epics. Wave annotation lives in the plan log, the sub-issue body, AND the final summary table
+- **Final summary table is mandatory** — Step 11 MUST include the per-sub-task decisions table showing `Wave`, `Mode`, and `Model` for every sub-task, with the one-line reason. The user reviews this table to confirm or override decisions before running `/x-wt-teams`. Never omit it — even when the plan looks obvious, the user needs the table to spot mistakes and override
+- **Planning flags do NOT forward to the hand-off** — `-op`/`-so`/`-haiku` and `-co`/`-gco`/`-gcoc` shape only the planning session itself. The Step 11 hand-off MUST print the `/x-wt-teams` line in plain `/x-wt-teams {url}` form with no flags appended, even when the user originally invoked `/big-plan` with those flags. Per-sub-task models are already recorded in the issue bodies (Step 8 markers); reviewer flags for the implementation session are the user's choice and are added to `/x-wt-teams` manually. The split keeps planning concerns and implementation concerns from leaking into each other
 - **Small issues win** — an issue that takes 15 agent exchanges is better than one that takes 50
 - **Self-contained sub-issues** — each issue body must be readable standalone, without needing this session's context
-- **Fresh session next** — always end by instructing the user to start a new session with `/x-wt-teams`
+- **Fresh session next** — always end by instructing the user to start a new session and run `/x-wt-teams {epic-url}`. Wave ordering is encoded in dependency markers; `/x-wt-teams` honors them within a single session, so one invocation typically handles the whole plan. Manual per-wave checkpointing via `--stay` is documented as an exception, not the default
 - **No `~` in paths** — always use `$HOME`

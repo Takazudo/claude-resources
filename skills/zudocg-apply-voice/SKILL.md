@@ -1,6 +1,6 @@
 ---
 name: zudocg-apply-voice
-description: "Apply Takazudo's CodeGrid writing voice and vocabulary rules to text. Use when: (1) User wants to write or rewrite text in Takazudo's CodeGrid style, (2) User says 'apply voice', 'codegrid voice', 'codegrid文体で', 'codegrid風に書いて', '文体を適用', (3) User provides text and wants it transformed to match the CodeGrid writing style. Reads the writing-style.md and vocabulary-rule.md from the takazudo-codegrid-writing repo and applies those rules to the given text."
+description: "Apply Takazudo's CodeGrid writing voice and vocabulary rules to text. Use when: (1) User wants to write/rewrite text in Takazudo's CodeGrid style, (2) User says 'apply voice', 'codegrid voice', 'codegrid文体で', 'codegrid風に書いて', '文体を適用', (3) User provides text to transform to CodeGrid style. Reads writing-style.md and vocabulary-rule.md from takazudo-codegrid-writing repo and applies the rules."
 ---
 
 # Apply CodeGrid Voice

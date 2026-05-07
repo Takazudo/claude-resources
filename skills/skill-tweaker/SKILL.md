@@ -1,6 +1,6 @@
 ---
 name: skill-tweaker
-description: "Fix, improve, or update existing Claude Code skills. Use when: (1) User reports a skill isn't working well or triggering incorrectly, (2) User wants to adjust skill behavior, (3) User says 'fix skill', 'update skill', 'tweak skill', 'skill not working', 'skill triggers too often'. Handles: editing SKILL.md frontmatter and body, adjusting scripts/references/assets, debugging trigger issues."
+description: "Fix, improve, or update existing Claude Code skills. Use when: (1) User reports a skill isn't working or triggering incorrectly, (2) User wants to adjust skill behavior, (3) User says 'fix skill', 'update skill', 'tweak skill', 'skill not working', 'skill triggers too often'. Edits SKILL.md frontmatter and body, scripts/references/assets, debugs trigger issues."
 ---
 
 # Tweak Existing Skill
@@ -28,7 +28,7 @@ Common problems and fixes:
 
 | Problem | Likely Cause | Fix |
 |---------|-------------|-----|
-| Skill not triggering | Poor `description` | Rewrite with clear trigger keywords and scenarios |
+| Skill not triggering | Poor `description` | Rewrite with clear trigger keywords and scenarios. Claude tends to *undertrigger* — make the description slightly pushy (e.g. "Make sure to use this skill whenever the user mentions X, Y, or Z, even if they don't explicitly ask for it") |
 | Skill triggers too often | Description too broad | Make description more specific; add `disable-model-invocation: true` for manual-only |
 | Skill not visible | Exceeds character budget | Run `/context` to check; shorten description or increase `SLASH_COMMAND_TOOL_CHAR_BUDGET` |
 | Wrong agent used in fork | `agent:` field incorrect | Change to correct agent name |
@@ -62,6 +62,12 @@ After renumbering, grep the skill file for stale references (e.g., "Step 3" wher
 **Substitution variables:** `$ARGUMENTS`, `$0`, `$1`, `${CLAUDE_SESSION_ID}`
 
 **Dynamic injection:** Use the exclamation-backtick pattern (e.g. exclamation + backtick-wrapped command) to run shell commands before skill content is sent to Claude.
+
+**Writing principles when rewriting body content:**
+
+- **Yellow flag: heavy-handed MUSTs.** All-caps "ALWAYS" / "NEVER" / "MUST" piled across the skill is usually a sign of overfitting. When you see this, try reframing with a one-sentence explanation of *why* the rule matters — modern models follow reasoning more reliably than rigid imperatives, and the prompt gets shorter.
+- **Don't overfit to the one example that broke.** If the user reports the skill failed on a specific case, fix the underlying pattern rather than adding a special-case rule that only helps that one input.
+- **Cut instructions that aren't pulling their weight.** If you can read the skill and not lose anything by deleting a sentence, delete it.
 
 ### Step 4: Format SKILL.md
 

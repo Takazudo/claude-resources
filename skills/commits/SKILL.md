@@ -1,6 +1,6 @@
 ---
 name: commits
-description: "Commit necessary changes with appropriate separation. Use when: (1) User says 'commit', 'commits', or 'save changes', (2) Claude has made changes that need committing, (3) User wants to commit with proper grouping and conventional commit messages. Handles .gitignore updates, file selection, logical grouping, and clean commit messages."
+description: "Commit necessary changes with appropriate separation. Use when: (1) User says 'commit', 'commits', or 'save changes', (2) Claude has made changes that need committing, (3) User wants commits with proper grouping and conventional messages. Handles .gitignore updates, file selection, logical grouping, clean commit messages."
 argument-hint: "[push] [--no-push] [--push-auto]"
 ---
 
@@ -146,6 +146,7 @@ If `git pull --rebase` fails due to a conflict:
   ```
 
   This works in both Attempt 1 (Haiku subagent) and Attempt 2 (direct execution).
+
   - On success: review the draft, adjust as needed, then use it with `git commit -m`.
   - On failure (non-zero exit, rate-limited, empty output): ignore and fall back to the Claude-drafted message below.
 

@@ -1,6 +1,6 @@
 ---
 name: dev-cloudflare-pages-ci-setup
-description: "Set up Cloudflare Pages deployment with GitHub Actions workflows. Use when: (1) User wants to deploy a static site to Cloudflare Pages, (2) User says 'cloudflare pages', 'deploy to cloudflare', 'cf pages setup', (3) User wants CI/CD workflows for Cloudflare Pages with PR previews, (4) Setting up wrangler deployment pipelines."
+description: "Set up Cloudflare Pages deployment with GitHub Actions workflows. Use when: (1) Deploying a static site to Cloudflare Pages, (2) User says 'cloudflare pages', 'deploy to cloudflare', 'cf pages setup', (3) User wants CI/CD workflows for Cloudflare Pages with PR previews, (4) Setting up wrangler deployment pipelines."
 ---
 
 # Cloudflare Pages CI Setup

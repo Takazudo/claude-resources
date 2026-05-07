@@ -1,6 +1,6 @@
 ---
 name: gco
-description: "Run GitHub Copilot CLI as a read-only sub-agent from Claude Code. Use when: (1) User says 'gco', 'copilot', or 'ask copilot', (2) Delegating code review to Copilot, (3) Delegating research or investigation to Copilot, (4) Getting a second opinion from Copilot on code or architecture. Copilot runs in read-only mode (no file writes) with claude-opus-4.6 model."
+description: "Run GitHub Copilot CLI as a read-only sub-agent from Claude Code. Use when: (1) User says 'gco', 'copilot', or 'ask copilot', (2) Delegating code review or research to Copilot, (3) Getting a second opinion on code or architecture. Read-only mode (no file writes), claude-opus-4.6 model."
 user-invocable: true
 argument-hint: <prompt>
 allowed-tools:
