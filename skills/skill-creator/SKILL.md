@@ -1,11 +1,13 @@
 ---
 name: skill-creator
-description: "Guide for creating effective Claude Code skills (specialized knowledge, workflows, tool integrations). Use when: (1) User wants to create a new skill, (2) User wants to improve an existing skill, (3) User asks 'how to make a skill' or 'create skill for X'. Covers skill anatomy (SKILL.md, scripts/, references/, assets/), progressive disclosure, frontmatter, bundled resources, init_skill.py, iteration workflow."
+description: "Guide for creating new Claude Code skills AND tweaking/fixing existing ones. Use when: (1) User wants to create a new skill, (2) User wants to improve, fix, or tweak an existing skill, (3) User says 'create skill', 'new skill', 'fix skill', 'update skill', 'tweak skill', 'skill not working', or 'skill triggers too often'. Covers skill anatomy (SKILL.md, scripts/, references/, assets/), progressive disclosure, frontmatter, bundled resources, init_skill.py, diagnosing trigger/behavior issues, and iteration."
 ---
 
 # Skill Creator
 
-This skill provides guidance for creating effective skills.
+This skill provides guidance for creating new skills **and** tweaking existing ones.
+
+For tweaking an existing skill, jump to ["Tweaking an Existing Skill"](#tweaking-an-existing-skill). For new skills, follow the Skill Creation Process below.
 
 ## About Skills
 
@@ -362,6 +364,48 @@ After testing the skill, users may request improvements. Often this happens righ
 - **Keep the prompt lean.** Remove instructions that aren't pulling their weight. If you can read the skill's transcript and see Claude wasting time on something the skill told it to do, cut that part.
 - **Explain the why, don't pile on MUSTs.** Today's models have good theory of mind — when you explain *why* something matters, they handle edge cases on their own. Heavy-handed all-caps "ALWAYS" / "NEVER" / "MUST" is a yellow flag: usually you can reframe with a one-sentence explanation of the underlying reason and get better results with less rigidity.
 - **Look for repeated work → bundle as scripts.** If you notice Claude rewriting the same helper across multiple uses of the skill (a parser, a formatter, a config builder), that's a strong signal to write it once into `scripts/` and have the skill point to it.
+
+## Tweaking an Existing Skill
+
+Use this flow when fixing, improving, or adjusting a skill that already exists. It reuses the formatting, path-safety, and frontmatter guidance from the creation flow above — don't duplicate that work here, just defer to those sections.
+
+### Step 1: Identify the skill file
+
+Skills live at `$HOME/.claude/skills/<name>/SKILL.md` (personal) or `.claude/skills/<name>/SKILL.md` (project).
+
+**Case-sensitivity check (macOS):** the file may be `SKILL.md` or `skill.md`. On a case-insensitive filesystem both resolve to the same file on disk, but git tracks them as separate index entries. Run `git ls-files --stage '<skill-dir>/'` to see what's actually tracked, and if both variants exist, remove the duplicate via `git rm --cached '<path>/<wrong-case>.md'`. Edit the variant that matches the rest of the project.
+
+Read the skill file and any referenced files in `scripts/`, `references/`, `assets/`.
+
+### Step 2: Diagnose
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| Skill not triggering | `description` missing trigger keywords | Rewrite with explicit triggers and "use when" scenarios. Claude tends to **undertrigger** — make the description slightly pushy ("use this whenever the user mentions X, Y, or Z, even if they don't explicitly ask for it") |
+| Skill triggers too often | `description` too broad | Narrow it; or set `disable-model-invocation: true` for manual-only |
+| Skill not visible in `/context` | Description budget exceeded | Shorten description, or raise `SLASH_COMMAND_TOOL_CHAR_BUDGET` |
+| Wrong agent in fork mode | `agent:` field incorrect | Set the correct agent name |
+| Forked skill lacks context | Skill body assumes conversation history | In fork mode the skill body IS the prompt — make it self-contained |
+| Bundled script fails | Bug or env issue | Read and run the script; fix in place |
+
+### Step 3: Apply changes
+
+When inserting a new step into a numbered step list (`Step 1`, `Step 2`, ...), **renumber the steps** so the sequence stays contiguous. Avoid `Step 2.5` or `Step 0`. After renumbering, grep the file for stale references ("proceed to Step 3" where you now mean Step 4) and fix them, including any sibling files (scripts, references, TODO checklists) that mention step numbers.
+
+For frontmatter changes, see [references/frontmatter.md](references/frontmatter.md) — same fields apply whether creating or tweaking.
+
+When rewriting body content, the same iteration principles from "Step 6: Iterate" apply: generalize over special-casing, prefer one-sentence "why" over piles of `MUST` / `ALWAYS` / `NEVER`, and cut sentences that aren't pulling their weight.
+
+### Step 4: Format and verify
+
+Format with `pnpm dlx @takazudo/mdx-formatter --write <path-to-SKILL.md>` (same as creation Step 5). Then verify:
+
+1. YAML frontmatter parses
+2. Description matches the intended trigger scenarios
+3. Referenced files exist and are correct
+4. For forked skills: body is self-contained
+5. SKILL.md stays under ~500 lines (otherwise split into `references/`)
+6. No `~/` paths — use `$HOME/` (see "Path Safety Rule" in Step 4 of creation)
 
 ## Skill Locations
 

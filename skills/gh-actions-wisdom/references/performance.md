@@ -206,6 +206,8 @@ On self-hosted runners, build tool caches (Cargo, Go, Gradle) and package stores
 - Don't use `cache: pnpm` in `actions/setup-node`
 - The local disk IS the cache on self-hosted runners
 
+**On ephemeral cloud runners (GitHub-hosted, RunsOn, etc.) the advice flips for build tools.** Disk is wiped between runs, so `actions/cache` is the only way to avoid re-downloading the dependency tree on every run. Use it for `~/.cargo/registry`, `~/.gradle/caches`, the Go module cache, and similar. (The package-manager rule — no `cache: pnpm` in `setup-node` — still applies because the npm CDN is faster than cache restore on every runner type.)
+
 ## Self-Hosted Runner: Disable `set-safe-directory`
 
 `actions/checkout` runs `git config --global --add safe.directory` by default. On self-hosted runners, this appends a new entry to `~/.gitconfig` on **every single CI run**, creating thousands of duplicate lines over time.
@@ -215,6 +217,8 @@ On self-hosted runners, build tool caches (Cargo, Go, Gradle) and package stores
   with:
     set-safe-directory: false  # Prevent gitconfig pollution
 ```
+
+**Do NOT carry `set-safe-directory: false` over to ephemeral cloud runners.** Each ephemeral run is a fresh VM (no gitconfig to pollute), and the default is required for container jobs whose UID differs from the host runner — without it, git inside the container errors with `fatal: detected dubious ownership`. Strip the option when migrating to GitHub-hosted, RunsOn, etc.
 
 ## Docker Layer Caching
 
@@ -227,7 +231,9 @@ On self-hosted runners, build tool caches (Cargo, Go, Gradle) and package stores
 
 ## Self-Hosted Runner Fallback
 
-Detect if a self-hosted runner is available, fall back to GitHub-hosted.
+This pattern is only useful when you genuinely run a mixed fleet — a small number of dedicated self-hosted runners that may be offline, with GitHub-hosted as the safety net. **Skip this pattern entirely if you're on a cloud runner service that already pools and scales (RunsOn, BuildJet, Namespace, Depot, etc.).** Those services are themselves the runner; "fall back to GitHub-hosted" is a layer of dead complexity that fires false IFTTT alerts (the org's "online self-hosted runner" count is always 0 because cloud-runner instances are ephemeral) and adds a job whose output downstream consumers ignore.
+
+If you do need it: detect whether a self-hosted runner is available, fall back to GitHub-hosted.
 
 ```yaml
 jobs:

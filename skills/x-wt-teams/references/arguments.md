@@ -7,7 +7,7 @@ Single source of truth for every `/x-wt-teams` flag. The skill body links here i
 ```
 [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap]
 [-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui]
-[-nor|--no-review] [--noi] [-noi|--no-raise-issues]
+[-seq|--sequentially] [-nor|--no-review] [--noi] [-noi|--no-raise-issues]
 [#issue-number] <instructions>
 ```
 
@@ -21,11 +21,12 @@ Single source of truth for every `/x-wt-teams` flag. The skill body links here i
 | `-co` | `--codex` | Use codex-based reviewers / writer / research throughout. See `reviewer-modes.md`. | Combinable with `-gco`, `-gcoc`. |
 | `-gco` | `--github-copilot` | Use GitHub Copilot CLI reviewers / 2nd opinion / research. See `reviewer-modes.md`. | Combinable with `-co`, `-gcoc`. |
 | `-gcoc` | `--github-copilot-cheap` | Like `-gco` but forces free `gpt-4.1` model. See `reviewer-modes.md`. | Combinable with `-co`, `-gco`. |
-| `-a` | `--auto` | After Step 15, auto-run `/pr-complete -c -w` (merge, close issue, watch CI). | **Ignored in Super-Epic child mode** (see `super-epic-mode.md`). Treat as no-op there. |
+| `-a` | `--auto` | After Step 15, run `/pr-complete -c` (wait for CI, merge, close issue), then invoke `/watch-ci` on the merged target branch; if red, spawn an Opus subagent to fix (max 2 cycles). | **Ignored in Super-Epic child mode** (see `super-epic-mode.md`). Treat as no-op there. |
 | `--no-issue` | — | Skip GitHub issue creation. All `gh issue comment` calls become no-ops. | Cannot create issue mid-run if missed. |
 | `-s` | `--stay` | **OPT-IN ONLY.** Reuse the current branch as the base branch (no new `base/<project-name>`). | See "`-s` / `--stay` mechanism" below. NEVER auto-detect — even with an existing PR, even on a topic branch. |
 | `-l` | `--review-loop` | Replace Step 9 `/deep-review` with `/review-loop 5 --aggressive --issues`. | `--issues` dropped if `--noi` is also passed. |
 | `-v` | `--verify-ui` | After Step 9, run `/verify-ui` (via the isolated browser subagent). See Step 10. | Requires the isolated-browser dispatch pattern from `resource-coordination.md`. |
+| `-seq` | `--sequentially` | Multi-wave auto-continue. When Auto-Suggest matches Signal A (Super-Epic child) or Signal B (`--stay` accumulating-epic), invoke the next-wave command immediately via Skill instead of printing-and-stopping. Forward `-seq` to subsequent waves so the chain self-runs. Pause and surface to user only on a blocker. | Only meaningful for multi-wave plans (typically `/big-plan` epics). Single-session runs are no-ops. Combinable with all other flags. See "`-seq` mechanism" below. |
 | `-nor` | `--no-review` | Skip Step 9 entirely. | Used internally by `/deep-review -t` to prevent infinite recursion when it spawns this skill. Manual users rarely pass this. |
 | `--noi` | `--noissue`, `--noissues` | With `--review-loop`: drop `--issues` from the inner `/review-loop` invocation. | Only meaningful with `-l` / `--review-loop`. **Different from `-noi`** — see next row. |
 | `-noi` | `--no-raise-issues` | Suppress raising GitHub issues for unrelated findings discovered during work. | Forwarded to child agents. Different from `--noi` (review-loop one). |
@@ -67,11 +68,46 @@ When `-s` / `--stay` IS explicitly passed:
 
 ## `-a` / `--auto` rationale & exceptions
 
-`-a` triggers `/pr-complete -c -w` after Step 15: wait for CI, merge with `--merge --delete-branch`, close linked issue, watch post-merge CI.
+`-a` triggers the following sequence after Step 15:
+
+1. `/pr-complete -c` — wait for pre-merge CI, merge with `--merge --delete-branch`, close linked issue.
+2. `/watch-ci <root-pr-number>` — watch post-merge CI on the merged target branch.
+3. If post-merge CI is red: spawn an Opus subagent with the failed run logs to identify the root cause, fix the code, and push. If the direct push is blocked by branch protection, the subagent opens a fix-forward PR instead. After the subagent reports, re-invoke `/watch-ci`. At most 2 fix cycles; after that, stop and report to the user.
+4. Dead Branch Cleanup once CI is green.
 
 **Ignored in Super-Epic child mode.** The mandatory epic-PR → super-epic base merge is already part of the Super-Epic flow (see `super-epic-mode.md`). `-a` would be confusing — a user might read it as "also merge the super-epic base into main," which this skill never does. Treat as no-op in Super-Epic mode.
 
-After `/pr-complete` succeeds (non-Super-Epic), apply the **Dead Branch Cleanup Principle** (Important Rule 23): checkout target branch, pull, `git branch -d` the now-dead local source branch. Use `-d` not `-D`.
+After the post-merge CI is confirmed green (non-Super-Epic), apply the **Dead Branch Cleanup Principle** (Important Rule 23): checkout target branch, pull, `git branch -d` the now-dead local source branch. Use `-d` not `-D`.
+
+## `-seq` / `--sequentially` mechanism
+
+Auto-continues a multi-wave plan in the same session so the user does not have to copy-paste each next-wave command.
+
+**Trigger** — Auto-Suggest detects Signal A (Super-Epic child session) or Signal B (`--stay` accumulating-epic wave session) AND `-seq` is on the current invocation.
+
+**Action**:
+
+1. Build the next-wave command per the matching template (`super-epic-mode.md` for Signal A, `issue-templates.md` for Signal B).
+2. Append `-seq` to the next-wave flag list so the chain self-perpetuates.
+3. Print the hand-off block as a record, then immediately invoke the same command via the Skill tool — `Skill skill="x-wt-teams" args="..."`.
+
+**Termination** — natural: a future iteration's auto-suggest finds no remaining siblings (last-epic all-done branch, or no-next-found fallback). The skill prints the all-done message and STOPs normally.
+
+**Pause (soft stop, do NOT auto-invoke)** — print hand-off + a one-line "paused: <reason>" note above it, then STOP so the user can intervene. Triggers:
+
+- CI failed and the 2-cycle subagent fix (Auto-Complete Mode) or a single inline fix attempt (pre-merge) did not turn it green.
+- `/deep-review` or `/review-loop` reported issues this session cannot auto-fix (requires user product / schema decision).
+- Step 15 found missing requirements this session cannot satisfy without user input.
+- Merge conflict on the super-epic base or accumulating-epic base that this session cannot resolve safely.
+- Any condition that would normally interrupt a single-session workflow (denied destructive action, missing credential, etc.).
+
+A pause leaves the chain resumable — the printed next-wave command still has `-seq` appended, so the user can paste it as-is to keep going after addressing the blocker.
+
+**Combinations**:
+
+- `-seq -a` — both apply non-Super-Epic. `-a` runs `/pr-complete` to merge the wave's root PR; `-seq` then invokes the next wave. In Super-Epic child mode, `-a` is ignored (existing rule); `-seq` still applies on top of the mandatory epic-PR merge.
+- `-seq -s` — typical accumulating-epic chain (`-s` reuses the epic base, `-seq` advances through sub-issues).
+- `-seq` alone — only meaningful when the input is a `/big-plan` epic; otherwise no signal will fire and `-seq` is a no-op.
 
 ## `--no-review` rationale
 

@@ -197,6 +197,66 @@ A confirm sub-issue is normally `subagents` mode + `sonnet` model — its job is
 
 **Dependency notes still belong on each sub-task** — call out specific upstream sub-issues (`Depends on: #N1, #N2`) separately from the wave number, so the user can verify the wave grouping before kicking off each session.
 
+### 3.6. Classify the plan: goal-clear vs. design-decision — bake decisions accordingly
+
+**Not every plan needs human checkpoints between waves.** The deciding factor is whether the waves contain unresolved DECISIONS that need human judgment, or only analytical decisions an agent can make from the inputs.
+
+Classify the plan into one of two modes before Step 4 (save plan log).
+
+#### Goal-clear (default for bugfix, regression, refactor, performance, parity, migration)
+
+The success criterion is unambiguous and derivable from the inputs:
+
+- The bug doesn't reproduce.
+- The test passes.
+- The benchmark hits N.
+- The user sees the right pixels.
+
+Inter-wave human checkpoints **do not help** in this mode — they only delay the work and consume the user's time. The user's time is a real cost; gating on it for goal-clear plans is anti-leverage.
+
+**Rule for goal-clear plans:** wherever the original plan would benefit from "stop here and let the user decide", instead **insert a dedicated decision sub-task with `model: opus`** that consumes the prior wave's output and produces the input the next wave needs. Common shape:
+
+- Reads the upstream artifact (e.g. a `findings.md`, an audit, a labeled-set result).
+- Picks among the alternatives the upstream sub-task surfaced.
+- **Edits the downstream sub-issue's body via `gh issue edit`** to lock in the concrete file:symbol-granularity spec.
+- No production code touched.
+- Wave: usually its own (a one-task wave sandwiched between the diagnosis wave and the implementation wave).
+
+This is the structural replacement for "checkpoint after Wave N — review the findings". Opus does the harder judgment call autonomously; Sonnet implements the downstream task with a now-concrete spec.
+
+**Concrete tells for goal-clear:**
+
+- User explicitly framed the goal in unambiguous terms ("3 screenshots must match", "the test passes", "the bug doesn't repro", "performance ≥ X").
+- The task is categorized as bugfix / regression / refactor / performance / parity.
+- All "decisions" in the plan are analytical (which storage site, which fix, which model), not preferential.
+- User said something like "the goal is clear", "it's just a bugfix", "categorized as bugfix", "don't stop wave".
+
+#### Design-decision (default for new-feature, content-structure, UI-variation, scoping)
+
+The success criterion depends on user preference that can't be derived from inputs. Examples:
+
+- "Pick which UI pattern feels right out of 4 variations."
+- "Decide what should be in scope for the first release."
+- "Decide the content structure of the new docs section."
+
+In this mode, inter-wave human checkpoints are appropriate — the user is the source of truth for the unresolved decision. Recommend manual `--stay` invocations or natural pause points in the Step 11 hand-off.
+
+**Concrete tells for design-decision:**
+
+- User asked for "options", "variations", "patterns", "alternatives", "what do you think", "how should we approach", "which approach feels right".
+- Feature scoping language ("should X be in scope?", "do we need Y?").
+- Plan would produce 2+ artifacts that need user preference to choose between.
+
+#### When in doubt — surface during Step 6 proposal
+
+If the classification isn't obvious from the user's framing, ask explicitly during the Step 6 proposal: "Is this goal-clear (run autonomously with -seq) or design-decision (recommend manual checkpoints)?" Default to goal-clear if the topic is a bugfix and the user gave a concrete success criterion.
+
+#### What this changes in subsequent steps
+
+- **Step 4 (plan log)** — record the classification under a `**Plan mode:** goal-clear` or `**Plan mode:** design-decision` line in the plan log header.
+- **Step 8 (sub-issue creation)** — for goal-clear plans, ensure dedicated Opus decision sub-tasks are present at every point that would otherwise require a human checkpoint.
+- **Step 11 (hand-off summary)** — emit different defaults per the table in Step 11.
+
 ### 4. Save plan log to cclogs
 
 Save the draft plan before anything else. This is the source of truth for review, second opinions, verification, and later reference.
@@ -487,16 +547,27 @@ start a **fresh session** and run:
 
   /x-wt-teams {epic-issue-url}
 
-If the plan is large enough that running it in one session feels risky (likely
-context overflow, or you want a manual checkpoint between phases), run waves
-manually instead: close the epic's later-wave sub-issues temporarily, run
-`/x-wt-teams {epic-issue-url}` for Wave 1, reopen the next wave's sub-issues
-when ready, then check out `base/{impl-title-slug}` and re-run with `--stay`:
+Recommendation depends on the **Plan mode** (recorded in the plan log per Step 3.6):
 
-  /x-wt-teams -s {epic-issue-url}
+- **Goal-clear (bugfix / regression / refactor / performance / parity):** run autonomously
+  end-to-end. Use `-seq` for strictly-sequential execution if the user invoked /x-wt-teams
+  with that flag, or rely on the per-sub-issue `Depends on:` notes for dep-ordered parallel
+  execution (cap 6). **Do NOT recommend "checkpoint between Wave N and Wave N+1"** —
+  decision points are baked in as Opus sub-tasks per Step 3.6. The user's time should
+  not be the gate.
 
-The `--stay` flow reuses the existing epic base instead of creating a new one,
-so each wave's worktrees branch off the already-merged previous wave.
+      /x-wt-teams {epic-issue-url}
+      /x-wt-teams -seq {epic-issue-url}    # if the user wants strict-sequential
+
+- **Design-decision (new-feature / UI variations / content structure / scoping):**
+  recommend manual `--stay` checkpoints between waves so the user can review
+  artifacts and pick among alternatives:
+
+      /x-wt-teams -s {epic-issue-url}
+
+  Close later-wave sub-issues, run wave 1, reopen the next wave's sub-issues when
+  ready, then re-run with `--stay`. The `--stay` flow reuses the existing epic base
+  so each wave's worktrees branch off the already-merged previous wave.
 ```
 
 Fill in every row from the per-sub-task classifications recorded in Step 3 / Step 3.5. The table must list every sub-issue created in Step 8, sorted by Wave then by creation order within each wave. The "Reason" column is the same one-line reason already stored in the plan log and the sub-issue body markers — copy it verbatim.
@@ -592,4 +663,5 @@ All other workflow steps (issue creation, verification, etc.) remain unchanged.
 - **Small issues win** — an issue that takes 15 agent exchanges is better than one that takes 50
 - **Self-contained sub-issues** — each issue body must be readable standalone, without needing this session's context
 - **Fresh session next** — always end by instructing the user to start a new session and run `/x-wt-teams {epic-url}`. Wave ordering is encoded in dependency markers; `/x-wt-teams` honors them within a single session, so one invocation typically handles the whole plan. Manual per-wave checkpointing via `--stay` is documented as an exception, not the default
+- **Classify the plan as goal-clear or design-decision — mandatory (Step 3.6)** — every plan MUST be classified before Step 4 saves the log. Record `**Plan mode:** goal-clear` or `design-decision` in the plan log header. For **goal-clear plans** (bugfix / regression / refactor / performance / parity / migration — the success criterion is unambiguous), **NEVER recommend "checkpoint after Wave N" in the Step 11 hand-off** — the user's time is a real cost and inter-wave human pauses are anti-leverage when the goal is clear. Instead, **bake every would-be-checkpoint decision into a dedicated `model: opus` sub-task** that reads the upstream artifact, picks among alternatives, and edits the downstream sub-issue's body via `gh issue edit` to lock in the concrete spec. Goal-clear plans are designed to run end-to-end under `/x-wt-teams` (or `/x-wt-teams -seq` if the user prefers strict-sequential) with no human in the loop until verification. For **design-decision plans** (new features / UI variations / content structure / scoping — the success criterion depends on user preference) human checkpoints between waves ARE appropriate; the Step 11 hand-off emits the manual `--stay` recommendation for those
 - **No `~` in paths** — always use `$HOME`

@@ -8,6 +8,20 @@ description: "GitHub Actions workflow best practices and pitfalls reference. Use
 Reference best practices before writing or reviewing any GitHub Actions workflow.
 Load topic-specific references as needed from `references/`.
 
+## Runner Context Matters
+
+Several rules below depend on whether your jobs run on **ephemeral cloud runners** (GitHub-hosted `ubuntu-latest`, RunsOn, BuildJet, Namespace, etc. — fresh VM per job, wiped between runs) or **persistent self-hosted runners** (long-lived machines with state that carries across runs). Advice that is correct in one context can be a hard-to-debug bug in the other.
+
+| Concern                            | Ephemeral cloud runners                              | Persistent self-hosted runners                              |
+| ---------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------- |
+| `actions/cache` for build tools    | **Use it** — disk is wiped between runs              | Avoid — local disk is already the cache                     |
+| `set-safe-directory: false`        | **Don't set** — containers need the default          | Set it — avoids `~/.gitconfig` pollution                    |
+| Manual workspace cleanup steps     | Not needed — fresh VM each run                       | Often needed — workspace persists                           |
+| `chown` workspace at job end       | Not needed — VM is destroyed                         | Sometimes needed for next-run access                        |
+| `detect-runner` fallback pattern   | Obsolete — the cloud runner IS the runner            | Useful when mixing self-hosted + GitHub-hosted              |
+
+**Migration warning.** When moving a workflow from self-hosted to ephemeral (or vice versa), audit every step and option that was added "for the runner". Leftover self-hosted-isms on a cloud runner produce mysterious failures: `pnpm: command not found` (no setup step because pnpm was preinstalled), `Cache not found` between jobs (cache backend differs), `fatal: detected dubious ownership` (because `set-safe-directory: false` is now actively wrong), etc. Specific rules below are gated by runner context where it matters.
+
 ## Critical Rules (Always Apply)
 
 ### 1. Always Set `timeout-minutes`
@@ -98,22 +112,52 @@ Do **not** use `cache: 'pnpm'` (or `cache: 'npm'`, `cache: 'yarn'`) in `actions/
 
 This is especially true for **self-hosted runners** where the pnpm store is already local — caching to GitHub's remote cache and restoring it is pointless overhead.
 
-### 6. Set `set-safe-directory: false` on Self-Hosted Runners
+### 6. `set-safe-directory`: leave default on ephemeral runners, set `false` on self-hosted
 
-`actions/checkout` defaults `set-safe-directory` to `true`, which runs `git config --global --add safe.directory` on **every CI run**. On self-hosted runners this appends duplicate entries to `~/.gitconfig` indefinitely, polluting the shared gitconfig across all repos on that machine.
+`actions/checkout` defaults `set-safe-directory` to `true`, which runs `git config --global --add safe.directory` on every run.
+
+**Ephemeral cloud runners** — leave the default (`true`). Each run is a fresh VM, so there is no gitconfig to pollute. The default is also required for container jobs whose UID differs from the host runner user; without it, git inside the container errors with `fatal: detected dubious ownership` when it tries to operate on the mounted workspace.
 
 ```yaml
-# GOOD — prevent gitconfig pollution on self-hosted runners
+# GOOD on ephemeral runners — let checkout do its default thing
+- uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+```
+
+**Persistent self-hosted runners** — set it to `false`. Otherwise `~/.gitconfig` accumulates a duplicate `safe.directory` entry on every run, polluting the shared gitconfig across every repo on that machine.
+
+```yaml
+# GOOD on self-hosted runners — prevent gitconfig pollution
 - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
   with:
     set-safe-directory: false
 ```
 
-The `safe.directory` setting is unnecessary when the runner user owns the workspace directory.
+When migrating self-hosted → ephemeral, **forgetting to remove `set-safe-directory: false`** is a common gotcha. Non-container jobs may still work (the runner user owns the workspace), but the moment a job runs in a container, git inside hits dubious-ownership and fails with confusing errors.
 
-### 7. Don't Use `actions/cache` for Build Tools on Self-Hosted Runners
+#### Container jobs need an extra manual step (regardless of runner type)
 
-On self-hosted runners, build tool caches (Cargo, Go modules, Gradle, etc.) **already persist on disk**. Using `actions/cache` uploads them to GitHub's remote cache API on every run and creates duplicate entries, wasting storage.
+`actions/checkout` (a node action) writes safe.directory to the node-action HOME (`/root/.gitconfig` inside many containers). Shell `run:` steps inside the container have a different HOME (`/github/home`), so they read a different gitconfig and don't see the safe.directory entry. Lifecycle scripts (`pnpm install` calling `prepare` → `lefthook install` → git) then fail with `fatal: detected dubious ownership`.
+
+For **container jobs**, add a manual step before checkout that writes safe.directory to the shell-side gitconfig:
+
+```yaml
+test:
+  runs-on: ubuntu-latest
+  container:
+    image: foo:bar
+  steps:
+    - name: Mark workspace as safe for git
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+    - uses: actions/checkout@v4
+    # ... rest of the job
+```
+
+This is orthogonal to the `set-safe-directory` option — it covers shell-step git invocations, which checkout's option doesn't reliably reach in container jobs. Plain (non-container) jobs do not need it.
+
+### 7. `actions/cache` for build tools: yes on ephemeral, no on self-hosted
+
+**Persistent self-hosted runners** — build tool caches (Cargo, Go modules, Gradle, etc.) already persist on the runner's local disk. Using `actions/cache` uploads them to GitHub's remote cache API on every run and creates duplicate entries, wasting storage.
 
 ```yaml
 # BAD on self-hosted — uploads local cache to remote on every run
@@ -125,6 +169,18 @@ On self-hosted runners, build tool caches (Cargo, Go modules, Gradle, etc.) **al
 # GOOD on self-hosted — just use the local disk cache directly
 # (no actions/cache step needed)
 ```
+
+**Ephemeral cloud runners** — disk is wiped between runs, so `actions/cache` is essential to avoid re-downloading the dependency tree from scratch every time. Use it for `~/.cargo/registry`, `~/.gradle/caches`, the Go module cache, etc.
+
+```yaml
+# GOOD on ephemeral runners — survives across runs
+- uses: actions/cache@v4
+  with:
+    path: ~/.cargo/registry
+    key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+```
+
+Note: rule 5 ("Don't cache package managers in `setup-node`") still applies on both runner types — that rule is about npm package downloads where the CDN is faster than cache restore. Rule 7 is about general build-tool caches.
 
 ### 8. Avoid `curl | sh` Installers — Use Prebuilt-Binary Actions
 
@@ -170,6 +226,15 @@ Installer scripts like `curl https://.../init.sh | sh` (wasm-pack, rustup, many 
 
 If the build and deploy steps can run on the same runner, merging them into a single job is even simpler.
 
+**Caveat for cloud runners that proxy the cache layer** (e.g., RunsOn with `extras=s3-cache+magic-cache`) — the runner injects a sidecar at `ACTIONS_RESULTS_URL` that intercepts both v2 cache and v4 artifact API calls. The sidecar speaks the cache protocol but **does not always speak the v4 artifact protocol**. With magic-cache enabled, `actions/upload-artifact@v4` may fail with `Unexpected token '...' is not valid JSON` because the sidecar returns plain-text errors for artifact endpoints.
+
+If you hit this, the symptoms vary by transport:
+
+- **Cache-based passing across instances**: works only if the sidecar is reachable. From inside a container job whose docker network is isolated from the runner host, the sidecar's host IP is unreachable → `Cache not found` even when the upstream job successfully saved.
+- **Artifact-based passing**: works if you remove the proxy interception (drop `magic-cache` from the `runs-on` label) so v4 artifact calls reach `api.github.com` directly.
+
+When in doubt on a cloud runner that proxies caching, prefer `upload-artifact`/`download-artifact` over `actions/cache` and disable any cache-proxy extras. Artifacts go straight to the GitHub API which is reachable from any container or instance.
+
 ## Quick Reference by Topic
 
 For detailed guidance, read the appropriate reference file:
@@ -213,7 +278,8 @@ When reviewing or writing a workflow, verify:
 8. No `cache:` parameter in `setup-node` (fresh install from CDN is faster — see rule 5)
 9. Path filters used where possible to skip irrelevant runs
 10. Deploy steps have retry logic for network operations
-11. `actions/checkout` has `set-safe-directory: false` on self-hosted runners (see rule 6)
-12. No `actions/cache` for build tools on self-hosted runners — disk cache is already local (see rule 7)
+11. `actions/checkout` matches the runner type — default on ephemeral, `set-safe-directory: false` on self-hosted only (see rule 6)
+12. `actions/cache` for build tools matches the runner type — used on ephemeral, NOT on self-hosted (see rule 7)
 13. No `curl | sh` installers — use `taiki-e/install-action` or similar with retries (see rule 8)
-14. Inter-job data sharing uses `actions/cache` not `upload-artifact` to avoid org storage limits (see rule 9)
+14. Inter-job data sharing uses `actions/cache` not `upload-artifact` to avoid org storage limits — but switch to artifacts when a cloud runner's cache-proxy sidecar (e.g. RunsOn `magic-cache`) breaks v4 caching from container jobs (see rule 9)
+15. When migrating between self-hosted and ephemeral runners, audit every step for runner-type-specific options that may now be wrong (see "Runner Context Matters")

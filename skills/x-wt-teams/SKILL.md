@@ -1,7 +1,7 @@
 ---
 name: x-wt-teams
 description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main)."
-argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [--noi] [-noi|--no-raise-issues] [#issue-number] <instructions>"
+argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-seq|--sequentially] [-nor|--no-review] [--noi] [-noi|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -670,16 +670,16 @@ After this step, proceed to Close Tracking Issue → Auto-Suggest Next Command (
 
 **Why `-a` is ignored in Super-Epic child mode:** The mandatory merge step above already merges the epic-PR into the super-epic base — the only merge a Super-Epic child session is responsible for. `-a` is redundant there and is also semantically misleading (a user might read "auto-merge" as "also merge the super-epic base into main," which this skill never does). Full rationale in `references/super-epic-mode.md`.
 
-After Step 15 passes, automatically invoke `/pr-complete -c -w` to:
+After Step 15 passes, automatically:
 
-1. Wait for CI checks to pass
-2. Merge the root PR (`--merge --delete-branch`)
-3. Close the linked issue (`-c`)
-4. Watch post-merge CI on the target branch (`-w`)
-
-Intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/pr-complete` handles error reporting.
-
-**After `/pr-complete` succeeds**, apply the Dead Branch Cleanup Principle (Important Rule 25): checkout the merged target branch, pull, and `git branch -d` the now-dead local source branch:
+1. Invoke `/pr-complete -c` to wait for CI, merge the root PR (`--merge --delete-branch`), and close the linked issue.
+2. After the merge, invoke `/watch-ci <root-pr-number>` on the merged target branch to confirm post-merge CI is green.
+3. **If CI goes red**:
+- Fetch the failed run logs: `gh run view <run-id> --log-failed`
+- Spawn a dedicated Opus subagent with the failure details to investigate the root cause, fix the code, and push the fix directly to the target branch.
+- **Branch protection fallback**: if the subagent's direct push to the target branch is rejected by branch protection rules, it must open a fix-forward PR targeting the target branch and report the PR URL — never force-push, never silently abandon.
+- After the subagent reports back, re-invoke `/watch-ci` to confirm green. Attempt at most **2 fix cycles**. If CI is still red after 2 cycles, stop and report to the user with the full failure summary.
+4. **After clean post-merge CI**, apply the Dead Branch Cleanup Principle (Important Rule 26): checkout the merged target branch, pull, and `git branch -d` the now-dead local source branch:
 
 ```bash
 TARGET_BRANCH=$(gh pr view <root-pr-number> --json baseRefName -q '.baseRefName')
@@ -751,6 +751,26 @@ Print a concrete, copy-pasteable `/x-wt-teams <url> [flags] <instructions>` line
   → **Accumulating-epic variant**. Full detection, identification of `EPIC_BASE` / `EPIC_PR`, sub-issue lookup, hand-off message template, and no-next-found fallback: `references/issue-templates.md`.
 
 If neither signal applies, skip auto-suggest and fall through to STOP.
+
+#### `-seq` / `--sequentially` — auto-continue the chain
+
+When `-seq` was passed on this invocation AND Signal A or Signal B matched, do not stop after printing the hand-off. Instead:
+
+1. Build the next-wave command exactly as the matching template (`references/super-epic-mode.md` for Signal A, `references/issue-templates.md` for Signal B) prescribes, then **also append `-seq`** to the flag list so the chain keeps running on subsequent waves.
+2. Print the hand-off block as usual (so the log records the transition), then **immediately invoke the same command via the Skill tool** — `Skill skill="x-wt-teams" args="<flags + url + instructions>"`. This re-enters the skill in the same session and runs the next wave end-to-end.
+3. The chain self-terminates when a future iteration's auto-suggest finds no remaining siblings (last-epic all-done branch in `super-epic-mode.md`, no-next-found fallback in `issue-templates.md`). At that point, print the "all done" message and STOP normally.
+
+**Pause conditions — do NOT auto-invoke; print the hand-off + a short blocker note and STOP so the user can intervene:**
+
+- CI failed and a single fix attempt did not turn it green, or the failure cause is not clearly addressable by the just-merged changes.
+- `/deep-review` or `/review-loop` reported issues that this session could not auto-fix (e.g., requires user product decision, requires schema/migration approval).
+- Step 15 found missing requirements this session cannot satisfy without user input.
+- Any merge conflict on the super-epic base or accumulating-epic base that this session cannot resolve safely.
+- Any condition the manager would normally surface to the user mid-run (denied destructive action, missing credential, etc.).
+
+A pause is a soft stop — write a one-line "paused: <reason>" note above the hand-off, leave the chain ready to be resumed by the user re-running the printed next-wave command (which still has `-seq` appended, so resuming continues the chain).
+
+**Without `-seq`**: behave as before — print the hand-off and STOP. Single-session runs and `-seq`-less multi-session plans are untouched.
 
 ---
 
@@ -840,7 +860,7 @@ If `git branch -d` fails on unmerged commits, do NOT force with `-D`. Stop and a
 
 ## Important Rules
 
-1. **NEVER checkout main or parent branch** — after the workflow completes (Step 13), stay on `base/<project-name>`. Do NOT switch branches, do NOT delete branches, do NOT run Step 16. Workflow ends at Step 15. **Exceptions** (all instances of Rule 25 Dead Branch Cleanup): (a) `-a` / `--auto` and PR merged → checkout the target branch, pull, `git branch -d` the now-dead local `base/<project-name>`. (b) **Super-Epic child mode** → ALWAYS check out `$SUPER_EPIC_BASE` and delete the now-dead local epic base after the mandatory epic-PR merge. Unconditional in Super-Epic child mode (whether or not it's the last epic). Performed by step 5 of `references/super-epic-mode.md`.
+1. **NEVER checkout main or parent branch** — after the workflow completes (Step 13), stay on `base/<project-name>`. Do NOT switch branches, do NOT delete branches, do NOT run Step 16. Workflow ends at Step 15. **Exceptions** (all instances of Rule 26 Dead Branch Cleanup): (a) `-a` / `--auto` and PR merged → checkout the target branch, pull, `git branch -d` the now-dead local `base/<project-name>`. (b) **Super-Epic child mode** → ALWAYS check out `$SUPER_EPIC_BASE` and delete the now-dead local epic base after the mandatory epic-PR merge. Unconditional in Super-Epic child mode (whether or not it's the last epic). Performed by step 5 of `references/super-epic-mode.md`.
 2. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents.
 3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts.
 4. **Create the root PR immediately in Step 2** — empty commit + draft PR locks in the correct parent branch.
@@ -864,8 +884,8 @@ If `git branch -d` fails on unmerged commits, do NOT force with `-D`. Stop and a
 22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP, then switch to the super-epic base and delete the local epic base** — see `references/super-epic-mode.md`. The mandatory merge step is unconditional in Super-Epic child mode, runs even if `-a` was passed. This rule OVERRIDES Rule 1's "stay on `base/<project-name>`" default.
 23. **Execution mode is read from `/big-plan` annotations, not guessed** — when an `[Epic]` or Super-Epic child issue is the input, Step 1a extracts the per-topic `**Execution mode:** {subagents|teams}` markers and Step 5 routes accordingly. Default-when-missing is **teams** (preserves pre-annotation behavior). All-subagents → spawn one-shot Agent calls without TeamCreate. Any-teams or any-missing → full team workflow. The skill never auto-classifies execution mode itself — that decision belongs in `/big-plan`. Full routing logic, drift sanity check, and subagent-path differences live in `references/execution-modes.md`.
 24. **Per-topic model is read from `/big-plan` annotations, with manual flag override** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku}` marker and Step 5 spawns each child with its own model. A manual `-haiku` / `-so` / `-op` flag on the invocation OVERRIDES every topic's annotation as a session-wide manual override; without a flag, per-topic markers are honored. Default-when-missing-and-no-flag is **opus** (preserves pre-annotation behavior). The skill never auto-classifies the model itself — that decision belongs in `/big-plan` or in the user's flag. Full resolution table and rationale: `references/per-topic-models.md`.
-25. **Dead Branch Cleanup Principle (general meta-rule)** — whenever this skill orchestrates a merge (or watches one) where the source branch's work is absorbed into a parent **and** the source remote is deleted (e.g., `gh pr merge --delete-branch`, `/pr-complete`, equivalent), the local source branch is now a dead pointer and MUST be cleaned up before session ends. Pattern:
-
+25. **`-seq` / `--sequentially` auto-continues multi-wave plans in one session** — when `-seq` is passed AND Auto-Suggest detected a next wave (Signal A or Signal B), the manager appends `-seq` to the next-wave command and invokes it immediately via the Skill tool instead of stopping. The chain keeps running until a future iteration finds no more siblings. Pause (soft-stop with hand-off + blocker note) on the conditions listed in the Auto-Suggest sub-section — never silently swallow a blocker to keep the chain going. Single-session runs and `-seq`-less invocations are unaffected.
+26. **Dead Branch Cleanup Principle (general meta-rule)** — whenever this skill orchestrates a merge (or watches one) where the source branch's work is absorbed into a parent **and** the source remote is deleted (e.g., `gh pr merge --delete-branch`, `/pr-complete`, equivalent), the local source branch is now a dead pointer and MUST be cleaned up before session ends. Pattern:
 1. Capture the dead branch name BEFORE switching off it: `DEAD_BRANCH=$(git branch --show-current)`
 2. `git fetch origin --prune` to drop the now-deleted remote refs
 3. `git checkout <parent-branch> && git pull origin <parent-branch>` to land on the absorbing branch

@@ -162,14 +162,16 @@ Artifacts count toward **shared org storage** (the quota orgs hit first). For pa
 `actions/checkout` defaults `set-safe-directory` to `true`, running `git config --global --add safe.directory` on every CI run. On self-hosted runners this creates thousands of duplicate entries in `~/.gitconfig` over time.
 
 ```yaml
-# BAD — appends to ~/.gitconfig on every run
+# BAD on self-hosted — appends to ~/.gitconfig on every run
 - uses: actions/checkout@v4
 
-# GOOD
+# GOOD on self-hosted
 - uses: actions/checkout@v4
   with:
     set-safe-directory: false
 ```
+
+**Do not carry `set-safe-directory: false` to ephemeral cloud runners** (GitHub-hosted, RunsOn, etc.). Each run is a fresh VM, so there is no gitconfig to pollute, and the default (`true`) is required for container jobs to access the workspace without `fatal: detected dubious ownership`. Migrating self-hosted → ephemeral and forgetting to remove this option causes confusing failures inside container jobs.
 
 ## 15. Hardcoded Ports in E2E Test Server Setup
 
