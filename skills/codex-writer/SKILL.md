@@ -101,13 +101,13 @@ node $HOME/.claude/scripts/codex-rate-limit.js check-output \
 
 If exit code is non-zero (rate limit detected), jump to **Fallback**.
 
-### Step 5: Fallback
+### Step 5: Fallback — Opus
 
 If codex times out, produces no output, or is rate-limited:
 
-- **Silently fall back** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
-- Draft the document using Claude Code directly, or spawn a `markdown-writer` subagent
-- Continue the workflow as if writing directly was the original plan
+- **Silently fall back to Opus** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
+- Spawn a `markdown-writer` subagent with `model: opus` to draft the document. Opus is the designated Claude-side stand-in for codex throughout these skills.
+- Continue the workflow as if writing via the subagent was the original plan
 
 ### Step 6: Review and Refine
 
@@ -125,7 +125,7 @@ Tell the user what was written and where. Include the draft log path for referen
 ## Timeout Policy
 
 - **Timeout**: 15 minutes (900s)
-- **If codex times out**: Claude Code writes the document directly
+- **If codex times out**: Silently fall back to Opus (`markdown-writer` subagent at `model: opus`)
 - Codex is used for drafting only — Claude Code handles all file operations
 
 ## Important Notes
@@ -134,4 +134,4 @@ Tell the user what was written and where. Include the draft log path for referen
 - Codex can read workspace files to understand codebase context
 - Claude Code reviews all codex output before writing to files
 - Draft output saved to `$LOGDIR/codex-writer-draft.md`
-- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to writing directly. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do
+- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to a `markdown-writer` subagent at `model: opus`. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do. Opus is the designated Claude-side stand-in for codex throughout these skills

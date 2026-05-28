@@ -1,7 +1,7 @@
 ---
 name: x
-description: "Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing between /x-as-pr and /x-wt-teams, (3) User says 'dev', 'implement', or 'build' with a task. Default options: -l -v (review-loop + verify-ui)."
-argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [-s|--stay] [-nor|--no-review] [-noi|--no-raise-issues] [options] <instructions>"
+description: "Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing between /x-as-pr and /x-wt-teams, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). Review-loop (-l) is opt-in — without -l the downstream skill runs a single /deep-review pass."
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
@@ -50,34 +50,36 @@ These rules apply to the facade itself and propagate to the chosen downstream sk
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`-haiku`, `--haiku`, `-so`, `--sonnet`, `-op`, `--opus`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `--noi`, `-noi`, `--no-raise-issues`, `--no-issue`, `-co`, `--codex`, `-gco`, `--github-copilot`, `-gcoc`, `--github-copilot-cheap`, `-a`, `--auto`, etc.)
+- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-gco`, `--github-copilot`, `-gcoc`, `--github-copilot-cheap`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `--noi`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, etc.)
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
 ### Default Options
 
-If NO flags are passed (just instructions or an issue), apply these defaults:
+If NO flags are passed (just instructions or an issue), apply this default:
 
-- `-l` (review-loop)
 - `-v` (verify-ui)
 
-If any flags ARE passed explicitly, use those as-is — do NOT add defaults.
+Review-loop (`-l`) is **NOT** added by default — for most tasks a single `/deep-review` pass is enough and the 5-round loop is overkill. The user must pass `-l` explicitly to opt in.
 
-### Claude Model Mode (`-haiku` / `-so` / `-op`)
+If any flags ARE passed explicitly, use those as-is — do NOT add the `-v` default either.
 
-When a model flag is passed, forward it to the chosen skill. It controls the Claude model used for Claude subagents (child worktree agents in `/x-wt-teams`, fix-delegation agents in `/x-as-pr`, and the Claude-side reviewers inside `/deep-review`/`/review-loop`). **Default: `-op` (Opus)** when no model flag is passed. Orthogonal to `-co` / `-gco` / `-gcoc` — they can coexist. See the target skill for details.
+### Reviewer flags
 
-### Codex Mode (`-co` / `--codex`)
+`-op` / `-so` / `-haiku` and `-co` / `-gco` / `-gcoc` are **reviewer flags** — they change which reviewer(s) run, not subagents or team members. Forward them all to the chosen skill.
 
-When `-co` or `--codex` is passed, forward it to the chosen skill. This switches reviews, doc writing, and research to use codex-based alternatives (`/codex-review`, `/codex-writer`, `/codex-research`). See `/x-as-pr` and `/x-wt-teams` for details.
+- `-op` / `-so` / `-haiku` — Claude reviewer model for `/deep-review` / `/review-loop`. Pick at most one.
+- `-co` / `--codex` — add codex reviewer (`/codex-review`) plus codex writer / research.
+- `-gco` / `--github-copilot` — add GitHub Copilot CLI reviewer (`/gco-review`) plus copilot 2nd opinion / research.
+- `-gcoc` / `--github-copilot-cheap` — like `-gco` but forces the free `gpt-4.1` model.
 
-### GitHub Copilot Mode (`-gco` / `--github-copilot`)
+All reviewer flags **combine** — passing multiple means run every selected reviewer. **Default when no reviewer flag is passed at all**: `/deep-review` at Opus. See the target skill for substitution tables.
 
-When `-gco` or `--github-copilot` is passed, forward it to the chosen skill. This switches reviews and research to use GitHub Copilot CLI (`/gco`). Mutually exclusive with `-co` and `-gcoc`. See `/x-as-pr` and `/x-wt-teams` for details.
+### Team-member flags (`-t-op` / `-t-so`)
 
-### GitHub Copilot Cheap Mode (`-gcoc` / `--github-copilot-cheap`)
+`-t-op` / `--team-opus` and `-t-so` / `--team-sonnet` override the model used by spawned subagents and agent-team members (child worktree agents in `/x-wt-teams`, fix-delegation agents in `/x-as-pr`). Pick at most one. **Default: `opus`.** No `-t-haiku`. Forward to the chosen skill.
 
-When `-gcoc` or `--github-copilot-cheap` is passed, forward it to the chosen skill. Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). Switches reviews and research to use `/gcoc-*` variants. Mutually exclusive with `-co` and `-gco`. See `/x-as-pr` and `/x-wt-teams` for details.
+These do NOT affect reviewers and are orthogonal to all reviewer flags.
 
 ### Auto-Complete Mode (`-a` / `--auto`)
 
@@ -87,9 +89,11 @@ When `-a` or `--auto` is passed, forward it to the chosen skill. After the workf
 
 When `-nor` or `--no-review` is passed, forward it to the chosen skill. The downstream skill skips the post-implementation review step entirely (no `/deep-review`, no `/review-loop`, no fix-delegation Agent) and goes straight from implementation to push / CI watch / PR revision. Use when the task is throwaway or you've already reviewed the changes yourself.
 
-### No-Raise-Issues Mode (`-noi` / `--no-raise-issues`)
+### Raise-Issues Mode (`-ri` / `--raise-issues`, default — and `-nori` / `--no-raise-issues` to suppress)
 
-When `-noi` or `--no-raise-issues` is passed, forward it to the chosen skill. The downstream skill suppresses raising GitHub issues for unrelated problems found during coding or reviewing.
+By default the downstream skill raises GitHub issues (labeled `agent-found`) for problems, bugs, or improvement possibilities found in code unrelated to the current task. `-ri` / `--raise-issues` is the explicit form of the default. Pass `-nori` / `--no-raise-issues` to suppress.
+
+Forward whichever flag was on the invocation to the chosen skill. If neither was passed, no forwarding is needed — the downstream default already raises issues.
 
 ## Strategy Selection
 

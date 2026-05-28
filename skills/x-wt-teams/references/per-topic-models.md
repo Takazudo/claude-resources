@@ -1,16 +1,18 @@
 # Per-Topic Models — Resolution & Override
 
-How `/x-wt-teams` decides which Claude model each child should run. Read when the spawn step needs to set per-child model parameters or when a `-haiku`/`-so`/`-op` flag is on the invocation.
+How `/x-wt-teams` decides which Claude model each child should run. Read when the spawn step needs to set per-child model parameters or when a `-t-op` / `-t-so` flag is on the invocation.
+
+The reviewer model flags (`-op` / `-so` / `-haiku`) are a separate concern — they govern the Claude reviewer at Step 9, not child agents. See `references/arguments.md` for the two flag families.
 
 ## Resolution order
 
 For each topic, the model is resolved in this strict order. The first rule that applies wins:
 
-1. **Manual flag override** — if the invocation contains `-haiku` (or `--haiku`), `-so` (or `--sonnet`), or `-op` (or `--opus`), apply that model to **every** topic in the session. The flag is a deliberate session-wide override; per-topic `Model:` markers are ignored.
+1. **Manual team-member flag override** — if the invocation contains `-t-op` (or `--team-opus`) or `-t-so` (or `--team-sonnet`), apply that model to **every** topic in the session. The flag is a deliberate session-wide override; per-topic `Model:` markers are ignored.
 2. **Per-topic annotation** — otherwise, use the topic's `**Model:**` marker extracted in Step 1a (from the `[Sub]` issue body, or the inline sub-task in Super-Epic mode).
 3. **Default** — if a topic has no marker AND no flag is present, default to `opus`.
 
-Model values: `opus`, `sonnet`, `haiku` (case-sensitive lowercase).
+Model values from annotations: `opus`, `sonnet`, `haiku` (case-sensitive lowercase). Note that the CLI override only covers `opus` and `sonnet` — `haiku` is rare enough that it stays opt-in via per-topic markers only. A `**Model:** haiku` annotation is still honored when no team-member flag is passed.
 
 ## Marker format
 
@@ -77,7 +79,7 @@ Models per topic:
 Or, on flag override:
 
 ```
-Manual override: all topics use sonnet (-so flag) — per-topic Model annotations ignored
+Manual override: all topics use sonnet (-t-so flag) — per-topic Model annotations ignored
 ```
 
 This single block replaces any prior assumption that all children run on the same model.
@@ -86,15 +88,17 @@ This single block replaces any prior assumption that all children run on the sam
 
 The flag is an instrument the user reaches for **at invocation time**, after seeing the plan. Reasons it overrides per-topic:
 
-- The user already saw the plan before calling `/x-wt-teams`. If they pass `-so`, they've decided "for this run, force everything to sonnet" — possibly to save tokens, possibly to reproduce a previous run.
+- The user already saw the plan before calling `/x-wt-teams`. If they pass `-t-so`, they've decided "for this run, force every team member to sonnet" — possibly to save tokens, possibly to reproduce a previous run.
 - Per-topic-respect-flag-only-when-default would create three states (no-flag-no-marker, no-flag-marker, flag) that interact in non-obvious ways. Override-everything is one clear state.
 - If the user wants per-topic control, they edit the `/big-plan` annotation. The flag is the blunt instrument.
 
-## Model-flag aliases
+## Team-member flag aliases
 
-The same flag set already governs delegation elsewhere — see `references/arguments.md` for the canonical alias table and the manager-invariant rule (manager is always Opus regardless of flag).
+The team-member override flags are `-t-op` / `--team-opus` and `-t-so` / `--team-sonnet`. At most one may be present — multiple is an error and should be surfaced to the user.
 
-In short: `-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`. At most one flag may be present. Multiple flags is an error — surface to the user.
+There is intentionally no `-t-haiku`. Haiku is only reachable via `/big-plan` per-topic `**Model:** haiku` annotations, because forcing every child to haiku session-wide is rarely the right call.
+
+See `references/arguments.md` for the canonical flag table and the two-flag-families distinction (reviewer flags vs team-member flags).
 
 ## Defaults rationale
 

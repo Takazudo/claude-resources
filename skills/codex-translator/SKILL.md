@@ -113,13 +113,13 @@ node $HOME/.claude/scripts/codex-rate-limit.js check-output \
 
 If exit code is non-zero (rate limit detected), jump to **Fallback**.
 
-### Step 5: Fallback
+### Step 5: Fallback — Opus
 
 If codex times out, produces no output, or is rate-limited:
 
-- **Silently fall back** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
-- Perform the translation using Claude Code directly
-- Continue the workflow as if translating directly was the original plan
+- **Silently fall back to Opus** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
+- Spawn a `text-fixer` subagent (or general-purpose subagent) with `model: opus` to perform the translation. Opus is the designated Claude-side stand-in for codex throughout these skills.
+- Continue the workflow as if the subagent translation was the original plan
 
 ### Step 6: Review and Finalize
 
@@ -141,7 +141,7 @@ Present the translation to the user. Include the draft log path.
 ## Timeout Policy
 
 - **Timeout**: 15 minutes (900s)
-- **If codex times out**: Claude Code performs translation directly
+- **If codex times out**: Silently fall back to Opus (subagent at `model: opus`)
 - Codex runs read-only — cannot modify files
 
 ## Important Notes
@@ -150,4 +150,4 @@ Present the translation to the user. Include the draft log path.
 - Claude Code reviews for quality and handles file operations
 - For large translations (entire files), read the file content and include it in the prompt
 - Supports any language pair — specify source and target explicitly
-- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to translating directly. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do
+- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to a subagent at `model: opus` (text-fixer or general-purpose). NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do. Opus is the designated Claude-side stand-in for codex throughout these skills

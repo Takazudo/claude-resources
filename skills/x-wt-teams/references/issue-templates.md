@@ -86,11 +86,24 @@ gh issue comment "$ISSUE_NUMBER" --body "🤖 Starting work on this epic in a Cl
 
 ## Unrelated-findings issue (raise during work)
 
-When a reviewer or agent discovers a problem unrelated to the original topic — pre-existing bug, code smell in adjacent code, outdated dependency, etc. — raise as a separate issue (unless `-noi` / `--no-raise-issues` was passed):
+When a reviewer or agent discovers a problem unrelated to the original topic — pre-existing bug, code smell in adjacent code, outdated dependency, improvement possibility, etc. — raise as a separate issue with the `agent-found` label (unless `-nori` / `--no-raise-issues` was passed).
+
+**Ensure the label exists** (once per session, before the first raise):
+
+```bash
+gh label create "agent-found" \
+  --description "Raised automatically by a Claude Code agent during a /x-as-pr or /x-wt-teams workflow" \
+  --color "ededed" 2>/dev/null || true
+```
+
+The command is idempotent — it no-ops when the label already exists.
+
+**Create the issue with the label:**
 
 ```bash
 gh issue create \
   --title "<concise description of the unrelated problem>" \
+  --label "agent-found" \
   --body "$(cat <<'EOF'
 ## Found during
 
@@ -110,7 +123,21 @@ EOF
 )"
 ```
 
-When `-noi` / `--no-raise-issues` is active, simply ignore unrelated findings and focus only on the original task. Pass this flag context to child agents so they skip raising too.
+**If the finding needs screenshots to make sense to the reader** (visual regression, layout bug, anything where a picture communicates more than prose), invoke `/gh-issue-with-imgs` instead of plain `gh issue create`. It uploads the screenshot files as release assets and embeds them in the issue body — `gh issue create` cannot attach images natively. After the skill returns the new issue URL, apply the label:
+
+```
+Skill tool: skill="gh-issue-with-imgs"
+  args="<owner/repo> '<title>' --body '<body text above>' --img <path-to-screenshot> [--img <another>...]"
+```
+
+```bash
+# Parse the issue number from the URL the skill printed, then add the label
+gh issue edit <ISSUE_NUM_FROM_URL> --add-label "agent-found"
+```
+
+Use plain `gh issue create` when the finding is text-only (lint warnings, dead code, refactor suggestions). If a child agent is the one who needs to raise the issue, pass this same rule into the agent prompt so it picks the right path — including the label creation snippet and the `--label "agent-found"` flag.
+
+When `-nori` / `--no-raise-issues` is active, simply ignore unrelated findings and focus only on the original task. Pass this flag context to child agents so they skip raising too.
 
 ## Step 14 session report
 
@@ -157,15 +184,17 @@ After commenting, re-run Steps 3–14 using `--stay` semantics on the existing b
 
 ## Close-tracking-issue comment
 
-When the workflow ends (unless `--no-issue` was used or the user provided the issue):
+**The tracking issue is closed by `/cleanup-resources` at Step 16, not by an inline `gh issue close` here.** See the parent SKILL.md "Step 16: Cleanup audit via `/cleanup-resources`" section for how the manifest is built and how the Sonnet subagent decides. The exact close comment the cleanup skill applies is:
 
-```bash
-gh issue close "$ISSUE_NUMBER" --comment "Workflow complete. Root PR: <ROOT_PR_URL>"
+```
+Workflow complete. Root PR: <ROOT_PR_URL>
 ```
 
-If problems were discovered that need follow-up, raise them as **separate issues** before closing the tracking issue. The tracking issue itself should not remain open as a to-do item.
+The Sonnet subagent uses that comment template when it proposes `close` for a `tracking` role issue. The manager (you) just executes the plan — do NOT add a separate `gh issue close` call elsewhere in the workflow.
 
-**Exception**: If the user provided the issue (not created by this workflow), do NOT close it.
+If problems were discovered that need follow-up, they should already have been raised as **separate issues** during the workflow (per "Raising Issues for Unrelated Findings"). Those carry the `unrelated-finding` role in the manifest and the cleanup agent's prompt enforces KEEP for them — they will NOT be closed alongside the tracking issue.
+
+**Exception**: If the user provided the issue (not created by this workflow), the manifest tags it `claimed-existing` instead of `tracking`. The cleanup agent proposes KEEP unless `-a` flow + `/pr-complete -c` already closed it externally.
 
 ## Accumulating-epic Auto-Suggest hand-off
 
@@ -228,7 +257,7 @@ Remaining open sub-issues:
 
 **Required elements in the printed command:**
 
-- **Same model / backend flags** as this session (e.g., `-gcoc`, `-haiku`, `-co`). Forward whatever was used.
+- **Same reviewer / team-member flags** as this session (e.g., `-gcoc`, `-op`, `-co`, `-t-so`). Forward whatever was used.
 - **`--stay` MUST be present** — accumulating-epic continuation, not a fresh workflow.
 - **Wave / sub label** (e.g., "Wave 4b only: Sub 10b #1493 —") if user's original instructions used one; omit otherwise.
 - **Explicit "Do NOT run /pr-complete or merge PR #<EPIC_PR> (accumulating epic PR)"** clause so the next session preserves the accumulating pattern.

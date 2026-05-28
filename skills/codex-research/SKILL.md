@@ -113,12 +113,12 @@ node $HOME/.claude/scripts/codex-rate-limit.js check-output \
 
 If exit code is non-zero (rate limit detected), jump to **Fallback**.
 
-### Step 5: Fallback
+### Step 5: Fallback — Opus
 
 If codex times out, produces no output, or is rate-limited:
 
-- **Silently fall back** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
-- Spawn a `researcher` subagent to perform the research via Claude Code tools (WebSearch, WebFetch, etc.)
+- **Silently fall back to Opus** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
+- Spawn a `researcher` subagent with `model: opus` to perform the research via Claude Code tools (WebSearch, WebFetch, etc.). Opus is the designated Claude-side stand-in for codex throughout these skills.
 - Continue the workflow as if the researcher subagent was the original plan
 
 ### Step 6: Synthesize
@@ -145,7 +145,7 @@ pnpm dlx @takazudo/mdx-formatter --write <file>
 ## Timeout Policy
 
 - **Timeout**: 20 minutes (1200s) — research needs more time than other tasks
-- **If codex times out**: Fall back to Claude Code `researcher` subagent
+- **If codex times out**: Silently fall back to Opus (`researcher` subagent at `model: opus`)
 - Research is read-only — codex cannot modify files
 
 ## Important Notes
@@ -153,6 +153,6 @@ pnpm dlx @takazudo/mdx-formatter --write <file>
 - Codex can do web research natively
 - All file writing done by Claude Code, never by codex
 - Long timeout (20 min) because research can take time
-- Falls back to `researcher` subagent if codex fails
-- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to the researcher subagent. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do
+- Falls back to a `researcher` subagent at `model: opus` if codex fails
+- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to the researcher subagent at `model: opus`. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do. Opus is the designated Claude-side stand-in for codex throughout these skills
 - NEVER use `~` in paths — use `$HOME`

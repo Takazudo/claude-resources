@@ -1,7 +1,7 @@
 ---
 name: big-plan
-description: "Plan implementation by breaking work into one epic GitHub issue + child sub-issues. Use when: (1) User says '/big-plan', (2) User wants to plan an implementation before coding, (3) User wants to split a feature into small issues for parallel agent team work, (4) User references existing issues (e.g. 'implement issue #123', 'plan all open issues', 'plan recent 3 open issues'). Auto-reads project-scope l-lessons-* skills (from /retro-notes) before planning. Supports -co/-gco/-gcoc flags for second opinions and post-creation verification (runnable in parallel). Large scope is kept in ONE epic and sequenced into dependency waves run via /x-wt-teams --stay. Planning only — no code changes."
-argument-hint: <description-or-issue-refs> [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-nor|--no-review]
+description: "Plan implementation by breaking work into one epic GitHub issue + child sub-issues. Use when: (1) User says '/big-plan', (2) User wants to plan an implementation before coding, (3) User wants to split a feature into small issues for parallel agent team work, (4) User references existing issues (e.g. 'implement issue #123', 'plan all open issues', 'plan recent 3 open issues'). Auto-reads project-scope l-lessons-* skills (from /retro-notes) before planning. Supports -op/-co/-gco/-gcoc flags for second opinions and post-creation verification (runnable in parallel). Use -impl/--implementation to auto-invoke the implementation skill in the same session after planning ends (skips Step 6 confirmation): /x-wt-teams for a multi-sub-issue plan (appends -seq when multi-wave), or /x-as-pr for a single-sub-issue plan. Use -a/--auto to auto-create issues without the Step 6 confirmation wait (pausing only when something needs careful consideration); combined with -impl it forwards -a to whichever implementation skill it invokes (/x-wt-teams or /x-as-pr) so plan → impl → merge → cleanup all run autonomously. Large scope is kept in ONE epic and sequenced into dependency waves, run by a single /x-wt-teams session in dependency order (not multiple --stay sessions; manual --stay checkpoints are reserved for design-decision plans that need review between waves). Planning only — no code changes (unless -impl is set, in which case implementation also runs in-session; with -a -impl, the implementation skill additionally auto-merges)."
+argument-hint: <description-or-issue-refs> [-op|--opus] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-nor|--no-review] [-impl|--implementation] [-a|--auto]
 ---
 
 # Big Plan
@@ -14,12 +14,26 @@ This skill is useful for **almost every implementation task**, not just huge one
 
 Parse `$ARGUMENTS` to extract:
 
-- **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Express the user's intent for the **planning session itself** — a paper trail of "I wanted to plan this with opus/sonnet/haiku." `/big-plan` cannot switch its own session's model, so the flag is recorded in the plan log and the epic body but otherwise informational. **NOT forwarded to the `/x-wt-teams` hand-off** (Step 11). Implementation-session model decisions live per sub-task in the created issue bodies (see Step 3 — _Pick the model per sub-task_); `/x-wt-teams` reads those annotations. If the user wants a session-wide model override on the implementation session, they add `-haiku`/`-so`/`-op` to `/x-wt-teams` manually at invocation time. Pick at most one.
-- **`-co` or `--codex` flag**: If present, get a Codex second opinion on the saved plan (Step 5) and use Codex as the verification reviewer (Step 9). Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Reviewer flags for the implementation session are the user's choice; they add `-co` to `/x-wt-teams` themselves at invocation time when they want one. Can be combined with `-gco` or `-gcoc` to run multiple reviewers in parallel.
-- **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot CLI for the Step 5 second opinion, the Step 9 verification reviewer, and any research during exploration (Step 2). See "GitHub Copilot Mode" section. Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Can be combined with `-co`. **Mutually exclusive with `-gcoc`** (same tool, different model — pick one).
-- **`-gcoc` or `--github-copilot-cheap` flag**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). See "GitHub Copilot Cheap Mode" section. Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Can be combined with `-co`. **Mutually exclusive with `-gco`** (same tool, different model — pick one).
-- **Multiple reviewer flags** — when `-co` is combined with `-gco` (or `-gcoc`), every specified reviewer is invoked in parallel during Step 5 and their feedback is consolidated into a single `## Review Notes` section before user confirmation.
+- **`-op` or `--opus` flag**: If present, get an Opus second opinion on the saved plan (Step 5). Spawns a forked Opus subagent via `/opus-2nd`. Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Can be combined with `-co`, `-gco`, or `-gcoc` to run multiple reviewers in parallel. Uses Anthropic quota — pick when the plan is consequential enough to justify Opus over the cheaper Codex / Copilot options. Does **NOT** affect Step 9 verification — that always runs on Sonnet.
+- **`-co` or `--codex` flag**: If present, get a Codex second opinion on the saved plan (Step 5). If codex is rate-limited or unavailable, `/codex-2nd` silently falls back to **Opus** (general-purpose subagent at `model: opus`) — same second opinion, just from Opus instead of codex. Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Reviewer flags for the implementation session are the user's choice; they add `-co` to `/x-wt-teams` themselves at invocation time when they want one. Can be combined with `-op`, `-gco`, or `-gcoc` to run multiple reviewers in parallel. Does **NOT** affect Step 9 verification — that always runs on Sonnet.
+- **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot CLI for the Step 5 second opinion and any research during exploration (Step 2). See "GitHub Copilot Mode" section. Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Can be combined with `-op` and/or `-co`. **Mutually exclusive with `-gcoc`** (same tool, different model — pick one). Does **NOT** affect Step 9 verification — that always runs on Sonnet.
+- **`-gcoc` or `--github-copilot-cheap` flag**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). See "GitHub Copilot Cheap Mode" section. Applies to the **planning session only** — **NOT forwarded** to the `/x-wt-teams` hand-off. Can be combined with `-op` and/or `-co`. **Mutually exclusive with `-gco`** (same tool, different model — pick one). Does **NOT** affect Step 9 verification — that always runs on Sonnet.
+- **Multiple reviewer flags** — any combination of `-op`, `-co`, and one of `-gco`/`-gcoc` can be specified together. Every specified reviewer is invoked in parallel during Step 5 and their feedback is consolidated into a single `## Review Notes` section before user confirmation.
 - **`-nor` or `--no-review` flag**: If present, run the planning end-to-end with no confirmation gates and no review steps. Skips Step 5 (second opinion), Step 6 (propose-to-user wait), and Step 9 (requirements verification). The plan is drafted, the log is saved, the issues are created, and the session ends. Use when you've already decided what to plan and just want the issues created. Mutually compatible with `-co` / `-gco` / `-gcoc` — but those reviewer flags become no-ops when `-nor` is also present (no review runs).
+- **`-impl` or `--implementation` flag**: If present, automatically invoke the implementation skill (`/x-wt-teams`, or `/x-as-pr` for a single-sub-issue plan) via the Skill tool in the same session right after Step 11, instead of stopping and instructing the user to start a fresh session. The user has opted in to running implementation in-session. Behaviors:
+  - **Skips Step 6 confirmation** — print the proposal as a one-shot summary (same shape as `-nor`), then proceed straight to Step 7. The user opted in to no-confirmation mode by passing the flag.
+  - **Step 5 (review) and Step 9 (verification) still run as usual** — those are automated quality gates, not user confirmation gates. They only get skipped when `-nor` is also passed.
+  - **Route by plan shape** — a single-sub-issue plan auto-invokes `/x-as-pr {sub-issue-url}` (the lean single-topic path, no `-seq`); a 2+-sub-issue plan auto-invokes `/x-wt-teams {epic-url}`, appending `-seq` when the plan is multi-wave (count distinct `Wave:` numbers across sub-tasks). See Step 11 for the exact decision. `-seq` is forwarded literally because the user explicitly opted into in-session chaining; whether it changes downstream behavior depends on `/x-wt-teams`'s own signals.
+  - **Pause conditions** — even with `-impl`, pause and ask the user before auto-invoking when ANY of these "concern signals" fire (the same gates that exist elsewhere in this skill, surfaced once here so the next reader sees them as one set):
+    1. **`Plan mode: design-decision`** (Step 3.6 classification) — these plans may need human judgment mid-flow, so auto-running can skip a decision only the user can make. Recommend the plain manual hand-off `/x-wt-teams {epic-url}` and stop; if the user wants to review artifacts between waves, the `-s` checkpoint flow is documented in Step 11.
+    2. **`$PARENT_BRANCH` is not `main`** (nested-base case) — the user may have invoked `/big-plan` from the wrong branch. Surface the parent branch and ask before kicking off implementation against a non-main parent.
+    3. **Step 9 verification report contained unresolved Missing / Misinterpreted / Ambiguous items** that could not be auto-fixed in-step — print them and stop. (If Step 9 cleanly resolved everything via `gh issue edit`, this signal does not fire.)
+  - **Trade-off**: this flag intentionally violates the "fresh session next" principle (see Key Principles). Token cost grows with session length, but the user has decided that handoff overhead is worse than the token cost in this case. Do not "fix" the auto-invoke by reverting to a hand-off — it is a deliberate opt-in.
+  - **Combinable with other flags**: `-impl` composes with `-op` / `-co` / `-gco` / `-gcoc` (reviewer flags affect Step 5 only; they do NOT forward to the `/x-wt-teams` invocation, same as the non-`-impl` path) and with `-nor` (skips Step 5/6/9 entirely; auto-invocation still happens unless a pause condition that does not depend on Step 9 fires). Also composes with `-a` / `--auto`, which forwards `-a` to whichever implementation skill is invoked (`/x-wt-teams` or `/x-as-pr`) so implementation auto-completes (CI + merge + cleanup) — see the `-a` bullet below and Step 11.
+- **`-a` or `--auto` flag**: Autonomy flag. It does two things depending on whether `-impl` is also present:
+  - **General flow (no `-impl`)**: skip the Step 6 confirmation wait and auto-create the issues, the same one-shot-summary shape as `-nor`/`-impl`. **Quality gates stay on** — Step 5 (review) and Step 9 (verification) still run (unlike `-nor`, which drops them). After issues are created, the session hands off normally; `-a` alone does **not** auto-invoke implementation. The auto-create is **conditional**: if something needs careful consideration, fall back to the normal Step 6 ask-and-wait instead of auto-proceeding. The "careful consideration" signals evaluable at Step 6 are (1) `Plan mode: design-decision` (Step 3.6) and (2) `$PARENT_BRANCH` is not `main` (nested base). These are the same concern signals `-impl` checks — Step 9's verification signal isn't included here because verification hasn't run yet at Step 6 (it's why `-impl` defers that check to Step 11).
+  - **With `-impl`**: at Step 6, `-impl`'s unconditional skip wins (issues always get created; `-impl`'s own Step 11 pause conditions handle the concern signals). `-a`'s only added effect in this combination is **forwarding `-a` to whichever implementation skill Step 11 invokes** (`/x-wt-teams` or `/x-as-pr`), so the whole chain — plan → impl → merge → cleanup — runs autonomously.
+  - **Combinable**: with reviewer flags (`-op`/`-co`/`-gco`/`-gcoc`, which shape Step 5 only and are never forwarded) and with `-nor` (which already skips Step 5/6/9; `-a`'s Step 6 behavior is then moot and only the `-impl` forwarding remains).
 - **Existing issue references** — any of these trigger _existing-issue mode_ (see Step 1b):
   - A GitHub issue URL: `https://github.com/owner/repo/issues/123`
   - An issue number: `#123` or bare `123`
@@ -52,6 +66,19 @@ echo "Parent branch: $PARENT_BRANCH"
 - All hand-off messages mentioning the eventual merge target
 
 **Surface the parent branch to the user in Step 6 (proposal)** so they can correct it if they accidentally invoked from the wrong branch. If `$PARENT_BRANCH` is not `main`, call it out explicitly as a confirmation gate — this is the case the user has historically had to fight.
+
+## Cross-machine portability
+
+Implementation usually runs in a fresh session — **often on a different machine** (via `/x-wt-teams`). That machine has the same repo layout but does **not** share this machine's `$HOME/cclogs/`. The plan log you save in Step 4 is a planning-session artifact the implementer never sees; everything they need must live in the **GitHub issues**, the one artifact that crosses machines.
+
+So when the plan references a local file or another repo, express it portably in the issue body:
+
+- **Another repo** → `$HOME/repos/{repo}/...`. The `repos/` layout is identical across machines; a machine-absolute path (`/Users/...`, `/home/takaz/...`, `/mnt/c/Users/...`) breaks on the other machine. Never paste one into an issue.
+- **Long text / plan detail the implementer needs** → put it in the issue body or a comment, or attach it as a text file on the issue. Do **not** point them at the `$HOME/cclogs/...` log path — it doesn't exist on their machine.
+- **Images / visual context** → embed via `/gh-issue-with-imgs`, or share through the Dropbox dir and reference `$DROPBOX_SCREENSHOTS_DIR/...` (the dir `/ss` reads).
+- **Prototype html/js/css that can't live in an issue** → put it under `$DROPBOX_SCREENSHOTS_DIR/...` and reference that path — never a machine-local or `/mnt/c/Users/...` path.
+
+Test each issue body: _on a machine with the repos but not this one's cclogs, could I still do the work?_ If not, move the missing context into the issue.
 
 ## Workflow
 
@@ -169,19 +196,19 @@ Default to **`sonnet`** when in doubt. Pick `opus` only when there's a clear cre
 | Subtle async / race-prone correctness work          | opus   | Genuinely difficult — err Opus when in doubt  |
 | One-line config bump                                | haiku  | Trivial                                       |
 
-`/x-wt-teams` reads this annotation per topic and spawns each child with the matching model. A manual `-haiku` / `-so` / `-op` flag on the `/x-wt-teams` invocation **overrides every topic's annotation** session-wide (manual override). Without a flag, per-topic annotations are honored — different topics in the same session can run different models.
+`/x-wt-teams` reads this annotation per topic and spawns each child with the matching model. A manual `-t-op` / `-t-so` flag on the `/x-wt-teams` invocation **overrides every topic's annotation** session-wide (manual override). Without a flag, per-topic annotations are honored — different topics in the same session can run different models. Note: the `-op` / `-so` / `-haiku` flags on `/x-wt-teams` are reviewer flags and do NOT affect child models.
 
 Record the choice and a one-line reason per sub-task. The annotation goes next to the execution-mode line in both the plan log (Step 4) and the created sub-issue bodies (Step 8).
 
 ### 3.5. Sequence sub-tasks into waves and insert confirm sub-issues at risky boundaries
 
-**Always one epic — never split into multiple epics.** Even when scope is large, the answer is more sub-issues sequenced into dependency waves under the same epic. Manager-context savings from splitting epics are not real in practice; managing one chained epic is simpler than juggling multiple sessions, and `/x-wt-teams` already supports running sub-issues in waves via `-s` / `--stay`.
+**Always one epic — never split into multiple epics.** Even when scope is large, the answer is more sub-issues sequenced into dependency waves under the same epic. Manager-context savings from splitting epics are not real in practice; managing one chained epic is simpler than juggling multiple sessions, and a single `/x-wt-teams {epic-url}` session already runs all the sub-issues in dependency order (driven by the `Depends on:` markers, throttled to 6 concurrent children).
 
 **Group sub-tasks into waves.** A wave is a set of sub-tasks that can run concurrently in one `/x-wt-teams` session. Waves run sequentially — wave N+1 starts only after every sub-task in wave N is merged into the epic base.
 
-- **Wave size ≤ 6** — `/x-wt-teams` caps concurrent child agents at 6 to avoid freezing the local machine. If a wave would exceed 6, split it into wave Na and wave Nb (still within the same dependency tier — order between Na and Nb is arbitrary, just not concurrent).
-- **A single huge plan stays one epic** — if you have 18 truly parallelizable sub-tasks, that's three waves of 6, not three epics. The user runs three sequential `--stay` sessions on the same epic base.
-- **A typical multi-phase plan is also one epic** — e.g., `wave 1: backend (4 sub-tasks)` → `wave 2: backend confirm (1 sub-task)` → `wave 3: frontend (3 sub-tasks)`. Three sessions, one epic, one PR.
+- **Wave size ≤ 6 is a planning annotation, not a session boundary** — `/x-wt-teams` enforces the 6-concurrent-child cap itself (to avoid freezing the local machine), throttling within a single session. You annotate waves for the human's benefit; you do NOT split work across sessions to honor the cap. If a dependency tier exceeds 6, label it wave Na / wave Nb so the grouping is readable — one session still executes both.
+- **A single huge plan stays one epic** — 18 truly parallelizable sub-tasks is one epic run by one `/x-wt-teams {epic-url}` session (6 at a time), not three epics and not three sessions.
+- **A typical multi-phase plan is also one epic** — e.g., `wave 1: backend (4 sub-tasks)` → `wave 2: backend confirm (1 sub-task)` → `wave 3: frontend (3 sub-tasks)`. One session runs all three waves in dependency order; one epic; one PR. (Multi-session `--stay` is the exception — only when the user wants to review artifacts between waves; see Step 11.)
 
 **Insert "confirm" sub-issues at risky cross-phase boundaries.** When a downstream wave depends on the previous wave's deliverable working correctly (not just landing), add a dedicated confirm sub-issue between them. The confirm sub-issue is a small, focused validation pass — its acceptance criteria are "exercise the upstream surface, run the integration check, fix anything broken." Treat it like any other sub-task: it has its own execution mode, model, and one-line reason.
 
@@ -193,9 +220,9 @@ Reach for a confirm sub-issue when:
 
 A confirm sub-issue is normally `subagents` mode + `sonnet` model — its job is to validate, not invent. Acceptance criteria should name the exact checks to run.
 
-**Per sub-task, record its wave number** in the plan log (Step 4) and the sub-issue body (Step 8) so the user knows which sub-issues to claim per `/x-wt-teams --stay` session. Format: `**Wave:** {N}` on its own line, alongside the `Execution mode:` and `Model:` markers.
+**Per sub-task, record its wave number** in the plan log (Step 4) and the sub-issue body (Step 8) so the user can read the dependency grouping at a glance (and, if they opt into the manual checkpoint flow, which `--stay` session each sub-issue belongs to). Format: `**Wave:** {N}` on its own line, alongside the `Execution mode:` and `Model:` markers.
 
-**Dependency notes still belong on each sub-task** — call out specific upstream sub-issues (`Depends on: #N1, #N2`) separately from the wave number, so the user can verify the wave grouping before kicking off each session.
+**Dependency notes still belong on each sub-task** — call out specific upstream sub-issues (`Depends on: #N1, #N2`) separately from the wave number. `/x-wt-teams` honors these `Depends on:` markers to order topic spawning within the single session, so they are what actually drives execution sequencing (the wave number is the human-readable view).
 
 ### 3.6. Classify the plan: goal-clear vs. design-decision — bake decisions accordingly
 
@@ -239,7 +266,7 @@ The success criterion depends on user preference that can't be derived from inpu
 - "Decide what should be in scope for the first release."
 - "Decide the content structure of the new docs section."
 
-In this mode, inter-wave human checkpoints are appropriate — the user is the source of truth for the unresolved decision. Recommend manual `--stay` invocations or natural pause points in the Step 11 hand-off.
+In this mode, inter-wave human checkpoints are appropriate *when the user genuinely needs to review each wave's artifacts before the next* — the user is the source of truth for the unresolved decision. Even so, the default hand-off is still the one-shot `/x-wt-teams {epic-url}` (review at PR time); the manual `-s` checkpoint flow for reviewing between waves is documented in Step 11.
 
 **Concrete tells for design-decision:**
 
@@ -276,7 +303,7 @@ Write the plan to `$PLAN_FILE` as a markdown document containing:
 - **Overview** — what's being built and why
 - **Base branch** — `base/{impl-title-slug}`
 - **Epic issue title** (proposed)
-- **Wave order** — list every wave with its sub-tasks (e.g. `Wave 1: backend (4 sub-tasks)`, `Wave 2: backend confirm (1 sub-task)`, `Wave 3: frontend (3 sub-tasks)`). Used by the user to plan their `--stay` sessions.
+- **Wave order** — list every wave with its sub-tasks (e.g. `Wave 1: backend (4 sub-tasks)`, `Wave 2: backend confirm (1 sub-task)`, `Wave 3: frontend (3 sub-tasks)`). One `/x-wt-teams` session runs these in dependency order; the wave list is the human-readable view of that ordering (and maps to `--stay` sessions only if the user opts into the manual checkpoint flow).
 - **Sub-tasks** — for each:
   - Proposed sub-issue title
   - Description
@@ -291,11 +318,11 @@ Write the plan to `$PLAN_FILE` as a markdown document containing:
 
 Report the path to the user: `Plan saved: $PLAN_FILE`.
 
-### 5. (Optional) Second opinion — `-co` / `--codex`, `-gco` / `--github-copilot`, or `-gcoc` / `--github-copilot-cheap`
+### 5. (Optional) Second opinion — `-op` / `--opus`, `-co` / `--codex`, `-gco` / `--github-copilot`, or `-gcoc` / `--github-copilot-cheap`
 
 **Skip this step entirely if `-nor` / `--no-review` was passed**, even if one of the reviewer flags is also present. No `## Review Notes` section is added to `$PLAN_FILE`. Proceed directly to Step 6.
 
-Only if one or more of `-co`/`--codex`, `-gco`/`--github-copilot`, or `-gcoc`/`--github-copilot-cheap` was in `$ARGUMENTS`. Multiple flags may be specified — `-co` combines with `-gco` or `-gcoc` (but `-gco` and `-gcoc` are mutually exclusive since they are the same tool with different models).
+Only if one or more of `-op`/`--opus`, `-co`/`--codex`, `-gco`/`--github-copilot`, or `-gcoc`/`--github-copilot-cheap` was in `$ARGUMENTS`. Multiple flags may be specified — `-op`, `-co`, and one of `-gco`/`-gcoc` may all combine (but `-gco` and `-gcoc` are mutually exclusive since they are the same tool with different models).
 
 The review questions are the same regardless of tool:
 
@@ -307,24 +334,25 @@ The review questions are the same regardless of tool:
 
 **Run every specified reviewer in parallel.** Determine which flags are active, then invoke the corresponding sub-skills concurrently (single assistant turn, multiple tool calls). Each reviewer reads the same `$PLAN_FILE` and answers the same questions above — they don't need to coordinate.
 
-> **Skill names are top-level, not plugin-namespaced.** Invoke via `Skill(skill="codex-2nd")`, `Skill(skill="gco-2nd")`, `Skill(skill="gcoc-2nd")`. Do **NOT** use `codex:codex-2nd` — that namespace belongs to the openai-codex plugin and does not contain these skills.
+> **Skill names are top-level, not plugin-namespaced.** Invoke via `Skill(skill="opus-2nd")`, `Skill(skill="codex-2nd")`, `Skill(skill="gco-2nd")`, `Skill(skill="gcoc-2nd")`. Do **NOT** use `codex:codex-2nd` — that namespace belongs to the openai-codex plugin and does not contain these skills.
 
 **Per-flag invocation:**
 
-- **`-co` / `--codex` — `/codex-2nd`** — Follow the invocation pattern in `$HOME/.claude/skills/codex-2nd/SKILL.md`. Pass the contents of `$PLAN_FILE` as context.
+- **`-op` / `--opus` — `/opus-2nd`** — Follow the invocation pattern in `$HOME/.claude/skills/opus-2nd/SKILL.md`. The skill spawns a `general-purpose` Agent with `model: opus`; pass the absolute `$PLAN_FILE` path as the argument. The Opus Agent reads the file itself.
+- **`-co` / `--codex` — `/codex-2nd`** — Follow the invocation pattern in `$HOME/.claude/skills/codex-2nd/SKILL.md`. Pass the contents of `$PLAN_FILE` as context. If codex is rate-limited, `/codex-2nd` silently falls back to an Opus general-purpose subagent and returns Opus feedback in the same shape — no extra handling needed here.
 - **`-gco` / `--github-copilot` — `/gco-2nd`** — Follow the invocation pattern in `$HOME/.claude/skills/gco-2nd/SKILL.md`. Pass `$PLAN_FILE` as context. If Copilot is rate-limited, `/gco-2nd` silently skips — fall through to the subagent fallback for that reviewer.
 - **`-gcoc` / `--github-copilot-cheap` — `/gcoc-2nd`** — Follow the invocation pattern in `$HOME/.claude/skills/gcoc-2nd/SKILL.md`. Pass `$PLAN_FILE` as context. If Copilot is rate-limited, `/gcoc-2nd` silently skips — fall through to the subagent fallback for that reviewer.
 
 **Consolidate feedback from all reviewers.** When multiple reviewers were invoked:
 
 - Collect each reviewer's output.
-- Under `## Review Notes` in `$PLAN_FILE`, add one subsection per reviewer (e.g. `### Codex review`, `### GitHub Copilot review`). Record the raw feedback verbatim or as a faithful summary.
+- Under `## Review Notes` in `$PLAN_FILE`, add one subsection per reviewer (e.g. `### Opus review`, `### Codex review`, `### GitHub Copilot review`). Record the raw feedback verbatim or as a faithful summary.
 - If reviewers disagree, note the disagreement and use your own judgment — you don't have to accept every suggestion. Prefer changes that multiple reviewers flag, or that are clearly correct.
 - If a reviewer was skipped (rate limit / timeout), note that under its subsection and — if the skip leaves you with zero external reviews — run the subagent fallback below to avoid proceeding with no second opinion at all.
 
 **Fallback: subagent review (when a reviewer is rate-limited or unavailable)**
 
-If a specific reviewer's pre-flight rate-limit check fails or it times out, fall back to a Plan subagent via the Agent tool **for that reviewer only** (the other reviewers still run as normal). Prompt the agent with the same review questions and point it at `$PLAN_FILE`:
+If a specific reviewer's pre-flight rate-limit check fails or it times out, fall back to a Plan subagent via the Agent tool **for that reviewer only** (the other reviewers still run as normal). For `-co` / `/codex-2nd`, the fallback subagent should be spawned with `model: opus` — Opus is the designated Claude-side stand-in for codex throughout these skills. For `-gco` / `-gcoc`, model is unspecified (default). Prompt the agent with the same review questions and point it at `$PLAN_FILE`:
 
 ```
 Review the big-plan document at {PLAN_FILE}. Focus on:
@@ -349,13 +377,17 @@ Present the (optionally refined) plan to the user:
 - Suggested base branch: `base/{impl-title-slug}` (parent: `$PARENT_BRANCH`)
 - List of sub-tasks with dependency notes
 - Source issues (if existing-issue mode)
-- Review notes (if any of `-co` / `-gco` / `-gcoc` was used — may contain multiple reviewer subsections when flags were combined)
+- Review notes (if any of `-op` / `-co` / `-gco` / `-gcoc` was used — may contain multiple reviewer subsections when flags were combined)
 
 Ask: "Does this look right? Should I adjust anything before creating the issues?"
 
 **Wait for confirmation before proceeding.** If the user requests changes, update `$PLAN_FILE` and re-confirm.
 
 **`-nor` / `--no-review` override:** Skip the question and the wait. Print the same proposal as a one-shot summary so the user can see what's about to be created, then proceed straight to Step 7. The user opted in to no-confirmation mode by passing the flag.
+
+**`-impl` / `--implementation` override:** Same shape as `-nor` here — skip the question and the wait, print the proposal as a one-shot summary, proceed to Step 7. The user opted in to no-confirmation mode by passing the flag. The pause logic specific to `-impl` lives in Step 11 (just before the auto-invocation of `/x-wt-teams`), not here.
+
+**`-a` / `--auto` override (when `-impl` is NOT also present):** Skip the question and the wait the same way — print the proposal as a one-shot summary, proceed to Step 7 — **but conditionally**. First evaluate the two pre-creation concern signals: (1) `Plan mode: design-decision` (Step 3.6), (2) `$PARENT_BRANCH` is not `main`. If **either fires**, do not auto-proceed: print one line noting why (e.g. `design-decision plan — asking for confirmation despite -a` or `parent branch is \`$PARENT_BRANCH\` (not main) — asking for confirmation despite -a`) and run the **normal ask-and-wait** confirm gate above. This is a soft fall-back, not a hard STOP — `-a` keeps a human in the loop precisely for the cases that need judgment, and auto-creates issues for everything else. (When `-impl` IS also present, `-impl`'s unconditional skip governs Step 6; the concern signals are handled by `-impl`'s Step 11 pause conditions instead.)
 
 ### 7. Create the epic issue
 
@@ -377,7 +409,7 @@ Example: `[Team Feature][Epic] Team management and workspace sharing`
 - Base branch: `base/{impl-title-slug}` — all sub-issue PRs target this branch
 - **Parent branch:** `$PARENT_BRANCH` (the branch this base will eventually PR into — substitute the actual branch name, e.g. `main` or `base/foo-impl`)
 - Note: "Implementation will be done via `/x-wt-teams` — child branches merge into the base branch, which then merges into `$PARENT_BRANCH` as one PR" (substitute the actual parent branch name)
-- **Wave plan** — list each wave with the sub-issues it contains. Tells the user how many sequential `/x-wt-teams --stay` sessions to run and what to expect from each. Example: `Wave 1 (parallel): #N1, #N2, #N3, #N4` / `Wave 2 (confirm): #N5` / `Wave 3 (parallel): #N6, #N7, #N8`.
+- **Wave plan** — list each wave with the sub-issues it contains. This shows the dependency order one `/x-wt-teams {epic-url}` session will follow (it maps to separate `--stay` sessions only if the user opts into the manual checkpoint flow in Step 11). Example: `Wave 1 (parallel): #N1, #N2, #N3, #N4` / `Wave 2 (confirm): #N5` / `Wave 3 (parallel): #N6, #N7, #N8`.
 - **Sub-issues table** listing all child issues (fill in URLs in Step 9 — or note "see comments below")
 - "Close each sub-issue as its implementation is merged."
 
@@ -401,9 +433,9 @@ Example: `[Team Feature][Sub] D1 schema migration`
 **Model:** {opus|sonnet|haiku} — {one-line reason from Step 3}
 ```
 
-The `Execution mode:` and `Model:` marker lines are **mandatory** and exact-spelling matters — `/x-wt-teams` greps the body for `Execution mode:` to choose the spawn path and for `Model:` to pick each topic's model. The `Wave:` line is informational for the user (it tells them which `--stay` session this sub-issue belongs to); `/x-wt-teams` does not parse it. Place all three lines immediately after the `---` divider, on their own lines, in the order shown.
+The `Execution mode:` and `Model:` marker lines are **mandatory** and exact-spelling matters — `/x-wt-teams` greps the body for `Execution mode:` to choose the spawn path and for `Model:` to pick each topic's model. The `Wave:` line is informational for the user (it shows the sub-issue's place in the dependency order — and which `--stay` session it would belong to if the user opts into the manual checkpoint flow); `/x-wt-teams` does not parse it. Place all three lines immediately after the `---` divider, on their own lines, in the order shown.
 
-Then the rest of the body: what needs to be done, which files to touch, what the acceptance criteria are. Be specific enough that an agent can implement it without this planning session's context.
+Then the rest of the body: what needs to be done, which files to touch, what the acceptance criteria are. Be specific enough that an agent can implement it without this planning session's context — and without this machine's local files: keep every reference portable per [Cross-machine portability](#cross-machine-portability) (`$HOME/repos/...` for other repos, images via `/gh-issue-with-imgs` or `$DROPBOX_SCREENSHOTS_DIR`, never a `$HOME/cclogs/...` log path or a machine-absolute path).
 
 Include at the bottom:
 
@@ -415,21 +447,13 @@ Then update the epic issue body to include the full list of sub-issue URLs (`gh 
 
 ### 9. Verify original requirements are preserved
 
-**Skip this step entirely if `-nor` / `--no-review` was passed.** Do not spawn the verification reviewer, do not write a `## Verification Report` to `$PLAN_FILE`, do not block before Step 10. Proceed directly to Step 10. The user opted out of verification by passing the flag.
+**Skip this step entirely if `-nor` / `--no-review` was passed.** Do not spawn the verification subagent, do not write a `## Verification Report` to `$PLAN_FILE`, do not block before Step 10. Proceed directly to Step 10. The user opted out of verification by passing the flag.
 
-**This step is critical.** We've had cases where the original requirements were lost when rearranged into epic + sub-issues. One or more verification reviewers cross-check the created issues against the original source.
+**This step is critical.** We've had cases where the original requirements were lost when rearranged into epic + sub-issues. A verification subagent cross-checks the created issues against the original source.
 
-**Pick the verification reviewer(s) based on flags** (the same flags that drive Step 5):
+**The verification subagent is ALWAYS Sonnet.** Reviewer flags (`-op`, `-co`, `-gco`, `-gcoc`) affect only the Step 5 plan review — they do **NOT** change the Step 9 verifier. Spawn a `general-purpose` agent with `model: sonnet` via the Agent tool. This is fixed by design — verification is requirement-matching against a written source, which Sonnet handles reliably and cheaply, and pinning it avoids inconsistent verification quality across reviewer-flag combinations.
 
-- **No external reviewer flag** (default) → spawn a `general-purpose` agent with `model: sonnet` via the Agent tool.
-- **`-co` / `--codex`** → use `/codex-2nd` for verification.
-- **`-gco` / `--github-copilot`** → use `/gco-2nd` for verification.
-- **`-gcoc` / `--github-copilot-cheap`** → use `/gcoc-2nd` for verification.
-- **Multiple flags combined** → run every specified external reviewer **in parallel** (single assistant turn, multiple tool calls) and consolidate their findings into a single `## Verification Report`. When reviewers disagree, prefer findings flagged by multiple reviewers; use your own judgment for one-off claims.
-- **Fallback** — if a flagged external reviewer's pre-flight rate-limit check fails or it times out, fall back to the Sonnet subagent **for that reviewer only** (other reviewers still run as usual). If all flagged reviewers skip and there is no Sonnet result either, run the Sonnet subagent once so verification still happens — never proceed to Step 10 with zero verification.
-- The Sonnet subagent is also acceptable as an additional reviewer alongside flagged ones if you want extra coverage, but it is **not required** when at least one external reviewer succeeds.
-
-The verification task is the **same regardless of which tool runs it**:
+The verification task is:
 
 1. Read the original source:
 - Free-text mode: the user's original description (paste it into the prompt, plus `$PLAN_FILE`)
@@ -460,44 +484,43 @@ The verification task is the **same regardless of which tool runs it**:
 <list of source items that were correctly covered — can be brief>
 ```
 
-**Sonnet subagent invocation (default / fallback)** — example Agent tool call shape (written out for clarity, not a literal JSON):
+**Sonnet subagent invocation** — Agent tool call shape:
 
 - `subagent_type`: `general-purpose`
 - `model`: `sonnet`
 - `description`: `Verify issues preserve source requirements`
 - `prompt`: self-contained prompt with the source, issue numbers, and the report format above
 
-**External reviewer invocation (when `-co` / `-gco` / `-gcoc` is passed):**
-
-For each active flag, follow the invocation pattern in the corresponding skill's SKILL.md (`$HOME/.claude/skills/codex-2nd/SKILL.md`, `$HOME/.claude/skills/gco-2nd/SKILL.md`, `$HOME/.claude/skills/gcoc-2nd/SKILL.md`). These are top-level skills — invoke via `Skill(skill="codex-2nd")` / `Skill(skill="gco-2nd")` / `Skill(skill="gcoc-2nd")`, never `codex:codex-2nd`. Replace each tool's default "review the plan" prompt with the verification prompt structured as above. The prompt MUST include:
-
-- The original source (paste the free-text description verbatim, or list every source `issue.md` path)
-- The full list of created issue numbers (epic + every sub-issue) and a note that the reviewer can run `gh issue view {number}` to inspect each issue body
-- The exact report format above so output is consistent across reviewers
-
 **Handling the report:**
 
 - If **all clear** with no issues, report the verification result to the user and proceed to Step 10.
-- If anything is missing/misinterpreted/ambiguous, **fix the issues directly** using `gh issue edit {number} --body "$(cat <<'EOF' ... EOF)"`. Edit the relevant sub-issue (or epic) body to include the missing requirement. Re-run the verification on the fixed issues to confirm — re-using whichever reviewer(s) flagged the gap is fine.
-- Save the final verification report to `$PLAN_FILE` under a `## Verification Report` section. When multiple reviewers ran in parallel, save one subsection per reviewer (e.g. `### Codex verification`, `### GitHub Copilot verification`, `### Sonnet verification`). If a flagged reviewer was skipped (rate limit / timeout) and Sonnet ran as fallback, note the skip under its own subsection.
+- If anything is missing/misinterpreted/ambiguous, **fix the issues directly** using `gh issue edit {number} --body "$(cat <<'EOF' ... EOF)"`. Edit the relevant sub-issue (or epic) body to include the missing requirement. Re-run the Sonnet verification on the fixed issues to confirm.
+- Save the final verification report to `$PLAN_FILE` under a `## Verification Report` section.
 
 Do not skip this step even if the plan looks obviously complete.
 
-### 10. Close source issues (existing-issue mode only)
+### 10. Cleanup audit — close source issues and any other dead resources
 
-If the plan was started from existing issues (Step 1b), close each source issue with a comment linking to the new epic.
+**Always run this step.** Hand cleanup off to `/cleanup-resources` so the audit is explicit rather than buried at end-of-workflow. The skill spawns a Sonnet subagent that re-fetches every resource and returns a structured close/keep plan; the manager (you) executes the plan and prints a final report. This catches the historical bug where source issues sometimes stayed open after a successful planning session.
 
-For each source issue:
+Build a manifest of every issue this planning session touched, then invoke `/cleanup-resources`:
 
-```bash
-gh issue comment <source-issue-number> --body "Superseded by the big-plan epic: {epic-url}
-
-Follow-up work is now tracked on that epic and its sub-issues."
-
-gh issue close <source-issue-number>
+```
+Skill tool: skill="cleanup-resources", args="workflow:big-plan"
 ```
 
-Report each close to the user.
+**Manifest contents for `/big-plan`:**
+
+- Workflow context: `workflow: big-plan`, `auto-flag: false` (planning sessions never auto-close PRs), `epic-mode: false`, `root-PR: none`, `root-PR-merged: false`, `parent-branch: $PARENT_BRANCH`.
+- Issues to include:
+  - **Source issues** (Step 1b) — role: `source`. The Sonnet agent should propose closing each with a "Superseded by the big-plan epic: {epic-url}" comment.
+  - **The new epic** (Step 7) — role: `epic`. Agent should propose KEEP (work hasn't started yet).
+  - **All new sub-issues** (Step 8) — role: `sub`. Agent should propose KEEP (each closes when its sub-PR merges, downstream).
+- Branches: none — `/big-plan` does not create branches.
+- PRs: none — `/big-plan` does not create PRs.
+- Notes for the agent: pass the epic URL so it can reference it in supersedes comments.
+
+After `/cleanup-resources` returns its report, surface the closed/kept counts to the user. If the report has an "Ambiguous" section, list those resources verbatim and ask the user how to handle them before moving on.
 
 ### 11. End the session
 
@@ -505,7 +528,7 @@ Print a summary. **The decisions table is mandatory** — never omit it. The use
 
 **Default — one `/x-wt-teams {epic-issue-url}` invocation runs the entire plan.** `/x-wt-teams` reads the epic body, expands every sub-issue into a topic, respects each sub-issue's dependency order (so wave-N sub-issues run before wave-N+1 sub-issues), and caps concurrent children at 6. The "Wave" annotations are a planning aid for the human; execution sequencing is driven by the per-sub-issue `Depends on: #N1, #N2` notes and the concurrency cap.
 
-**No planning flags get forwarded.** Print the `/x-wt-teams` line without appending `-op`/`-so`/`-haiku` or `-co`/`-gco`/`-gcoc`, even when the user originally invoked `/big-plan` with them. Per-sub-task models are already recorded in the sub-issue bodies, and reviewer flags for the implementation session are the user's choice (they add `-gcoc -co`, etc., to `/x-wt-teams` manually when they want a reviewer on the implementation session).
+**No planning flags get forwarded.** Print the `/x-wt-teams` line without appending `-op` or `-co`/`-gco`/`-gcoc`, even when the user originally invoked `/big-plan` with them. Per-sub-task models are already recorded in the sub-issue bodies, and reviewer flags for the implementation session are the user's choice (they add `-gcoc -co`, etc., to `/x-wt-teams` manually when they want a reviewer on the implementation session).
 
 ```
 ## Plan complete
@@ -522,7 +545,7 @@ Sub-issues:
 
 Base branch: base/{impl-title-slug}
 
-Closed source issues: {list or "none"}
+Cleanup audit: {N closed / M kept / K ambiguous — copy the one-line summary from /cleanup-resources}
 Verification: {all clear / N fixes applied}
 
 ## Decisions per sub-task — review and override if needed
@@ -560,19 +583,74 @@ Recommendation depends on the **Plan mode** (recorded in the plan log per Step 3
       /x-wt-teams -seq {epic-issue-url}    # if the user wants strict-sequential
 
 - **Design-decision (new-feature / UI variations / content structure / scoping):**
-  recommend manual `--stay` checkpoints between waves so the user can review
-  artifacts and pick among alternatives:
+  by default these run end-to-end with one invocation too — review happens at PR
+  time, same as any plan:
 
-      /x-wt-teams -s {epic-issue-url}
+      /x-wt-teams {epic-issue-url}
 
-  Close later-wave sub-issues, run wave 1, reopen the next wave's sub-issues when
-  ready, then re-run with `--stay`. The `--stay` flow reuses the existing epic base
-  so each wave's worktrees branch off the already-merged previous wave.
+  Only reach for manual wave checkpoints when the user genuinely needs to inspect
+  each wave's artifacts and pick among alternatives *before* the next wave starts.
+  That is the only case `/big-plan` ever recommends the `-s` / `--stay` flow:
+
+  1. Close all wave-2+ sub-issues so wave 1's run only picks up wave-1 topics.
+  2. `/x-wt-teams {epic-issue-url}` — **no `-s`**. This creates
+     `base/{impl-title-slug}` from the parent branch and lands wave 1 on it.
+  3. Review wave 1. Reopen the next wave's sub-issues.
+  4. `git checkout base/{impl-title-slug}`, then `/x-wt-teams -s {epic-issue-url}`.
+     `-s` reuses the branch you are currently on as the base, so wave 2 branches off
+     the already-merged wave 1. Repeat steps 3–4 per remaining wave.
+
+  **`-s` reuses the current branch as the base — never run it as the first command,
+  and never from `main`** (that would land commits on `main` itself). Wave 1 is always
+  the plain form; `-s` is only for wave 2+, after the base branch exists and you have
+  checked it out. This block is the single source of truth for the `-s` flow — every
+  other step that mentions `-s` points here.
 ```
 
 Fill in every row from the per-sub-task classifications recorded in Step 3 / Step 3.5. The table must list every sub-issue created in Step 8, sorted by Wave then by creation order within each wave. The "Reason" column is the same one-line reason already stored in the plan log and the sub-issue body markers — copy it verbatim.
 
-Do NOT start implementing. Do NOT create the base branch. The next session (`/x-wt-teams`) handles that.
+Do NOT start implementing. Do NOT create the base branch. The next session (`/x-wt-teams`) handles that — **unless `-impl` was passed**, see next sub-section.
+
+#### `-impl` / `--implementation` — auto-invoke the implementation skill in-session
+
+When `-impl` was passed on this invocation, the session does not stop after printing the summary. Always print the summary table and hand-off block first (so the log records the decisions). Then evaluate pause conditions and either pause or auto-invoke.
+
+**Evaluate pause conditions in this order. Pause if ANY fires:**
+
+1. **`Plan mode: design-decision`** (from Step 3.6) — design-decision plans may need human judgment mid-flow; auto-running with `-impl` can skip a decision only the user can make. Print: `Paused: -impl was passed, but the plan is classified as design-decision. Run \`/x-wt-teams {epic-url}\` manually (and checkpoint between waves via the -s flow in Step 11 if you want to review artifacts).` and STOP.
+2. **`$PARENT_BRANCH` is not `main`** — nested-base case. The user may have invoked `/big-plan` from an unintended branch and `-impl` would commit to that nesting silently. Print: `Paused: -impl was passed, but parent branch is \`$PARENT_BRANCH\` (not main). Confirm you want implementation to chain off this branch — re-run /x-wt-teams manually, or restart /big-plan from main if this was unintended.` and STOP.
+3. **Step 9 verification report contained unresolved Missing / Misinterpreted / Ambiguous items.** If Step 9 cleanly resolved everything via `gh issue edit`, this signal does NOT fire. Otherwise print: `Paused: -impl was passed, but Step 9 verification surfaced items that could not be auto-fixed. Resolve manually, then run /x-wt-teams.` plus the unresolved items verbatim, then STOP. (If Step 9 was skipped because `-nor` was also passed, treat this signal as not firing — the user opted out of verification entirely.)
+
+**If no pause condition fires, auto-invoke the implementation skill via the Skill tool — first route by plan shape** (count the sub-issues created in Step 8):
+
+**Single-sub-issue plan → `/x-as-pr`.** When Step 8 created exactly one sub-issue, the plan is single-topic, and `/x-wt-teams`'s worktree-team machinery is overkill for one topic. Invoke the lean `/x-as-pr` instead, pointed at that **sub-issue's URL** (not the epic):
+
+- Args: `{sub-issue-url}`; forward `-a` if it was passed (`-a {sub-issue-url}`). No `-seq` — a single topic has no waves.
+- `/x-as-pr` branches off the current branch (`$PARENT_BRANCH`) and PRs directly into it, so the `base/{impl-title-slug}` indirection in the issue bodies is simply unused here (it only matters for the multi-topic merge-aggregation pattern). No explicit base arg is needed.
+- `/x-as-pr -a` runs `/pr-complete -c -w` (CI + merge + delete branch + close the linked sub-issue) then `/cleanup-resources`, completing plan → impl → merge → cleanup without a human.
+
+```
+Skill skill="x-as-pr" args="{-a if passed }{sub-issue-url}"
+```
+
+Print above it: `Auto-invoking /x-as-pr (single-topic plan{, -a if passed}) per -impl flag.`
+
+**Multi-sub-issue plan → `/x-wt-teams`.** When Step 8 created two or more sub-issues, invoke `/x-wt-teams` on the **epic URL**. Build the args string:
+
+- **Multi-wave plans** (distinct `Wave:` numbers across sub-tasks > 1): `-seq {epic-url}`.
+- **Single-wave plans** (only one wave): `{epic-url}`.
+- **DO forward `-a` / `--auto` if it was passed** — prepend it to the flags: `-seq -a {epic-url}` (multi-wave) or `-a {epic-url}` (single-wave). `-a` is an autonomy flag, not a planning-reviewer flag, so its semantics carry into implementation: `/x-wt-teams -a` runs `/pr-complete` (CI + merge) and end-of-workflow cleanup, completing the plan → impl → merge → cleanup chain without a human.
+- **Do NOT forward** `-op` / `-co` / `-gco` / `-gcoc` / `-nor` to the `/x-wt-teams` invocation. Per-sub-task models are already in the sub-issue bodies; reviewer flags for the implementation session are the user's separate choice. (Same rule as the non-`-impl` hand-off.) `-a` is the one exception — it forwards, the reviewer/`-nor` flags do not.
+
+Invocation shape:
+
+```
+Skill skill="x-wt-teams" args="<args-string>"
+```
+
+Print a one-line note above the invocation so the log is readable: `Auto-invoking /x-wt-teams ({-seq if multi-wave}{ -a if -a passed}, else no flags) per -impl flag.`
+
+**Why this exists / what it trades off:** `-impl` deliberately violates the "fresh session next" principle (next sub-section) because the user has decided that the friction of restarting a session is worse than the token-cost growth of continuing in-session. Do not "fix" this by reverting to a hand-off — the auto-invoke is the entire point of the flag.
 
 ## Naming Conventions
 
@@ -650,18 +728,21 @@ All other workflow steps (issue creation, verification, etc.) remain unchanged.
 
 - **Parent branch is the current branch — NOT `main`** — `/big-plan` is invoked on the branch the new feature will land on. Capture `$PARENT_BRANCH = git rev-parse --abbrev-ref HEAD` first and use it everywhere a base branch parent or PR target is needed. Do not silently assume `main`. Surface the detected `$PARENT_BRANCH` to the user in Step 6 (especially when it is not `main`) so they can correct it
 - **No code changes in this session** — planning and issue creation only. No branches, no commits, no pushes
-- **One epic per plan, no exceptions** — even huge plans stay in a single epic. Scale via more sub-issues sequenced into dependency waves, not via multiple epics. The user runs the waves as separate `/x-wt-teams --stay` sessions on the same epic base. Splitting into multiple epics costs more (multiple PRs to manage, manual cross-epic coordination) without saving meaningful manager-context tokens
+- **One epic per plan, no exceptions** — even huge plans stay in a single epic. Scale via more sub-issues sequenced into dependency waves, not via multiple epics. A single `/x-wt-teams {epic-url}` session runs all the waves in dependency order (throttled to 6 concurrent); multi-session `--stay` is only the design-decision exception, used when the user wants to review artifacts between waves (see Step 11). Splitting into multiple epics costs more (multiple PRs to manage, manual cross-epic coordination) without saving meaningful manager-context tokens
 - **Read project lessons before planning** — Step 1c auto-reads any matching `l-lessons-*` skills (written by `/retro-notes`) so previous attempts in the same area inform the plan. Skip silently if none apply
 - **Save the plan log first** — before codex, before confirmation, before issues. It's the source of truth
 - **Confirm before creating** — always show the plan to the user first
-- **Verify after creating** — always verify so original requirements aren't lost. Default reviewer is the Sonnet subagent; when `-co`/`-gco`/`-gcoc` is passed, those tools handle verification (in parallel if multiple), with Sonnet as fallback if any are rate-limited
+- **Verify after creating — always Sonnet** — Step 9 verification ALWAYS runs on a Sonnet subagent. Reviewer flags (`-op`/`-co`/`-gco`/`-gcoc`) shape Step 5 plan review only; they do NOT change the Step 9 verifier. Pinning verification to Sonnet keeps requirement-matching quality consistent regardless of which reviewer flags the user happened to pass
+- **Cleanup audit via `/cleanup-resources` — mandatory (Step 10)** — every planning session MUST invoke `/cleanup-resources` before ending, even when no source issues were referenced. The Sonnet audit catches missed source-issue closes, surfaces ambiguous cases, and produces the paper trail of what was closed vs. kept. Skipping this step is the historical bug where completed source issues stayed open — do not relitigate that decision case-by-case
 - **Annotate execution mode per sub-task — mandatory** — every sub-task MUST be classified as `subagents` (default) or `teams` based on whether it needs mid-flight inter-agent communication. The annotation lives in the plan log, the created sub-issue body, AND the final summary table (Step 11). `/x-wt-teams` reads it per topic to choose how to spawn children. Default to subagents; only mark `teams` when a sub-task genuinely depends on another child's mid-task output
-- **Annotate model per sub-task — mandatory** — every sub-task MUST be classified `sonnet` (default), `opus`, or `haiku` based on the kind of work. The annotation lives next to the execution-mode line in the plan log, the sub-issue body, AND the final summary table (Step 11). `/x-wt-teams` reads it per topic and spawns each child with the matching model. A manual `-haiku` / `-so` / `-op` flag on `/x-wt-teams` overrides every topic's annotation as a session-wide manual override. **Default `sonnet` when in doubt** — `/big-plan` already settled the hard decisions; most sub-tasks are mechanical implementation. Pick `opus` only when the deliverable benefits from larger-model creative quality: high-quality Japanese-language writing, creative UI design, pattern-generation / visual-creative algorithms (e.g., pgen patterns or GLSL shaders). `haiku` is rare
+- **Annotate model per sub-task — mandatory** — every sub-task MUST be classified `sonnet` (default), `opus`, or `haiku` based on the kind of work. The annotation lives next to the execution-mode line in the plan log, the sub-issue body, AND the final summary table (Step 11). `/x-wt-teams` reads it per topic and spawns each child with the matching model. A manual `-t-op` / `-t-so` flag on `/x-wt-teams` overrides every topic's annotation as a session-wide manual override (the `-op` / `-so` / `-haiku` flags on `/x-wt-teams` are reviewer flags, not team-member overrides — they do NOT affect child models). **Default `sonnet` when in doubt** — `/big-plan` already settled the hard decisions; most sub-tasks are mechanical implementation. Pick `opus` only when the deliverable benefits from larger-model creative quality: high-quality Japanese-language writing, creative UI design, pattern-generation / visual-creative algorithms (e.g., pgen patterns or GLSL shaders). `haiku` is rare
 - **Annotate wave per sub-task — mandatory** — every sub-task MUST carry a `Wave:` number reflecting its position in the dependency chain (see Step 3.5). Wave size respects `/x-wt-teams`'s 6-concurrent-agent cap. Insert dedicated "confirm" sub-issues at risky cross-phase boundaries (e.g., between backend and frontend waves) rather than splitting into multiple epics. Wave annotation lives in the plan log, the sub-issue body, AND the final summary table
 - **Final summary table is mandatory** — Step 11 MUST include the per-sub-task decisions table showing `Wave`, `Mode`, and `Model` for every sub-task, with the one-line reason. The user reviews this table to confirm or override decisions before running `/x-wt-teams`. Never omit it — even when the plan looks obvious, the user needs the table to spot mistakes and override
-- **Planning flags do NOT forward to the hand-off** — `-op`/`-so`/`-haiku` and `-co`/`-gco`/`-gcoc` shape only the planning session itself. The Step 11 hand-off MUST print the `/x-wt-teams` line in plain `/x-wt-teams {url}` form with no flags appended, even when the user originally invoked `/big-plan` with those flags. Per-sub-task models are already recorded in the issue bodies (Step 8 markers); reviewer flags for the implementation session are the user's choice and are added to `/x-wt-teams` manually. The split keeps planning concerns and implementation concerns from leaking into each other
+- **Planning flags do NOT forward to the hand-off** — `-op`/`-co`/`-gco`/`-gcoc` shape only the planning session itself (which reviewer(s) critique the plan and verify the issues). The Step 11 hand-off MUST print the `/x-wt-teams` line in plain `/x-wt-teams {url}` form with no flags appended, even when the user originally invoked `/big-plan` with those flags. Per-sub-task models are already recorded in the issue bodies (Step 8 markers); reviewer flags for the implementation session are the user's choice and are added to `/x-wt-teams` manually. The split keeps planning concerns and implementation concerns from leaking into each other
 - **Small issues win** — an issue that takes 15 agent exchanges is better than one that takes 50
 - **Self-contained sub-issues** — each issue body must be readable standalone, without needing this session's context
-- **Fresh session next** — always end by instructing the user to start a new session and run `/x-wt-teams {epic-url}`. Wave ordering is encoded in dependency markers; `/x-wt-teams` honors them within a single session, so one invocation typically handles the whole plan. Manual per-wave checkpointing via `--stay` is documented as an exception, not the default
-- **Classify the plan as goal-clear or design-decision — mandatory (Step 3.6)** — every plan MUST be classified before Step 4 saves the log. Record `**Plan mode:** goal-clear` or `design-decision` in the plan log header. For **goal-clear plans** (bugfix / regression / refactor / performance / parity / migration — the success criterion is unambiguous), **NEVER recommend "checkpoint after Wave N" in the Step 11 hand-off** — the user's time is a real cost and inter-wave human pauses are anti-leverage when the goal is clear. Instead, **bake every would-be-checkpoint decision into a dedicated `model: opus` sub-task** that reads the upstream artifact, picks among alternatives, and edits the downstream sub-issue's body via `gh issue edit` to lock in the concrete spec. Goal-clear plans are designed to run end-to-end under `/x-wt-teams` (or `/x-wt-teams -seq` if the user prefers strict-sequential) with no human in the loop until verification. For **design-decision plans** (new features / UI variations / content structure / scoping — the success criterion depends on user preference) human checkpoints between waves ARE appropriate; the Step 11 hand-off emits the manual `--stay` recommendation for those
+- **Fresh session next** — always end by instructing the user to start a new session and run `/x-wt-teams {epic-url}`. Wave ordering is encoded in dependency markers; `/x-wt-teams` honors them within a single session, so one invocation typically handles the whole plan. Manual per-wave checkpointing via `--stay` is documented as an exception, not the default. **Exception: `-impl` / `--implementation`** — when this flag is set the user has explicitly opted out of the fresh-session principle; auto-invoke the implementation skill (`/x-wt-teams` for a multi-sub-issue plan, `/x-as-pr` for a single-sub-issue plan) via the Skill tool from this same session per Step 11's `-impl` sub-section, after checking the documented pause conditions (design-decision mode, non-main parent branch, unresolved Step 9 findings). Append `-seq` only when the plan is multi-wave (`/x-wt-teams` path). Reviewer flags from this session are still NOT forwarded
+- **`-a` / `--auto` is the autonomy flag — issues auto-create, and `-a` forwards into implementation** — without `-impl`, `-a` skips the Step 6 confirmation wait and auto-creates the issues, but falls back to ask-and-wait when a pre-creation concern signal fires (`Plan mode: design-decision` or `$PARENT_BRANCH` ≠ `main`); the Step 5 review and Step 9 verification quality gates still run (that's what separates `-a` from `-nor`). `-a` alone does NOT auto-implement — it hands off like the normal flow. With `-impl`, `-a` is the **one** flag that forwards to the implementation skill Step 11 invokes — `/x-wt-teams` (`-seq -a` or `-a`) for a multi-sub-issue plan, or `/x-as-pr -a {sub-issue-url}` for a single-sub-issue plan — so the implementation auto-completes the PR (CI + merge + cleanup) and the whole plan → impl → merge → cleanup chain runs without a human
+- **Classify the plan as goal-clear or design-decision — mandatory (Step 3.6)** — every plan MUST be classified before Step 4 saves the log. Record `**Plan mode:** goal-clear` or `design-decision` in the plan log header. For **goal-clear plans** (bugfix / regression / refactor / performance / parity / migration — the success criterion is unambiguous), **NEVER recommend "checkpoint after Wave N" in the Step 11 hand-off** — the user's time is a real cost and inter-wave human pauses are anti-leverage when the goal is clear. Instead, **bake every would-be-checkpoint decision into a dedicated `model: opus` sub-task** that reads the upstream artifact, picks among alternatives, and edits the downstream sub-issue's body via `gh issue edit` to lock in the concrete spec. Goal-clear plans are designed to run end-to-end under `/x-wt-teams` (or `/x-wt-teams -seq` if the user prefers strict-sequential) with no human in the loop until verification. For **design-decision plans** (new features / UI variations / content structure / scoping — the success criterion depends on user preference) human checkpoints between waves are appropriate when the user wants to review artifacts; the Step 11 hand-off still defaults to the one-shot `/x-wt-teams {epic-url}` and documents the manual `-s` checkpoint flow (wave 1 plain → `git checkout base/{slug}` → `-s` for wave 2+) as the option for those
+- **Issues must be portable across machines (Cross-machine portability)** — implementation often runs on a different machine (via `/x-wt-teams`) that shares the repo layout but NOT this machine's `$HOME/cclogs/`. The GitHub issues are the only artifact that travels, so every implementer-facing reference in them must survive the move: other repos as `$HOME/repos/...` (never machine-absolute or `/mnt/c/Users/...`), implementer-facing detail in the issue body / a comment / an attached text file (never the `$HOME/cclogs/...` log path), and images / prototypes via `/gh-issue-with-imgs` or `$DROPBOX_SCREENSHOTS_DIR`
 - **No `~` in paths** — always use `$HOME`

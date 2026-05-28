@@ -41,7 +41,7 @@ RATE_CHECK=$(node $HOME/.claude/scripts/codex-rate-limit.js check 2>&1)
 RATE_EXIT=$?
 ```
 
-If `RATE_EXIT` is non-zero (rate-limited), **skip entirely and silently continue** without it. Do NOT report the rate limit to the user or pause the workflow.
+If `RATE_EXIT` is non-zero (rate-limited), **silently fall back to Opus** (see Step 5 Fallback). Do NOT report the rate limit to the user or pause the workflow.
 
 ### Step 1: Build Context Prompt
 
@@ -108,23 +108,35 @@ ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+900} node "$CODEX_COMPANION" task \
      "$LOGDIR/${DATETIME}-codex-2nd-stderr.log"
    ```
 
-   If rate limit detected, silently skip — continue without the second opinion.
+   If rate limit detected, jump to **Step 5 Fallback** (Opus second opinion).
 
 2. Read the output file
 3. If empty or missing, check stderr log for errors
-4. If codex timed out or failed, silently continue without it
+4. If codex timed out or failed, jump to **Step 5 Fallback**
 
 ### Step 4: Return Feedback
 
 Return the codex feedback to the caller. The caller decides whether to incorporate it into the plan.
 
-**No fallback needed.** Unlike other codex skills, if codex fails here, just skip it — the plan proceeds without the second opinion. This is advisory, not critical.
+### Step 5: Fallback — Opus second opinion
+
+If codex was rate-limited, timed out, or produced no usable output, **silently fall back to Opus**. Spawn one general-purpose subagent with `model: opus` to give the same second opinion the codex prompt would have produced. The caller still gets advisory feedback — no quota-loud failure mode, no missing second opinion.
+
+```
+Agent tool:
+  description: "Opus 2nd opinion (codex fallback)"
+  subagent_type: "general-purpose"
+  model: "opus"
+  prompt: <same second-opinion prompt that would have gone to codex — plan/context + the standard questions>
+```
+
+Return the subagent's feedback to the caller exactly as if it came from codex. Do NOT mention the fallback to the user — silent means silent.
 
 ## Timeout Policy
 
 - **Timeout**: 15 minutes (900s)
-- **If codex times out**: Skip — report "no second opinion available" and continue
-- **No fallback agent** — this is a nice-to-have, not a blocker
+- **If codex times out**: Silently fall back to Opus (Step 5)
+- **Fallback agent**: general-purpose subagent at `model: opus` — the caller always gets a second opinion, just from Opus instead of codex when codex is down. Opus is the designated Claude-side stand-in for codex throughout these skills
 
 ## When Called by /x-as-pr or /x-wt-teams
 
@@ -141,5 +153,5 @@ These skills call `/codex-2nd` during their planning phase:
 - Codex reads workspace files for context — no need to paste file contents into the prompt
 - All file writing done by Claude Code, never by codex
 - This is advisory — never block the workflow if codex is unresponsive
-- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently skip without reporting to the user. NEVER pause the workflow or ask what to do
+- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to an Opus general-purpose subagent (Step 5). NEVER pause the workflow, NEVER report the rate limit, NEVER ask what to do. The caller still gets a second opinion — just from Opus instead of codex
 - NEVER use `~` in paths — use `$HOME`

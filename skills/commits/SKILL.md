@@ -137,19 +137,6 @@ If `git pull --rebase` fails due to a conflict:
 
 5. **Create commits**
 
-- **Optional: get a Copilot-drafted message first (fail-silent)**
-
-  Before writing the commit message yourself, try:
-
-  ```bash
-  $HOME/.claude/skills/gco/scripts/gcom-msg.sh
-  ```
-
-  This works in both Attempt 1 (Haiku subagent) and Attempt 2 (direct execution).
-
-  - On success: review the draft, adjust as needed, then use it with `git commit -m`.
-  - On failure (non-zero exit, rate-limited, empty output): ignore and fall back to the Claude-drafted message below.
-
 - Write clear, concise commit messages
 - Use conventional commit style when appropriate (feat:, fix:, docs:, refactor:, etc.)
 - Add `Co-Authored-By: Claude <noreply@anthropic.com>` if Claude contributed significantly

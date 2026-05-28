@@ -1,8 +1,10 @@
 # Reviewer Backend Modes
 
-Full substitution rules for `-co` / `-gco` / `-gcoc`, plus the combined-mode behavior. The skill body links here from Step 1 (planning), Step 5 (child self-review), and Step 9 (final quality assurance).
+Full substitution rules for `-co` / `-gco` / `-gcoc`, plus the combined-mode behavior with Claude reviewer model flags (`-op` / `-so` / `-haiku`). The skill body links here from Step 1 (planning), Step 5 (child self-review), and Step 9 (final quality assurance).
 
-Backend flags are **NOT mutually exclusive** with each other. They ARE orthogonal to model flags (`-haiku` / `-so` / `-op`).
+All reviewer flags — both Claude model (`-op` / `-so` / `-haiku`) and non-Claude backend (`-co` / `-gco` / `-gcoc`) — are reviewer-changers. They are **NOT mutually exclusive** with each other; passing multiple means run them all.
+
+These flags are orthogonal to team-member flags (`-t-op` / `-t-so`), which govern child agents and fix-delegation agents — not reviewers. See `references/arguments.md` for the two-family distinction.
 
 ## Codex Mode (`-co` / `--codex`)
 
@@ -20,6 +22,8 @@ Backend flags are **NOT mutually exclusive** with each other. They ARE orthogona
 - **Step 9 (quality assurance)**: Invoke `/codex-review` instead of `/deep-review` or `/review-loop`. If `-l` / `--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
 - **Research during planning**: Prefer `/codex-research` over Agent tool / WebSearch.
 - **Documentation writing**: Prefer `/codex-writer`.
+
+**Silent Opus fallback** — every codex-backed skill (`/codex-review`, `/codex-2nd`, `/codex-research`, `/codex-writer`) silently falls back to a subagent at `model: opus` when codex is rate-limited or unavailable. No special handling needed at the dispatcher level — the fallback is invisible. The `-co` flag means "the better reviewer/tool"; Opus is the Claude-side stand-in when codex is down.
 
 All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
@@ -54,19 +58,24 @@ Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attem
 
 Behavior matches `-gco` mode — substitute `gcoc` for `gco` in the substitutions above. Pass the `-gcoc` flag context to children so they select the cheap variant.
 
-## Combined Reviewer Mode (multiple backend flags)
+## Combined Reviewer Mode (multiple reviewer flags)
 
-The backend flags `-co`, `-gco`, and `-gcoc` are **NOT mutually exclusive** — they can be freely combined. When the user passes more than one (e.g., `-co -gcoc -gco`), run **all** selected reviewer backends. Multiple independent reviewers from different backends catch different classes of issues; combining them is an explicit quality-coverage choice.
+All reviewer flags — Claude model (`-op` / `-so` / `-haiku`) and non-Claude backend (`-co` / `-gco` / `-gcoc`) — combine freely. When the user passes more than one, run **all** selected reviewers. Multiple independent reviewers catch different classes of issues; combining them is an explicit quality-coverage choice.
 
-**Rule: if multiple backend flags are passed, run them all — never pick one and drop the others.** Do not treat as redundant or "pick the best." The user is paying (in time, in quota) for multi-angle review on purpose.
+**Rule: if multiple reviewer flags are passed, run them all — never pick one and drop the others.** Do not treat as redundant or "pick the best." The user is paying (in time, in quota) for multi-angle review on purpose.
 
-### Which backends → which reviewers
+### Which flag → which reviewer
 
 | Flag present | Reviewer invoked | 2nd-opinion invoked | Child self-review flag |
 |---|---|---|---|
+| `-op` / `-so` / `-haiku` | `/deep-review` (or `/review-loop`) at the chosen Claude model | `/codex-2nd` (default planning 2nd opinion still uses codex unless a backend flag overrides) | none — `/light-review` falls back to its own default |
 | `-co` | `/codex-review` | `/codex-2nd` | `-co` |
 | `-gco` | `/gco-review` | `/gco-2nd` | `-gco` |
 | `-gcoc` | `/gcoc-review` | `/gcoc-2nd` | `-gcoc` |
+
+When **no reviewer flag** is passed at all, the default reviewer is `/deep-review` at the manager's default model (Opus). Single backend flag without any Claude model flag replaces Claude reviewer — does NOT also run `/deep-review`.
+
+To explicitly run BOTH Claude reviewer AND a backend reviewer, pass at least one Claude model flag together with the backend flag (e.g., `-op -gco`).
 
 ### How combinations apply per affected step
 

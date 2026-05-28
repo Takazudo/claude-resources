@@ -1,7 +1,7 @@
 ---
 name: x-as-pr
 description: "Start a development workflow as a draft PR. Creates a NEW branch from the current branch, empty start commit, draft PR targeting the current branch, then implements. ALWAYS creates a new branch by default — produces a nested PR-on-PR when the current branch already has one. Use when: (1) User says 'dev as pr', (2) User wants a PR-first workflow before coding, (3) User passes -s/--stay to reuse the current branch instead of nesting, (4) User passes a GitHub issue URL to implement, (5) User passes --make-issue/--issue to create an issue first. Logs progress via issue comments when an issue is linked."
-argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [--noi] [-noi|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [--noi] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
@@ -61,11 +61,13 @@ Parse `$ARGUMENTS` to extract:
 - **`-v` or `--verify-ui` flag**: If present, run `/verify-ui` after review fixes to verify frontend changes visually (see "Verify UI Mode" below)
 - **`--noi`, `--noissue`, or `--noissues` flag**: Only meaningful with `--review-loop`. Suppresses GitHub issue creation for review findings. Without this flag, review-loop creates issues for considerable findings by default
 - **`-nor` or `--no-review` flag**: Skip the post-implementation review entirely (no `/deep-review`, no `/review-loop`, no fix-delegation Agent). Just do the implementation, then proceed straight to verify-ui (if `-v` was passed), push, CI watch, and PR revision. See "No Review Mode" below
-- **`-noi` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. See "Raising Issues for Unrelated Findings" below
-- **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Claude model used for subagents spawned during the workflow (notably the fix-delegation Agent after review) and passed through to `/deep-review` / `/review-loop`. Pick at most one. **Default: `-op` (Opus).** See "Claude Model Mode" below.
-- **`-co` or `--codex` flag**: If present, use codex-based alternatives for reviews, doc writing, and research. See "Codex Mode" below. Can combine with `-gco` / `-gcoc` (multiple backends run in parallel for reviews / 2nd-opinions).
-- **`-gco` or `--github-copilot` flag**: If present, use GitHub Copilot for reviews and research. See "GitHub Copilot Mode" below. Can combine with `-co` and/or `-gcoc`.
-- **`-gcoc` or `--github-copilot-cheap` flag**: Same as `-gco` but forces the free `gpt-4.1` model (skips the Premium opus attempt). See "GitHub Copilot Cheap Mode" below. Can combine with `-co` and/or `-gco`.
+- **`-ri` or `--raise-issues` flag**: Explicitly enable raising GitHub issues for unrelated problems found during coding or reviewing (bugs, code smells, improvement possibilities). **This is the default** — pass for clarity, but the behavior is on unless `-nori` is passed. See "Raising Issues for Unrelated Findings" below
+- **`-nori` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. See "Raising Issues for Unrelated Findings" below
+- **Reviewer model flags** (`-op` / `--opus`, `-so` / `--sonnet`, `-haiku` / `--haiku`): Claude model used by the Step "Automatic Deep Review" reviewer (`/deep-review` or `/review-loop`). Pick at most one. **Default when no reviewer flag is passed at all: `/deep-review` at Opus.** See "Reviewer Mode (Claude model)" below.
+- **`-co` or `--codex` flag**: Add codex-based reviewer / writer / research. See "Codex Mode" below. Combines with every other reviewer flag — multiple flags means run all selected reviewers. **Silent Opus fallback** — every codex-backed step (`/codex-review`, `/codex-2nd`, `/codex-research`, `/codex-writer`) silently falls back to a subagent at `model: opus` if codex is rate-limited or unavailable. The `-co` flag means "the better reviewer/tool"; Opus is the Claude-side stand-in when codex is down.
+- **`-gco` or `--github-copilot` flag**: Add GitHub Copilot CLI reviewer / 2nd opinion / research. See "GitHub Copilot Mode" below. Combines with every other reviewer flag.
+- **`-gcoc` or `--github-copilot-cheap` flag**: Like `-gco` but forces the free `gpt-4.1` model. See "GitHub Copilot Cheap Mode" below. Combines with every other reviewer flag.
+- **Team-member model flags** (`-t-op` / `--team-opus`, `-t-so` / `--team-sonnet`): Override the model used by the fix-delegation Agent spawned after review (and any other subagents spawned during implementation). Pick at most one. **Default: `opus`.** No `-t-haiku` — haiku is too small for fix-delegation work and not offered as a session-wide override. See "Team Member Model Override" below.
 - **`-a` or `--auto` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes. See "Auto-Complete Mode" below
 - **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
 - **Branch name**: Explicit branch name if provided (look for words like `branch:` or a slash-containing name like `topic/foo`)
@@ -279,20 +281,38 @@ This step is advisory. If codex is unresponsive or provides no useful feedback, 
 
 ---
 
-## Claude Model Mode (`-haiku` / `-so` / `-op`)
+## Two flag families
 
-Pick at most one. **Default: `-op` (Opus).**
+Reviewer flags and team-member flags are orthogonal.
 
-When a model flag is passed (or left at default), it governs:
+- **Reviewer flags** (`-op` / `-so` / `-haiku` / `-co` / `-gco` / `-gcoc`) — choose which reviewer(s) run at the post-implementation review step and for any `/light-review` self-check. Multiple flags combine.
+- **Team-member flags** (`-t-op` / `-t-so`) — override the model for the fix-delegation Agent (and any other subagents spawned during implementation). Session-wide.
+
+## Reviewer Mode (Claude model: `-op` / `-so` / `-haiku`)
+
+Pick at most one Claude reviewer model flag (or none). When passed (or left at default), it governs:
+
+- The Claude model used by `/deep-review` / `/review-loop` at the post-implementation review step.
+- The Claude model used by any Claude-side 2nd opinion during planning.
+
+Multiple Claude model flags → last one wins (documented, not an error).
+
+**Default when NO reviewer flag is passed at all**: `/deep-review` at Opus.
+
+Claude model flags **combine** with `-co` / `-gco` / `-gcoc` — passing `-op -gco` means run `/deep-review` at Opus AND `/gco-review`. See "Combined Reviewer Mode" in the backend mode sections below.
+
+## Team Member Model Override (`-t-op` / `-t-so`)
+
+Pick at most one. **Default: `opus`.**
+
+When passed (or left at default), it governs:
 
 - The `model:` field of the fresh **fix-delegation Agent** spawned after review (see "Delegating Review Fixes to a Fresh Agent" below).
 - Any other subagents spawned during implementation.
-- Forwarded verbatim to `/deep-review` / `/review-loop` so their Claude reviewers run at the same model.
-- Forwarded to the fix-delegation agent's own `/light-review` self-check — though if no model flag was explicitly passed, `/light-review` falls to its own default (`-gcoc`).
 
-Multiple model flags → last one wins (documented, not an error).
+There is intentionally no `-t-haiku`. Haiku is too small for fix-delegation work — if you genuinely need a haiku subagent, spawn it directly with explicit `model: "haiku"`.
 
-Model flags are **orthogonal** to `-co` / `-gco` / `-gcoc`. They can coexist — e.g. `-so -gco` means Sonnet for Claude subagents **and** `/gco-review` as the review backend.
+Team-member flags do NOT affect reviewers. They do NOT get forwarded to `/deep-review` / `/review-loop` — those use the reviewer flags instead.
 
 ---
 
@@ -312,6 +332,8 @@ When `-co` or `--codex` is passed, the following substitutions apply throughout 
 - **Post-Implementation Review**: Instead of `/deep-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
 - **Research during planning/implementation**: When you need to research libraries, APIs, or best practices (web search or codebase exploration), prefer `/codex-research` over the Agent tool or WebSearch.
 - **Documentation writing**: When writing README content, doc comments, or other prose during implementation, prefer `/codex-writer` over writing directly.
+
+**Silent Opus fallback** — every codex-backed skill above silently falls back to a subagent at `model: opus` when codex is rate-limited or unavailable (`/codex-review` → 2 `code-reviewer` subagents at Opus; `/codex-2nd` → general-purpose Opus; `/codex-research` → `researcher` at Opus; `/codex-writer` → `markdown-writer` at Opus). No special handling needed at this level — the fallback is invisible to this skill. The `-co` flag means "the better reviewer/tool," and Opus is the Claude-side stand-in when codex is down.
 
 All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
@@ -340,7 +362,7 @@ All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
 ## GitHub Copilot Cheap Mode (`-gcoc` / `--github-copilot-cheap`)
 
-Same as `-gco` / `--github-copilot` above, but forces the free `gpt-4.1` model (skips the Premium opus attempt). Use this when Premium quota is exhausted or when the task is simple enough that `gpt-4.1` feedback is sufficient. Mutually exclusive with `-co` and `-gco`.
+Same as `-gco` / `--github-copilot` above, but forces the free `gpt-4.1` model (skips the Premium opus attempt). Use this when Premium quota is exhausted or when the task is simple enough that `gpt-4.1` feedback is sufficient. Combines with every other reviewer flag (`-op` / `-so` / `-haiku` / `-co` / `-gco`) — multiple reviewer flags means run every selected reviewer.
 
 When `-gcoc` or `--github-copilot-cheap` is passed, the following substitutions apply throughout the entire workflow:
 
@@ -358,6 +380,20 @@ When `-gcoc` or `--github-copilot-cheap` is passed, the following substitutions 
 - **Research during planning/implementation**: When you need to research libraries, APIs, or best practices (web search or codebase exploration), prefer `/gcoc-research` over the Agent tool or WebSearch.
 
 All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
+
+---
+
+## Combined Reviewer Mode (multiple reviewer flags)
+
+All reviewer flags — Claude model (`-op` / `-so` / `-haiku`) and non-Claude backend (`-co` / `-gco` / `-gcoc`) — combine freely. When the user passes more than one (e.g. `-op -gco`, `-co -gcoc`, `-so -co -gco`), run **all** selected reviewers.
+
+**Rules:**
+
+- **Post-Implementation Review**: invoke every selected reviewer sequentially on the same branch. Collect findings from every run into a single combined fix issue before delegating fixes. Do not stop after the first reviewer.
+- **2nd opinions during planning**: when multiple backend flags are active, invoke every matching `*-2nd` command in sequence and read all feedback before finalizing the plan.
+- **Default reviewer when no flag at all**: `/deep-review` at Opus. A single backend flag alone replaces Claude reviewer (does not also run `/deep-review`). To run BOTH Claude reviewer AND a backend reviewer, pass a Claude model flag explicitly alongside the backend flag.
+
+This mirrors `/x-wt-teams`'s Combined Reviewer Mode — see `$HOME/.claude/skills/x-wt-teams/references/reviewer-modes.md` for the full substitution tables.
 
 ---
 
@@ -558,20 +594,32 @@ If no instructions were provided, report the PR URL and wait for further directi
 
 ## Raising Issues for Unrelated Findings (Default Behavior)
 
-During coding and reviewing, you may discover problems that are **unrelated to the original topic** — e.g., pre-existing bugs, code smells in adjacent files, outdated dependencies, or inconsistencies in code that was not part of the task. By default, **always raise these as separate GitHub issues** so they are tracked and not lost.
+During coding and reviewing, you may discover problems that are **unrelated to the original topic** — e.g., pre-existing bugs, code smells in adjacent files, outdated dependencies, inconsistencies, or improvement possibilities in code that was not part of the task. By default (`-ri` / `--raise-issues`, on unless `-nori` is passed), **always raise these as separate GitHub issues** with the `agent-found` label so they are tracked and not lost.
 
 ### When to Raise
 
 - A reviewer flags a problem in code that was NOT modified by this PR
 - You notice a bug or code quality issue in adjacent code while implementing
 - A pre-existing test failure or lint warning is discovered
+- An improvement possibility (refactor, cleanup, modernization) outside the task scope
 - Any problem that is clearly outside the scope of the current task
+
+### Ensure the `agent-found` label exists (run once per session before the first raise)
+
+```bash
+gh label create "agent-found" \
+  --description "Raised automatically by a Claude Code agent during a /x-as-pr or /x-wt-teams workflow" \
+  --color "ededed" 2>/dev/null || true
+```
+
+`gh label create` is non-destructive and exits with a non-zero status if the label already exists — the `|| true` swallows that, leaving a no-op when the label is present. No need to query first.
 
 ### How to Raise
 
 ```bash
 gh issue create \
   --title "<concise description of the unrelated problem>" \
+  --label "agent-found" \
   --body "$(cat <<'EOF'
 ## Found during
 
@@ -591,9 +639,23 @@ EOF
 )"
 ```
 
-### Suppressing with `--no-raise-issues` / `-noi`
+**If the finding needs screenshots to make sense to the reader** (visual regression, layout bug, anything where a picture communicates more than prose), invoke `/gh-issue-with-imgs` instead of plain `gh issue create`. It uploads the screenshot files as release assets and embeds them in the issue body — `gh issue create` cannot attach images natively. After the skill returns the new issue URL, apply the label:
 
-When `-noi` or `--no-raise-issues` is passed, **do NOT raise GitHub issues for unrelated findings**. Simply ignore them and focus only on the original task. This is useful when you want a lean workflow without side-effect issues.
+```
+Skill tool: skill="gh-issue-with-imgs"
+  args="<owner/repo> '<title>' --body '<body text above>' --img <path-to-screenshot> [--img <another>...]"
+```
+
+```bash
+# Parse the issue number from the URL the skill printed, then add the label
+gh issue edit <ISSUE_NUM_FROM_URL> --add-label "agent-found"
+```
+
+Use plain `gh issue create` when the finding is text-only (lint warnings, dead code, refactor suggestions).
+
+### Suppressing with `--no-raise-issues` / `-nori`
+
+When `-nori` or `--no-raise-issues` is passed, **do NOT raise GitHub issues for unrelated findings**. Simply ignore them and focus only on the original task. This is useful when you want a lean workflow without side-effect issues.
 
 ---
 
@@ -673,19 +735,19 @@ After the review produces findings that require code changes, **delegate the fix
    ```
    Agent tool:
      description: "Fix review findings"
-     model: <resolved Claude model flag; default "opus">
+     model: <resolved team-member flag; default "opus">
      prompt: "You are on branch <BRANCH_NAME> in <repo-path>.
               Read GitHub issue #<FIX_ISSUE_NUM> with `gh issue view <FIX_ISSUE_NUM>`.
               Fix all issues described there.
               Commit fixes locally — do NOT push.
-              After committing, run `/light-review <forwarded backend flags>` as a self-check
+              After committing, run `/light-review <forwarded reviewer flags>` as a self-check
               and address any high-priority findings it flags.
               When done, close the issue with a summary of what was fixed."
      mode: "bypassPermissions"
    ```
 
-- **Model**: set `model:` from the resolved Claude model flag (default `"opus"`). Skip the `model:` field if you want to inherit the manager's model — pick one convention and stick with it.
-- **Backend flags forwarded to `/light-review`**: pass whichever of `-co` / `-gco` / `-gcoc` were on the original invocation. If none were passed, omit them — `/light-review` falls to its own default (`-gcoc`).
+- **Model**: set `model:` from the resolved team-member flag — `-t-op` → `"opus"`, `-t-so` → `"sonnet"`, default `"opus"`. This is the fix-delegation agent, not a reviewer — reviewer flags do NOT apply here.
+- **Reviewer flags forwarded to `/light-review`**: pass whichever of `-op` / `-so` / `-haiku` / `-co` / `-gco` / `-gcoc` were on the original invocation. If none were passed, omit them — `/light-review` falls to its own default (`-gcoc`).
 
 3. **Verify** — after the agent returns, confirm fixes were committed (`git log --oneline -5`)
 4. **Close the fix issue** if the agent didn't already
@@ -854,7 +916,7 @@ After requirements verification passes (or after the session report if no issue 
 
 This is intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/pr-complete` will handle the error reporting.
 
-**After `/pr-complete` succeeds**, checkout the merged target branch and pull:
+**After `/pr-complete` succeeds**, checkout the merged target branch and pull so the manager lands somewhere live:
 
 ```bash
 # Determine the target branch the PR was merged into
@@ -865,30 +927,51 @@ git checkout "$TARGET_BRANCH"
 git pull origin "$TARGET_BRANCH"
 ```
 
-This leaves the user on the up-to-date target branch (e.g., `main`) after a fully automated workflow.
+**Do NOT delete the dead local working branch here.** Branch deletion is handed off to `/cleanup-resources` (next step), which audits every branch the workflow touched and applies the safety mechanics consistently. Doing it inline AND in the cleanup step caused the double-cleanup-confusion bug.
 
 ---
 
-## Post-Implementation: Close Tracking Issue
+## Post-Implementation: Cleanup audit via `/cleanup-resources`
 
-**Only run this step when the tracking issue was created by this workflow** (`--make-issue` was used). Skip if the issue was provided by the user (they may want it to remain open for other purposes).
+**Always run this step before STOP.** Replaces the older bespoke "close tracking issue + delete local branch" logic — those steps tended to silently slip in long workflows. Hand cleanup off to `/cleanup-resources` so the audit is explicit; the Sonnet subagent re-fetches every resource and returns a close/keep/delete plan, then the manager (you) executes it and prints a final report.
 
-After requirements verification passes (or auto-complete finishes), close the tracking issue:
-
-```bash
-gh issue close "$ISSUE_NUM" --comment "Workflow complete. PR: <PR_URL>"
+```
+Skill tool: skill="cleanup-resources", args="workflow:x-as-pr <-a if passed>"
 ```
 
-The tracking issue is a workflow log — it has served its purpose. If any problems were discovered during the workflow that need follow-up, they should have been raised as **separate issues** (not left as open items on the tracking issue).
+**Manifest contents for `/x-as-pr`:**
+
+- Workflow context:
+  - `workflow: x-as-pr`
+  - `auto-flag: <true if -a/--auto was passed, else false>`
+  - `epic-mode: false`
+  - `root-PR: <PR_URL>` (always — every `/x-as-pr` session creates exactly one PR)
+  - `root-PR-merged: <true if -a and /pr-complete merged it, else false>`
+  - `parent-branch: <TARGET_BRANCH>` — the branch the PR targets
+- Issues to include:
+  - **Tracking issue** (if `--make-issue` created it) — role: `tracking`. Sonnet should propose CLOSE on success. The agent's prompt forbids closing a `tracking` issue if its TODO checklist still has unchecked items, which guards against premature closure.
+  - **Pre-existing issue** (if user passed an issue URL/number) — role: `claimed-existing`. Sonnet should propose KEEP unless the user passed `-a` and the PR merged (in which case `/pr-complete -c` already closed it; agent should propose KEEP with reason "already closed by /pr-complete").
+  - **Unrelated-findings issues** raised during coding/review (track them in session state as you create them) — role: `unrelated-finding`. ALWAYS KEEP — never close these.
+  - **Review-fix issue** (if review fixes were delegated) — role: `fix`. Sonnet should propose CLOSE if the fix-delegation agent merged its fixes successfully.
+- Branches to include:
+  - **Working branch** (`$BRANCH_NAME`) — role: `working`. Pass `pr-merged: <true|false>` based on whether `-a` resulted in a successful merge.
+  - **Target branch** (`$TARGET_BRANCH`) — role: `parent`. Always KEEP (cleanup-resources protects parent roles).
+- PRs to include:
+  - **Root PR** — role: `root`, state from `gh pr view`.
+
+After `/cleanup-resources` returns its report, surface the closed/deleted/kept counts to the user. If the report has an "Ambiguous" section, list those resources verbatim and let the user decide before STOP.
+
+**This step also resolves the long-standing local-branch leftover bug:** when `-a` was used and `/pr-complete --delete-branch` removed the remote, the old workflow left the local working branch behind, confusing the user. `/cleanup-resources` will propose deleting the dead local branch as part of its plan and the manager executes the safe `git branch -d` (which refuses if there are unmerged commits, so it's not destructive).
 
 ---
 
 ## STOP — WORKFLOW ENDS HERE
 
-**After the tracking issue is closed (or skipped), the workflow is DONE.** Report the PR URL and stop.
+**After `/cleanup-resources` returns its report and the manager executes the safe actions, the workflow is DONE.** Report the PR URL and stop.
 
 **CRITICAL RULES:**
 
-- **If `-a` / `--auto` was used and the PR was merged**: You are already on the target branch (e.g., `main`) after the auto-complete checkout+pull. Stay there.
-- **Otherwise**: **Stay on `<BRANCH_NAME>`.** Do NOT checkout `main`, the parent branch, or any other branch. The user expects to remain on the working branch when the workflow finishes.
+- **If `-a` / `--auto` was used and the PR was merged**: You are already on the target branch (e.g., `main`) after the auto-complete checkout+pull. `/cleanup-resources` will have proposed deleting the dead local working branch — once executed, no stale local branch is left behind. Stay on the target branch.
+- **Otherwise**: **Stay on `<BRANCH_NAME>`.** Do NOT checkout `main`, the parent branch, or any other branch. The user expects to remain on the working branch when the workflow finishes (and `/cleanup-resources` will have kept the branch since pr-merged is false).
+- **Never skip `/cleanup-resources`.** Even when there are no resources to close or delete, the audit run is fast and produces a paper trail. Skipping is the historical bug — do not relitigate.
 - **Do NOT do anything else** unless the user asks.

@@ -6,21 +6,32 @@ Single source of truth for every `/x-wt-teams` flag. The skill body links here i
 
 ```
 [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap]
+[-t-op|--team-opus] [-t-so|--team-sonnet]
 [-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui]
-[-seq|--sequentially] [-nor|--no-review] [--noi] [-noi|--no-raise-issues]
+[-seq|--sequentially] [-nor|--no-review] [--noi]
+[-ri|--raise-issues] [-nori|--no-raise-issues]
 [#issue-number] <instructions>
 ```
+
+## Two flag families
+
+Two orthogonal groups govern delegation:
+
+- **Reviewer flags** — `-op` / `-so` / `-haiku` / `-co` / `-gco` / `-gcoc`. These choose which reviewer(s) run at Step 9 (final QA), in `/light-review` self-checks, and for 2nd-opinions during planning. They do NOT affect child agents or fix-delegation agents. Multiple flags combine (Combined Reviewer Mode — see `reviewer-modes.md`).
+- **Team-member flags** — `-t-op` / `-t-so`. These override the model for every spawned child agent (Step 5 worktree teammates) and every fix-delegation agent (Step 9 review-fix delegation, `/x-as-pr` post-review fix agent). Session-wide; overrides per-topic `/big-plan` annotations.
 
 ## Flag table
 
 | Flag | Aliases | What it does | Conflicts / notes |
 |---|---|---|---|
-| `-haiku` | `--haiku` | Claude model for **child agents** (Step 5) and Claude reviewers (2nd opinion / Step 9 final review). | Mutually exclusive with `-so`, `-op`. **Manager always runs as Opus regardless.** |
-| `-so` | `--sonnet` | Same as above, Sonnet. | Mutually exclusive with `-haiku`, `-op`. |
-| `-op` | `--opus` | Same as above, Opus. **Default.** | Mutually exclusive with `-haiku`, `-so`. |
-| `-co` | `--codex` | Use codex-based reviewers / writer / research throughout. See `reviewer-modes.md`. | Combinable with `-gco`, `-gcoc`. |
-| `-gco` | `--github-copilot` | Use GitHub Copilot CLI reviewers / 2nd opinion / research. See `reviewer-modes.md`. | Combinable with `-co`, `-gcoc`. |
-| `-gcoc` | `--github-copilot-cheap` | Like `-gco` but forces free `gpt-4.1` model. See `reviewer-modes.md`. | Combinable with `-co`, `-gco`. |
+| `-op` | `--opus` | Run Claude reviewer (`/deep-review` / `/review-loop`) at Opus. **Default when no reviewer flag is passed.** | Mutually exclusive with `-so`, `-haiku`. Combinable with `-co` / `-gco` / `-gcoc`. |
+| `-so` | `--sonnet` | Run Claude reviewer at Sonnet. | Mutually exclusive with `-op`, `-haiku`. Combinable with `-co` / `-gco` / `-gcoc`. |
+| `-haiku` | `--haiku` | Run Claude reviewer at Haiku. | Mutually exclusive with `-op`, `-so`. Combinable with `-co` / `-gco` / `-gcoc`. |
+| `-co` | `--codex` | Add codex-based reviewer (`/codex-review`) plus codex writer / research tooling. Silently falls back to **Opus** (subagent at `model: opus`) if codex is rate-limited or unavailable. See `reviewer-modes.md`. | Combinable with all other reviewer flags. When passed without any Claude model flag, the Claude reviewer is replaced (not added). |
+| `-gco` | `--github-copilot` | Add GitHub Copilot CLI reviewer (`/gco-review`) plus copilot 2nd-opinion / research. See `reviewer-modes.md`. | Combinable with all other reviewer flags. |
+| `-gcoc` | `--github-copilot-cheap` | Like `-gco` but forces free `gpt-4.1` model. See `reviewer-modes.md`. | Combinable with all other reviewer flags. |
+| `-t-op` | `--team-opus` | Force every child agent and fix-delegation agent to Opus. Session-wide override of per-topic `/big-plan` `**Model:**` markers. | Mutually exclusive with `-t-so`. **Manager always runs as Opus regardless.** |
+| `-t-so` | `--team-sonnet` | Force every child agent and fix-delegation agent to Sonnet. Session-wide override. | Mutually exclusive with `-t-op`. There is no `-t-haiku` — haiku is rare enough that it stays opt-in via `/big-plan` per-topic markers only. |
 | `-a` | `--auto` | After Step 15, run `/pr-complete -c` (wait for CI, merge, close issue), then invoke `/watch-ci` on the merged target branch; if red, spawn an Opus subagent to fix (max 2 cycles). | **Ignored in Super-Epic child mode** (see `super-epic-mode.md`). Treat as no-op there. |
 | `--no-issue` | — | Skip GitHub issue creation. All `gh issue comment` calls become no-ops. | Cannot create issue mid-run if missed. |
 | `-s` | `--stay` | **OPT-IN ONLY.** Reuse the current branch as the base branch (no new `base/<project-name>`). | See "`-s` / `--stay` mechanism" below. NEVER auto-detect — even with an existing PR, even on a topic branch. |
@@ -28,22 +39,33 @@ Single source of truth for every `/x-wt-teams` flag. The skill body links here i
 | `-v` | `--verify-ui` | After Step 9, run `/verify-ui` (via the isolated browser subagent). See Step 10. | Requires the isolated-browser dispatch pattern from `resource-coordination.md`. |
 | `-seq` | `--sequentially` | Multi-wave auto-continue. When Auto-Suggest matches Signal A (Super-Epic child) or Signal B (`--stay` accumulating-epic), invoke the next-wave command immediately via Skill instead of printing-and-stopping. Forward `-seq` to subsequent waves so the chain self-runs. Pause and surface to user only on a blocker. | Only meaningful for multi-wave plans (typically `/big-plan` epics). Single-session runs are no-ops. Combinable with all other flags. See "`-seq` mechanism" below. |
 | `-nor` | `--no-review` | Skip Step 9 entirely. | Used internally by `/deep-review -t` to prevent infinite recursion when it spawns this skill. Manual users rarely pass this. |
-| `--noi` | `--noissue`, `--noissues` | With `--review-loop`: drop `--issues` from the inner `/review-loop` invocation. | Only meaningful with `-l` / `--review-loop`. **Different from `-noi`** — see next row. |
-| `-noi` | `--no-raise-issues` | Suppress raising GitHub issues for unrelated findings discovered during work. | Forwarded to child agents. Different from `--noi` (review-loop one). |
+| `--noi` | `--noissue`, `--noissues` | With `--review-loop`: drop `--issues` from the inner `/review-loop` invocation. | Only meaningful with `-l` / `--review-loop`. **Different from `-nori`** — see next two rows. |
+| `-ri` | `--raise-issues` | **Default — on unless `-nori` is passed.** Raise GitHub issues (with the `agent-found` label) for problems, bugs, or improvement possibilities found in code unrelated to the current task. Pass explicitly for clarity; behavior is identical to the default. | Forwarded to child agents. The label is created on first use via `gh label create ... 2>/dev/null \|\| true` (idempotent). |
+| `-nori` | `--no-raise-issues` | Suppress raising GitHub issues for unrelated findings discovered during work. | Forwarded to child agents. Different from `--noi` (review-loop one). Replaces the older `-noi` spelling. |
 | `#issue-number` | — | Existing GitHub issue number or URL. Issue body becomes the primary input; reused for progress logging. | If `[Epic]` in title, treat as `/big-plan` epic — see "Epic issue shortcuts" below. |
 
-## Manager invariant & model delegation
+## Manager invariant
 
-**The manager session is ALWAYS Opus.** Model flags (`-haiku` / `-so` / `-op`) do NOT downgrade the manager. If invoked on a non-Opus session and the user passes a model flag, note it but proceed.
+**The manager session is ALWAYS Opus.** Neither reviewer flags (`-op` / `-so` / `-haiku`) nor team-member flags (`-t-op` / `-t-so`) downgrade the manager. If invoked on a non-Opus session and the user passes any of these flags, note it but proceed.
 
-The resolved model flag IS applied at:
+## Reviewer flag application points
 
-1. **Child worktree agents** (Step 5) — every `Agent(...)` gets `model:` set to the resolved Claude model (default `opus`). Always set explicitly.
-2. **Claude-side 2nd opinion** — if not using `/codex-2nd` or `/gco-2nd`, spawn at the resolved model.
-3. **Step 9 final review** — `/deep-review` (or `/review-loop`) is invoked with the same model/backend flags forwarded.
-4. **Child self-review** — child agents run `/light-review` with active backend flags. The model flag does NOT force Claude reviewers here unless backend flags are also omitted.
+The resolved reviewer flag set is applied at:
 
-Model flags are **orthogonal** to `-co` / `-gco` / `-gcoc` and can coexist with any of them.
+1. **Step 9 final review** — `/deep-review` (or `/review-loop`) is invoked with the Claude model flag forwarded. If `-co` / `-gco` / `-gcoc` are also passed, the corresponding non-Claude reviewers run sequentially on the same base branch and their findings combine (see `reviewer-modes.md`).
+2. **Claude-side 2nd opinion** — when no backend flag is active, `/codex-2nd` still runs as a default planning-phase 2nd opinion. When a Claude model flag is passed alongside backend flags, every matching `*-2nd` command runs in sequence.
+3. **Child self-review** — child agents run `/light-review` with active backend flags forwarded. The Claude model flag does NOT change `/light-review`'s default unless backend flags are also omitted.
+
+## Team-member flag application points
+
+The resolved team-member flag (`-t-op` / `-t-so`, default `opus`) is applied at:
+
+1. **Child worktree agents** (Step 5) — every `Agent(...)` gets `model:` set to the resolved team model. Always set explicitly per spawn. Overrides per-topic `/big-plan` `**Model:**` markers (see `per-topic-models.md`).
+2. **Fix-delegation agent** — the fresh Agent spawned after Step 9 review to apply fixes in `/x-as-pr`, and the inner `/x-wt-teams --no-review --stay` session spawned by `/deep-review -t`.
+
+## Two flag families are orthogonal
+
+Reviewer flags and team-member flags do not interact — pass any combination. Example: `-so -gcoc -t-op` means "run Claude reviewer at Sonnet AND `/gcoc-review` for QA, with all child agents on Opus."
 
 ## `-s` / `--stay` mechanism
 

@@ -37,11 +37,11 @@ If multiple model flags are passed, the last one wins.
 
 ### Backend flags (combinable — external reviewers run in parallel)
 
-- `-co` / `--codex` — force the OpenAI Codex side-by-side review on (bypass the rate-limit gate's silent-skip behavior)
+- `-co` / `--codex` — prefer the OpenAI Codex side-by-side review. If codex is rate-limited or otherwise unavailable, **silently fall back to Opus** (delegated via `/codex-review`, which spawns 2 `code-reviewer` subagents at `model: opus`). The user's choice of `-co` means "give me the better reviewer" — codex when up, Opus when not. Never surface the rate limit, never pause.
 - `-gco` / `--github-copilot` — also invoke `/gco-review` in parallel with the Claude reviewers
 - `-gcoc` / `--github-copilot-cheap` — **default strategy.** Invokes `/gcoc-review`. Also combinable with Claude model flags to run alongside Claude reviewers.
 
-When a Claude model flag is passed, codex side-by-side runs opportunistically (see Steps A-2b / A-2c / B-2b / B-2c). `-co` upgrades this from "opt-in when not rate-limited" to "force on and fail loudly if unavailable". `-gco` / `-gcoc` add additional external reviewers alongside Claude reviewers.
+When a Claude model flag is passed, codex side-by-side runs opportunistically (see Steps A-2b / A-2c / B-2b / B-2c). `-co` upgrades this from "opt-in when not rate-limited" to "always run a codex-equivalent reviewer — codex when up, Opus when down". `-gco` / `-gcoc` add additional external reviewers alongside Claude reviewers.
 
 Multiple backend flags combine — every specified backend runs in parallel and all findings consolidate in Step 3.
 
@@ -177,7 +177,7 @@ Do NOT return the full analysis — it is in the log file.
 
 **Gate logic:**
 
-- If `-co` / `--codex` was passed → **force codex on** (skip the rate-limit pre-flight; if codex is unreachable, surface the error instead of silently skipping).
+- If `-co` / `--codex` was passed → **prefer codex, fall back to Opus silently**. Still run the pre-flight check; if `RATE_EXIT` is non-zero, do NOT launch the codex companion. Instead, spawn the codex-equivalent fallback for this step: 2 `code-reviewer` subagents with `model: opus` reviewing the diff against `$BASE`. Treat their findings as the codex side-by-side input in Step 3 synthesis. (For Step A-2c, see its own fallback note.) Never surface the rate limit, never pause.
 - Otherwise → run the **opportunistic pre-flight check**:
 
   ```bash
@@ -185,7 +185,7 @@ Do NOT return the full analysis — it is in the log file.
   RATE_EXIT=$?
   ```
 
-  If `RATE_EXIT` is non-zero, **silently skip ALL codex steps** (A-2b and A-2c). Do NOT report the rate limit to the user — just proceed with Claude Code reviewers only.
+  If `RATE_EXIT` is non-zero, **silently skip ALL codex steps** (A-2b and A-2c). Do NOT report the rate limit to the user — just proceed with Claude Code reviewers only. (No Opus fallback in this branch — the user did not explicitly request codex-tier coverage.)
 
 **In addition to** the 3 Claude Code reviewers above, also launch a codex review in parallel as a background Bash task. This provides a cross-model perspective on the same diff:
 
@@ -219,6 +219,8 @@ ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} node "$CODEX_COMPANION" review 
 - If codex produces findings, include them in the synthesis step alongside Claude Code reviewer results
 
 ### Step A-2c: Run Codex Adversarial Review in Parallel
+
+**Gate logic:** same `-co` / opportunistic split as Step A-2b. When `-co` was passed AND codex is rate-limited, spawn 1 additional `code-reviewer` subagent with `model: opus` and an **adversarial prompt** ("challenge the design / architecture / tradeoffs, not the implementation defects") as the codex-adversarial stand-in. Without `-co`, silently skip on rate-limit.
 
 **In addition to** the standard codex review above, also launch an adversarial review as a separate background Bash task. This challenges the design choices, assumptions, and tradeoffs — complementing the standard review which focuses on implementation defects:
 
@@ -439,7 +441,7 @@ Do NOT return the full analysis — it is in the log file.
 
 ### Step B-2b: Run Codex Review in Parallel (if not rate-limited)
 
-**Gate logic:** same as Step A-2b — if `-co` / `--codex` was passed, force codex on; otherwise use the silent `codex-rate-limit.js check` gate and skip on non-zero exit.
+**Gate logic:** same as Step A-2b — if `-co` / `--codex` was passed and codex is rate-limited, **silently fall back to Opus** (spawn 1 `code-reviewer` subagent with `model: opus` doing a full-project pass — same prompt as the codex `task` below). Without `-co`, use the silent `codex-rate-limit.js check` gate and skip on non-zero exit (no fallback).
 
 **In addition to** the 6 Claude Code reviewers above, also launch a codex review in parallel as a background Bash task:
 
@@ -474,6 +476,8 @@ ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+300} node "$CODEX_COMPANION" task \
 - Include codex findings in synthesis if available
 
 ### Step B-2c: Run Codex Adversarial Review in Parallel
+
+**Gate logic:** same `-co` / opportunistic split as Step B-2b. When `-co` was passed AND codex is rate-limited, spawn 1 additional `code-reviewer` subagent with `model: opus` and an **adversarial prompt** (challenge architecture / design decisions across the full codebase) as the codex-adversarial stand-in. Without `-co`, silently skip on rate-limit.
 
 **In addition to** the standard codex task above, also launch an adversarial review as a separate background Bash task:
 
@@ -566,14 +570,16 @@ When the team-fix flag is on (the default), do NOT apply fixes inline. Instead, 
    CURRENT_BRANCH=$(git branch --show-current)
    ```
 
-3. **Invoke `/x-wt-teams --no-review --stay <fix-instructions>`** as the next action. Forward the same model / backend flags (`-haiku|-so|-op`, `-co|-gco|-gcoc`) that this `/deep-review` invocation received so the inner session uses consistent reviewers (its own internal child self-review still runs — only the manager-level Step 9 is suppressed by `--no-review`).
+3. **Invoke `/x-wt-teams --no-review --stay <fix-instructions>`** as the next action. Forward the same reviewer flags (`-haiku|-so|-op`, `-co|-gco|-gcoc`) that this `/deep-review` invocation received — the inner session's `--no-review` skips its own manager-level Step 9, but the child agent's `/light-review` self-check still runs and uses those reviewer flags to stay consistent.
+
+   **Fix-agent model**: `/x-wt-teams`'s team-member flags are `-t-op` / `-t-so` (default `opus`). If `/deep-review` was given `-so` or `-haiku` to save tokens on reviewers and you want the fix-agent to run at the same tier, also pass `-t-so`. Without `-t-so`, the fix-agent defaults to opus.
 
    **Single fix topic by default.** Bundle all findings into ONE topic so the inner session spawns a single fix agent in a single worktree. Multiple parallel fix topics would risk conflicting edits on overlapping files. If the findings are genuinely independent and span clearly separate file sets, you may split into multiple topics — but the default is one.
 
    Concrete invocation:
 
    ```
-   Skill(skill="x-wt-teams", args="--no-review --stay <forwarded model/backend flags> Fix the review findings listed below. Single topic — apply all fixes in one worktree. <fix instructions including file paths, line numbers, what to change and why>")
+   Skill(skill="x-wt-teams", args="--no-review --stay <forwarded reviewer flags> [-t-op|-t-so if fix-agent model needs control] Fix the review findings listed below. Single topic — apply all fixes in one worktree. <fix instructions including file paths, line numbers, what to change and why>")
    ```
 
 4. **Wait for `/x-wt-teams` to complete.** When it returns, the fixes are already merged into `CURRENT_BRANCH`, pushed, and (if applicable) the root PR is updated. There is **NO Step 6 / Step 7 to run** in team-fix mode — `/x-wt-teams` already handled commits, push, and PR revise inside its own workflow.

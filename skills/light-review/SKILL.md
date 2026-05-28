@@ -118,11 +118,11 @@ Do NOT return the full analysis — it is in the log file.
 
 For each specified backend, invoke the matching skill in parallel (single message, multiple tool calls):
 
-- `-co` → `Skill(skill="codex-review")`
+- `-co` → `Skill(skill="codex-review")` — silently falls back to **Opus** (2 `code-reviewer` subagents at `model: opus`) if codex is rate-limited
 - `-gco` → `Skill(skill="gco-review")`
 - `-gcoc` → `Skill(skill="gcoc-review")`
 
-Each backend skill already handles its own rate-limit / fallback behavior silently.
+Each backend skill already handles its own rate-limit / fallback behavior silently. For `-co`, that fallback is Opus — the user picked `-co` to mean "the better reviewer," and Opus is the Claude-side stand-in when codex is down.
 
 #### Default (no flags)
 

@@ -1,7 +1,7 @@
 ---
 name: x-wt-teams
 description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main)."
-argument-hint: "[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-seq|--sequentially] [-nor|--no-review] [--noi] [-noi|--no-raise-issues] [#issue-number] <instructions>"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-seq|--sequentially] [-nor|--no-review] [--noi] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -16,7 +16,7 @@ Detail lives in `references/` so this file stays a workflow spine. Open the rele
 - **`references/super-epic-mode.md`** — Super-Epic child mode lifecycle: detection markers, Step 1a / Step 2 overrides, mandatory epic-PR merge, Auto-Suggest variant, why `-a` is ignored.
 - **`references/reviewer-modes.md`** — `-co` / `-gco` / `-gcoc` substitution tables and Combined Reviewer Mode (run all selected backends).
 - **`references/execution-modes.md`** — subagents vs teams routing: how `/big-plan`'s `Execution mode:` markers are read, default-to-teams fallback, mixed-mode degradation, Step 5 / Step 7 path differences, drift sanity check.
-- **`references/per-topic-models.md`** — per-topic Claude model resolution: how `/big-plan`'s `Model:` markers are read, manual `-haiku`/`-so`/`-op` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
+- **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, manual `-t-op` / `-t-so` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
 - **`references/issue-templates.md`** — tracking issue body, claim comments, unrelated-findings issue, Step 14 session report, Step 15 verification comments, accumulating-epic Auto-Suggest hand-off.
 - **`references/resource-coordination.md`** — Playwright / browser isolation rule and port-binding `flock` rule (full patterns).
 
@@ -160,8 +160,9 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 12. CI watch: verify CI passes on root PR (invoke `/watch-ci`, fix if red)
 13. Update root PR and mark ready
 14. Session report
-15. Requirements verification (if issue linked) — **STOP HERE. Workflow ends.**
-16. _(DEFERRED — only when user asks, after PR is merged)_ Clean up worktrees and branches
+15. Requirements verification (if issue linked)
+16. Cleanup audit via `/cleanup-resources` — close completed sub-issues / tracking issue, delete dead local/remote branches. **STOP HERE. Workflow ends.**
+17. _(DEFERRED — only when user asks, after PR is merged in a later session)_ Manual cleanup hook — re-invokes `/cleanup-resources` if leftover branches need tidying
 
 **PUSH-FORBID DURING WORK**: To save CI resources, child agents must **NOT push** during implementation. They commit locally only. All pushing happens in Step 11 after deep review is complete. This prevents CI from running on every intermediate commit.
 
@@ -187,7 +188,7 @@ Use the issue body as the primary input for planning. Set `ISSUE_NUMBER=<number>
 - **Base branch** — use the `base/...` name stated in the issue body (do NOT invent)
 - **Dependency order** — respect the dependency graph; start with independent topics first
 - **Execution mode per topic** — extract the `**Execution mode:** {subagents|teams}` marker from each `[Sub]` issue body (or each inline sub-task in Super-Epic mode). This drives Step 5's spawn path. See `references/execution-modes.md` for the parsing logic, default-to-teams fallback, and mixed-mode degradation rule.
-- **Model per topic** — extract the `**Model:** {opus|sonnet|haiku}` marker from each `[Sub]` issue body (or each inline sub-task in Super-Epic mode). This drives the per-child model assignment in Step 5. A manual `-haiku` / `-so` / `-op` flag on this invocation OVERRIDES per-topic markers session-wide. Default-when-missing-and-no-flag: `opus`. See `references/per-topic-models.md` for the resolution table.
+- **Model per topic** — extract the `**Model:** {opus|sonnet|haiku}` marker from each `[Sub]` issue body (or each inline sub-task in Super-Epic mode). This drives the per-child model assignment in Step 5. A manual `-t-op` / `-t-so` flag on this invocation OVERRIDES per-topic markers session-wide. Default-when-missing-and-no-flag: `opus`. See `references/per-topic-models.md` for the resolution table.
 
 Do NOT re-plan or re-analyze. Do NOT update the epic issue body. Proceed to Step 2 with the extracted topics, base branch, and per-topic execution mode.
 
@@ -225,11 +226,14 @@ For all other sessions (no issue, or user-provided non-epic issue), after Step 1
 
 This is advisory. If codex is unresponsive, proceed with the original plan.
 
-### Manager invariant & reviewer-mode flags
+### Manager invariant & two flag families
 
-**The manager session is ALWAYS Opus.** Model flags (`-haiku` / `-so` / `-op`) do NOT downgrade the manager. When a flag is present, it acts as a session-wide manual override for child delegation, replacing any per-topic `Model:` annotations from `/big-plan`. When no flag is present, each child's model is resolved per-topic from the annotation (default `opus`). See `references/arguments.md` for the four delegation points and `references/per-topic-models.md` for the override + per-topic resolution.
+**The manager session is ALWAYS Opus.** Neither reviewer flags nor team-member flags downgrade the manager.
 
-`-co` / `-gco` / `-gcoc` substitute reviewers, 2nd-opinions, and research/writer tools throughout the workflow. Multiple backend flags can be combined (run them all, never pick one). Full substitution tables and Combined Reviewer Mode rules: `references/reviewer-modes.md`.
+Two orthogonal flag families:
+
+- **Reviewer flags** — `-op` / `-so` / `-haiku` choose the Claude reviewer model; `-co` / `-gco` / `-gcoc` add codex / Copilot reviewer backends. All combine — multiple flags means run every selected reviewer. See `references/reviewer-modes.md` for substitution tables and Combined Reviewer Mode rules.
+- **Team-member flags** — `-t-op` / `-t-so` override the model for child worktree agents and fix-delegation agents session-wide, replacing any per-topic `Model:` annotations from `/big-plan`. Without a flag, each child's model resolves per-topic from the annotation (default `opus`). See `references/per-topic-models.md` for resolution order and `references/arguments.md` for the canonical flag table.
 
 ### Step 2: Create Base Branch and Root PR
 
@@ -347,13 +351,13 @@ Full routing logic, marker grep patterns, drift sanity check, and the subagents-
 
 The downstream child model is **per-topic**, not session-wide. Resolve in this order:
 
-1. **Manual flag override** — if the invocation has `-haiku`, `-so`, or `-op`, that flag applies to ALL topics. This is a deliberate manual override; the per-topic markers are ignored. Tell the user explicitly: "Manual override: all topics use {model} (-{flag})."
+1. **Manual team-member flag override** — if the invocation has `-t-op` or `-t-so`, that flag applies to ALL topics. This is a deliberate manual override; the per-topic markers are ignored. Tell the user explicitly: "Manual override: all topics use {model} (-{flag})."
 2. **Per-topic annotation** — otherwise, use the `**Model:**` marker extracted from each topic's `[Sub]` issue body (or inline sub-task) in Step 1a.
 3. **Default** — if a topic has no marker AND no flag was passed, default to `opus`.
 
 Tell the user the resolution before spawning, e.g. "Models per topic: topicA=opus, topicB=sonnet, topicC=opus." When children spawn (either path), set each one's model parameter to its own resolved value — children in the same session may run different models, that's fine.
 
-Full table and rationale: `references/per-topic-models.md`.
+Note: reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children. Only `-t-op` / `-t-so` does. Full table and rationale: `references/per-topic-models.md`.
 
 #### Teams path (default)
 
@@ -405,7 +409,7 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
-4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever `-co` / `-gco` / `-gcoc` backend flags were on the original invocation. If no backend flag is active, `/light-review` falls to its own default (`-gcoc`).
+4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co` / `-gco` / `-gcoc`). If no reviewer flag is active, `/light-review` falls to its own default (`-gcoc`).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
 7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. No backticks / code fences in SendMessage.
@@ -679,56 +683,88 @@ After Step 15 passes, automatically:
 - Spawn a dedicated Opus subagent with the failure details to investigate the root cause, fix the code, and push the fix directly to the target branch.
 - **Branch protection fallback**: if the subagent's direct push to the target branch is rejected by branch protection rules, it must open a fix-forward PR targeting the target branch and report the PR URL — never force-push, never silently abandon.
 - After the subagent reports back, re-invoke `/watch-ci` to confirm green. Attempt at most **2 fix cycles**. If CI is still red after 2 cycles, stop and report to the user with the full failure summary.
-4. **After clean post-merge CI**, apply the Dead Branch Cleanup Principle (Important Rule 26): checkout the merged target branch, pull, and `git branch -d` the now-dead local source branch:
+4. **After clean post-merge CI**, checkout the merged target branch and pull so the manager lands somewhere live:
 
 ```bash
 TARGET_BRANCH=$(gh pr view <root-pr-number> --json baseRefName -q '.baseRefName')
 
-DEAD_SOURCE_BRANCH=$(git branch --show-current)
-
 git checkout "$TARGET_BRANCH"
 git pull origin "$TARGET_BRANCH"
-
-# Use -d (NOT -D). If unmerged commits exist, surface as a loud failure rather than silently destroy.
-if [ "$DEAD_SOURCE_BRANCH" != "$TARGET_BRANCH" ]; then
-  git branch -d "$DEAD_SOURCE_BRANCH"
-fi
 ```
 
-If `git branch -d` fails (unmerged commits), do NOT force with `-D`. Stop and report.
-
-This leaves the user on the up-to-date target branch (e.g., `main`) after a fully automated workflow, with no dead local branch left behind.
+**Do NOT delete the dead local source branch here.** Branch deletion is now handled by `/cleanup-resources` at Step 16, which has full context on every branch the workflow touched (base + topics) and applies the safety mechanics (`git branch -d` not `-D`, parent-branch checkout if needed) consistently. The merge-then-cleanup-resources sequence is the single source of truth for end-of-workflow branch cleanup — keeping it in one place avoids the double-cleanup confusion the old inline block produced. See Rule 27.
 
 ---
 
 ### Raising Issues for Unrelated Findings (Default Behavior)
 
-During coding and reviewing (manager and child agents), you may discover problems **unrelated to the original topic** — pre-existing bugs, code smells in adjacent files, outdated dependencies, etc. By default, **always raise these as separate GitHub issues** so they are tracked and not lost.
+During coding and reviewing (manager and child agents), you may discover problems **unrelated to the original topic** — pre-existing bugs, code smells in adjacent files, outdated dependencies, improvement possibilities, etc. By default (`-ri` / `--raise-issues`, on unless `-nori` is passed), **always raise these as separate GitHub issues** with the `agent-found` label so they are tracked and not lost.
 
 **When to raise:**
 
 - A reviewer flags a problem in code NOT modified by this workflow
 - You or a child notices a bug or quality issue in adjacent code while implementing
 - A pre-existing test failure or lint warning is discovered
+- An improvement possibility (refactor, cleanup, modernization) outside the task scope
 - Any problem clearly outside the scope of the current task
 
-**How to raise:** see the unrelated-findings template in `references/issue-templates.md`.
+**Ensure the label exists (once per session, before the first raise):**
 
-**Suppressing with `--no-raise-issues` / `-noi`:** Ignore unrelated findings and focus only on the original task. Pass this flag context to child agents so they skip too.
+```bash
+gh label create "agent-found" \
+  --description "Raised automatically by a Claude Code agent during a /x-as-pr or /x-wt-teams workflow" \
+  --color "ededed" 2>/dev/null || true
+```
+
+The command is idempotent — it no-ops when the label already exists.
+
+**How to raise:** see the unrelated-findings template in `references/issue-templates.md`. Always pass `--label "agent-found"` on `gh issue create`; for `/gh-issue-with-imgs`, follow the issue creation with `gh issue edit <num> --add-label "agent-found"`.
+
+**Suppressing with `--no-raise-issues` / `-nori`:** Ignore unrelated findings and focus only on the original task. Pass this flag context to child agents so they skip too.
 
 ---
 
-### Close Tracking Issue
+### Step 16: Cleanup audit via `/cleanup-resources`
 
-**Always close the tracking issue when the workflow ends** (unless `--no-issue` was used). The tracking issue is a workflow log — it has served its purpose.
+**Always run this step before Auto-Suggest / STOP** (unless `--no-issue` AND no branches were created — extremely rare). Replaces the older bespoke "close tracking issue" step and the deferred manual cleanup hook (now Step 17). The Sonnet subagent re-fetches every resource the workflow touched and returns a structured close/keep/delete plan; the manager (you) executes the plan and prints a final report. This catches the historical bugs where: (a) sub-issues stayed open after their PRs merged, (b) the tracking issue silently stayed open at end of workflow, (c) `-a` deleted the remote base but the local copy stayed behind.
 
-```bash
-gh issue close "$ISSUE_NUMBER" --comment "Workflow complete. Root PR: <ROOT_PR_URL>"
+```
+Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams <-a if passed>"
 ```
 
-If problems were discovered that need follow-up, raise them as **separate issues** before closing the tracking issue.
+**Manifest contents for `/x-wt-teams`:**
 
-**Exception**: If the user provided the issue (not created by this workflow), do NOT close it.
+- Workflow context:
+  - `workflow: x-wt-teams`
+  - `auto-flag: <true if -a/--auto was passed, else false>`
+  - `epic-mode: <true if Step 1a was epic shortcut or Super-Epic child mode, else false>`
+  - `super-epic-mode: <true if Super-Epic child mode, else false>`
+  - `root-PR: <ROOT_PR_URL>`
+  - `root-PR-merged: <true if -a flow merged it, else false>`
+  - `parent-branch: <PARENT_BRANCH>`
+  - `super-epic-base: <SUPER_EPIC_BASE if Super-Epic child mode, else "none">`
+- Issues to include:
+  - **Tracking issue** (created by Step 1b or epic issue from 1a) — role: `tracking` for 1b, `epic` for 1a non-Super-Epic, `epic` for 1a Super-Epic child. Sonnet should propose CLOSE for `tracking` once the root PR is merged or workflow ended cleanly. For `epic` in non-Super-Epic mode, propose KEEP if any sub-issue is still open (the agent checks via `gh issue view` on each sub); CLOSE if all sub-issues are closed AND root-PR-merged. In Super-Epic child mode, the epic was already closed by the mandatory merge step's comment OR kept by design — the agent should KEEP whatever the current state is.
+  - **Sub-issues** (epic mode, one per `[Sub]` issue under the epic) — role: `sub`. Sonnet should propose CLOSE for each whose corresponding topic branch was merged into the base (the manager merged these locally in Step 6, and the topic PRs were either auto-closed in Step 11 or merged externally). Otherwise KEEP.
+  - **Unrelated-findings issues** raised during coding/review (track them in session state) — role: `unrelated-finding`. ALWAYS KEEP.
+  - **Review-fix issues** from `/deep-review -t` team-fix delegation (if any) — role: `fix`. Sonnet proposes CLOSE if the fix-delegation session merged its fixes.
+  - **Super-epic issue** (Super-Epic child mode only) — role: `claimed-existing` with note "parent super-epic; never close from a child session". ALWAYS KEEP.
+- Branches to include:
+  - **Base branch** (`base/<project-name>`) — role: `base`, `pr-merged: <true if root PR merged>`. When `-a` flow merged the root PR, propose delete (local AND remote — the remote was already removed by `--delete-branch`, but pass `scope: both` so the manager's `git push origin --delete` is idempotent and `git branch -d` cleans up local).
+  - **Topic branches** (`<project-name>/<topic-name>` for each topic) — role: `topic`. Step 11 already deleted these; pass them in the manifest with `scope: both, pr-merged: true` so the agent confirms they're gone and the manager surfaces any stragglers in the "Warnings" section. Defensive only.
+  - **Parent branch** (`$PARENT_BRANCH` or `$SUPER_EPIC_BASE`) — role: `parent`. ALWAYS KEEP (the agent's prompt forbids deleting parent roles).
+- PRs to include:
+  - **Root PR** — role: `root`, state from `gh pr view`. KEEP regardless — PRs that are still open are intentional, merged/closed PRs are done.
+
+After `/cleanup-resources` returns its report:
+
+1. Print the close/delete/keep summary to the user (e.g. "Closed 4 sub-issues + tracking issue, deleted local base branch, kept 2 unrelated-findings issues").
+2. If the report has an "Ambiguous" section, list those resources verbatim and either resolve them yourself (re-fetch and decide) or surface to the user — depending on what `--auto` mode allows.
+3. If the manager was sitting on a branch the cleanup just deleted, it has already switched to the parent branch as part of execution. Confirm the new `git branch --show-current` matches the expected post-cleanup state per the STOP rules below.
+
+**Exception**: If the user provided the tracking issue (not created by this workflow), the manifest still lists it as `claimed-existing` and the Sonnet agent will propose KEEP. Do not pass it as `tracking`.
+
+**Super-Epic child mode** has a special wrinkle: the mandatory merge step already closed the epic-PR. The cleanup audit confirms the epic-PR is merged, confirms the local epic base is deleted (it was, by step 5 of `references/super-epic-mode.md`), and reports any drift. The super-epic issue itself is NEVER closed by a child session.
 
 ---
 
@@ -776,23 +812,23 @@ A pause is a soft stop — write a one-line "paused: <reason>" note above the ha
 
 ### STOP — WORKFLOW ENDS HERE
 
-**After the tracking issue is closed (or skipped), auto-complete finishes (if applicable), AND the Auto-Suggest Next Command step has run (whenever its signals matched), the automated workflow is DONE.** Report the root PR URL and wait for user response.
+**After Step 16 (`/cleanup-resources` audit) completes its plan AND the Auto-Suggest Next Command step has run (whenever its signals matched), the automated workflow is DONE.** Report the root PR URL and wait for user response.
 
 **Before printing the final "workflow complete" block, verify Auto-Suggest ran if its signals applied.** If Signal A or Signal B matched and you did NOT yet print a hand-off, go back and print it now. The user should NEVER have to type "give me next command" for a planned multi-session workflow.
 
 **CRITICAL RULES at this point:**
 
-- **If `-a` / `--auto` was used and the PR was merged**: You are already on the target branch (e.g., `main`) after the auto-complete checkout+pull. Stay there.
-- **If Super-Epic child mode** (any epic — not just the last): You are already on the super-epic base after the merge step's branch-cleanup. Stay there. The local epic base is already deleted; do not try to switch back to it.
-- **Otherwise (non-Super-Epic, non-`-a`)**: **Stay on `base/<project-name>`.** Do NOT checkout `main`, the parent branch, or any other branch.
-- **Do NOT run Step 16** (unless `-a` was used and the PR is merged). Step 16 is cleanup that only happens later, after the user has reviewed and merged the PR.
-- **Do NOT delete any branches** (local or remote) unless `-a` was used (the merge branch is already deleted by `--delete-branch`) or unless this is Super-Epic child mode (the local epic base was already deleted by the merge step). Beyond those, leave branches alone.
+- **If `-a` / `--auto` was used and the PR was merged**: The auto-complete checkout+pull put you on the target branch, and `/cleanup-resources` then proposed deleting the now-dead local `base/<project-name>` (which the manager executed). Stay on the target branch — the dead base is gone.
+- **If Super-Epic child mode** (any epic — not just the last): You are already on the super-epic base after the mandatory merge step's branch-cleanup. `/cleanup-resources` then audited and confirmed. Stay on the super-epic base; the local epic base is already deleted.
+- **Otherwise (non-Super-Epic, non-`-a`)**: **Stay on `base/<project-name>`.** `/cleanup-resources` proposed KEEP for the base branch (PR not merged yet). Do NOT checkout `main`, the parent branch, or any other branch.
+- **Do NOT re-run cleanup** — Step 16 already ran. The "Step 17 (deferred)" manual cleanup hook is only for a later session where the user explicitly asks.
+- **Do NOT delete any branches manually** — `/cleanup-resources` is the only step authorized to delete branches in this workflow. If it didn't delete a branch, leave it alone.
 - **Do NOT do anything else** unless the user asks.
 
 The user will review the PR and may:
 
 1. **Provide feedback** — see "Feedback Loop" below. Handle it automatically.
-2. **Merge the PR** — then Step 16 can be run if the user asks.
+2. **Merge the PR** — then the Step 17 manual cleanup hook can be run if the user asks.
 
 ---
 
@@ -824,31 +860,19 @@ After you report the root PR, the user often replies with feedback — requests 
 
 ---
 
-### Step 16: Cleanup (ONLY when user asks, after PR is merged)
+### Step 17 (deferred): Manual cleanup hook (when user later asks after merging the PR)
 
-**NEVER run this step automatically.** Only run when the user explicitly asks to clean up after the root PR has been merged.
+**Only run when the user explicitly asks**, typically after they've merged the root PR in a separate session and want to tidy up the leftover base branch.
 
-By this point, worktrees (Step 7) and topic branches (Step 11) are already cleaned up. Only the base branch remains. This is also a Dead Branch Cleanup case — the merged PR's `--delete-branch` removed the remote, so the local `base/<project-name>` is a dead pointer.
+When `-a` was used, the unconditional `/cleanup-resources` audit at end of workflow already deleted the dead local base branch — there's nothing left to do here. This step exists for the `-a`-less flow: the user merged the PR manually later and now wants the dead branches cleaned up.
 
-```bash
-# If the user is still on the dying branch, switch to the parent first —
-# `git branch -d` cannot delete the currently checked-out branch.
-CURRENT=$(git branch --show-current)
-if [ "$CURRENT" = "base/<project-name>" ]; then
-  git fetch origin --prune
-  git checkout <parent-branch>
-  git pull origin <parent-branch>
-fi
-
-# Use -d (NOT -D) — surface unmerged commits as a loud failure rather than silently destroy.
-git branch -d base/<project-name>
-
-# Delete the remote branch only if it still exists (Auto-Complete Mode and Super-Epic merge already
-# deleted it — defensive check).
-git push origin --delete base/<project-name> 2>/dev/null || true
+```
+Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams"
 ```
 
-If `git branch -d` fails on unmerged commits, do NOT force with `-D`. Stop and ask the user to investigate.
+Build the manifest the same way as the unconditional audit, but with `root-PR-merged: true` so the agent proposes deleting the base branch. The skill handles the safety mechanics (`git branch -d`, parent-branch checkout if needed) — do NOT re-implement those here.
+
+If the user asks "clean up everything," just invoke `/cleanup-resources` and trust its plan. The legacy inline `git branch -d` block that used to live here is replaced by the skill — having two places that delete branches drifts.
 
 ## Branch Naming Conventions
 
@@ -860,7 +884,7 @@ If `git branch -d` fails on unmerged commits, do NOT force with `-D`. Stop and a
 
 ## Important Rules
 
-1. **NEVER checkout main or parent branch** — after the workflow completes (Step 13), stay on `base/<project-name>`. Do NOT switch branches, do NOT delete branches, do NOT run Step 16. Workflow ends at Step 15. **Exceptions** (all instances of Rule 26 Dead Branch Cleanup): (a) `-a` / `--auto` and PR merged → checkout the target branch, pull, `git branch -d` the now-dead local `base/<project-name>`. (b) **Super-Epic child mode** → ALWAYS check out `$SUPER_EPIC_BASE` and delete the now-dead local epic base after the mandatory epic-PR merge. Unconditional in Super-Epic child mode (whether or not it's the last epic). Performed by step 5 of `references/super-epic-mode.md`.
+1. **NEVER checkout main or parent branch on your own** — the workflow ends at Step 16 (cleanup audit), and `/cleanup-resources` is the only step authorized to switch branches as part of dead-branch cleanup. Outside its execution, stay on `base/<project-name>`. **Exceptions** (all routed through `/cleanup-resources` per Rule 27, or explicit special cases of Rule 26 Dead Branch Cleanup): (a) `-a` / `--auto` and PR merged → cleanup-resources proposes deleting the dead local `base/<project-name>`; the skill itself handles the checkout-parent + `git branch -d` mechanics. (b) **Super-Epic child mode** → the mandatory super-epic merge step (before Step 16) still checks out `$SUPER_EPIC_BASE` and deletes the local epic base, per step 5 of `references/super-epic-mode.md`. Cleanup-resources then audits and confirms.
 2. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents.
 3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts.
 4. **Create the root PR immediately in Step 2** — empty commit + draft PR locks in the correct parent branch.
@@ -874,7 +898,7 @@ If `git branch -d` fails on unmerged commits, do NOT force with `-D`. Stop and a
 12. **Quality assurance before pushing** — always run Step 9 after merging all topics. Mandatory, never skip.
 13. **CI watch after pushing** — if the project has CI, invoke `/watch-ci` on the root PR (Step 12). Fix and re-push on red.
 14. **Re-read the issue TODO after every step** — `gh issue view` to check the TODO checklist and confirm what comes next. Prevents forgetting steps during long workflows.
-15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. Skip with `--no-issue`. Close when the root PR is merged.
+15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. Skip with `--no-issue`. Closing happens via `/cleanup-resources` at Step 16 (mandatory), not via a bespoke `gh issue close` call buried in the workflow tail. See Rule 27.
 16. **pnpm worktree cleanup breaks symlinks** — Step 7 runs `pnpm install --ignore-scripts` to fix.
 17. **NEVER auto-detect `-s` / `--stay`** — always create a new base branch unless explicitly passed. Do not infer from branch state, existing PRs, or context.
 18. **Max 6 concurrent child agents** — Step 5 caps parallelism. With 7+ topics, queue the rest and spawn as earlier agents complete.
@@ -883,7 +907,7 @@ If `git branch -d` fails on unmerged commits, do NOT force with `-D`. Stop and a
 21. **Auto-Suggest Next Command is MANDATORY for multi-session plans** — before STOP, if Signal A (Super-Epic) or Signal B (`--stay` accumulating-epic) applies, MUST print a copy-pasteable next command. The user should never have to type "give me next command" for a planned multi-session workflow.
 22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP, then switch to the super-epic base and delete the local epic base** — see `references/super-epic-mode.md`. The mandatory merge step is unconditional in Super-Epic child mode, runs even if `-a` was passed. This rule OVERRIDES Rule 1's "stay on `base/<project-name>`" default.
 23. **Execution mode is read from `/big-plan` annotations, not guessed** — when an `[Epic]` or Super-Epic child issue is the input, Step 1a extracts the per-topic `**Execution mode:** {subagents|teams}` markers and Step 5 routes accordingly. Default-when-missing is **teams** (preserves pre-annotation behavior). All-subagents → spawn one-shot Agent calls without TeamCreate. Any-teams or any-missing → full team workflow. The skill never auto-classifies execution mode itself — that decision belongs in `/big-plan`. Full routing logic, drift sanity check, and subagent-path differences live in `references/execution-modes.md`.
-24. **Per-topic model is read from `/big-plan` annotations, with manual flag override** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku}` marker and Step 5 spawns each child with its own model. A manual `-haiku` / `-so` / `-op` flag on the invocation OVERRIDES every topic's annotation as a session-wide manual override; without a flag, per-topic markers are honored. Default-when-missing-and-no-flag is **opus** (preserves pre-annotation behavior). The skill never auto-classifies the model itself — that decision belongs in `/big-plan` or in the user's flag. Full resolution table and rationale: `references/per-topic-models.md`.
+24. **Per-topic model is read from `/big-plan` annotations, with manual team-member flag override** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku}` marker and Step 5 spawns each child with its own model. A manual `-t-op` / `-t-so` flag on the invocation OVERRIDES every topic's annotation as a session-wide manual override; without a flag, per-topic markers are honored. Default-when-missing-and-no-flag is **opus** (preserves pre-annotation behavior). Reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children — those govern the Step 9 Claude reviewer only. The skill never auto-classifies the model itself — that decision belongs in `/big-plan` or in the user's flag. Full resolution table and rationale: `references/per-topic-models.md`.
 25. **`-seq` / `--sequentially` auto-continues multi-wave plans in one session** — when `-seq` is passed AND Auto-Suggest detected a next wave (Signal A or Signal B), the manager appends `-seq` to the next-wave command and invokes it immediately via the Skill tool instead of stopping. The chain keeps running until a future iteration finds no more siblings. Pause (soft-stop with hand-off + blocker note) on the conditions listed in the Auto-Suggest sub-section — never silently swallow a blocker to keep the chain going. Single-session runs and `-seq`-less invocations are unaffected.
 26. **Dead Branch Cleanup Principle (general meta-rule)** — whenever this skill orchestrates a merge (or watches one) where the source branch's work is absorbed into a parent **and** the source remote is deleted (e.g., `gh pr merge --delete-branch`, `/pr-complete`, equivalent), the local source branch is now a dead pointer and MUST be cleaned up before session ends. Pattern:
 1. Capture the dead branch name BEFORE switching off it: `DEAD_BRANCH=$(git branch --show-current)`
@@ -891,7 +915,9 @@ If `git branch -d` fails on unmerged commits, do NOT force with `-D`. Stop and a
 3. `git checkout <parent-branch> && git pull origin <parent-branch>` to land on the absorbing branch
 4. `git branch -d "$DEAD_BRANCH"` — use **`-d` NOT `-D`**. If unmerged commits, `-d` refuses; surface as a loud failure rather than silently destroy work with `-D`.
 
-    Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Auto-Complete after `/pr-complete` (Rule 1 exception (a)), Step 16 manual cleanup. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged.
+    Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Auto-Complete after `/pr-complete` (Rule 1 exception (a)), the Step 17 deferred manual cleanup hook. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged. **As of Rule 27, the actual implementation of this cleanup is delegated to `/cleanup-resources` at Step 16 — hand-rolled `git branch -d` blocks should not be added; let cleanup-resources do it.**
+
+27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-a` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks.
 
 ## Prerequisites
 
