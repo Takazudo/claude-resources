@@ -69,7 +69,7 @@ The script will output:
 Worktree created successfully
 
 cd /path/to/worktrees/issue-123-feature-name
-prompt: /path/to/worktrees/issue-123-feature-name/__inbox/issue-123-prompt-feature-name.md
+prompt: /path/to/cclogs/repo-name/issue-123-prompt-feature-name.md
 ```
 
 Tell the user:

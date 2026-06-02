@@ -8,14 +8,33 @@
  *   - As CLI:    node ~/.claude/scripts/get-logdir.js  (prints path to stdout)
  *   - In agents: {logdir} placeholder in save-file.js resolves via this module
  *
- * Returns: ~/cclogs/{repo-basename}/ (worktrees resolve to main repo)
- * Fallback: ~/cclogs/_misc/ (when not in a git repository)
+ * Base dir is the Dropbox-synced cclogs dir (shared across Mac + WSL):
+ *   1. $DROPBOX_CCLOGS_DIR when set (defined in ~/.zshrc for macOS + WSL2)
+ *   2. platform default when the env var is missing (hooks / cron / non-login
+ *      shells don't source ~/.zshrc): macOS -> ~/Library/CloudStorage/Dropbox/cclogs,
+ *      WSL2/Linux -> /mnt/c/Users/takaz/Dropbox/cclogs
+ *   3. ~/cclogs as a last-resort fallback (on macOS this is a symlink to #2)
+ *
+ * Returns: <base>/{repo-basename}/ (worktrees resolve to main repo)
+ * Fallback: <base>/_misc/ (when not in a git repository)
  */
 
 import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+
+function cclogsBase() {
+  const env = process.env.DROPBOX_CCLOGS_DIR;
+  if (env && env.trim()) return env.trim();
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'CloudStorage', 'Dropbox', 'cclogs');
+  }
+  if (process.platform === 'linux') {
+    return '/mnt/c/Users/takaz/Dropbox/cclogs';
+  }
+  return path.join(os.homedir(), 'cclogs');
+}
 
 function sanitizeSlug(raw) {
   const cleaned = raw.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -26,6 +45,7 @@ function sanitizeSlug(raw) {
 }
 
 export function getLogDir() {
+  const base = cclogsBase();
   try {
     const toplevel = execSync('git rev-parse --show-toplevel', {
       encoding: 'utf8',
@@ -43,9 +63,9 @@ export function getLogDir() {
     } else {
       slug = path.basename(toplevel);
     }
-    return path.join(os.homedir(), 'cclogs', sanitizeSlug(slug));
+    return path.join(base, sanitizeSlug(slug));
   } catch {
-    return path.join(os.homedir(), 'cclogs', '_misc');
+    return path.join(base, '_misc');
   }
 }
 

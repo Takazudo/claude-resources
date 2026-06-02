@@ -1,7 +1,7 @@
 ---
 name: big-plan
 description: "Plan implementation by breaking work into one epic GitHub issue + child sub-issues. Use when: (1) User says '/big-plan', (2) User wants to plan an implementation before coding, (3) User wants to split a feature into small issues for parallel agent team work, (4) User references existing issues (e.g. 'implement issue #123', 'plan all open issues', 'plan recent 3 open issues'). Auto-reads project-scope l-lessons-* skills (from /retro-notes) before planning. Supports -op/-co/-gco/-gcoc flags for second opinions and post-creation verification (runnable in parallel). Use -impl/--implementation to auto-invoke the implementation skill in the same session after planning ends (skips Step 6 confirmation): /x-wt-teams for a multi-sub-issue plan (appends -seq when multi-wave), or /x-as-pr for a single-sub-issue plan. Use -a/--auto to auto-create issues without the Step 6 confirmation wait (pausing only when something needs careful consideration); combined with -impl it forwards -a to whichever implementation skill it invokes (/x-wt-teams or /x-as-pr) so plan → impl → merge → cleanup all run autonomously. Large scope is kept in ONE epic and sequenced into dependency waves, run by a single /x-wt-teams session in dependency order (not multiple --stay sessions; manual --stay checkpoints are reserved for design-decision plans that need review between waves). Planning only — no code changes (unless -impl is set, in which case implementation also runs in-session; with -a -impl, the implementation skill additionally auto-merges)."
-argument-hint: <description-or-issue-refs> [-op|--opus] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-nor|--no-review] [-impl|--implementation] [-a|--auto]
+argument-hint: <description-or-issue-refs> [-op|--opus] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-nor|--no-review] [-impl|--implementation] [-a|--auto] [-fix|--auto-fix]
 ---
 
 # Big Plan
@@ -34,6 +34,7 @@ Parse `$ARGUMENTS` to extract:
   - **General flow (no `-impl`)**: skip the Step 6 confirmation wait and auto-create the issues, the same one-shot-summary shape as `-nor`/`-impl`. **Quality gates stay on** — Step 5 (review) and Step 9 (verification) still run (unlike `-nor`, which drops them). After issues are created, the session hands off normally; `-a` alone does **not** auto-invoke implementation. The auto-create is **conditional**: if something needs careful consideration, fall back to the normal Step 6 ask-and-wait instead of auto-proceeding. The "careful consideration" signals evaluable at Step 6 are (1) `Plan mode: design-decision` (Step 3.6) and (2) `$PARENT_BRANCH` is not `main` (nested base). These are the same concern signals `-impl` checks — Step 9's verification signal isn't included here because verification hasn't run yet at Step 6 (it's why `-impl` defers that check to Step 11).
   - **With `-impl`**: at Step 6, `-impl`'s unconditional skip wins (issues always get created; `-impl`'s own Step 11 pause conditions handle the concern signals). `-a`'s only added effect in this combination is **forwarding `-a` to whichever implementation skill Step 11 invokes** (`/x-wt-teams` or `/x-as-pr`), so the whole chain — plan → impl → merge → cleanup — runs autonomously.
   - **Combinable**: with reviewer flags (`-op`/`-co`/`-gco`/`-gcoc`, which shape Step 5 only and are never forwarded) and with `-nor` (which already skips Step 5/6/9; `-a`'s Step 6 behavior is then moot and only the `-impl` forwarding remains).
+- **`-fix` or `--auto-fix` flag**: Planning-only skill — `/big-plan` does **not** implement auto-fix itself. It only **parses and forwards** `-fix` in the `-impl` hand-off, exactly the way it forwards `-a`: when `-impl` is also set, append `-fix` to whichever implementation skill Step 11 invokes (`/x-wt-teams` or `/x-as-pr`), so the downstream auto-fix step runs after the main implementation. Without `-impl`, `-fix` is inert (there is no in-session implementation to forward it to) — note it but take no action. It is orthogonal to the reviewer / `-nor` flags. See Step 11.
 - **Existing issue references** — any of these trigger _existing-issue mode_ (see Step 1b):
   - A GitHub issue URL: `https://github.com/owner/repo/issues/123`
   - An issue number: `#123` or bare `123`
@@ -69,16 +70,17 @@ echo "Parent branch: $PARENT_BRANCH"
 
 ## Cross-machine portability
 
-Implementation usually runs in a fresh session — **often on a different machine** (via `/x-wt-teams`). That machine has the same repo layout but does **not** share this machine's `$HOME/cclogs/`. The plan log you save in Step 4 is a planning-session artifact the implementer never sees; everything they need must live in the **GitHub issues**, the one artifact that crosses machines.
+Implementation usually runs in a fresh session — **often on a different machine** (via `/x-wt-teams`). That machine has the same repo layout. cclogs is now Dropbox-synced, so the plan log *does* eventually reach the other machine — but don't rely on it: Dropbox sync isn't instant, and the implementer agent has no reason to go digging in cclogs. The plan log you save in Step 4 is a planning-session artifact the implementer never sees; everything they need must live in the **GitHub issues**, the artifact you design for crossing machines.
 
 So when the plan references a local file or another repo, express it portably in the issue body:
 
 - **Another repo** → `$HOME/repos/{repo}/...`. The `repos/` layout is identical across machines; a machine-absolute path (`/Users/...`, `/home/takaz/...`, `/mnt/c/Users/...`) breaks on the other machine. Never paste one into an issue.
-- **Long text / plan detail the implementer needs** → put it in the issue body or a comment, or attach it as a text file on the issue. Do **not** point them at the `$HOME/cclogs/...` log path — it doesn't exist on their machine.
+- **Long text / plan detail the implementer needs** → distill it down to the *minimal* spec the implementer actually needs and put that in the issue body or a comment. Do **not** point them at the `$HOME/cclogs/...` log path — even though it's Dropbox-synced now, sync lag and discoverability make it the wrong handoff surface.
+- **Full conversation logs, raw transcripts, or large unfiltered text** → **never paste or attach these to a GitHub issue.** On a public repo it leaks whatever the conversation happened to contain (client names, local paths, secrets, half-formed ideas); even on a private repo it bloats the issue, since the implementer needs the distilled spec (previous bullet), not the raw chat. This material is reference for *this* session only — keep it in the Dropbox cclogs dir (`$DROPBOX_CCLOGS_DIR/{repo}/...`), never in any issue.
 - **Images / visual context** → embed via `/gh-issue-with-imgs`, or share through the Dropbox dir and reference `$DROPBOX_SCREENSHOTS_DIR/...` (the dir `/ss` reads).
-- **Prototype html/js/css that can't live in an issue** → put it under `$DROPBOX_SCREENSHOTS_DIR/...` and reference that path — never a machine-local or `/mnt/c/Users/...` path.
+- **Prototype html/js/css that can't live in an issue** → put it under the Dropbox-synced cclogs dir (`$DROPBOX_CCLOGS_DIR/{repo}/...`) or `$DROPBOX_SCREENSHOTS_DIR/...` and reference that path — never a machine-local or `/mnt/c/Users/...` path.
 
-Test each issue body: _on a machine with the repos but not this one's cclogs, could I still do the work?_ If not, move the missing context into the issue.
+Test each issue body: _on a machine with the repos, working only from the issue (not from this planning session's cclogs log), could I still do the work?_ If not, move the missing context into the issue.
 
 ## Workflow
 
@@ -140,7 +142,22 @@ If no `l-lessons-*` skills exist or none match the topic, skip silently and proc
 
 ### 2. Explore the codebase
 
-Do a thorough exploration of all relevant code. Read existing patterns, understand the architecture, identify what files will need to change and what new ones will be created. Be comprehensive — this is the expensive step that justifies a dedicated session.
+Explore all relevant code and produce a **structured map** that feeds the breakdown (Step 3) and wave sequencing (Step 3.5). This is the expensive step that justifies a dedicated session — invest in it.
+
+The deliverable is not a vibe; it is a concrete map covering:
+
+- **Call-sites** — where the affected behavior is invoked from, and who depends on it.
+- **Dependencies** — modules, packages, services, and contracts the change touches (upstream and downstream).
+- **Files to change / create** — the concrete list each sub-task will edit, so Step 3 can size and split work.
+- **Blast radius** — what else could break, which surfaces need a confirm sub-issue (Step 3.5), and where the risky cross-phase boundaries are.
+
+**Structure the exploration as a parallel-reader fan-out for non-trivial scope.** When the change spans multiple subsystems or the file set is large, **use the Workflow tool to fan out N parallel readers** — one per affected subsystem — and synthesize their findings into the single structured map above. (This skill instructing you to call the Workflow tool IS the opt-in — the user never has to type "workflow".) The Workflow tool is the right fit here precisely because exploration is embarrassingly parallel read-only work that collapses into one synthesis.
+
+**Keep it proportionate.** Small or single-subsystem plans do NOT need a fan-out — a direct read-through producing the same structured map is fine and cheaper. Reserve the parallel-reader fan-out for genuinely non-trivial scope. Reading existing patterns, understanding the architecture, and identifying what changes still applies either way.
+
+> The Workflow tool is used **only here**, in exploration. The Step 5 reviewer fan-out stays Skill-based (codex / Copilot / opus-2nd), and the Step 9 verification subagent stays a single Agent-tool call on Sonnet — do not route those through Workflow.
+
+If you need to research libraries, APIs, or best practices during exploration, see the `-gco` / `-gcoc` mode sections (they substitute `/gco-research` / `/gcoc-research` for the default research path); otherwise use the Agent tool / `/codex-research` / WebSearch as appropriate.
 
 ### 3. Draft the plan
 
@@ -625,22 +642,23 @@ When `-impl` was passed on this invocation, the session does not stop after prin
 
 **Single-sub-issue plan → `/x-as-pr`.** When Step 8 created exactly one sub-issue, the plan is single-topic, and `/x-wt-teams`'s worktree-team machinery is overkill for one topic. Invoke the lean `/x-as-pr` instead, pointed at that **sub-issue's URL** (not the epic):
 
-- Args: `{sub-issue-url}`; forward `-a` if it was passed (`-a {sub-issue-url}`). No `-seq` — a single topic has no waves.
+- Args: `{sub-issue-url}`; forward `-a` if it was passed (`-a {sub-issue-url}`), and forward `-fix` if it was passed (`-fix {sub-issue-url}`) — both ride through independently. No `-seq` — a single topic has no waves.
 - `/x-as-pr` branches off the current branch (`$PARENT_BRANCH`) and PRs directly into it, so the `base/{impl-title-slug}` indirection in the issue bodies is simply unused here (it only matters for the multi-topic merge-aggregation pattern). No explicit base arg is needed.
-- `/x-as-pr -a` runs `/pr-complete -c -w` (CI + merge + delete branch + close the linked sub-issue) then `/cleanup-resources`, completing plan → impl → merge → cleanup without a human.
+- `/x-as-pr -a` runs `/pr-complete -c -w` (CI + merge + delete branch + close the linked sub-issue) then `/cleanup-resources`, completing plan → impl → merge → cleanup without a human. `-fix` adds the post-implementation auto-fix step (auto-fix the safe `agent-found` findings before cleanup).
 
 ```
-Skill skill="x-as-pr" args="{-a if passed }{sub-issue-url}"
+Skill skill="x-as-pr" args="{-a if passed }{-fix if passed }{sub-issue-url}"
 ```
 
-Print above it: `Auto-invoking /x-as-pr (single-topic plan{, -a if passed}) per -impl flag.`
+Print above it: `Auto-invoking /x-as-pr (single-topic plan{, -a if passed}{, -fix if passed}) per -impl flag.`
 
 **Multi-sub-issue plan → `/x-wt-teams`.** When Step 8 created two or more sub-issues, invoke `/x-wt-teams` on the **epic URL**. Build the args string:
 
 - **Multi-wave plans** (distinct `Wave:` numbers across sub-tasks > 1): `-seq {epic-url}`.
 - **Single-wave plans** (only one wave): `{epic-url}`.
 - **DO forward `-a` / `--auto` if it was passed** — prepend it to the flags: `-seq -a {epic-url}` (multi-wave) or `-a {epic-url}` (single-wave). `-a` is an autonomy flag, not a planning-reviewer flag, so its semantics carry into implementation: `/x-wt-teams -a` runs `/pr-complete` (CI + merge) and end-of-workflow cleanup, completing the plan → impl → merge → cleanup chain without a human.
-- **Do NOT forward** `-op` / `-co` / `-gco` / `-gcoc` / `-nor` to the `/x-wt-teams` invocation. Per-sub-task models are already in the sub-issue bodies; reviewer flags for the implementation session are the user's separate choice. (Same rule as the non-`-impl` hand-off.) `-a` is the one exception — it forwards, the reviewer/`-nor` flags do not.
+- **DO forward `-fix` / `--auto-fix` if it was passed** — prepend it alongside any other forwarded flags (e.g. `-seq -a -fix {epic-url}`). Like `-a`, `-fix` is an implementation-behavior flag, not a planning-reviewer flag, so it carries into implementation: `/x-wt-teams -fix` runs the post-implementation auto-fix step on the `agent-found` findings before cleanup. `-a` and `-fix` are independent — either, both, or neither may be present.
+- **Do NOT forward** `-op` / `-co` / `-gco` / `-gcoc` / `-nor` to the `/x-wt-teams` invocation. Per-sub-task models are already in the sub-issue bodies; reviewer flags for the implementation session are the user's separate choice. (Same rule as the non-`-impl` hand-off.) `-a` and `-fix` are the exceptions — they forward; the reviewer/`-nor` flags do not.
 
 Invocation shape:
 
@@ -648,7 +666,7 @@ Invocation shape:
 Skill skill="x-wt-teams" args="<args-string>"
 ```
 
-Print a one-line note above the invocation so the log is readable: `Auto-invoking /x-wt-teams ({-seq if multi-wave}{ -a if -a passed}, else no flags) per -impl flag.`
+Print a one-line note above the invocation so the log is readable: `Auto-invoking /x-wt-teams ({-seq if multi-wave}{ -a if -a passed}{ -fix if -fix passed}, else no flags) per -impl flag.`
 
 **Why this exists / what it trades off:** `-impl` deliberately violates the "fresh session next" principle (next sub-section) because the user has decided that the friction of restarting a session is worse than the token-cost growth of continuing in-session. Do not "fix" this by reverting to a hand-off — the auto-invoke is the entire point of the flag.
 
@@ -742,7 +760,7 @@ All other workflow steps (issue creation, verification, etc.) remain unchanged.
 - **Small issues win** — an issue that takes 15 agent exchanges is better than one that takes 50
 - **Self-contained sub-issues** — each issue body must be readable standalone, without needing this session's context
 - **Fresh session next** — always end by instructing the user to start a new session and run `/x-wt-teams {epic-url}`. Wave ordering is encoded in dependency markers; `/x-wt-teams` honors them within a single session, so one invocation typically handles the whole plan. Manual per-wave checkpointing via `--stay` is documented as an exception, not the default. **Exception: `-impl` / `--implementation`** — when this flag is set the user has explicitly opted out of the fresh-session principle; auto-invoke the implementation skill (`/x-wt-teams` for a multi-sub-issue plan, `/x-as-pr` for a single-sub-issue plan) via the Skill tool from this same session per Step 11's `-impl` sub-section, after checking the documented pause conditions (design-decision mode, non-main parent branch, unresolved Step 9 findings). Append `-seq` only when the plan is multi-wave (`/x-wt-teams` path). Reviewer flags from this session are still NOT forwarded
-- **`-a` / `--auto` is the autonomy flag — issues auto-create, and `-a` forwards into implementation** — without `-impl`, `-a` skips the Step 6 confirmation wait and auto-creates the issues, but falls back to ask-and-wait when a pre-creation concern signal fires (`Plan mode: design-decision` or `$PARENT_BRANCH` ≠ `main`); the Step 5 review and Step 9 verification quality gates still run (that's what separates `-a` from `-nor`). `-a` alone does NOT auto-implement — it hands off like the normal flow. With `-impl`, `-a` is the **one** flag that forwards to the implementation skill Step 11 invokes — `/x-wt-teams` (`-seq -a` or `-a`) for a multi-sub-issue plan, or `/x-as-pr -a {sub-issue-url}` for a single-sub-issue plan — so the implementation auto-completes the PR (CI + merge + cleanup) and the whole plan → impl → merge → cleanup chain runs without a human
+- **`-a` / `--auto` is the autonomy flag — issues auto-create, and `-a` forwards into implementation** — without `-impl`, `-a` skips the Step 6 confirmation wait and auto-creates the issues, but falls back to ask-and-wait when a pre-creation concern signal fires (`Plan mode: design-decision` or `$PARENT_BRANCH` ≠ `main`); the Step 5 review and Step 9 verification quality gates still run (that's what separates `-a` from `-nor`). `-a` alone does NOT auto-implement — it hands off like the normal flow. With `-impl`, `-a` and `-fix` are the flags that forward to the implementation skill Step 11 invokes — `/x-wt-teams` (`-seq -a -fix` or any subset) for a multi-sub-issue plan, or `/x-as-pr -a -fix {sub-issue-url}` for a single-sub-issue plan — so the implementation auto-completes the PR (CI + merge + cleanup) and, when `-fix` is set, also auto-fixes the safe `agent-found` findings before cleanup. `-a` and `-fix` are independent; the reviewer / `-nor` flags still do NOT forward
 - **Classify the plan as goal-clear or design-decision — mandatory (Step 3.6)** — every plan MUST be classified before Step 4 saves the log. Record `**Plan mode:** goal-clear` or `design-decision` in the plan log header. For **goal-clear plans** (bugfix / regression / refactor / performance / parity / migration — the success criterion is unambiguous), **NEVER recommend "checkpoint after Wave N" in the Step 11 hand-off** — the user's time is a real cost and inter-wave human pauses are anti-leverage when the goal is clear. Instead, **bake every would-be-checkpoint decision into a dedicated `model: opus` sub-task** that reads the upstream artifact, picks among alternatives, and edits the downstream sub-issue's body via `gh issue edit` to lock in the concrete spec. Goal-clear plans are designed to run end-to-end under `/x-wt-teams` (or `/x-wt-teams -seq` if the user prefers strict-sequential) with no human in the loop until verification. For **design-decision plans** (new features / UI variations / content structure / scoping — the success criterion depends on user preference) human checkpoints between waves are appropriate when the user wants to review artifacts; the Step 11 hand-off still defaults to the one-shot `/x-wt-teams {epic-url}` and documents the manual `-s` checkpoint flow (wave 1 plain → `git checkout base/{slug}` → `-s` for wave 2+) as the option for those
-- **Issues must be portable across machines (Cross-machine portability)** — implementation often runs on a different machine (via `/x-wt-teams`) that shares the repo layout but NOT this machine's `$HOME/cclogs/`. The GitHub issues are the only artifact that travels, so every implementer-facing reference in them must survive the move: other repos as `$HOME/repos/...` (never machine-absolute or `/mnt/c/Users/...`), implementer-facing detail in the issue body / a comment / an attached text file (never the `$HOME/cclogs/...` log path), and images / prototypes via `/gh-issue-with-imgs` or `$DROPBOX_SCREENSHOTS_DIR`
+- **Issues must be portable across machines (Cross-machine portability)** — implementation often runs on a different machine (via `/x-wt-teams`) that shares the repo layout. cclogs is Dropbox-synced now, but sync lag and discoverability make it the wrong handoff surface, so the GitHub issue is still the artifact you design for: every implementer-facing reference in it must survive the move — other repos as `$HOME/repos/...` (never machine-absolute or `/mnt/c/Users/...`), the *distilled* implementer-facing spec in the issue body or a comment (never a full conversation log or large raw dump — that leaks on a public repo and bloats the issue; keep raw logs in the Dropbox cclogs dir, never in any issue and never via the `$HOME/cclogs/...` log path), and images / prototypes via `/gh-issue-with-imgs`, the Dropbox cclogs dir (`$DROPBOX_CCLOGS_DIR/...`), or `$DROPBOX_SCREENSHOTS_DIR`
 - **No `~` in paths** — always use `$HOME`

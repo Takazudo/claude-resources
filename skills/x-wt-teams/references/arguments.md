@@ -7,7 +7,7 @@ Single source of truth for every `/x-wt-teams` flag. The skill body links here i
 ```
 [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap]
 [-t-op|--team-opus] [-t-so|--team-sonnet]
-[-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui]
+[-a|--auto] [-fix|--auto-fix] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui]
 [-seq|--sequentially] [-nor|--no-review] [--noi]
 [-ri|--raise-issues] [-nori|--no-raise-issues]
 [#issue-number] <instructions>
@@ -33,6 +33,7 @@ Two orthogonal groups govern delegation:
 | `-t-op` | `--team-opus` | Force every child agent and fix-delegation agent to Opus. Session-wide override of per-topic `/big-plan` `**Model:**` markers. | Mutually exclusive with `-t-so`. **Manager always runs as Opus regardless.** |
 | `-t-so` | `--team-sonnet` | Force every child agent and fix-delegation agent to Sonnet. Session-wide override. | Mutually exclusive with `-t-op`. There is no `-t-haiku` — haiku is rare enough that it stays opt-in via `/big-plan` per-topic markers only. |
 | `-a` | `--auto` | After Step 15, run `/pr-complete -c` (wait for CI, merge, close issue), then invoke `/watch-ci` on the merged target branch; if red, spawn an Opus subagent to fix (max 2 cycles). | **Ignored in Super-Epic child mode** (see `super-epic-mode.md`). Treat as no-op there. |
+| `-fix` | `--auto-fix` | Opt-in. After the main work, before Step 16 cleanup, auto-fix the safe subset of `agent-found` issues raised this session (triage leave-open-vs-fix; tiny fixes bundled into one `agent-fix/<slug>` PR, non-trivial ones each own PR; every fix runs `/light-review`; close + link on success; cap ~3 rounds). See the "Auto-Fixing Raised Findings" step in `SKILL.md`. | Requires `-ri` (the default); **no-op under `-nori`**. Fix PRs follow the same `-a` auto-merge semantics as the root PR. Independent of `-a`. |
 | `--no-issue` | — | Skip GitHub issue creation. All `gh issue comment` calls become no-ops. | Cannot create issue mid-run if missed. |
 | `-s` | `--stay` | **OPT-IN ONLY.** Reuse the current branch as the base branch (no new `base/<project-name>`). | See "`-s` / `--stay` mechanism" below. NEVER auto-detect — even with an existing PR, even on a topic branch. |
 | `-l` | `--review-loop` | Replace Step 9 `/deep-review` with `/review-loop 5 --aggressive --issues`. | `--issues` dropped if `--noi` is also passed. |

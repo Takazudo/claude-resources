@@ -24,6 +24,7 @@ You need to receive following context.
 ## File Management Protocol
 
 When saving files:
+
 - Default location: `{logdir}/{timestamp}-{suitable-words}.md`
 - Filename construction:
   - ALWAYS use the `{timestamp}` placeholder which will be replaced with local timestamp
@@ -35,7 +36,7 @@ When saving files:
   3. The script will automatically replace `{timestamp}` and `{logdir}` with correct values
   4. Post-save formatting: Always run `npx @takazudo/mdx-formatter --write <file.md>` after saving
 - Available placeholders for save-file.js:
-  - `{logdir}` - Centralized log directory (`$HOME/cclogs/{repo-name}/`). NEVER use `~` in paths — it won't expand in Node.js
+  - `{logdir}` - Centralized log directory (`$HOME/cclogs/{repo-name}/`, Dropbox-synced across machines). NEVER use `~` in paths — it won't expand in Node.js
   - `{timestamp}` - MMDD_HHMM format (e.g., 0822_1930)
   - `{date}` - YYYYMMDD format (e.g., 20250822)
   - `{time}` - HHMM format (e.g., 1930)
@@ -49,6 +50,7 @@ When including URLs in Japanese text, avoid inline URLs that GitHub auto-links i
 ### Pattern 1: Separate URL as bullet list
 
 When the URL is supplementary information:
+
 ```
 サイト名において、問題が発生していました。
 
@@ -59,11 +61,13 @@ When the URL is supplementary information:
 ### Pattern 2: Markdown link format
 
 When the URL is integral to the text flow:
+
 ```
 [サイト名](https://example.com/path/to/page)において、問題が発生していました。
 ```
 
 Choose based on context:
+
 - Use Pattern 1 when the URL is reference/supplementary information
 - Use Pattern 2 when the site name and URL form a natural clickable unit
 - Never use raw URLs in parentheses like `サイト名（https://...）` as GitHub incorrectly auto-links these
@@ -84,6 +88,7 @@ Choose based on context:
 ### Examples
 
 **Correct Usage:**
+
 ```markdown
 #### Section Title
 
@@ -97,6 +102,7 @@ Choose based on context:
 ```
 
 **Incorrect Usage:**
+
 ```markdown
 **Section Title:**
 
@@ -113,6 +119,7 @@ Choose based on context:
 Bold text (`**text**`) is for inline emphasis within sentences, not as pseudo-headings for list items:
 
 **Incorrect - Bold Used as List Headers:**
+
 ```markdown
 - **New fitting execution**
   - When user performs new snap fitting
@@ -123,6 +130,7 @@ Bold text (`**text**`) is for inline emphasis within sentences, not as pseudo-he
 ```
 
 **Correct - Plain Text for List Items:**
+
 ```markdown
 - New fitting execution
   - When user performs new snap fitting
@@ -133,6 +141,7 @@ Bold text (`**text**`) is for inline emphasis within sentences, not as pseudo-he
 ```
 
 **Correct - Bold for Inline Emphasis Only:**
+
 ```markdown
 - When user performs **new snap fitting**, the badge resets its hidden state
 - Browser cache clear or **private browsing mode** clears localStorage
@@ -143,6 +152,7 @@ Bold text (`**text**`) is for inline emphasis within sentences, not as pseudo-he
 Never mix ordered lists (ol) and unordered lists (ul) within the same content structure:
 
 **Incorrect - Mixed List Types:**
+
 ```markdown
 1. **Item 1**: Description
    - Sub-item 1-1
@@ -152,6 +162,7 @@ Never mix ordered lists (ol) and unordered lists (ul) within the same content st
 ```
 
 **Correct - Consistent Unordered Lists:**
+
 ```markdown
 - Item 1: Description
   - Sub-item 1-1
@@ -161,6 +172,7 @@ Never mix ordered lists (ol) and unordered lists (ul) within the same content st
 ```
 
 **Alternative - Single Line Format:**
+
 ```markdown
 - Item 1: Description (sub-item 1-1, sub-item 1-2)
 - Item 2: Description (sub-item 2-1)
@@ -171,6 +183,7 @@ Never mix ordered lists (ol) and unordered lists (ul) within the same content st
 Never put code blocks inside list items as it makes documentation complicated. Code blocks should be placed outside of lists with proper context:
 
 **Incorrect - Code Block Inside List:**
+
 ```markdown
 - LayoutDivide: Two-column layout component
   ```jsx
@@ -182,6 +195,7 @@ Never put code blocks inside list items as it makes documentation complicated. C
 ```
 
 **Correct - Code Block Outside List:**
+
 ```markdown
 - LayoutDivide: Two-column layout component
 
@@ -207,6 +221,7 @@ This formatting keeps the documentation clean and readable while maintaining pro
 4. Avoid empty headings: Don't use headings without content between them
 
 **Case 1: Simple content → Numbered list**
+
 ```markdown
 #### Benefits
 
@@ -216,6 +231,7 @@ This formatting keeps the documentation clean and readable while maintaining pro
 ```
 
 **Case 2: Complex content → Heading structure (watch levels)**
+
 ```markdown
 ## Usage
 
@@ -228,11 +244,14 @@ This formatting keeps the documentation clean and readable while maintaining pro
 ### 2. Widget Initialization
 
 ```js
+
 myapp.init({ /* ... */ });
+
 ```
 ```
 
 **Case 3: Under h3 sections, use h4**
+
 ```markdown
 ### Processing Flow
 
@@ -246,6 +265,7 @@ Reflect fetched data in UI
 ```
 
 **Case 4: Avoid contentless consecutive headings**
+
 ```markdown
 ❌ Bad:
 ### 1. Add condition

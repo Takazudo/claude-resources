@@ -70,25 +70,33 @@ Skill(skill="gcoc-review")
 
 ### Step 2: Determine Review Mode
 
-**CRITICAL: Detect whether this is a PR review or a full-project review.**
+**CRITICAL: Decide between a branch-diff review and a full-project scan by asking "does this branch have changes against a base?" — NOT "does a PR exist?".** A feature branch with commits ahead of its base but no PR yet must still be reviewed as a diff of its own changes, not as a whole-project scan. Keying off PR existence is the bug that makes `/review-loop` on a no-PR branch feel like it "reviews from main": the whole repo gets scanned instead of the branch's work.
 
-1. **Check current branch and PR status:**
+1. **Resolve the current branch and its base — same logic the external backends (`/gcoc-review`, `/gco-review`, `/codex-review`) use, and the same parent resolution as `/x-wt-teams --stay`:**
 
    ```bash
-   git branch --show-current
-   gh pr view --json baseRefName,headRefName,number,title 2>/dev/null
+   BRANCH=$(git branch --show-current)
+   DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
+   BASE=$(gh pr view --json baseRefName -q '.baseRefName' 2>/dev/null)
+   [ -z "$BASE" ] && BASE="$DEFAULT_BRANCH"   # no PR → fall back to repo default branch
    ```
 
-2. **If current branch has a PR:**
+   `$BASE` is consumed by the diff in Step A-1 and the codex `--base "$BASE"` companions in Steps A-2b/A-2c.
 
-- Use **PR Review Mode** (3 reviewers, diff-based)
-- Use the PR's `baseRefName` as the base branch for diff
-- Report: "Found PR #X targeting `base-branch`, reviewing changes against that branch"
+2. **PR Review Mode (Mode A — 3 reviewers, diff-based)** — use when the branch is NOT the default branch **and** has commits against `$BASE`:
 
-3. **If current branch is the default branch (main/master) or has no PR:**
+   ```bash
+   git diff --quiet "$BASE"...HEAD || HAS_CHANGES=1   # HAS_CHANGES=1 means there is a diff to review
+   ```
 
-- Use **Full Project Review Mode** (6 reviewers, whole-project scan)
-- Report: "On default branch with no PR — running full project review"
+   When `$BRANCH` ≠ `$DEFAULT_BRANCH` and `HAS_CHANGES=1`, review `git diff $BASE...HEAD`:
+
+- With a PR: "Found PR #X targeting `$BASE`, reviewing changes against that branch"
+- Without a PR: "On branch `$BRANCH` with no PR — reviewing its diff against `$BASE` (the branch's own changes), not the whole project"
+
+3. **Full Project Review Mode (Mode B — 6 reviewers, whole-project scan)** — use **only** when on the default branch, or when the branch has no changes against `$BASE` (nothing to diff):
+
+- "On default branch / no branch changes — running full project review"
 
 ---
 
@@ -97,8 +105,10 @@ Skill(skill="gcoc-review")
 ### Step A-1: Get the Diff
 
 ```bash
-git diff <base-branch>...HEAD
+git diff "$BASE"...HEAD
 ```
+
+`$BASE` was resolved in Step 2 (PR base if a PR exists, else the repo default branch).
 
 ### Step A-2: Run 3 Parallel Reviews
 
@@ -275,7 +285,7 @@ Both `/gco-review` and `/gcoc-review` already silently fall back to Claude-based
 
 ## Mode B: Full Project Review (6 Reviewers)
 
-When on the default branch (or no PR exists), perform a comprehensive review of the **entire project**.
+When on the default branch (or the branch has no changes against `$BASE`), perform a comprehensive review of the **entire project**. Note: a non-default branch with commits ahead of `$BASE` but no PR still uses Mode A — see Step 2.
 
 ### Step B-1: Understand the Project
 
@@ -629,8 +639,9 @@ In team-fix mode (`-t`), `/x-wt-teams` runs its own `/pr-revise` at Step 13, so 
 - **Default strategy:** `/gcoc-review` (zero Premium consumption). The Claude reviewer workflow is opt-in via `-haiku` / `-so` / `-op`.
 - **Default fix strategy:** `-t` team-fix mode. After findings are presented, the actual fix work is delegated to `/x-wt-teams --no-review --stay`. Pass `-nt` / `--no-team` to keep fixes inline. The recursion guard is the `--no-review` flag on the inner `/x-wt-teams` — never omit it.
 - **CRITICAL (flag-driven path):** when a Claude model flag is passed, all reviews MUST be launched in parallel in a single message using the resolved model
-- **PR mode:** 3 Claude reviewers analyze the diff against the base branch, plus any backend reviewers (`-co` / `-gco` / `-gcoc`) in parallel
-- **Full project mode:** 6 Claude reviewers scan the entire codebase independently, plus any backend reviewers in parallel
+- **Mode selection keys off branch changes, not PR existence:** any non-default branch with commits ahead of `$BASE` gets a diff review (Mode A) even without a PR. Full-project scan (Mode B) is reserved for the default branch or a branch with nothing to diff. This keeps `/review-loop` anchored to the current branch's work instead of scanning the whole repo.
+- **PR / branch-diff mode (Mode A):** 3 Claude reviewers analyze `git diff $BASE...HEAD`, plus any backend reviewers (`-co` / `-gco` / `-gcoc`) in parallel
+- **Full project mode (Mode B):** 6 Claude reviewers scan the entire codebase independently, plus any backend reviewers in parallel
 - **Primary focus:** Bugs, problems, and actionable improvements
 - **Secondary focus:** Security issues (point out if found, but not the main focus)
 - Focus on practical, actionable improvements

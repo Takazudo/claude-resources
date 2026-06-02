@@ -1,7 +1,7 @@
 ---
 name: x-as-pr
 description: "Start a development workflow as a draft PR. Creates a NEW branch from the current branch, empty start commit, draft PR targeting the current branch, then implements. ALWAYS creates a new branch by default — produces a nested PR-on-PR when the current branch already has one. Use when: (1) User says 'dev as pr', (2) User wants a PR-first workflow before coding, (3) User passes -s/--stay to reuse the current branch instead of nesting, (4) User passes a GitHub issue URL to implement, (5) User passes --make-issue/--issue to create an issue first. Logs progress via issue comments when an issue is linked."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [--noi] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-fix|--auto-fix] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [--noi] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
@@ -69,6 +69,7 @@ Parse `$ARGUMENTS` to extract:
 - **`-gcoc` or `--github-copilot-cheap` flag**: Like `-gco` but forces the free `gpt-4.1` model. See "GitHub Copilot Cheap Mode" below. Combines with every other reviewer flag.
 - **Team-member model flags** (`-t-op` / `--team-opus`, `-t-so` / `--team-sonnet`): Override the model used by the fix-delegation Agent spawned after review (and any other subagents spawned during implementation). Pick at most one. **Default: `opus`.** No `-t-haiku` — haiku is too small for fix-delegation work and not offered as a session-wide override. See "Team Member Model Override" below.
 - **`-a` or `--auto` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes. See "Auto-Complete Mode" below
+- **`-fix` or `--auto-fix` flag**: If present, after the main work auto-fix the safe subset of `agent-found` issues raised this session, before final cleanup. Opt-in only (off by default). Requires `-ri` (the default) and is a **no-op under `-nori`** (nothing was raised to fix). See "Auto-Fixing Raised Findings (`-fix` / `--auto-fix`)" below
 - **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
 - **Branch name**: Explicit branch name if provided (look for words like `branch:` or a slash-containing name like `topic/foo`)
 - **Base branch**: Explicit base branch if provided (look for words like `base:` or `from:`)
@@ -931,6 +932,80 @@ git pull origin "$TARGET_BRANCH"
 
 ---
 
+## Post-Implementation: Auto-Fixing Raised Findings (`-fix` / `--auto-fix`)
+
+**Only run this step if `-fix` / `--auto-fix` was passed.** Otherwise skip straight to the cleanup audit below. This step runs AFTER the main PR work (and after Auto-Complete, if `-a` was used) and BEFORE `/cleanup-resources`.
+
+**Gating:**
+
+- Requires `-ri` (the default). If `-nori` / `--no-raise-issues` was passed, this step is a **no-op** — no `agent-found` issues were raised this session, so there is nothing to fix. Print one line and skip.
+- Opt-in only. For careful / manual sessions, you simply don't pass `-fix`.
+
+**Scope:** the `agent-found` issues *raised by this session* (the ones tracked in session state from the "Raising Issues for Unrelated Findings" step). Do NOT sweep up unrelated pre-existing `agent-found` issues from other sessions.
+
+### Per raised `agent-found` issue, triage
+
+Ensure the `needs-decision` label exists once before the first leave-open (idempotent, mirrors the `agent-found` label block):
+
+```bash
+gh label create "needs-decision" \
+  --description "Left open by -fix: needs a human product/design decision or is too big for an auto-fix session" \
+  --color "d93f0b" 2>/dev/null || true
+```
+
+1. **LEAVE OPEN** — when the finding needs a product/design decision, or is too big for this session: a big architecture change, removing an existing UI / feature, adding a big feature, or anything needing product/design judgment. Do NOT touch the code. Add a short note comment and the `needs-decision` label:
+
+   ```bash
+   gh issue comment <ISSUE_NUM> --body "Left open by -fix: needs a human decision (product/design judgment or too large for an auto-fix session)."
+   gh issue edit <ISSUE_NUM> --add-label "needs-decision"
+   ```
+
+2. **AUTO-FIX** — everything else, with landing chosen by SCOPE:
+
+- **TINY / trivial / localized** (one-liner, obvious cleanup, single-spot fix): **bundle ALL tiny fixes into ONE shared fix PR** on a single `agent-fix/<slug>` branch. `<slug>` is a short kebab description of the batch (e.g. `agent-fix/lint-and-typos`).
+- **NON-TRIVIAL but bounded** (real but self-contained change): **each gets its OWN `agent-fix/<slug>` branch + PR.**
+
+### Landing each fix
+
+**Target the parent / ultimate-landing branch, NOT an intermediate base** — for `/x-as-pr` that is `TARGET_BRANCH` (the branch the main PR targets). This keeps fix branches valid even when `-a` already merged + deleted the main working branch. Each `agent-fix/<slug>` branch is created from `TARGET_BRANCH` and its PR targets `TARGET_BRANCH`.
+
+For each fix branch (the tiny bundle, or one per non-trivial issue):
+
+1. `git checkout -b agent-fix/<slug> <TARGET_BRANCH>` and implement the fix(es). Commit locally.
+2. **Run `/light-review`** before merge — forward the active reviewer flags (`-op` / `-so` / `-haiku` / `-co` / `-gco` / `-gcoc`) so `-op` → opus-backed review. The tiny bundle is reviewed as a unit; per-issue fixes are reviewed individually. Address high-priority findings and commit.
+3. Push and open the fix PR (`gh pr create --base <TARGET_BRANCH> ...`), body linking the `agent-found` issue(s) it closes (e.g. `Closes #<n>`).
+4. **Verify the fix** (build / tests / the issue's described check, as appropriate).
+5. **On success: CLOSE the corresponding `agent-found` issue and link the fix PR:**
+
+   ```bash
+   gh issue comment <ISSUE_NUM> --body "Fixed by -fix: <fix-PR-URL>. Closing."
+   gh issue close <ISSUE_NUM>
+   ```
+
+   This overrides `/cleanup-resources`'s "always keep" for the FIXED issues only — left-open / unfixed ones stay open and kept.
+
+### Loop + guardrails
+
+- Repeat the triage → fix → close loop until no auto-fixable issues remain.
+- **Cap at ~3 rounds.** If a fix repeatedly fails (still broken after retry), **leave that issue open** with a comment and stop retrying it:
+
+  ```bash
+  gh issue comment <ISSUE_NUM> --body "auto-fix attempted by -fix but did not converge — needs human. <brief note on what was tried>."
+  ```
+
+  Do NOT add `needs-decision` here (that label is for the deliberate leave-open path); this is a failed-fix marker. Never loop forever.
+
+### `-a` interaction (fix PR auto-merge)
+
+Fix PRs follow the **same auto-merge semantics as the main PR**:
+
+- **With `-a`**: after `/light-review` and verification, auto-merge each fix PR (e.g. `/pr-complete -c -w` per fix PR, or `gh pr merge --merge --delete-branch` once green) — same as the main PR's auto-complete.
+- **Without `-a`**: leave each fix PR as a ready (non-draft) PR for the user to merge, and still close the linked `agent-found` issue with the link once the fix is verified and the PR is up.
+
+Track the fix PRs and the closed issues in session state — pass the fix PRs to `/cleanup-resources` (role: `fix`) in the next step, and the closed `agent-found` issues will be left as-is by the audit.
+
+---
+
 ## Post-Implementation: Cleanup audit via `/cleanup-resources`
 
 **Always run this step before STOP.** Replaces the older bespoke "close tracking issue + delete local branch" logic — those steps tended to silently slip in long workflows. Hand cleanup off to `/cleanup-resources` so the audit is explicit; the Sonnet subagent re-fetches every resource and returns a close/keep/delete plan, then the manager (you) executes it and prints a final report.
@@ -951,13 +1026,16 @@ Skill tool: skill="cleanup-resources", args="workflow:x-as-pr <-a if passed>"
 - Issues to include:
   - **Tracking issue** (if `--make-issue` created it) — role: `tracking`. Sonnet should propose CLOSE on success. The agent's prompt forbids closing a `tracking` issue if its TODO checklist still has unchecked items, which guards against premature closure.
   - **Pre-existing issue** (if user passed an issue URL/number) — role: `claimed-existing`. Sonnet should propose KEEP unless the user passed `-a` and the PR merged (in which case `/pr-complete -c` already closed it; agent should propose KEEP with reason "already closed by /pr-complete").
-  - **Unrelated-findings issues** raised during coding/review (track them in session state as you create them) — role: `unrelated-finding`. ALWAYS KEEP — never close these.
+  - **Unrelated-findings issues** raised during coding/review (track them in session state as you create them) — role: `unrelated-finding`. ALWAYS KEEP unless closed by `-fix` (the auto-fix step closes the ones it fixed and links the fix PR; the audit leaves those closed and keeps every still-open one).
   - **Review-fix issue** (if review fixes were delegated) — role: `fix`. Sonnet should propose CLOSE if the fix-delegation agent merged its fixes successfully.
+  - **`agent-found` issues closed by `-fix`** (if the auto-fix step ran) — already closed by this session; the audit confirms KEEP-as-closed.
 - Branches to include:
   - **Working branch** (`$BRANCH_NAME`) — role: `working`. Pass `pr-merged: <true|false>` based on whether `-a` resulted in a successful merge.
+  - **`agent-fix/<slug>` branches** (if the `-fix` step created any) — role: `fix`. Pass `pr-merged: <true if the fix PR merged — always under `-a`, else false>` so merged fix branches are cleaned up and unmerged ones (ready PRs awaiting the user) are kept.
   - **Target branch** (`$TARGET_BRANCH`) — role: `parent`. Always KEEP (cleanup-resources protects parent roles).
 - PRs to include:
   - **Root PR** — role: `root`, state from `gh pr view`.
+  - **`-fix` fix PRs** (if the auto-fix step created any) — role: `fix`, state from `gh pr view`. Merged → done; ready/open → KEEP (intentional, awaiting the user when `-a` was not passed).
 
 After `/cleanup-resources` returns its report, surface the closed/deleted/kept counts to the user. If the report has an "Ambiguous" section, list those resources verbatim and let the user decide before STOP.
 

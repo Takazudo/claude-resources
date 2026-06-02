@@ -24,7 +24,7 @@ Save a research log using save-file.js:
 
 ### Available Placeholders
 
-- `{logdir}` - Centralized log directory (`$HOME/cclogs/{repo-name}/`)
+- `{logdir}` - Centralized log directory (`$HOME/cclogs/{repo-name}/`, Dropbox-synced across machines)
 - `{timestamp}` - MMDD_HHMM format (e.g., 0822_1930)
 - `{date}` - YYYYMMDD format
 - `{time}` - HHMM format

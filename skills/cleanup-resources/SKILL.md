@@ -57,7 +57,7 @@ Structure the manifest as a single markdown block. Use this exact shape so the a
 
 - Issue roles: `source` (existed before; the workflow superseded it), `tracking` (created by the workflow as a spec/log), `epic`, `sub` (under an epic), `fix` (review-fix issue), `unrelated-finding` (side-effect issue raised mid-workflow), `claimed-existing` (user-supplied, not created here).
 - PR roles: `root` (the main PR for the workflow), `topic` (sub-PR merged into a base branch), `fix` (delegated fix PR).
-- Branch roles: `base` (the base branch of an x-wt-teams session), `topic` (child branch under a base), `working` (the single x-as-pr working branch), `parent` (the branch the parent workflow targeted).
+- Branch roles: `base` (the base branch of an x-wt-teams session), `topic` (child branch under a base), `working` (the single x-as-pr working branch), `fix` (an `agent-fix/<slug>` branch from the `-fix` auto-fix step), `parent` (the branch the parent workflow targeted).
 
 If a resource doesn't fit, invent a short role label and explain in **Notes for the agent**.
 
@@ -80,7 +80,7 @@ Audit procedure:
    - Is it already closed? → action: keep, reason: "already closed".
    - Does its body declare a TODO checklist with unchecked items? → action: keep, reason: "TODO checklist has open items".
    - Was its work superseded by another issue/PR in the manifest (e.g. source issue replaced by an epic, fix issue replaced by a merged PR)? → action: close, with a one-line comment referencing the superseder.
-   - Is it an `unrelated-finding`? → action: keep (these are intentional follow-ups, never close them).
+   - Is it an `unrelated-finding`? → action: keep, UNLESS it was already closed by `-fix` (the `/x-as-pr` or `/x-wt-teams` auto-fix step closes the ones it fixed and links the fix PR). An already-closed `unrelated-finding` stays closed (action: keep, reason: "already closed by -fix"). Open ones are intentional follow-ups — never close them here.
    - Is it a `tracking` issue whose root PR is now merged (or the workflow ended cleanly)? → action: close.
    - Is it a `sub` issue whose corresponding PR is merged into the base? → action: close.
    - Is it an `epic` whose root PR is merged AND all sub-issues are closed? → action: close. Otherwise → keep.
@@ -90,7 +90,7 @@ Audit procedure:
 3. For every branch in the manifest:
    - Check remote state: `gh api repos/{owner}/{repo}/branches/{name}` or `git ls-remote --heads origin <branch>`.
    - Check local state: assume the manager will check with `git branch --list <name>` before deleting.
-   - If pr-merged=true and the branch's role is `topic`, `working`, or `base` → action: delete (both local and remote where applicable). Reason: "PR merged, branch is a dead pointer."
+   - If pr-merged=true and the branch's role is `topic`, `working`, `base`, or `fix` → action: delete (both local and remote where applicable). Reason: "PR merged, branch is a dead pointer."
    - If the remote has already been deleted (e.g. by `gh pr merge --delete-branch`) but the local still exists → action: delete-local-only.
    - If pr-merged=false → action: keep.
    - NEVER propose deleting `parent` branches — those belong to other work.
@@ -217,7 +217,7 @@ If the **Ambiguous** section is non-empty, do NOT auto-resolve. Surface to the u
 
 - **Closing issues is reversible.** `gh issue reopen` exists. Default to closing when the agent is confident.
 - **Deleting branches is harder to reverse.** The agent must show pr-merged=true before proposing delete. If `git branch -d` (without force) refuses, trust the refusal — there are unmerged commits.
-- **Unrelated-findings issues are ALWAYS kept.** They are explicitly opt-in follow-up work. The agent's prompt enforces this; the manager doesn't second-guess.
+- **Unrelated-findings issues are ALWAYS KEPT unless closed by `-fix`.** They are explicitly opt-in follow-up work, so the audit never closes an open one. The exception is the `-fix` / `--auto-fix` auto-fix step in `/x-as-pr` / `/x-wt-teams`: it closes the `agent-found` issues it actually fixed (linking the fix PR) before cleanup runs. The audit leaves those already-closed and keeps every still-open one. The agent's prompt enforces this; the manager doesn't second-guess.
 - **The user's `-a` / `--auto` flag is the signal for aggressive cleanup.** Without `-a`, prefer keeping branches around — the user may want to inspect locally before deleting. With `-a` and root-PR-merged, the user opted in to full cleanup including local dead branches (this is the specific bug the skill fixes: `--delete-branch` removes remote, the old workflow left local behind).
 
 ## When to skip this skill

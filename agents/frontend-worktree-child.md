@@ -86,7 +86,7 @@ The project's `CLAUDE.md` may name the workspace root (`packages/`, `sub-package
 - **Make Log**: Save a log of what you did with filename format:
   `{logdir}/{timestamp}-wt-child-{context}.md`
   - Use the save-file script: `$HOME/.claude/scripts/save-file.js "{logdir}/{timestamp}-wt-child-{context}.md" "content"`
-  - The `{logdir}` placeholder resolves to `$HOME/cclogs/{repo-name}/` (NEVER use `~` in paths — it won't expand in Node.js)
+  - The `{logdir}` placeholder resolves to `$HOME/cclogs/{repo-name}/` — Dropbox-synced across machines (NEVER use `~` in paths — it won't expand in Node.js)
   - Post-save: run `pnpm dlx @takazudo/mdx-formatter --write <file.md>`
 
 ## Tool Usage

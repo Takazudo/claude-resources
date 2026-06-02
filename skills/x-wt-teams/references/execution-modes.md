@@ -4,9 +4,15 @@ How `/x-wt-teams` decides whether to spawn each child as a one-shot **subagent**
 
 ## TL;DR
 
-- **Default = teams.** Existing behavior. If no `Execution mode:` marker is found anywhere, run the full team workflow exactly as Step 5 has always done.
-- **All topics marked `subagents` = subagents path.** No team is created. Each topic runs as a one-shot Agent call with `subagent_type: "frontend-worktree-child"` (or `general-purpose` for non-frontend), pointing at the pre-created worktree. No TeamCreate, no shutdown ceremony, no SendMessage.
-- **Mixed (any topic marked `teams`) = teams path for the whole session.** Simpler than mixing the two spawn mechanisms and matches how peers expect to message each other. The subagent-marked topics still benefit from the team's shared task list, just without subagent savings.
+Two axes that are easy to conflate — keep them separate:
+
+- **Routing default = teams** (unchanged). The *routing fallback* when markers are missing is still teams: if no `Execution mode:` marker is found anywhere, run the teams path.
+- **Disclosure default = subagents** (the common case). The **subagents path is now the inline default** in `SKILL.md` Step 5 / Step 7 — it owns the canonical prompt body. The teams path is on-demand in `references/teams-path.md`, read only when the routing resolves to teams. This keeps teams tokens off every invocation while preserving teams as the escape hatch.
+
+Concretely:
+
+- **All topics marked `subagents` = subagents path (inline default).** No team is created. Each topic runs as a one-shot Agent call with `subagent_type: "frontend-worktree-child"` (or `general-purpose` for non-frontend), pointing at the pre-created worktree. No TeamCreate, no shutdown ceremony, no SendMessage. This is exactly the inline `SKILL.md` Step 5 / Step 7 flow.
+- **Any topic marked `teams`, OR any topic missing the marker = teams path for the whole session.** Read `references/teams-path.md` and run the full team workflow there. Simpler than mixing the two spawn mechanisms and matches how peers expect to message each other. The subagent-marked topics still benefit from the team's shared task list, just without subagent savings. The missing-marker fallback being teams preserves pre-annotation behavior.
 
 ## Why two paths exist
 
@@ -95,9 +101,9 @@ Cheap heuristic — for each topic, before spawning:
 
 This is **advisory, not blocking**. Don't pause for confirmation when no drift signal is detected — just proceed. The check exists to catch the edge case where a topic was rewritten after `/big-plan`'s annotation; the common case is no edit and the marker is correct.
 
-## Subagents path — Step 5 replacement
+## Subagents path — the inline Step 5 default (Agent-call shape)
 
-When `spawn_path == "subagents"`, replace the Step 5 TeamCreate + team-member spawn flow with parallel Agent tool calls:
+`spawn_path == "subagents"` is the inline default in `SKILL.md` Step 5. This is the exact Agent-call shape for each topic (the canonical prompt body items a–j are in `SKILL.md` Step 5):
 
 1. **No TeamCreate. No TaskCreate.** Skip both.
 2. For each topic, issue an Agent tool call in the **same message** (parallel) — capped at 6 concurrent (same rule as the teams path):
@@ -107,7 +113,7 @@ When `spawn_path == "subagents"`, replace the Step 5 TeamCreate + team-member sp
      description: "Implement <topic-name>",
      subagent_type: "frontend-worktree-child",   // or "general-purpose" for non-frontend
      model: <resolved per-topic team-member model (see references/per-topic-models.md), default opus>,
-     prompt: <same prompt body the teams path would use, with these adjustments:
+     prompt: <the canonical prompt body (items a–j) from SKILL.md Step 5, with these adjustments:
               - tell the agent its working directory is the absolute path of worktrees/<topic>/
               - tell it to commit locally only (no push)
               - tell it to run /light-review and apply useful findings (forwarding any reviewer flag — -op/-so/-haiku/-co/-gco/-gcoc)
@@ -123,12 +129,14 @@ When `spawn_path == "subagents"`, replace the Step 5 TeamCreate + team-member sp
 
 ## Step 7 cleanup — subagents path
 
-When `spawn_path == "subagents"`, Step 7 simplifies:
+On the subagents path (the inline default), Step 7 is the simple form already inline in `SKILL.md` Step 7:
 
-1. **Skip the SendMessage shutdown_request loop.** No team exists.
-2. **Skip TeamDelete.** No team exists.
+1. **No SendMessage shutdown_request loop.** No team exists.
+2. **No TeamDelete.** No team exists.
 3. **Worktree removal still runs.** Same as the teams path.
 4. **pnpm symlink fix still runs** if the project uses pnpm workspaces.
+
+The teams path adds the shutdown ceremony before worktree removal — see `references/teams-path.md` "Step 7 — Teams-path teardown".
 
 The rest of the workflow (Step 6 merge, Step 8 sync, Step 9 review, Step 10 verify-ui, Step 11 push, Step 12 CI watch, Steps 13–15) is identical regardless of path.
 

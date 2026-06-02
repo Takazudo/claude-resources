@@ -100,11 +100,15 @@ fi
 # Full path to worktree
 FULL_WORKTREE_PATH="$REPO_ROOT/$WORKTREE_PATH"
 
-# Create __inbox directory in worktree
-mkdir -p "$FULL_WORKTREE_PATH/__inbox"
+# Prompt file goes in the repo-scoped cclogs dir (Dropbox-synced, cross-machine).
+# get-logdir.js resolves the main repo's cclogs dir from REPO_ROOT; the fallback
+# keeps this working if node is unavailable (DROPBOX_CCLOGS_DIR may be empty in a
+# non-login shell, so it degrades to the ~/cclogs symlink).
+PROMPT_DIR=$(node "$HOME/.claude/scripts/get-logdir.js" 2>/dev/null || echo "${DROPBOX_CCLOGS_DIR:-$HOME/cclogs}/$(basename "$REPO_ROOT")")
+mkdir -p "$PROMPT_DIR"
 
 # Create prompt file
-PROMPT_FILE="$FULL_WORKTREE_PATH/__inbox/issue-${ISSUE_NUMBER}-prompt-${SLUG}.md"
+PROMPT_FILE="$PROMPT_DIR/issue-${ISSUE_NUMBER}-prompt-${SLUG}.md"
 
 # Extract GitHub repo path from remote URL
 REMOTE_URL=$(git remote get-url origin)

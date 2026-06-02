@@ -1,7 +1,7 @@
 ---
 name: x-wt-teams
 description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main)."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-seq|--sequentially] [-nor|--no-review] [--noi] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-fix|--auto-fix] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-seq|--sequentially] [-nor|--no-review] [--noi] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -16,6 +16,7 @@ Detail lives in `references/` so this file stays a workflow spine. Open the rele
 - **`references/super-epic-mode.md`** — Super-Epic child mode lifecycle: detection markers, Step 1a / Step 2 overrides, mandatory epic-PR merge, Auto-Suggest variant, why `-a` is ignored.
 - **`references/reviewer-modes.md`** — `-co` / `-gco` / `-gcoc` substitution tables and Combined Reviewer Mode (run all selected backends).
 - **`references/execution-modes.md`** — subagents vs teams routing: how `/big-plan`'s `Execution mode:` markers are read, default-to-teams fallback, mixed-mode degradation, Step 5 / Step 7 path differences, drift sanity check.
+- **`references/teams-path.md`** — the on-demand teams-path body (read ONLY when a topic is marked `teams` or a marker is missing): TeamCreate + named teammates, the SendMessage no-backticks Ink-crash rule, idle/wake, the shutdown_request teardown, TeamDelete. The common subagents default is inline in Step 5 / Step 7.
 - **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, manual `-t-op` / `-t-so` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
 - **`references/issue-templates.md`** — tracking issue body, claim comments, unrelated-findings issue, Step 14 session report, Step 15 verification comments, accumulating-epic Auto-Suggest hand-off.
 - **`references/resource-coordination.md`** — Playwright / browser isolation rule and port-binding `flock` rule (full patterns).
@@ -71,20 +72,9 @@ These rules apply to the manager session and are carried into child agent prompt
 
 **See `references/resource-coordination.md` for the full dispatch pattern, lock pattern, and rationale. Both rules are HARD — they prevent local-machine freezes and token blow-ups.**
 
-## SendMessage Content — No Markdown Code Spans (Ink Crash Workaround)
+## SendMessage Content — No Markdown Code Spans (teams path only)
 
-**HARD RULE**: Every `SendMessage` tool call — manager → child, child → manager, or peer → peer — MUST use plain prose in the `message` content. No backticks, no triple-backtick code fences, no inline markdown code formatting of any kind. Reference file paths, function names, shell commands, and identifiers as unquoted words.
-
-**Why**: Claude Code v2.1.117 has an unfixed Ink rendering bug ([anthropics/claude-code#51855](https://github.com/anthropics/claude-code/issues/51855)). When a teammate's message contains inline code spans, Claude Code's `※ recap:` summary line crashes with `<Box> can't be nested inside <Text>` at `createInstance` (`cli.js:495:249`). The crashed pane then tears down the whole `$HOME/.claude/teams/<name>/` directory, cascading to all other teammates. In a 6-way parallel workflow, one stray backtick in one message can kill the entire run. Receive-side stalls have also been observed, so the rule applies in both directions.
-
-**Examples:**
-
-- Bad: "Committed the fix to `src/api.ts` — run `pnpm test` to verify"
-- Good: "Committed the fix to src/api.ts — run pnpm test to verify"
-- Bad: triple-backtick fenced diff or code block inside the message
-- Good: "See the log file at {logdir}/… for the diff"
-
-**Scope**: Applies ONLY to `SendMessage` tool calls. Markdown (including backticks and code fences) is still fine everywhere else — commits, PR bodies, issue comments, log files, TaskCreate descriptions, source code. When the upstream bug is fixed, revisit and drop this workaround.
+`SendMessage` is only used on the **teams** path (peers / manager messaging mid-flight). The common subagents default never calls it. The HARD RULE — no backticks / code fences in any `SendMessage` content, to avoid the Claude Code v2.1.117 Ink crash that tears down the team directory — and its rationale, examples, and scope live in **`references/teams-path.md`** under "SendMessage Content". Read that section whenever the spawn path resolves to teams.
 
 ## Architecture
 
@@ -150,9 +140,9 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 2. Create base branch + root PR
 3. Create worktrees for each topic
 4. Set up environment in worktrees
-5. Use TeamCreate + Task tool to spawn child agents in worktrees (NO pushing during implementation — commit only)
+5. Spawn child agents in worktrees — subagents (inline default) or teams (TeamCreate, when a topic is marked `teams`; see `references/teams-path.md`). NO pushing during implementation — commit only
 6. Monitor child agents, review their PRs, merge into base
-7. Shut down child agents — close tmux panes, TeamDelete
+7. Remove worktrees (and, on the teams path, shut the team down — TeamDelete)
 8. Sync local base branch
 9. Quality assurance: `/deep-review` (default) or `/review-loop 5 --aggressive` (if `-l`/`--review-loop`)
 10. Verify UI: `/verify-ui` (if `-v`/`--verify-ui`)
@@ -161,6 +151,9 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 13. Update root PR and mark ready
 14. Session report
 15. Requirements verification (if issue linked)
+
+15.5. Auto-fix raised findings (if `-fix`/`--auto-fix`) — triage `agent-found` issues, auto-fix the safe subset on `agent-fix/<slug>` PRs, close fixed issues
+
 16. Cleanup audit via `/cleanup-resources` — close completed sub-issues / tracking issue, delete dead local/remote branches. **STOP HERE. Workflow ends.**
 17. _(DEFERRED — only when user asks, after PR is merged in a later session)_ Manual cleanup hook — re-invokes `/cleanup-resources` if leftover branches need tidying
 
@@ -338,14 +331,16 @@ done
 
 #### Pick the spawn path first
 
-Before any TeamCreate or Agent call, decide whether this session uses **teams** (default, current behavior) or **subagents** based on the per-topic execution-mode markers extracted in Step 1a:
+Before any Agent or TeamCreate call, decide whether this session uses **subagents** or **teams** based on the per-topic execution-mode markers extracted in Step 1a:
 
-- All topics marked `subagents` → **subagents path** (skip TeamCreate; spawn each topic as a one-shot Agent call).
-- Any topic marked `teams`, OR any topic missing the marker → **teams path** (full team workflow below).
+- All topics marked `subagents` → **subagents path** (the inline default below — skip TeamCreate; spawn each topic as a one-shot Agent call).
+- Any topic marked `teams`, OR any topic missing the marker → **teams path** (read `references/teams-path.md`). The missing-marker fallback being teams preserves pre-annotation behavior.
+
+The subagents path is the inline default here because it's the common case; the teams path body is on-demand in `references/teams-path.md` so it costs no tokens unless a `teams` marker actually appears. The *routing* default when markers are absent is still teams (escape hatch + back-compat).
 
 Tell the user which path was chosen with one line: which path, and why (e.g. "Execution mode: subagents (all 3 topics marked subagents)" or "Execution mode: teams (no `Execution mode` markers found — defaulting to teams)"). Then run a brief drift sanity check per topic.
 
-Full routing logic, marker grep patterns, drift sanity check, and the subagents-path Step 5 / Step 7 behavior live in `references/execution-modes.md` — read it once when the spawn path resolves to subagents, or when any marker is ambiguous.
+Full routing logic, marker grep patterns, drift sanity check, and the subagents-path Agent-call shape live in `references/execution-modes.md`; the full teams-path body lives in `references/teams-path.md` — read it whenever the spawn path resolves to teams or any marker is ambiguous.
 
 #### Resolve model per topic
 
@@ -359,24 +354,21 @@ Tell the user the resolution before spawning, e.g. "Models per topic: topicA=opu
 
 Note: reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children. Only `-t-op` / `-t-so` does. Full table and rationale: `references/per-topic-models.md`.
 
-#### Teams path (default)
+#### Subagents path (default)
 
-Use TeamCreate to create a team, then the Task tool to spawn child agents — one per topic. Each agent works in its own worktree directory.
+This is the common, steady-state default. **Skip TeamCreate and TaskCreate entirely** — spawn each topic as a one-shot Agent tool call pointing at its pre-created worktree. No team, no shutdown ceremony, no SendMessage. The full subagents-path routing and the Step 7 simplification live in `references/execution-modes.md`.
 
 ```
-1. TeamCreate with team_name: "<project-name>"
-2. TaskCreate for each topic (implementation tasks)
-3. Task tool to spawn agents with:
+For each topic, issue an Agent tool call (parallel, capped at 6 concurrent):
    - subagent_type: "frontend-worktree-child" (or "general-purpose" for non-frontend topics)
-   - team_name: "<project-name>"
-   - name: "topic-<name>"  (e.g., "topic-topicA")
-   - (Do NOT pass a `mode:` param. Agent-team teammates inherit the lead's permission mode at spawn
-     time; per-teammate modes cannot be set. Permission prompts on file edits are handled by the
+   - model: the per-topic resolved model — see "Resolve model per topic" above. Always set explicitly per child; different children in the same session may run different models.
+   - (Do NOT pass `isolation: "worktree"` — the worktree already exists from Step 3. Do NOT pass
+     `team_name` / `name` — those are team-only. Permission prompts on file edits are handled by the
      PreToolUse hook at $HOME/.claude/hooks/allow-worktree-teammate-edits.sh, which auto-approves
      Edit/Write/NotebookEdit when either the session cwd or the target file path sits under a
      worktrees/<topic>/ segment. Confirm the hook is registered in settings.json before first use.)
-   - model: the per-topic resolved model — see "Resolve model per topic" above. Always set explicitly per child; different children in the same session may run different models.
-   - prompt: Detailed instructions including:
+   - prompt: Detailed instructions including (this is the CANONICAL prompt body — the teams path in
+     references/teams-path.md reuses items a–j verbatim, layering only its team-specific deltas):
      a. The worktree absolute path to work in
      b. What to implement for this topic
      c. Branch name: <project-name>/<topic-name>
@@ -392,9 +384,9 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
         references/resource-coordination.md.
      h. (If issue tracking is active) ISSUE_NUMBER and instruction to comment on it when done:
         gh issue comment <ISSUE_NUMBER> --body "### topic-<name> — completed\n\n<summary>"
-     i. NO BACKTICKS / CODE FENCES IN SendMessage. When reporting via SendMessage, message content
-        must be plain prose. Markdown is still fine in commits, PR bodies, issue comments, log
-        files, source code — just not in SendMessage. See "SendMessage Content" rule above.
+     i. DO NOT use SendMessage — there is no team in this session. Return a brief plain-text summary
+        when done. (On the teams path this item becomes the active SendMessage no-backticks rule —
+        see references/teams-path.md.)
      j. REBUILD TOUCHED WORKSPACE PACKAGES BEFORE REPORTING DONE. If the project has a workspace/
         monorepo layout and commits touched source inside a package whose consumer imports through
         a built artifact (e.g. an `exports` map → ./dist/...), the agent MUST rebuild that package
@@ -404,7 +396,11 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
         build output is gitignored AND consumers import from source. A failed build is a blocker.
 ```
 
-**Spawn child agents in parallel — capped at 6 concurrent.** Use multiple Task tool calls in a single message for the first batch. Each agent should:
+#### Teams path (on-demand — read `references/teams-path.md`)
+
+If any topic is marked `teams` (see `references/execution-modes.md` for the marker), or any topic is missing the `Execution mode:` marker, the session uses the teams path instead. **Read `references/teams-path.md` for the full team workflow** — TeamCreate + named teammates, the SendMessage no-backticks Ink-crash rule, idle/wake, the shutdown_request teardown, and TeamDelete. It reuses the canonical prompt body (items a–j) above with its team-specific deltas.
+
+**Spawn child agents in parallel — capped at 6 concurrent.** Use multiple Agent tool calls in a single message for the first batch (Task tool calls on the teams path). Each agent should:
 
 1. Work in its assigned worktree directory
 2. Implement the topic
@@ -412,7 +408,7 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
 4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co` / `-gco` / `-gcoc`). If no reviewer flag is active, `/light-review` falls to its own default (`-gcoc`).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
-7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. No backticks / code fences in SendMessage.
+7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. (Subagents path: return a plain-text summary. Teams path: report via SendMessage with no backticks / code fences — see `references/teams-path.md`.)
 
 #### Concurrency Limit: Max 6 Child Agents at Once
 
@@ -442,28 +438,13 @@ Review the combined diff:
 git diff <parent-branch>...base/<project-name> --stat
 ```
 
-### Step 7: Shut Down Child Agents and Remove Worktrees
+### Step 7: Remove Worktrees (and shut down the team if one was created)
 
-All child agents are done; their branches are merged. Clean up worktrees and (if a team was created in Step 5) shut the team down.
+All child agents are done; their branches are merged. Clean up worktrees.
 
-**Subagents path**: skip steps 1 and 2 below entirely — there is no team. One-shot Agent calls already terminated when each returned. Jump straight to step 3 (worktree removal).
+**Subagents path (default)**: there is no team — the one-shot Agent calls already terminated when each returned. Just remove worktrees and fix symlinks:
 
-1. **(Teams path only)** **Send shutdown to each agent individually** (structured messages cannot be broadcast to `"*"`):
-
-   ```
-   For each child agent (e.g., "topic-topicA", "topic-topicB", ...):
-     SendMessage: to="topic-<name>", message={type: "shutdown_request", reason: "All topics merged into base branch. Work complete."}
-   ```
-
-   Send all shutdown messages in parallel (multiple SendMessage calls in one response).
-
-2. **(Teams path only)** **Wait for shutdown confirmations**, then **delete the team**:
-
-   ```
-   TeamDelete
-   ```
-
-3. **Remove worktrees** — they are no longer needed (topic branches survive independently):
+1. **Remove worktrees** — they are no longer needed (topic branches survive independently):
 
    ```bash
    for wt in worktrees/*/; do
@@ -471,11 +452,13 @@ All child agents are done; their branches are merged. Clean up worktrees and (if
    done
    ```
 
-4. **Fix pnpm symlinks** if the project uses pnpm workspaces (worktree removal can break symlinks):
+2. **Fix pnpm symlinks** if the project uses pnpm workspaces (worktree removal can break symlinks):
 
    ```bash
    pnpm install --ignore-scripts 2>/dev/null || true
    ```
+
+**Teams path**: a team was created in Step 5. Run the full shutdown ceremony (per-agent `shutdown_request`, then `TeamDelete`) **before** the worktree removal above — see `references/teams-path.md` "Step 7 — Teams-path teardown" for the exact sequence.
 
 This closes the tmux panes and frees disk space. The rest of the workflow (review, push, CI) is handled by the manager alone.
 
@@ -724,6 +707,68 @@ The command is idempotent — it no-ops when the label already exists.
 
 ---
 
+### Step 15.5: Auto-Fixing Raised Findings (`-fix` / `--auto-fix`)
+
+**Only run this step if `-fix` / `--auto-fix` was passed.** It runs AFTER the main work (and after Auto-Complete / the mandatory Super-Epic merge, if those applied) and BEFORE Step 16 cleanup. If `-fix` was not passed, skip straight to Step 16.
+
+**Gating:**
+
+- Requires `-ri` (the default). If `-nori` / `--no-raise-issues` was passed, this step is a **no-op** — no `agent-found` issues were raised this session. Print one line and skip.
+- Opt-in only. For careful / manual sessions, you don't pass `-fix`.
+
+**Scope:** the `agent-found` issues *raised by this session* (manager and child agents), tracked in session state from "Raising Issues for Unrelated Findings" above. Do NOT touch unrelated pre-existing `agent-found` issues from other sessions.
+
+**Ensure the `needs-decision` label exists** once before the first leave-open (idempotent, mirrors the `agent-found` block):
+
+```bash
+gh label create "needs-decision" \
+  --description "Left open by -fix: needs a human product/design decision or is too big for an auto-fix session" \
+  --color "d93f0b" 2>/dev/null || true
+```
+
+**Per raised `agent-found` issue, triage:**
+
+1. **LEAVE OPEN** — needs a product/design decision, or is too big for this session: a big architecture change, removing an existing UI / feature, adding a big feature, or anything needing product/design judgment. Do NOT touch the code. Add a note comment and the `needs-decision` label:
+
+   ```bash
+   gh issue comment <ISSUE_NUM> --body "Left open by -fix: needs a human decision (product/design judgment or too large for an auto-fix session)."
+   gh issue edit <ISSUE_NUM> --add-label "needs-decision"
+   ```
+
+2. **AUTO-FIX** — everything else, landing chosen by SCOPE:
+- **TINY / trivial / localized** (one-liner, obvious cleanup, single-spot fix): **bundle ALL tiny fixes into ONE shared fix PR** on a single `agent-fix/<slug>` branch.
+- **NON-TRIVIAL but bounded:** **each gets its OWN `agent-fix/<slug>` branch + PR.**
+
+**Landing each fix — target the parent / ultimate-landing branch, NOT the intermediate `base/<project-name>`.** For `/x-wt-teams` that is `$PARENT_BRANCH` (the branch the root PR targets; in Super-Epic child mode, `$SUPER_EPIC_BASE`). Targeting the parent keeps fix branches valid even when `-a`'s `/pr-complete --delete-branch` already removed `base/<project-name>`. Create each `agent-fix/<slug>` branch from `$PARENT_BRANCH` and target its PR at `$PARENT_BRANCH`.
+
+For each fix branch (the tiny bundle, or one per non-trivial issue):
+
+1. `git checkout -b agent-fix/<slug> <PARENT_BRANCH>`, implement the fix(es), commit locally.
+2. **Run `/light-review`** before merge — forward active reviewer flags (`-op` / `-so` / `-haiku` / `-co` / `-gco` / `-gcoc`) so `-op` → opus-backed review. Tiny bundle reviewed as a unit; per-issue fixes individually. Address high-priority findings and commit.
+3. Push and open the fix PR (`gh pr create --base <PARENT_BRANCH> ...`), body linking the `agent-found` issue(s) it closes.
+4. **Verify the fix** (build / tests / the issue's described check). Heavy / port-based verification goes through the manager on the merged branch, never a child — same rule as the rest of the workflow; browser checks go through the isolated Opus subagent (`references/resource-coordination.md`).
+5. **On success: CLOSE the corresponding `agent-found` issue and link the fix PR** (overrides cleanup's "always keep" for FIXED issues only; left-open / unfixed ones stay open and kept):
+
+   ```bash
+   gh issue comment <ISSUE_NUM> --body "Fixed by -fix: <fix-PR-URL>. Closing."
+   gh issue close <ISSUE_NUM>
+   ```
+
+**Loop + guardrails:**
+
+- Repeat triage → fix → close until no auto-fixable issues remain.
+- **Cap at ~3 rounds.** If a fix repeatedly fails, **leave that issue open** and stop retrying it:
+
+  ```bash
+  gh issue comment <ISSUE_NUM> --body "auto-fix attempted by -fix but did not converge — needs human. <brief note on what was tried>."
+  ```
+
+  Do NOT add `needs-decision` here (that label is the deliberate leave-open path); this is a failed-fix marker. Never loop forever.
+
+**`-a` interaction (fix PR auto-merge):** fix PRs follow the **same auto-merge semantics as the root PR** — with `-a`, auto-merge each fix PR after `/light-review` + verification (e.g. `gh pr merge --merge --delete-branch` once green, or `/pr-complete` per fix PR); without `-a`, leave each as a ready (non-draft) PR for the user and still close the linked `agent-found` issue with the link once verified. **In Super-Epic child mode `-a` is ignored (see "Why `-a` is ignored in Super-Epic child mode" above), so treat fix PRs as the no-`-a` case — leave them as ready PRs for the super-epic flow to merge; still close the linked `agent-found` issue once verified.** Track the fix PRs and closed issues in session state — they go into the Step 16 manifest (role: `fix`).
+
+---
+
 ### Step 16: Cleanup audit via `/cleanup-resources`
 
 **Always run this step before Auto-Suggest / STOP** (unless `--no-issue` AND no branches were created — extremely rare). Replaces the older bespoke "close tracking issue" step and the deferred manual cleanup hook (now Step 17). The Sonnet subagent re-fetches every resource the workflow touched and returns a structured close/keep/delete plan; the manager (you) executes the plan and prints a final report. This catches the historical bugs where: (a) sub-issues stayed open after their PRs merged, (b) the tracking issue silently stayed open at end of workflow, (c) `-a` deleted the remote base but the local copy stayed behind.
@@ -746,15 +791,18 @@ Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams <-a if passed>"
 - Issues to include:
   - **Tracking issue** (created by Step 1b or epic issue from 1a) — role: `tracking` for 1b, `epic` for 1a non-Super-Epic, `epic` for 1a Super-Epic child. Sonnet should propose CLOSE for `tracking` once the root PR is merged or workflow ended cleanly. For `epic` in non-Super-Epic mode, propose KEEP if any sub-issue is still open (the agent checks via `gh issue view` on each sub); CLOSE if all sub-issues are closed AND root-PR-merged. In Super-Epic child mode, the epic was already closed by the mandatory merge step's comment OR kept by design — the agent should KEEP whatever the current state is.
   - **Sub-issues** (epic mode, one per `[Sub]` issue under the epic) — role: `sub`. Sonnet should propose CLOSE for each whose corresponding topic branch was merged into the base (the manager merged these locally in Step 6, and the topic PRs were either auto-closed in Step 11 or merged externally). Otherwise KEEP.
-  - **Unrelated-findings issues** raised during coding/review (track them in session state) — role: `unrelated-finding`. ALWAYS KEEP.
+  - **Unrelated-findings issues** raised during coding/review (track them in session state) — role: `unrelated-finding`. ALWAYS KEEP unless closed by `-fix` (the auto-fix step closes the ones it fixed and links the fix PR; the audit leaves those closed and keeps every still-open one).
   - **Review-fix issues** from `/deep-review -t` team-fix delegation (if any) — role: `fix`. Sonnet proposes CLOSE if the fix-delegation session merged its fixes.
+  - **`agent-found` issues closed by `-fix`** (if the Step 15.5 auto-fix step ran) — already closed by this session; the audit confirms KEEP-as-closed.
   - **Super-epic issue** (Super-Epic child mode only) — role: `claimed-existing` with note "parent super-epic; never close from a child session". ALWAYS KEEP.
 - Branches to include:
   - **Base branch** (`base/<project-name>`) — role: `base`, `pr-merged: <true if root PR merged>`. When `-a` flow merged the root PR, propose delete (local AND remote — the remote was already removed by `--delete-branch`, but pass `scope: both` so the manager's `git push origin --delete` is idempotent and `git branch -d` cleans up local).
   - **Topic branches** (`<project-name>/<topic-name>` for each topic) — role: `topic`. Step 11 already deleted these; pass them in the manifest with `scope: both, pr-merged: true` so the agent confirms they're gone and the manager surfaces any stragglers in the "Warnings" section. Defensive only.
+  - **`agent-fix/<slug>` branches** (if Step 15.5 created any) — role: `fix`, targeting `$PARENT_BRANCH`. Pass `pr-merged: <true if the fix PR merged — always under `-a`, else false>` so merged fix branches are cleaned up and unmerged ones (ready PRs awaiting the user) are kept.
   - **Parent branch** (`$PARENT_BRANCH` or `$SUPER_EPIC_BASE`) — role: `parent`. ALWAYS KEEP (the agent's prompt forbids deleting parent roles).
 - PRs to include:
   - **Root PR** — role: `root`, state from `gh pr view`. KEEP regardless — PRs that are still open are intentional, merged/closed PRs are done.
+  - **`-fix` fix PRs** (if Step 15.5 created any) — role: `fix`, state from `gh pr view`. Merged → done; ready/open → KEEP (intentional, awaiting the user when `-a` was not passed).
 
 After `/cleanup-resources` returns its report:
 
@@ -842,8 +890,9 @@ After you report the root PR, the user often replies with feedback — requests 
 
 1. **Analyze the feedback** — break into discrete topics. Each heading, bullet group, or distinct concern becomes a topic. Single small concern is fine as one topic.
 2. **Create new worktrees and topic branches** off the existing base branch (Step 3).
-3. **Spawn new child agent teams** (Steps 4–5):
-- Use `TeamCreate` with an incremented team name: `<project-name>-v2`, `<project-name>-v3`, etc.
+3. **Spawn new child agents** (Steps 4–5) following the same spawn-path decision as the original run:
+- Subagents path (default): one-shot Agent calls, no team — no team name needed.
+- Teams path: `TeamCreate` with an incremented team name (`<project-name>-v2`, `<project-name>-v3`, etc.) to avoid collisions — see `references/teams-path.md`.
 - New topic branches: `<project-name>/<new-topic-name>`
 - New worktrees: `worktrees/<new-topic-name>`
 - Include the user's feedback verbatim in child agent prompts.
@@ -853,7 +902,7 @@ After you report the root PR, the user often replies with feedback — requests 
 #### Key points
 
 - **No new base branch or root PR** — reuse what already exists. The root PR accumulates iterations.
-- **New team name per iteration** — `-v2`, `-v3`, etc. to avoid team-name collisions.
+- **New team name per iteration (teams path only)** — `-v2`, `-v3`, etc. to avoid team-name collisions. The subagents-path default needs no team name.
 - **Issue tracking continues** — comment on the issue with iteration progress if `ISSUE_NUMBER` is set.
 - **Repeat as needed** — each round of feedback triggers a new iteration. Loop continues until the user is satisfied and merges the PR.
 - **Small feedback** still uses this pattern — even a single-topic fix benefits from worktree isolation, review, CI check.
@@ -906,7 +955,7 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 20. **No heavy / port-based tests in child agents** — see `references/resource-coordination.md`. Children commit + report; manager runs sequentially on merged base. Legitimate short port-binding work uses `flock`.
 21. **Auto-Suggest Next Command is MANDATORY for multi-session plans** — before STOP, if Signal A (Super-Epic) or Signal B (`--stay` accumulating-epic) applies, MUST print a copy-pasteable next command. The user should never have to type "give me next command" for a planned multi-session workflow.
 22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP, then switch to the super-epic base and delete the local epic base** — see `references/super-epic-mode.md`. The mandatory merge step is unconditional in Super-Epic child mode, runs even if `-a` was passed. This rule OVERRIDES Rule 1's "stay on `base/<project-name>`" default.
-23. **Execution mode is read from `/big-plan` annotations, not guessed** — when an `[Epic]` or Super-Epic child issue is the input, Step 1a extracts the per-topic `**Execution mode:** {subagents|teams}` markers and Step 5 routes accordingly. Default-when-missing is **teams** (preserves pre-annotation behavior). All-subagents → spawn one-shot Agent calls without TeamCreate. Any-teams or any-missing → full team workflow. The skill never auto-classifies execution mode itself — that decision belongs in `/big-plan`. Full routing logic, drift sanity check, and subagent-path differences live in `references/execution-modes.md`.
+23. **Execution mode is read from `/big-plan` annotations, not guessed** — when an `[Epic]` or Super-Epic child issue is the input, Step 1a extracts the per-topic `**Execution mode:** {subagents|teams}` markers and Step 5 routes accordingly. The **subagents path is the inline default** (it owns the canonical prompt body in Step 5 / Step 7); the **routing fallback when a marker is missing is teams** (preserves pre-annotation behavior). All-subagents → spawn one-shot Agent calls without TeamCreate (inline). Any-teams or any-missing → full team workflow in `references/teams-path.md`. The skill never auto-classifies execution mode itself — that decision belongs in `/big-plan`. Full routing logic, drift sanity check, and the subagents-path Agent-call shape live in `references/execution-modes.md`; the teams-path body lives in `references/teams-path.md`.
 24. **Per-topic model is read from `/big-plan` annotations, with manual team-member flag override** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku}` marker and Step 5 spawns each child with its own model. A manual `-t-op` / `-t-so` flag on the invocation OVERRIDES every topic's annotation as a session-wide manual override; without a flag, per-topic markers are honored. Default-when-missing-and-no-flag is **opus** (preserves pre-annotation behavior). Reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children — those govern the Step 9 Claude reviewer only. The skill never auto-classifies the model itself — that decision belongs in `/big-plan` or in the user's flag. Full resolution table and rationale: `references/per-topic-models.md`.
 25. **`-seq` / `--sequentially` auto-continues multi-wave plans in one session** — when `-seq` is passed AND Auto-Suggest detected a next wave (Signal A or Signal B), the manager appends `-seq` to the next-wave command and invokes it immediately via the Skill tool instead of stopping. The chain keeps running until a future iteration finds no more siblings. Pause (soft-stop with hand-off + blocker note) on the conditions listed in the Auto-Suggest sub-section — never silently swallow a blocker to keep the chain going. Single-session runs and `-seq`-less invocations are unaffected.
 26. **Dead Branch Cleanup Principle (general meta-rule)** — whenever this skill orchestrates a merge (or watches one) where the source branch's work is absorbed into a parent **and** the source remote is deleted (e.g., `gh pr merge --delete-branch`, `/pr-complete`, equivalent), the local source branch is now a dead pointer and MUST be cleaned up before session ends. Pattern:

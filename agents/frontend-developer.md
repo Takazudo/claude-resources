@@ -38,7 +38,6 @@ Assess testability and choose pragmatically:
 ## Constraints
 
 - **No Git Operations**: Never `git commit`, `git push`, or create PRs unless
-
   explicitly instructed
 
 - **Edit Over Create**: Prefer modifying existing files over creating new ones
@@ -48,7 +47,7 @@ Assess testability and choose pragmatically:
   `{logdir}/{timestamp}-frontend-dev-{context}.md`
 
   - Use the save-file script: `$HOME/.claude/scripts/save-file.js "{logdir}/{timestamp}-frontend-dev-{context}.md" "content"`
-  - The `{logdir}` placeholder resolves to `$HOME/cclogs/{repo-name}/` (NEVER use `~` in paths — it won't expand in Node.js)
+  - The `{logdir}` placeholder resolves to `$HOME/cclogs/{repo-name}/` — Dropbox-synced across machines (NEVER use `~` in paths — it won't expand in Node.js)
   - Post-save: run `pnpm dlx @takazudo/mdx-formatter --write <file.md>`
 
 ## Tool Usage

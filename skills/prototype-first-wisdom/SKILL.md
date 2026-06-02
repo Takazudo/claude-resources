@@ -1,20 +1,6 @@
 ---
 name: prototype-first-wisdom
-description: >-
-  Solve a complex bug or design problem by building a tiny isolated prototype first, instead of
-  patching the production system in place. Trigger PROACTIVELY when (1) the same bug has resisted 2+
-  in-place fix attempts (fail-retry loop), (2) the user mentions "minimal prototype", "from zero",
-  "from scratch", "simple script", "sandbox", "standalone", "isolate", "play around", or "try a
-  sandbox version", (3) you find yourself ranking a list of suspects and ruling them out via
-  source-grep on a runtime/visual bug, (4) the user is brainstorming many design options for a UI
-  surface and wants speed (e.g., "make 20 patterns of the top page"), (5) the next reasonable step
-  would be "instrument the existing complex code" — pause and consider this skill instead. Build the
-  prototype in `__inbox/<descriptive-name>/` in the project root, matching the project's tech stack
-  (HTML+CSS+vanilla JS for static sites, Vite+React for React apps, Node script for CLI/utility
-  logic). Don't commit it — its value is the learning, not the artifact. **Variant for repeated
-  regression cycles (8+ in-place fixes on the same bug class):** keep the prototype as a committed
-  sub-package named `packages/prototype-<topic>/` — see the "Variant: project-level reference
-  prototype" section below.
+description: "Solve a complex bug or design problem by building a tiny isolated prototype first, instead of patching the production system in place. Trigger PROACTIVELY when (1) the same bug has resisted 2+ in-place fix attempts (fail-retry loop), (2) the user mentions \"minimal prototype\", \"from zero\", \"from scratch\", \"simple script\", \"sandbox\", \"standalone\", \"isolate\", \"play around\", or \"try a sandbox version\", (3) you find yourself ranking a list of suspects and ruling them out via source-grep on a runtime/visual bug, (4) the user is brainstorming many design options for a UI surface and wants speed (e.g., \"make 20 patterns of the top page\"), (5) the next reasonable step would be \"instrument the existing complex code\" — pause and consider this skill instead. Build the prototype in the repo-scoped Dropbox-synced cclogs dir (`$DROPBOX_CCLOGS_DIR/<repo>/<descriptive-name>/`) so it survives switching between Mac and WSL; the exception is a prototype that must import the repo's production code or use its workspace/Vite tooling — keep that one in `__inbox/<descriptive-name>/` in the project root (in-repo, gitignored) so relative imports resolve. Match the project's tech stack (HTML+CSS+vanilla JS for static sites, Vite+React for React apps, Node script for CLI/utility logic). Don't commit it — its value is the learning, not the artifact. **Variant for repeated regression cycles (8+ in-place fixes on the same bug class):** keep the prototype as a committed sub-package named `packages/prototype-<topic>/` — see the \"Variant: project-level reference prototype\" section below."
 ---
 
 # Prototype-First Wisdom
@@ -37,17 +23,28 @@ When in doubt: if the next reasonable step would be "instrument the existing com
 
 ## How to apply
 
-### 1. Pick a location: `__inbox/<descriptive-name>/`
+### 1. Pick a location
 
-Always work under `__inbox/` in the project root. This directory is for ephemeral try-and-error work and should be (or become) gitignored.
+Two homes for a prototype, chosen by **whether it needs the repo's own code**:
 
-```bash
-mkdir -p __inbox/<descriptive-name>
-```
+- **Standalone / rough-design prototype** (separated concern — design exploration, isolated math, a canvas/shader sandbox, a repro that hard-codes its inputs rather than importing production functions) → build it in the **repo-scoped Dropbox cclogs dir**:
 
-If the project's `.gitignore` doesn't already ignore `__inbox/`, add the line — see "Gitignore check" below.
+  ```bash
+  PROTO_DIR=$(node "$HOME/.claude/scripts/get-logdir.js")/<descriptive-name>   # …/Dropbox/cclogs/<repo>/<name>/
+  mkdir -p "$PROTO_DIR"
+  ```
 
-Use a name that's specific to the task: `__inbox/repro-image-drift/`, `__inbox/top-page-layouts/`, `__inbox/bezier-pen-math/`. Future-you will thank present-you.
+  This dir is Dropbox-synced, so a prototype you build on Mac is there when you switch to WSL (and vice versa) — the whole point. It lives outside the repo, so nothing to gitignore.
+
+- **Prototype that must import the repo's production code or use its workspace/Vite tooling** → build it **in-repo** under `__inbox/<descriptive-name>/` so relative imports and the project's tooling resolve:
+
+  ```bash
+  mkdir -p __inbox/<descriptive-name>
+  ```
+
+  `__inbox/` is in-repo and should be (or become) gitignored — see "Gitignore check" below. This is the only case that still uses `__inbox/`; default to the cclogs dir otherwise.
+
+Use a name that's specific to the task: `repro-image-drift/`, `top-page-layouts/`, `bezier-pen-math/`. Future-you will thank present-you.
 
 ### 2. Pick a tech stack matching the project
 
@@ -56,9 +53,9 @@ The prototype should match the production project's tech stack closely enough th
 | Project type | Prototype form |
 |---|---|
 | Static site / vanilla web | `index.html` + `style.css` + `script.js` — open in a browser |
-| React + Vite app | A new mini Vite app in `__inbox/<name>/` (`pnpm create vite`), or a single `.html` with React via CDN if you want to skip the build step |
+| React + Vite app | A new mini Vite app in `<prototype-dir>/` (`pnpm create vite`), or a single `.html` with React via CDN if you want to skip the build step |
 | Next.js app | Same as React+Vite — Vite playground is faster than booting another Next.js project |
-| Node CLI / utility | A standalone `.mjs` script — `node __inbox/<name>/repro.mjs` |
+| Node CLI / utility | A standalone `.mjs` script — `node <prototype-dir>/repro.mjs` |
 | Backend handler / API logic | A standalone `.mjs` that imports the production function and calls it with hard-coded inputs |
 | Canvas / visual | HTML + canvas + script. If the production app uses React, you can skip React in the prototype if the bug is in the canvas layer itself |
 | GLSL / shader | A single `.html` with the shader inline + a uniform-tweaking UI |
@@ -81,7 +78,7 @@ For design exploration:
 
 ### 4. Run it and read the output
 
-For Node: `node __inbox/<name>/repro.mjs`. Read stdout.
+For Node: `node <prototype-dir>/repro.mjs`. Read stdout.
 For HTML/Vite: open in a browser, read DevTools console + visual.
 
 If the prototype reproduces the bug → root cause is in what you imported (the production functions). Move to instrumenting the prototype, not production. Iteration is now fast.
@@ -100,17 +97,17 @@ Once the prototype tells you what's wrong:
 
 ### 6. Don't commit the prototype
 
-`__inbox/` should be gitignored. The prototype is throwaway — its value is the learning it produced, not the artifact.
+The prototype is throwaway — its value is the learning it produced, not the artifact. A prototype in the cclogs dir lives outside the repo, so there's nothing to commit or gitignore; an `__inbox/` prototype is in-repo and should be gitignored (see "Gitignore check" below).
 
-If the user explicitly asks to keep it, fine — move it out of `__inbox/` to a permanent location and commit that. But default to **don't commit**.
+If the user explicitly asks to keep an in-repo prototype, fine — move it out of `__inbox/` to a permanent location and commit that. But default to **don't commit**.
 
 ### 7. Note the prototype location in your final report
 
-When you finish the work and report back to the user, mention where the prototype lives in case they want to look. Example: "Prototype that reproduced the bug: `__inbox/repro-image-drift/repro.mjs`."
+When you finish the work and report back to the user, mention where the prototype lives in case they want to look. Example: "Prototype that reproduced the bug: `$DROPBOX_CCLOGS_DIR/<repo>/repro-image-drift/repro.mjs`" (or the `__inbox/...` path if it was an in-repo prototype).
 
 ## Gitignore check
 
-Before creating `__inbox/<name>/`, ensure `__inbox/` is gitignored. If the project has a CLAUDE.md or contributor guide, it likely already documents this convention. Otherwise:
+Only relevant when you took the in-repo `__inbox/` path (a standalone prototype in the cclogs dir lives outside the repo — skip this). Before creating `__inbox/<name>/`, ensure `__inbox/` is gitignored. If the project has a CLAUDE.md or contributor guide, it likely already documents this convention. Otherwise:
 
 ```bash
 grep -Fxq "__inbox/" .gitignore 2>/dev/null || echo "__inbox/" >> .gitignore
@@ -127,7 +124,7 @@ For projects that don't already use `__inbox/`, double-check with the user befor
 
 ## Variant: project-level reference prototype as `packages/prototype-<topic>/`
 
-The default pattern is throwaway — build under `__inbox/`, don't commit, learning lives in your head and in the production fix. But there is one case where the prototype should be **kept as a committed sub-package**:
+The default pattern is throwaway — build in the cclogs dir (or `__inbox/` when it needs the repo's code), don't commit, learning lives in your head and in the production fix. But there is one case where the prototype should be **kept as a committed sub-package**:
 
 **Trigger:** the same bug class has resisted **many** (typically 8+) in-place fix cycles. Each cycle ships CI-green, each cycle's reviewer can't see the bug from source alone, each cycle's user can. At that point, the throwaway pattern is no longer enough — you need a permanent canonical reference that future waves of diagnosis can diff production against.
 
@@ -167,7 +164,7 @@ When in doubt: don't deploy. Adding a CI deploy is cheap; reverting one quietly 
 
 ### Commit the prototype
 
-Unlike the `__inbox/` variant, this prototype is part of the codebase. It is committed, lives at HEAD, and is maintained as production migrates to match its invariants. Future waves (diagnosis, fixes, confirm walks) read it as the canonical reference.
+Unlike the throwaway variant, this prototype is part of the codebase. It is committed, lives at HEAD, and is maintained as production migrates to match its invariants. Future waves (diagnosis, fixes, confirm walks) read it as the canonical reference.
 
 When all bug-class waves are complete and production has structurally adopted the prototype's model, the prototype can either (a) stay as a permanent regression-test playground, or (b) be removed if its invariants are now enforced by production tests. Default to (a) until the user says otherwise.
 
@@ -185,7 +182,7 @@ When this skill triggers and the project shows the high-cycle escalation signal 
 
 ### Example 1: bezier tool dev (Takazudo's prior experience)
 
-Tried fixing in place repeatedly; geometry kept being wrong. Built a from-scratch minimal bezier-pen prototype as standalone HTML+canvas+JS in `__inbox/`. Got the math right in isolation. Brought the corrected math back to production. Bug landed.
+Tried fixing in place repeatedly; geometry kept being wrong. Built a from-scratch minimal bezier-pen prototype as standalone HTML+canvas+JS in the repo-scoped cclogs dir (standalone — no production imports needed). Got the math right in isolation. Brought the corrected math back to production. Bug landed.
 
 ### Example 2: 20-page-layout brainstorm (Takazudo's prior experience)
 
@@ -193,7 +190,7 @@ User asked for 20 top-page design variants on a built website. Trying to make th
 
 ### Example 3: composer image-position drift (the reason this skill exists)
 
-PR-1530 then PR-1537 both shipped fixes that didn't actually fix the user-visible bug because the diagnosis was source-grep-based. Round-2 plan switched to: build a Node script under `__inbox/repro-1533-r2/` that calls the production conversion functions with hard-coded user-repro inputs, logs intermediates, asserts the expected transform. Either the script reproduces the bug (math is wrong → fix the math) or it doesn't (math is innocent → escalate to component-level test for orchestration).
+PR-1530 then PR-1537 both shipped fixes that didn't actually fix the user-visible bug because the diagnosis was source-grep-based. Round-2 plan switched to: build a Node script under `__inbox/repro-1533-r2/` (in-repo, because it imports the production conversion functions — the cclogs exception) that calls those functions with hard-coded user-repro inputs, logs intermediates, asserts the expected transform. Either the script reproduces the bug (math is wrong → fix the math) or it doesn't (math is innocent → escalate to component-level test for orchestration).
 
 ## Quick decision
 

@@ -1,7 +1,7 @@
 ---
 name: x
-description: "Facade for development workflows. Routes to /x-as-pr (single-topic) or /x-wt-teams (multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing between /x-as-pr and /x-wt-teams, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). Review-loop (-l) is opt-in — without -l the downstream skill runs a single /deep-review pass."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
+description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -impl when the request needs research / decomposition / has unclear scope), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). Review-loop (-l) is opt-in — without -l the downstream skill runs a single /deep-review pass. Forwards -a (autonomy) and -fix (auto-fix raised findings) through every route."
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-fix|--auto-fix] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
@@ -50,7 +50,7 @@ These rules apply to the facade itself and propagate to the chosen downstream sk
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-gco`, `--github-copilot`, `-gcoc`, `--github-copilot-cheap`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `--noi`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, etc.)
+- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-gco`, `--github-copilot`, `-gcoc`, `--github-copilot-cheap`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `--noi`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-fix`, `--auto-fix`, etc.)
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
@@ -95,24 +95,55 @@ By default the downstream skill raises GitHub issues (labeled `agent-found`) for
 
 Forward whichever flag was on the invocation to the chosen skill. If neither was passed, no forwarding is needed — the downstream default already raises issues.
 
+### Auto-Fix Mode (`-fix` / `--auto-fix`)
+
+When `-fix` or `--auto-fix` is passed, forward it to the chosen skill (and into the `/big-plan -impl` escalation — see Strategy Selection). `/x` only **parses and forwards** it; the real auto-fix step lives in `/x-as-pr` and `/x-wt-teams`, which after the main work triage the `agent-found` issues raised this session and auto-fix the safe subset before final cleanup. It requires `-ri` (the default) and is a no-op under `-nori`. See the chosen skill's "Auto-Fixing Raised Findings" step for behavior.
+
 ## Strategy Selection
 
-Analyze the request to decide which skill to invoke:
+Routing has **two axes**. Decide both before invoking anything.
 
-### Use `/x-wt-teams` when
+**Axis 1 — plan-first vs implement-now.** Does the request need research, decomposition, or have unclear scope? If yes, escalate to `/big-plan -impl` (it plans, then routes downstream to `/x-as-pr` or `/x-wt-teams` itself — so the single/multi decision stays in one place). If the work is ready to build, skip planning and go straight to a fast path.
+
+**Axis 2 — single vs multi (fast paths only).** When the work is ready to build, decide between `/x-as-pr` (single cohesive topic) and `/x-wt-teams` (multiple independent topics). `/big-plan` makes this same decision downstream when you escalate, so you only apply Axis 2 on the fast paths.
+
+### Use `/big-plan -impl` (plan-first escalation) when
+
+Escalate to planning when the request is research/decomposition-heavy or its scope is unclear:
+
+- The request needs **investigation or research** before code can be written ("figure out how to…", "research the best way to…", an unfamiliar subsystem).
+- The scope is **large or ill-defined** — many moving parts, cross-cutting changes, or a vague goal that needs to be broken into concrete sub-tasks first.
+- The request is a **multi-phase build** where later phases depend on earlier ones landing correctly (planning sequences these into dependency waves).
+- You cannot confidently pick `/x-as-pr` vs `/x-wt-teams` because the topic boundaries aren't yet clear — planning will surface them.
+
+**`-impl` goes on the escalation, NOT on `/x`.** `/big-plan -impl` plans and then auto-invokes the implementation skill in the same session (skipping the Step 6 confirmation), so the user who typed `/x` still gets action — not a planning-only pause. `/big-plan` keeps the single-vs-multi routing downstream (single-sub-issue plan → `/x-as-pr`; multi → `/x-wt-teams`), so there is no duplicated single/multi logic here.
+
+**Forward `-a` and `-fix` cleanly into the escalation:**
+
+- `/x -a "big thing"` → `/big-plan -a -impl` (auto-create issues + auto-implement + auto-merge).
+- `/x -fix "big thing"` → `/big-plan -fix -impl` (the auto-fix flag rides through `/big-plan`'s `-impl` hand-off into the implementation skill, exactly like `-a`).
+- `-impl` is appended by `/x`, never typed by the user. Reviewer flags (`-op` / `-co` / `-gco` / `-gcoc`) pass through to `/big-plan` and shape its Step 5 plan review. Note that on the escalation path, implementation-only flags (`-v`, `-l`, `-t-op` / `-t-so`, reviewer flags) do NOT reach the implementation skill — `/big-plan -impl` forwards only `-a` and `-fix` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
+
+**Guardrail (asymmetric cost — escalation is more expensive than a fast path):**
+
+- **Clearly small / ready-to-build** → take the fast path directly (`/x-as-pr` or `/x-wt-teams`). Keep the "I roughly call `/x`" speed for small work — do NOT escalate small tasks into planning.
+- **Clearly big / research-or-decomposition-heavy** → escalate to `/big-plan -impl`.
+- **Ambiguous** → ask **one** line before escalating, e.g. "This looks like it needs planning first — escalate to `/big-plan -impl`, or build it directly? (plan / build)". Then proceed on the answer. **EXCEPTION: if `-a` / `--auto` was passed, do NOT ask — just escalate** (the user opted into autonomy). This one-line confirm is the only place `/x` ever pauses; it is NOT plan mode and must not drift into one (Auto-Pilot still prefers action).
+
+### Use `/x-wt-teams` when (fast path, ready-to-build multi-topic)
 
 - The task clearly involves **multiple independent topics** that can be worked on in parallel
 - Keywords: "multiple", "several", "split into", "parallel", "topics", "worktree"
 - The instructions contain a list of distinct features/changes (3+ items)
 - The user explicitly asks for parallel development
 
-### Use `/x-as-pr` when
+### Use `/x-as-pr` when (fast path, ready-to-build single-topic)
 
 - The task is a **single cohesive feature** or fix
 - The task is small to medium scope
 - The instructions describe one thing to do
 - The user passes an issue URL/number and it is NOT an epic issue (see below)
-- Ambiguous cases — prefer `/x-as-pr` as the simpler option
+- Single-vs-multi ambiguity (Axis 2) — prefer `/x-as-pr` as the simpler option. (This is distinct from plan-vs-build ambiguity, which Axis 1 resolves by escalating to `/big-plan -impl`.)
 
 ### Epic Issue Detection
 
@@ -131,17 +162,32 @@ Epic issues are created by `/big-plan` and contain multiple sub-issues meant for
 
 | Request | Route | Why |
 |---------|-------|-----|
-| "add pagination to the user list" | `/x-as-pr` | Single feature |
-| "fix the login bug #42" | `/x-as-pr` | Single fix |
-| "implement dark mode, add search, update footer" | `/x-wt-teams` | 3 independent topics |
-| "refactor the auth system" | `/x-as-pr` | One cohesive refactor |
-| "build the settings page with theme picker, notification prefs, and profile editor" | `/x-wt-teams` | 3 parallel-able sections |
-| `https://github.com/owner/repo/issues/42` | `/x-as-pr` | Single issue |
-| `https://github.com/owner/repo/issues/42` (title has `[Epic]`) | `/x-wt-teams` | Epic issue from `/big-plan` |
+| "add pagination to the user list" | `/x-as-pr` | Single feature, ready to build |
+| "fix the login bug #42" | `/x-as-pr` | Single fix, ready to build |
+| "implement dark mode, add search, update footer" | `/x-wt-teams` | 3 independent topics, ready to build |
+| "refactor the auth system" | `/x-as-pr` | One cohesive refactor, ready to build |
+| "build the settings page with theme picker, notification prefs, and profile editor" | `/x-wt-teams` | 3 parallel-able sections, ready to build |
+| "figure out how to add multi-tenancy and implement it" | `/big-plan -impl` | Research + decomposition needed first |
+| "rework the whole billing system to support usage-based pricing" | `/big-plan -impl` | Large, ill-defined, multi-phase |
+| "migrate the app to the new framework" | `/big-plan -impl` | Cross-cutting; needs wave sequencing |
+| `/x -a "overhaul onboarding end-to-end"` | `/big-plan -a -impl` | Big + `-a` → escalate, no confirm, autonomous |
+| "improve the dashboard somehow" (vague) | one-line confirm → likely `/big-plan -impl` | Ambiguous scope; ask plan/build first (unless `-a`) |
+| `https://github.com/owner/repo/issues/42` | `/x-as-pr` | Single issue, ready to build |
+| `https://github.com/owner/repo/issues/42` (title has `[Epic]`) | `/x-wt-teams` | Epic issue from `/big-plan` (already planned) |
 
 ## Execution
 
-Once the strategy is chosen, invoke the appropriate skill:
+Once the strategy is chosen, invoke the appropriate skill.
+
+**Plan-first escalation (Axis 1 → big):** append `-impl` (and forward `-a` / `-fix` if passed) and invoke `/big-plan`. Do NOT also pass `-impl` if the user typed it — they didn't; `/x` adds it.
+
+```
+Skill tool: skill="big-plan", args="-impl <-a if passed> <-fix if passed> <other flags> <instructions-or-issue-refs>"
+```
+
+(If the request was ambiguous and `-a` was NOT passed, ask the one-line plan/build confirm first — see Strategy Selection — then either escalate as above or take a fast path per the answer.)
+
+**Fast paths (Axis 2 → ready to build):** invoke the single/multi skill directly.
 
 ```
 Skill tool: skill="x-as-pr", args="<flags> <instructions>"
@@ -149,11 +195,12 @@ Skill tool: skill="x-as-pr", args="<flags> <instructions>"
 Skill tool: skill="x-wt-teams", args="<flags> <instructions>"
 ```
 
-Pass through ALL arguments (flags + instructions) to the chosen skill.
+Pass through ALL arguments (flags + instructions) to the chosen skill (`-fix` / `--auto-fix` included — it's forwarded on every route).
 
 ## Important Notes
 
-- This is a thin router — all logic lives in `/x-as-pr` and `/x-wt-teams`
-- When in doubt, choose `/x-as-pr` — it's simpler and the user can always re-run with `/x-wt-teams`
-- Tell the user which strategy was chosen: "Routing to `/x-as-pr`" or "Routing to `/x-wt-teams`"
+- This is a thin router — all implementation logic lives in `/x-as-pr` and `/x-wt-teams`; all planning logic lives in `/big-plan`
+- Two axes: plan-first vs implement-now (escalate to `/big-plan -impl` when research/decomposition/unclear scope), then single vs multi on the fast paths. `/big-plan` keeps the single/multi decision downstream — never duplicate it here
+- When in doubt between single and multi on a ready-to-build task, choose `/x-as-pr` — it's simpler and the user can always re-run. When in doubt between plan and build, ask the one-line confirm (unless `-a`)
+- Tell the user which strategy was chosen: "Routing to `/x-as-pr`", "Routing to `/x-wt-teams`", or "Escalating to `/big-plan -impl` (needs planning first)"
 - **Issue claim is inherited** — when an existing issue (including epic issues) is passed, the chosen downstream skill posts a claim comment on the issue immediately after reading it, so concurrent Claude Code sessions don't start parallel work on the same topic. No extra work is needed at the facade level.

@@ -60,6 +60,5 @@ Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (s
 ## Safety
 
 - `rm -rf`: relative paths only (`./path`, never `/absolute/path`)
-- Agent logs/artifacts go to `$HOME/cclogs/{repo-name}/` via save-file.js `{logdir}` placeholder. NEVER use `~` in file paths — `~` is NOT expanded in Node.js or non-login shell contexts. Always use `$HOME` or the `{logdir}` placeholder
-- Worktree prompt files and truly ephemeral temp files stay in `__inbox/` (gitignored)
-
+- Agent logs/artifacts go to the repo-scoped cclogs dir via save-file.js `{logdir}` placeholder. cclogs is **Dropbox-synced** (`$DROPBOX_CCLOGS_DIR`, set in `.zshrc` for Mac + WSL) so logs/prototypes/artifacts survive switching machines; `~/cclogs` still works as a symlink to it, and `{logdir}` / `get-logdir.js` resolve it. NEVER use `~` in file paths — `~` is NOT expanded in Node.js or non-login shell contexts. Always use `$HOME` or the `{logdir}` placeholder
+- WIP / testing / prototype / worktree-prompt files go in the repo-scoped cclogs dir (`$DROPBOX_CCLOGS_DIR/{repo-name}/`), NOT `__inbox/` — the `__inbox/` convention is retired (it was machine-local; cclogs is Dropbox-synced). Existing `__inbox/` files may stay; just don't create new ones. Exception: a prototype that must import the repo's production code or use its workspace/Vite tooling stays in `__inbox/` (in-repo, gitignored) so relative imports and tooling resolve (see `/prototype-first-wisdom`)
