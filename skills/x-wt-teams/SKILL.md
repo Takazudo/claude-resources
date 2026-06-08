@@ -1,7 +1,7 @@
 ---
 name: x-wt-teams
 description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main)."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-gcoc|--github-copilot-cheap] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-fix|--auto-fix] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-seq|--sequentially] [-nor|--no-review] [--noi] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -12,9 +12,9 @@ Coordinate parallel development of multiple related features using git worktrees
 
 Detail lives in `references/` so this file stays a workflow spine. Open the relevant reference whenever the workflow touches its topic — these are not optional:
 
-- **`references/arguments.md`** — every flag (model, backend, `-s` / `-a` / `--no-review`, etc.), how they combine, manager-invariant rule.
-- **`references/super-epic-mode.md`** — Super-Epic child mode lifecycle: detection markers, Step 1a / Step 2 overrides, mandatory epic-PR merge, Auto-Suggest variant, why `-a` is ignored.
-- **`references/reviewer-modes.md`** — `-co` / `-gco` / `-gcoc` substitution tables and Combined Reviewer Mode (run all selected backends).
+- **`references/arguments.md`** — every flag (model, backend, `-s` / `-a` / `-m` / `--no-review`, etc.), how they combine, manager-invariant rule.
+- **`references/super-epic-mode.md`** — Super-Epic child mode lifecycle: detection markers, Step 1a / Step 2 overrides, mandatory epic-PR merge, Auto-Suggest variant, why `-m` is ignored.
+- **`references/reviewer-modes.md`** — `-co` / `-gco` substitution tables and Combined Reviewer Mode (run all selected backends).
 - **`references/execution-modes.md`** — subagents vs teams routing: how `/big-plan`'s `Execution mode:` markers are read, default-to-teams fallback, mixed-mode degradation, Step 5 / Step 7 path differences, drift sanity check.
 - **`references/teams-path.md`** — the on-demand teams-path body (read ONLY when a topic is marked `teams` or a marker is missing): TeamCreate + named teammates, the SendMessage no-backticks Ink-crash rule, idle/wake, the shutdown_request teardown, TeamDelete. The common subagents default is inline in Step 5 / Step 7.
 - **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, manual `-t-op` / `-t-so` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
@@ -144,7 +144,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 6. Monitor child agents, review their PRs, merge into base
 7. Remove worktrees (and, on the teams path, shut the team down — TeamDelete)
 8. Sync local base branch
-9. Quality assurance: `/deep-review` (default) or `/review-loop 5 --aggressive` (if `-l`/`--review-loop`)
+9. Quality assurance: `/deep-review` (default) or `/review-loop 5` (if `-l`/`--review-loop`)
 10. Verify UI: `/verify-ui` (if `-v`/`--verify-ui`)
 11. Push all changes to remote
 12. CI watch: verify CI passes on root PR (invoke `/watch-ci`, fix if red)
@@ -152,7 +152,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 14. Session report
 15. Requirements verification (if issue linked)
 
-15.5. Auto-fix raised findings (if `-fix`/`--auto-fix`) — triage `agent-found` issues, auto-fix the safe subset on `agent-fix/<slug>` PRs, close fixed issues
+15.5. Auto-fix raised findings (default; skipped with `-nf`/`--no-fix`) — triage `agent-found` issues, auto-fix the safe subset on `agent-fix/<slug>` PRs, close fixed issues
 
 16. Cleanup audit via `/cleanup-resources` — close completed sub-issues / tracking issue, delete dead local/remote branches. **STOP HERE. Workflow ends.**
 17. _(DEFERRED — only when user asks, after PR is merged in a later session)_ Manual cleanup hook — re-invokes `/cleanup-resources` if leftover branches need tidying
@@ -225,7 +225,7 @@ This is advisory. If codex is unresponsive, proceed with the original plan.
 
 Two orthogonal flag families:
 
-- **Reviewer flags** — `-op` / `-so` / `-haiku` choose the Claude reviewer model; `-co` / `-gco` / `-gcoc` add codex / Copilot reviewer backends. All combine — multiple flags means run every selected reviewer. See `references/reviewer-modes.md` for substitution tables and Combined Reviewer Mode rules.
+- **Reviewer flags** — `-op` / `-so` / `-haiku` choose the Claude reviewer model; `-co` / `-gco` add codex / Copilot reviewer backends. All combine — multiple flags means run every selected reviewer. See `references/reviewer-modes.md` for substitution tables and Combined Reviewer Mode rules.
 - **Team-member flags** — `-t-op` / `-t-so` override the model for child worktree agents and fix-delegation agents session-wide, replacing any per-topic `Model:` annotations from `/big-plan`. Without a flag, each child's model resolves per-topic from the annotation (default `opus`). See `references/per-topic-models.md` for resolution order and `references/arguments.md` for the canonical flag table.
 
 ### Step 2: Create Base Branch and Root PR
@@ -252,7 +252,9 @@ git pull origin <parent-branch>
 
 git checkout -b base/<project-name>
 
-git commit --allow-empty -m "= start <project-name> dev ="
+# [skip ci] = GitHub-native skip instruction — the empty commit changes nothing, so CI on it
+# is guaranteed-green waste; real commits that follow trigger CI normally
+git commit --allow-empty -m "= start <project-name> dev = [skip ci]"
 git push -u origin base/<project-name>
 
 # !! PR TARGET CHECK !! — <parent-branch> MUST be INVOCATION_BRANCH (recorded above) for non-Super-Epic
@@ -405,7 +407,7 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
-4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co` / `-gco` / `-gcoc`). If no reviewer flag is active, `/light-review` falls to its own default (`-gcoc`).
+4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co` / `-gco`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
 7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. (Subagents path: return a plain-text summary. Teams path: report via SendMessage with no backticks / code fences — see `references/teams-path.md`.)
@@ -491,25 +493,27 @@ Next is **Step 9: Quality Assurance**. You MUST run it before pushing. Do NOT sk
 
 If `--no-review` or `-nor` was passed, **skip this step entirely** — do not invoke any review skill, do not delegate fixes, do not block before Step 11. Proceed straight to Step 10 (if `--verify-ui`) or Step 11 (push).
 
-This flag's purpose: when `/deep-review -t` (default team-fix path) spawns a child `/x-wt-teams --no-review --stay` to apply fixes, the child must NOT run `/deep-review` again — that would loop forever. Manual users almost never pass this. See `references/arguments.md`.
+This flag's purpose: when `/deep-review -t` (default team-fix path) spawns a child `/x-wt-teams --no-review --stay` to apply fixes, the child must NOT run `/deep-review` again — that would loop forever. (`/deep-review` also passes `-nf -nori` to that child, so the contained fix session skips the Step 15.5 auto-fix and raises no issues — the outer `/deep-review` owns both.) Manual users almost never pass this. See `references/arguments.md`.
 
 #### Review Loop Mode (`-l` / `--review-loop`)
 
-If `-l` was passed (and `--no-review` was NOT), invoke `/review-loop 5 --aggressive --issues` instead of `/deep-review`. If `--noi` / `--noissue` / `--noissues` was also passed, omit `--issues`:
+If `-l` was passed (and `--no-review` was NOT), invoke `/review-loop 5` instead of `/deep-review`. Forward `-nori` if it was passed — `/review-loop` raises GitHub issues (label `agent-found`) for deferred needs-consideration findings by default, matching this skill's own `-ri`/`-nori` semantics:
 
 ```
-Skill tool: skill="review-loop", args="5 --aggressive --issues"
-# or without --issues if --noi was passed:
-Skill tool: skill="review-loop", args="5 --aggressive"
+Skill tool: skill="review-loop", args="5"
+# or, if -nori was passed:
+Skill tool: skill="review-loop", args="5 -nori"
 ```
 
 #### Default Mode
 
-If neither flag was passed, invoke `/deep-review`:
+If neither flag was passed, invoke `/deep-review`, forwarding `-nori` if it was passed (under the default `-ri`, `/deep-review` raises `agent-found` issues for findings it doesn't fix — those feed Step 15.5's auto-fix):
 
 ```
 Skill tool: skill="deep-review"
 ```
+
+With no reviewer flags, `/deep-review` delegates the review to `/codex-review` — codex is the house default reviewer.
 
 `/deep-review` defaults to `-t` team-fix mode — it handles its own fix delegation by spawning a fresh `/x-wt-teams --no-review --stay`, applying fixes, committing, merging back into `base/<project-name>`, pushing, and running `/pr-revise`. By the time `/deep-review` returns, fixes are already committed and pushed. You do NOT need to create a fix issue, spawn an Agent, or call `/pr-revise` from this step.
 
@@ -517,7 +521,7 @@ For the legacy inline-fix flow (manager applies fixes in own context, no nested 
 
 #### Reviewer-mode substitution
 
-If `-co` / `-gco` / `-gcoc` is active, substitute the reviewer skill: `/codex-review` / `/gco-review` / `/gcoc-review`. With multiple flags, run all selected backends sequentially and merge findings. Full rules: `references/reviewer-modes.md`.
+If `-co` / `-gco` is active, substitute the reviewer skill: `/codex-review` / `/gco-review`. With multiple flags, run all selected backends sequentially and merge findings. Full rules: `references/reviewer-modes.md`.
 
 #### Common steps
 
@@ -641,7 +645,7 @@ This creates a self-correcting loop that ensures nothing from the original spec 
 
 **Only run when this session is Super-Epic child mode** — i.e., the epic issue body contained `**Super-epic:** #N` and `SUPER_EPIC_NUMBER` was captured in Step 1a. Skip entirely for non-Super-Epic sessions.
 
-**This step always runs in Super-Epic child mode, regardless of `-a` / `--auto`.** `-a` is intentionally ignored in Super-Epic mode (see "Auto-Complete Mode" below for the rationale) — do NOT skip this mandatory merge thinking `/pr-complete` will handle it.
+**This step always runs in Super-Epic child mode, regardless of `-m` / `--merge`.** `-m` is intentionally ignored in Super-Epic mode (see "Merge Mode" below for the rationale) — do NOT skip this mandatory merge thinking `/pr-complete` will handle it.
 
 **Why mandatory:** A super-epic stacks many epic-PRs on the same super-epic base. If an epic-PR is left open at STOP, the next epic session branches off a stale super-epic base, sibling epic-PRs collide, and the super-PR never converges. Each epic session must merge its own epic-PR before STOP — no exceptions.
 
@@ -651,11 +655,13 @@ After this step, proceed to Close Tracking Issue → Auto-Suggest Next Command (
 
 ---
 
-### Auto-Complete Mode (`-a` / `--auto`)
+### Merge Mode (`-m` / `--merge`)
 
-**Only run if `-a` or `--auto` was passed AND this session is NOT Super-Epic child mode.** Otherwise skip to STOP.
+**Only run if `-m` or `--merge` was passed AND this session is NOT Super-Epic child mode AND no next wave remains.** Otherwise skip to Step 15.5 / Step 16 / Auto-Suggest. (This was `-a`'s job before the `-a`/`-m` split — `-a` is now the auto-chain flag and does NOT merge.)
 
-**Why `-a` is ignored in Super-Epic child mode:** The mandatory merge step above already merges the epic-PR into the super-epic base — the only merge a Super-Epic child session is responsible for. `-a` is redundant there and is also semantically misleading (a user might read "auto-merge" as "also merge the super-epic base into main," which this skill never does). Full rationale in `references/super-epic-mode.md`.
+**Why `-m` is ignored in Super-Epic child mode:** The mandatory merge step above already merges the epic-PR into the super-epic base — the only merge a Super-Epic child session is responsible for. `-m` is redundant there and is also semantically misleading (a user might read "auto-merge" as "also merge the super-epic base into main," which this skill never does). Full rationale in `references/super-epic-mode.md`.
+
+**Why `-m` defers mid-chain:** when this session is part of a multi-wave / multi-session plan, evaluate the Auto-Suggest signals (Signal A / Signal B — see "Auto-Suggest Next Command" below) BEFORE merging. If a next wave remains, do NOT merge here — the root/epic PR must stay open so later waves keep accumulating onto it. Forward `-m` in the next-wave hand-off (or auto-invocation, under `-a`) instead; the merge runs in the session where no next wave remains (chain termination).
 
 After Step 15 passes, automatically:
 
@@ -707,14 +713,14 @@ The command is idempotent — it no-ops when the label already exists.
 
 ---
 
-### Step 15.5: Auto-Fixing Raised Findings (`-fix` / `--auto-fix`)
+### Step 15.5: Auto-Fixing Raised Findings (`-f` / `--auto-fix`, DEFAULT)
 
-**Only run this step if `-fix` / `--auto-fix` was passed.** It runs AFTER the main work (and after Auto-Complete / the mandatory Super-Epic merge, if those applied) and BEFORE Step 16 cleanup. If `-fix` was not passed, skip straight to Step 16.
+**This step runs by default.** Skip it only if `-nf` / `--no-fix` was passed — then go straight to Step 16. It runs AFTER the main work (and after Merge Mode / the mandatory Super-Epic merge, if those applied) and BEFORE Step 16 cleanup.
 
 **Gating:**
 
 - Requires `-ri` (the default). If `-nori` / `--no-raise-issues` was passed, this step is a **no-op** — no `agent-found` issues were raised this session. Print one line and skip.
-- Opt-in only. For careful / manual sessions, you don't pass `-fix`.
+- For careful / manual sessions, pass `-nf` / `--no-fix` to leave all raised issues open for human triage.
 
 **Scope:** the `agent-found` issues *raised by this session* (manager and child agents), tracked in session state from "Raising Issues for Unrelated Findings" above. Do NOT touch unrelated pre-existing `agent-found` issues from other sessions.
 
@@ -739,12 +745,12 @@ gh label create "needs-decision" \
 - **TINY / trivial / localized** (one-liner, obvious cleanup, single-spot fix): **bundle ALL tiny fixes into ONE shared fix PR** on a single `agent-fix/<slug>` branch.
 - **NON-TRIVIAL but bounded:** **each gets its OWN `agent-fix/<slug>` branch + PR.**
 
-**Landing each fix — target the parent / ultimate-landing branch, NOT the intermediate `base/<project-name>`.** For `/x-wt-teams` that is `$PARENT_BRANCH` (the branch the root PR targets; in Super-Epic child mode, `$SUPER_EPIC_BASE`). Targeting the parent keeps fix branches valid even when `-a`'s `/pr-complete --delete-branch` already removed `base/<project-name>`. Create each `agent-fix/<slug>` branch from `$PARENT_BRANCH` and target its PR at `$PARENT_BRANCH`.
+**Landing each fix — target the parent / ultimate-landing branch, NOT the intermediate `base/<project-name>`.** For `/x-wt-teams` that is `$PARENT_BRANCH` (the branch the root PR targets; in Super-Epic child mode, `$SUPER_EPIC_BASE`). Targeting the parent keeps fix branches valid even when `-m`'s `/pr-complete --delete-branch` already removed `base/<project-name>`. Create each `agent-fix/<slug>` branch from `$PARENT_BRANCH` and target its PR at `$PARENT_BRANCH`.
 
 For each fix branch (the tiny bundle, or one per non-trivial issue):
 
 1. `git checkout -b agent-fix/<slug> <PARENT_BRANCH>`, implement the fix(es), commit locally.
-2. **Run `/light-review`** before merge — forward active reviewer flags (`-op` / `-so` / `-haiku` / `-co` / `-gco` / `-gcoc`) so `-op` → opus-backed review. Tiny bundle reviewed as a unit; per-issue fixes individually. Address high-priority findings and commit.
+2. **Run `/light-review`** before merge — forward active reviewer flags (`-op` / `-so` / `-haiku` / `-co` / `-gco`) so `-op` → opus-backed review. Tiny bundle reviewed as a unit; per-issue fixes individually. Address high-priority findings and commit.
 3. Push and open the fix PR (`gh pr create --base <PARENT_BRANCH> ...`), body linking the `agent-found` issue(s) it closes.
 4. **Verify the fix** (build / tests / the issue's described check). Heavy / port-based verification goes through the manager on the merged branch, never a child — same rule as the rest of the workflow; browser checks go through the isolated Opus subagent (`references/resource-coordination.md`).
 5. **On success: CLOSE the corresponding `agent-found` issue and link the fix PR** (overrides cleanup's "always keep" for FIXED issues only; left-open / unfixed ones stay open and kept):
@@ -765,27 +771,29 @@ For each fix branch (the tiny bundle, or one per non-trivial issue):
 
   Do NOT add `needs-decision` here (that label is the deliberate leave-open path); this is a failed-fix marker. Never loop forever.
 
-**`-a` interaction (fix PR auto-merge):** fix PRs follow the **same auto-merge semantics as the root PR** — with `-a`, auto-merge each fix PR after `/light-review` + verification (e.g. `gh pr merge --merge --delete-branch` once green, or `/pr-complete` per fix PR); without `-a`, leave each as a ready (non-draft) PR for the user and still close the linked `agent-found` issue with the link once verified. **In Super-Epic child mode `-a` is ignored (see "Why `-a` is ignored in Super-Epic child mode" above), so treat fix PRs as the no-`-a` case — leave them as ready PRs for the super-epic flow to merge; still close the linked `agent-found` issue once verified.** Track the fix PRs and closed issues in session state — they go into the Step 16 manifest (role: `fix`).
+**`-m` interaction (fix PR auto-merge):** fix PRs follow the **same auto-merge semantics as the root PR** — with `-m`, auto-merge each fix PR after `/light-review` + verification (e.g. `gh pr merge --merge --delete-branch` once green, or `/pr-complete` per fix PR); without `-m`, leave each as a ready (non-draft) PR for the user and still close the linked `agent-found` issue with the link once verified. **In Super-Epic child mode `-m` is ignored (see "Why `-m` is ignored in Super-Epic child mode" above), so treat fix PRs as the no-`-m` case — leave them as ready PRs for the super-epic flow to merge; still close the linked `agent-found` issue once verified.** Track the fix PRs and closed issues in session state — they go into the Step 16 manifest (role: `fix`).
 
 ---
 
 ### Step 16: Cleanup audit via `/cleanup-resources`
 
-**Always run this step before Auto-Suggest / STOP** (unless `--no-issue` AND no branches were created — extremely rare). Replaces the older bespoke "close tracking issue" step and the deferred manual cleanup hook (now Step 17). The Sonnet subagent re-fetches every resource the workflow touched and returns a structured close/keep/delete plan; the manager (you) executes the plan and prints a final report. This catches the historical bugs where: (a) sub-issues stayed open after their PRs merged, (b) the tracking issue silently stayed open at end of workflow, (c) `-a` deleted the remote base but the local copy stayed behind.
+**Always run this step before Auto-Suggest / STOP** (unless `--no-issue` AND no branches were created — extremely rare). Replaces the older bespoke "close tracking issue" step and the deferred manual cleanup hook (now Step 17). The Sonnet subagent re-fetches every resource the workflow touched and returns a structured close/keep/delete plan; the manager (you) executes the plan and prints a final report. This catches the historical bugs where: (a) sub-issues stayed open after their PRs merged, (b) the tracking issue silently stayed open at end of workflow, (c) `-m` deleted the remote base but the local copy stayed behind.
 
 ```
-Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams <-a if passed>"
+Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams <-a if -m was passed>"
 ```
+
+(`/cleanup-resources`'s `-a` flag means `--auto-merged` — it maps to this skill's `-m`, the flag that actually merges the root PR. Do NOT pass it just because the auto-chain flag `-a` was on this invocation.)
 
 **Manifest contents for `/x-wt-teams`:**
 
 - Workflow context:
   - `workflow: x-wt-teams`
-  - `auto-flag: <true if -a/--auto was passed, else false>`
+  - `auto-flag: <true if -m/--merge was passed, else false>`
   - `epic-mode: <true if Step 1a was epic shortcut or Super-Epic child mode, else false>`
   - `super-epic-mode: <true if Super-Epic child mode, else false>`
   - `root-PR: <ROOT_PR_URL>`
-  - `root-PR-merged: <true if -a flow merged it, else false>`
+  - `root-PR-merged: <true if -m flow merged it, else false>`
   - `parent-branch: <PARENT_BRANCH>`
   - `super-epic-base: <SUPER_EPIC_BASE if Super-Epic child mode, else "none">`
 - Issues to include:
@@ -796,18 +804,18 @@ Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams <-a if passed>"
   - **`agent-found` issues closed by `-fix`** (if the Step 15.5 auto-fix step ran) — already closed by this session; the audit confirms KEEP-as-closed.
   - **Super-epic issue** (Super-Epic child mode only) — role: `claimed-existing` with note "parent super-epic; never close from a child session". ALWAYS KEEP.
 - Branches to include:
-  - **Base branch** (`base/<project-name>`) — role: `base`, `pr-merged: <true if root PR merged>`. When `-a` flow merged the root PR, propose delete (local AND remote — the remote was already removed by `--delete-branch`, but pass `scope: both` so the manager's `git push origin --delete` is idempotent and `git branch -d` cleans up local).
+  - **Base branch** (`base/<project-name>`) — role: `base`, `pr-merged: <true if root PR merged>`. When `-m` flow merged the root PR, propose delete (local AND remote — the remote was already removed by `--delete-branch`, but pass `scope: both` so the manager's `git push origin --delete` is idempotent and `git branch -d` cleans up local).
   - **Topic branches** (`<project-name>/<topic-name>` for each topic) — role: `topic`. Step 11 already deleted these; pass them in the manifest with `scope: both, pr-merged: true` so the agent confirms they're gone and the manager surfaces any stragglers in the "Warnings" section. Defensive only.
-  - **`agent-fix/<slug>` branches** (if Step 15.5 created any) — role: `fix`, targeting `$PARENT_BRANCH`. Pass `pr-merged: <true if the fix PR merged — always under `-a`, else false>` so merged fix branches are cleaned up and unmerged ones (ready PRs awaiting the user) are kept.
+  - **`agent-fix/<slug>` branches** (if Step 15.5 created any) — role: `fix`, targeting `$PARENT_BRANCH`. Pass `pr-merged: <true if the fix PR merged — always under `-m`, else false>` so merged fix branches are cleaned up and unmerged ones (ready PRs awaiting the user) are kept.
   - **Parent branch** (`$PARENT_BRANCH` or `$SUPER_EPIC_BASE`) — role: `parent`. ALWAYS KEEP (the agent's prompt forbids deleting parent roles).
 - PRs to include:
   - **Root PR** — role: `root`, state from `gh pr view`. KEEP regardless — PRs that are still open are intentional, merged/closed PRs are done.
-  - **`-fix` fix PRs** (if Step 15.5 created any) — role: `fix`, state from `gh pr view`. Merged → done; ready/open → KEEP (intentional, awaiting the user when `-a` was not passed).
+  - **`-fix` fix PRs** (if Step 15.5 created any) — role: `fix`, state from `gh pr view`. Merged → done; ready/open → KEEP (intentional, awaiting the user when `-m` was not passed).
 
 After `/cleanup-resources` returns its report:
 
 1. Print the close/delete/keep summary to the user (e.g. "Closed 4 sub-issues + tracking issue, deleted local base branch, kept 2 unrelated-findings issues").
-2. If the report has an "Ambiguous" section, list those resources verbatim and either resolve them yourself (re-fetch and decide) or surface to the user — depending on what `--auto` mode allows.
+2. If the report has an "Ambiguous" section, list those resources verbatim and either resolve them yourself (re-fetch and decide) under `-a` autonomy, or surface to the user otherwise.
 3. If the manager was sitting on a branch the cleanup just deleted, it has already switched to the parent branch as part of execution. Confirm the new `git branch --show-current` matches the expected post-cleanup state per the STOP rules below.
 
 **Exception**: If the user provided the tracking issue (not created by this workflow), the manifest still lists it as `claimed-existing` and the Sonnet agent will propose KEEP. Do not pass it as `tracking`.
@@ -836,13 +844,13 @@ Print a concrete, copy-pasteable `/x-wt-teams <url> [flags] <instructions>` line
 
 If neither signal applies, skip auto-suggest and fall through to STOP.
 
-#### `-seq` / `--sequentially` — auto-continue the chain
+#### `-a` / `--auto` — auto-continue the chain
 
-When `-seq` was passed on this invocation AND Signal A or Signal B matched, do not stop after printing the hand-off. Instead:
+When `-a` was passed on this invocation AND Signal A or Signal B matched, do not stop after printing the hand-off. Instead:
 
-1. Build the next-wave command exactly as the matching template (`references/super-epic-mode.md` for Signal A, `references/issue-templates.md` for Signal B) prescribes, then **also append `-seq`** to the flag list so the chain keeps running on subsequent waves.
+1. Build the next-wave command exactly as the matching template (`references/super-epic-mode.md` for Signal A, `references/issue-templates.md` for Signal B) prescribes, then **also append `-a`** to the flag list so the chain keeps running on subsequent waves — and forward `-m` / `-nf` / `-nori` if they were on this invocation (auto-fix and issue-raising are defaults, so only the opt-outs need forwarding) (`-m` defers to chain termination, where Merge Mode merges the root PR — non-Super-Epic only; in Super-Epic chains the mandatory epic merge governs and `-m` stays ignored).
 2. Print the hand-off block as usual (so the log records the transition), then **immediately invoke the same command via the Skill tool** — `Skill skill="x-wt-teams" args="<flags + url + instructions>"`. This re-enters the skill in the same session and runs the next wave end-to-end.
-3. The chain self-terminates when a future iteration's auto-suggest finds no remaining siblings (last-epic all-done branch in `super-epic-mode.md`, no-next-found fallback in `issue-templates.md`). At that point, print the "all done" message and STOP normally.
+3. The chain self-terminates when a future iteration's auto-suggest finds no remaining siblings (last-epic all-done branch in `super-epic-mode.md`, no-next-found fallback in `issue-templates.md`). At that point, print the "all done" message, run Merge Mode if `-m` rode the chain (non-Super-Epic only), and STOP normally.
 
 **Pause conditions — do NOT auto-invoke; print the hand-off + a short blocker note and STOP so the user can intervene:**
 
@@ -852,9 +860,9 @@ When `-seq` was passed on this invocation AND Signal A or Signal B matched, do n
 - Any merge conflict on the super-epic base or accumulating-epic base that this session cannot resolve safely.
 - Any condition the manager would normally surface to the user mid-run (denied destructive action, missing credential, etc.).
 
-A pause is a soft stop — write a one-line "paused: <reason>" note above the hand-off, leave the chain ready to be resumed by the user re-running the printed next-wave command (which still has `-seq` appended, so resuming continues the chain).
+A pause is a soft stop — write a one-line "paused: <reason>" note above the hand-off, leave the chain ready to be resumed by the user re-running the printed next-wave command (which still has `-a` appended, so resuming continues the chain).
 
-**Without `-seq`**: behave as before — print the hand-off and STOP. Single-session runs and `-seq`-less multi-session plans are untouched.
+**Without `-a`**: behave as before — print the hand-off and STOP. Single-session runs and `-a`-less multi-session plans are untouched.
 
 ---
 
@@ -866,9 +874,9 @@ A pause is a soft stop — write a one-line "paused: <reason>" note above the ha
 
 **CRITICAL RULES at this point:**
 
-- **If `-a` / `--auto` was used and the PR was merged**: The auto-complete checkout+pull put you on the target branch, and `/cleanup-resources` then proposed deleting the now-dead local `base/<project-name>` (which the manager executed). Stay on the target branch — the dead base is gone.
+- **If `-m` / `--merge` was used and the PR was merged**: The merge-mode checkout+pull put you on the target branch, and `/cleanup-resources` then proposed deleting the now-dead local `base/<project-name>` (which the manager executed). Stay on the target branch — the dead base is gone.
 - **If Super-Epic child mode** (any epic — not just the last): You are already on the super-epic base after the mandatory merge step's branch-cleanup. `/cleanup-resources` then audited and confirmed. Stay on the super-epic base; the local epic base is already deleted.
-- **Otherwise (non-Super-Epic, non-`-a`)**: **Stay on `base/<project-name>`.** `/cleanup-resources` proposed KEEP for the base branch (PR not merged yet). Do NOT checkout `main`, the parent branch, or any other branch.
+- **Otherwise (non-Super-Epic, non-`-m`)**: **Stay on `base/<project-name>`.** `/cleanup-resources` proposed KEEP for the base branch (PR not merged yet). Do NOT checkout `main`, the parent branch, or any other branch.
 - **Do NOT re-run cleanup** — Step 16 already ran. The "Step 17 (deferred)" manual cleanup hook is only for a later session where the user explicitly asks.
 - **Do NOT delete any branches manually** — `/cleanup-resources` is the only step authorized to delete branches in this workflow. If it didn't delete a branch, leave it alone.
 - **Do NOT do anything else** unless the user asks.
@@ -913,7 +921,7 @@ After you report the root PR, the user often replies with feedback — requests 
 
 **Only run when the user explicitly asks**, typically after they've merged the root PR in a separate session and want to tidy up the leftover base branch.
 
-When `-a` was used, the unconditional `/cleanup-resources` audit at end of workflow already deleted the dead local base branch — there's nothing left to do here. This step exists for the `-a`-less flow: the user merged the PR manually later and now wants the dead branches cleaned up.
+When `-m` was used, the unconditional `/cleanup-resources` audit at end of workflow already deleted the dead local base branch — there's nothing left to do here. This step exists for the `-m`-less flow: the user merged the PR manually later and now wants the dead branches cleaned up.
 
 ```
 Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams"
@@ -933,7 +941,7 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 
 ## Important Rules
 
-1. **NEVER checkout main or parent branch on your own** — the workflow ends at Step 16 (cleanup audit), and `/cleanup-resources` is the only step authorized to switch branches as part of dead-branch cleanup. Outside its execution, stay on `base/<project-name>`. **Exceptions** (all routed through `/cleanup-resources` per Rule 27, or explicit special cases of Rule 26 Dead Branch Cleanup): (a) `-a` / `--auto` and PR merged → cleanup-resources proposes deleting the dead local `base/<project-name>`; the skill itself handles the checkout-parent + `git branch -d` mechanics. (b) **Super-Epic child mode** → the mandatory super-epic merge step (before Step 16) still checks out `$SUPER_EPIC_BASE` and deletes the local epic base, per step 5 of `references/super-epic-mode.md`. Cleanup-resources then audits and confirms.
+1. **NEVER checkout main or parent branch on your own** — the workflow ends at Step 16 (cleanup audit), and `/cleanup-resources` is the only step authorized to switch branches as part of dead-branch cleanup. Outside its execution, stay on `base/<project-name>`. **Exceptions** (all routed through `/cleanup-resources` per Rule 27, or explicit special cases of Rule 26 Dead Branch Cleanup): (a) `-m` / `--merge` and PR merged → cleanup-resources proposes deleting the dead local `base/<project-name>`; the skill itself handles the checkout-parent + `git branch -d` mechanics. (b) **Super-Epic child mode** → the mandatory super-epic merge step (before Step 16) still checks out `$SUPER_EPIC_BASE` and deletes the local epic base, per step 5 of `references/super-epic-mode.md`. Cleanup-resources then audits and confirms.
 2. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents.
 3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts.
 4. **Create the root PR immediately in Step 2** — empty commit + draft PR locks in the correct parent branch.
@@ -954,19 +962,19 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 19. **Playwright / browser tools go through an isolated one-shot Opus subagent** — see `references/resource-coordination.md`. Neither manager nor child may invoke browser tools directly. At most one browser-verification subagent alive at a time, sequential only.
 20. **No heavy / port-based tests in child agents** — see `references/resource-coordination.md`. Children commit + report; manager runs sequentially on merged base. Legitimate short port-binding work uses `flock`.
 21. **Auto-Suggest Next Command is MANDATORY for multi-session plans** — before STOP, if Signal A (Super-Epic) or Signal B (`--stay` accumulating-epic) applies, MUST print a copy-pasteable next command. The user should never have to type "give me next command" for a planned multi-session workflow.
-22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP, then switch to the super-epic base and delete the local epic base** — see `references/super-epic-mode.md`. The mandatory merge step is unconditional in Super-Epic child mode, runs even if `-a` was passed. This rule OVERRIDES Rule 1's "stay on `base/<project-name>`" default.
+22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP, then switch to the super-epic base and delete the local epic base** — see `references/super-epic-mode.md`. The mandatory merge step is unconditional in Super-Epic child mode, runs even if `-m` was passed. This rule OVERRIDES Rule 1's "stay on `base/<project-name>`" default.
 23. **Execution mode is read from `/big-plan` annotations, not guessed** — when an `[Epic]` or Super-Epic child issue is the input, Step 1a extracts the per-topic `**Execution mode:** {subagents|teams}` markers and Step 5 routes accordingly. The **subagents path is the inline default** (it owns the canonical prompt body in Step 5 / Step 7); the **routing fallback when a marker is missing is teams** (preserves pre-annotation behavior). All-subagents → spawn one-shot Agent calls without TeamCreate (inline). Any-teams or any-missing → full team workflow in `references/teams-path.md`. The skill never auto-classifies execution mode itself — that decision belongs in `/big-plan`. Full routing logic, drift sanity check, and the subagents-path Agent-call shape live in `references/execution-modes.md`; the teams-path body lives in `references/teams-path.md`.
 24. **Per-topic model is read from `/big-plan` annotations, with manual team-member flag override** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku}` marker and Step 5 spawns each child with its own model. A manual `-t-op` / `-t-so` flag on the invocation OVERRIDES every topic's annotation as a session-wide manual override; without a flag, per-topic markers are honored. Default-when-missing-and-no-flag is **opus** (preserves pre-annotation behavior). Reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children — those govern the Step 9 Claude reviewer only. The skill never auto-classifies the model itself — that decision belongs in `/big-plan` or in the user's flag. Full resolution table and rationale: `references/per-topic-models.md`.
-25. **`-seq` / `--sequentially` auto-continues multi-wave plans in one session** — when `-seq` is passed AND Auto-Suggest detected a next wave (Signal A or Signal B), the manager appends `-seq` to the next-wave command and invokes it immediately via the Skill tool instead of stopping. The chain keeps running until a future iteration finds no more siblings. Pause (soft-stop with hand-off + blocker note) on the conditions listed in the Auto-Suggest sub-section — never silently swallow a blocker to keep the chain going. Single-session runs and `-seq`-less invocations are unaffected.
+25. **`-a` / `--auto` auto-continues multi-wave plans in one session** — when `-a` is passed AND Auto-Suggest detected a next wave (Signal A or Signal B), the manager appends `-a` to the next-wave command (forwarding `-m` / `-nf` / `-nori` too) and invokes it immediately via the Skill tool instead of stopping. The chain keeps running until a future iteration finds no more siblings; if `-m` rode the chain, the merge runs at chain termination. Pause (soft-stop with hand-off + blocker note) on the conditions listed in the Auto-Suggest sub-section — never silently swallow a blocker to keep the chain going. Single-session runs and `-a`-less invocations are unaffected. (`-a` replaces the retired `-seq` flag; `-a` itself never merges — merging is `-m`'s job.)
 26. **Dead Branch Cleanup Principle (general meta-rule)** — whenever this skill orchestrates a merge (or watches one) where the source branch's work is absorbed into a parent **and** the source remote is deleted (e.g., `gh pr merge --delete-branch`, `/pr-complete`, equivalent), the local source branch is now a dead pointer and MUST be cleaned up before session ends. Pattern:
 1. Capture the dead branch name BEFORE switching off it: `DEAD_BRANCH=$(git branch --show-current)`
 2. `git fetch origin --prune` to drop the now-deleted remote refs
 3. `git checkout <parent-branch> && git pull origin <parent-branch>` to land on the absorbing branch
 4. `git branch -d "$DEAD_BRANCH"` — use **`-d` NOT `-D`**. If unmerged commits, `-d` refuses; surface as a loud failure rather than silently destroy work with `-D`.
 
-    Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Auto-Complete after `/pr-complete` (Rule 1 exception (a)), the Step 17 deferred manual cleanup hook. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged. **As of Rule 27, the actual implementation of this cleanup is delegated to `/cleanup-resources` at Step 16 — hand-rolled `git branch -d` blocks should not be added; let cleanup-resources do it.**
+    Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Merge Mode after `/pr-complete` (Rule 1 exception (a)), the Step 17 deferred manual cleanup hook. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged. **As of Rule 27, the actual implementation of this cleanup is delegated to `/cleanup-resources` at Step 16 — hand-rolled `git branch -d` blocks should not be added; let cleanup-resources do it.**
 
-27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-a` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks.
+27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-m` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks.
 
 ## Prerequisites
 

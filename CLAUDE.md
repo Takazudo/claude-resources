@@ -44,14 +44,6 @@ Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (s
 - Invoke `/test-wisdom` when unsure which testing approach fits the current situation
 - **NEVER suggest "clear browser cache" or "hard refresh" as a solution.** If the user says it's still broken, the code is still broken. Investigate the actual cause instead of blaming cache.
 
-## Reviewers & `-gcoc` (cheap-model) Caveat
-
-- Skills with a `-gcoc` variant (e.g. `/gcoc-review`, `/gcoc-2nd`, `/gcoc-research`, `/gcoc-stack-trace-read`) run Copilot CLI on the free/cheap GPT-4.1 tier. That model is smaller and lower-budget than the manager model running this session.
-- Treat `-gcoc` output like a **linter / surface-level mistake catcher**: typos, obvious bugs, missing null checks, style nits, simple logic errors. Useful, cheap, fast.
-- Be skeptical when `-gcoc` returns **architectural / design-level feedback** (suggesting refactors, alternate patterns, structural rewrites, "this should be a class/strategy/etc."). The manager model is usually larger and more capable, so weigh such feedback critically rather than applying it blindly.
-- This caution applies to all external reviewers in principle, but especially to `-gcoc` because of the model size gap.
-- When the user explicitly picks `-gcoc`, do not silently upgrade to a non-cheap reviewer — just stay aware of the limitation when synthesizing the result.
-
 ## GitHub Issues
 
 - When reading a GitHub issue (URL, issue number, or any reference), always use `/gh-fetch-issue` first. This downloads the issue content and all attached images locally so Claude can read them. Do not use `gh issue view` directly — it cannot access embedded images.

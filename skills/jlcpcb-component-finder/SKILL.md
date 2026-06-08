@@ -11,7 +11,8 @@ Search ~7 million electronic components in the local JLCPCB database.
 
 ## Database
 
-- Path: `$HOME/.jlcpcb-db/cache.sqlite3` (~11 GB)
+- Path: `$HOME/.jlcpcb-db/cache.sqlite3` (~5 GB, yaqwsx/jlcparts `source-db-v2` schema: table `jlc_components`)
+- Override the path with the `JLCPCB_DB_PATH` env var if needed
 - If missing, tell the user to run `/jlcpcb-component-finder-update-db`
 
 ## Query Script
@@ -24,7 +25,7 @@ All queries use: `node $HOME/.claude/skills/jlcpcb-component-finder/query.js <co
 |---------|-------|-------------|
 | `db-info` | `node query.js db-info` | Show DB stats (total parts, categories, stock count, DB date) |
 | `list-categories` | `node query.js list-categories [keyword]` | List categories, optionally filtered by keyword |
-| `search-parts` | `node query.js search-parts <cat_id> [keyword] [limit]` | Search within a specific category |
+| `search-parts` | `node query.js search-parts <category> [keyword] [limit]` | Search within a category (category is a NAME substring, matched against category/subcategory) |
 | `search-all` | `node query.js search-all <keyword> [limit]` | Search across ALL categories by keyword |
 | `lookup` | `node query.js lookup <lcsc_number>` | Look up a specific part by LCSC number (e.g. C12084) |
 
@@ -37,8 +38,8 @@ node $HOME/.claude/skills/jlcpcb-component-finder/query.js db-info
 # Find audio-related categories
 node $HOME/.claude/skills/jlcpcb-component-finder/query.js list-categories "audio"
 
-# Search for 3.5mm audio jacks in category 208
-node $HOME/.claude/skills/jlcpcb-component-finder/query.js search-parts 208 "3.5" 10
+# Search for 3.5mm audio jacks within the "Audio" category
+node $HOME/.claude/skills/jlcpcb-component-finder/query.js search-parts "Audio" "3.5" 10
 
 # Search for CH340 across all categories
 node $HOME/.claude/skills/jlcpcb-component-finder/query.js search-all "CH340" 10
@@ -51,7 +52,7 @@ node $HOME/.claude/skills/jlcpcb-component-finder/query.js lookup C12084
 
 1. **Understand request** - What component does the user need?
 2. **Find category** - Use `list-categories [keyword]` or `search-all` for quick discovery
-3. **Search parts** - Use `search-parts` with category ID, or `search-all` for cross-category
+3. **Search parts** - Use `search-parts` with a category name, or `search-all` for cross-category
 4. **Present results** with LCSC number, manufacturer, description, package, stock, price, and URL
 
 ## Output Fields
@@ -73,7 +74,7 @@ Each result includes:
 - **Preferred parts** are commonly used and well-stocked
 - Start with broader keywords if specific searches return no results
 - Use `search-all` when you don't know the category
-- Use `list-categories` with a keyword to narrow down category IDs
+- Use `list-categories` with a keyword to discover category names
 - Limit initial searches to 10-20 results to avoid overwhelming output
 - Results are sorted by stock (descending) - highest stock = most available
 - Always include the detail page URL in recommendations

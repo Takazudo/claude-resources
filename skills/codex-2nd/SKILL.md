@@ -90,13 +90,13 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+900} node "$CODEX_COMPANION" task \
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
   "<prompt>" \
   > "$LOGDIR/${DATETIME}-codex-2nd.md" \
   2>"$LOGDIR/${DATETIME}-codex-2nd-stderr.log"
 ```
 
-**Timeout: 15 minutes.**
+**Timeout: 25 minutes.**
 
 ### Step 3: Collect Results
 
@@ -134,7 +134,7 @@ Return the subagent's feedback to the caller exactly as if it came from codex. D
 
 ## Timeout Policy
 
-- **Timeout**: 15 minutes (900s)
+- **Timeout**: 25 minutes (1500s)
 - **If codex times out**: Silently fall back to Opus (Step 5)
 - **Fallback agent**: general-purpose subagent at `model: opus` — the caller always gets a second opinion, just from Opus instead of codex when codex is down. Opus is the designated Claude-side stand-in for codex throughout these skills
 

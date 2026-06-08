@@ -54,5 +54,5 @@ ${INPUT_TEXT}"
   -p "$FULL_PROMPT" \
   -s \
   --no-ask-user \
-  --model gpt-4.1 \
+  --model gpt-5.4 \
   --available-tools

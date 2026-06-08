@@ -22,7 +22,7 @@ Before doing anything, check if Copilot is currently in degraded mode:
 RATE_CHECK=$(node $HOME/.claude/scripts/gco-rate-limit.js check 2>&1)
 ```
 
-If the output starts with `degraded:`, **notify the user** that Copilot is in low-cost mode (auto-downgraded model, free for Pro users) but **proceed with Copilot anyway** — it is still usable. Do NOT skip.
+If the output starts with `degraded:`, **notify the user** that Copilot is in low-cost mode (auto-downgraded model) but **proceed with Copilot anyway** — it is still usable. Do NOT skip.
 
 ### Step 1: Build Context Prompt
 
@@ -67,17 +67,9 @@ bash $HOME/.claude/skills/gco/scripts/gco-run.sh \
 
 ### Step 3: Collect Results
 
-1. **Check for quota fallback** — grep the stderr log for `GCO_USED_FALLBACK=`:
-
-   ```bash
-   grep '^GCO_USED_FALLBACK=' "$LOGDIR/${DATETIME}-gco-2nd-stderr.log"
-   ```
-
-   If found, `gco-run.sh` auto-retried with `gpt-4.1` because the primary model was out of quota. **Notify the user** with one line: **"Used gpt-4.1 instead of claude-opus-4.6 because of no quota."** Proceed — the feedback is still valid.
-
-2. Read the output file
-3. If empty or missing, check stderr log for errors
-4. If Copilot timed out or produced no output, skip — the plan proceeds without the second opinion
+1. Read the output file
+2. If empty or missing, check stderr log for errors (a 402 no-quota error means Copilot Premium is exhausted — treat it as a failure)
+3. If Copilot timed out, failed, or produced no output, skip — the plan proceeds without the second opinion
 
 ### Step 4: Return Feedback
 
@@ -97,6 +89,4 @@ Return the Copilot feedback to the caller. The caller decides whether to incorpo
 - Copilot reads workspace files for context — no need to paste file contents into the prompt
 - All file writing done by Claude Code, never by Copilot
 - This is advisory — never block the workflow if Copilot is unresponsive
-- **Quota fallback policy**: When the primary model returns HTTP 402 no-quota, `gco-run.sh` auto-retries with `gpt-4.1` (free) and writes `GCO_USED_FALLBACK=gpt-4.1 ...` to the stderr file. Claude MUST check stderr for this marker and tell the user "Used gpt-4.1 instead of claude-opus-4.6 because of no quota." Feedback is still valid — only skip when Copilot actually fails (timeout, no output, not installed)
-- **Cheap variant**: Use `/gcoc-2nd` to skip opus entirely and run gpt-4.1 from the start
 - NEVER use `~` in paths — use `$HOME`

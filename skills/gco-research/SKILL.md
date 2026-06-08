@@ -22,7 +22,7 @@ Before doing anything, check if Copilot is currently in degraded mode:
 RATE_CHECK=$(node $HOME/.claude/scripts/gco-rate-limit.js check 2>&1)
 ```
 
-If the output starts with `degraded:`, **notify the user** that Copilot is in low-cost mode (auto-downgraded model, free for Pro users) but **proceed with Copilot anyway** — it is still usable. Do NOT skip or fall back.
+If the output starts with `degraded:`, **notify the user** that Copilot is in low-cost mode (auto-downgraded model) but **proceed with Copilot anyway** — it is still usable. Do NOT skip or fall back.
 
 ### Step 1: Understand the Research Topic
 
@@ -67,30 +67,22 @@ bash $HOME/.claude/skills/gco/scripts/gco-run.sh \
 
 **Timeout: 15 minutes.**
 
-### Step 4: Collect Results and Check for Quota Fallback
+### Step 4: Collect Results
 
 After Copilot completes (or times out):
 
-1. **Check for quota fallback** — grep the stderr log for `GCO_USED_FALLBACK=`:
-
-   ```bash
-   grep '^GCO_USED_FALLBACK=' "$LOGDIR/${DATETIME}-gco-research-${SLUG}-stderr.log"
-   ```
-
-   If found, `gco-run.sh` auto-retried with `gpt-4.1` because the primary model was out of quota. **Notify the user** with one line: **"Used gpt-4.1 instead of claude-opus-4.6 because of no quota."** Proceed — the output is still valid.
-
-2. Read the output file
-3. If empty or missing, check stderr log for errors
-4. If Copilot timed out or failed, jump to **Fallback**
+1. Read the output file
+2. If empty or missing, check stderr log for errors (a 402 no-quota error means Copilot Premium is exhausted — treat it as a failure)
+3. If Copilot timed out or failed, jump to **Fallback**
 
 ### Step 5: Fallback
 
-If Copilot timed out, produced **no usable output**, or is **not installed**:
+If Copilot timed out, produced **no usable output**, hit **no-quota (402)**, or is **not installed**:
 
 - **Notify the user** about the fallback
 - Spawn a `researcher` subagent to perform the research via Claude Code tools (WebSearch, WebFetch, etc.)
 - Continue as if the researcher subagent was the original plan
-- Note: Rate limiting alone is NOT a fallback trigger — Copilot auto-downgrades to a cheaper model for Pro users and the output is still usable
+- Note: Rate limiting alone is NOT a fallback trigger — Copilot may auto-downgrade to a cheaper model and the output is still usable
 
 ### Step 6: Synthesize
 
@@ -118,6 +110,4 @@ pnpm dlx @takazudo/mdx-formatter --write <file>
 - Copilot can do web research natively
 - All file writing done by Claude Code, never by Copilot
 - Falls back to `researcher` subagent if Copilot fails
-- **Quota fallback policy**: When the primary model returns HTTP 402 no-quota, `gco-run.sh` auto-retries with `gpt-4.1` (free) and writes `GCO_USED_FALLBACK=gpt-4.1 ...` to the stderr file. Claude MUST check stderr for this marker and tell the user "Used gpt-4.1 instead of claude-opus-4.6 because of no quota." Output is still valid — do not fall back to the researcher subagent unless Copilot actually fails (timeout, no output, not installed)
-- **Cheap variant**: Use `/gcoc-research` to skip opus entirely and run gpt-4.1 from the start
 - NEVER use `~` in paths — use `$HOME`

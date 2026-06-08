@@ -69,7 +69,7 @@ This is the one explicit exception to the top-of-skill "ROOT PR TARGET BRANCH RU
 
 ## Mandatory: Merge Epic-PR into Super-Epic Base
 
-**Always runs in Super-Epic child mode, regardless of `-a` / `--auto`.** This step replaces the normal "leave the root PR open for the user to review and merge" behavior — the epic-PR MUST be merged before STOP, no exceptions.
+**Always runs in Super-Epic child mode, regardless of `-m` / `--merge`.** This step replaces the normal "leave the root PR open for the user to review and merge" behavior — the epic-PR MUST be merged before STOP, no exceptions.
 
 **Why mandatory:** A super-epic stacks many epic-PRs on the same super-epic base. If an epic-PR is left open, the next epic session branches off a stale super-epic base — its topics won't include this epic's work, sibling epic-PRs conflict on shared files, the super-PR never converges. With many epics in flight, the backlog of unmerged epic-PRs becomes unrecoverable.
 
@@ -207,16 +207,18 @@ See the super-epic issue for the super-PR URL.
 
 `-t` is `/deep-review`'s default but include it explicitly so the user understands team-fix mode is what makes this safe to run on a large multi-epic diff.
 
-## Why `-a` / `--auto` is ignored in Super-Epic child mode
+## Why `-m` / `--merge` is ignored in Super-Epic child mode
 
-The mandatory merge above already handles the epic-PR. `-a` is redundant there. Worse, the flag is semantically misleading — a user might read "auto-merge" as "also merge the super-epic base into main / origin branch," which this skill NEVER does (the super-PR is merged later, in a different session, by the user). To prevent that confusion, Super-Epic child sessions do NOT honor `-a`.
+The mandatory merge above already handles the epic-PR. `-m` is redundant there. Worse, the flag is semantically misleading — a user might read "auto-merge" as "also merge the super-epic base into main / origin branch," which this skill NEVER does (the super-PR is merged later, in a different session, by the user). To prevent that confusion, Super-Epic child sessions do NOT honor `-m`.
 
-If the user passes `-a` in Super-Epic mode, treat it as a no-op and proceed with the mandatory merge step.
+If the user passes `-m` in Super-Epic mode, treat it as a no-op and proceed with the mandatory merge step.
+
+**`-a` / `--auto` (auto-chain) is NOT ignored** — it drives the next-sibling-epic chain: when `-a` is on the invocation and Auto-Suggest finds a remaining sibling epic, the manager invokes the next epic's command itself (appending `-a`, forwarding `-m` / `-nf` / `-nori`) instead of printing-and-stopping. See the parent SKILL.md "Auto-Suggest Next Command" section.
 
 ## Important rules that ONLY apply in Super-Epic child mode
 
 - **Parent branch is fixed to `$SUPER_EPIC_BASE`**, not the invocation branch — this is the one explicit exception to the top-of-skill ROOT PR TARGET BRANCH RULE.
 - **Each epic-PR MUST be merged before STOP.** Skipping the merge breaks the multi-epic stacking strategy.
 - **Always switch to the super-epic base and delete the local epic base after the merge** — instance of the Dead Branch Cleanup Principle.
-- **`-a` / `--auto` is ignored** — see above.
+- **`-m` / `--merge` is ignored** (the auto-chain flag `-a` still applies) — see above.
 - **The super-epic issue is never closed by this skill** — it stays open until all siblings are merged and the user does the final `/deep-review -t`.

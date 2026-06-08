@@ -4,8 +4,7 @@
  * GitHub Copilot CLI rate limit tracker.
  *
  * Tracks when Copilot enters low-cost/degraded mode (auto-downgraded model).
- * For Pro users, Copilot remains usable when rate-limited — it simply switches
- * to a cheaper model (e.g., GPT-3.5 instead of GPT-4) at no extra cost.
+ * Copilot may remain usable when rate-limited by switching to a cheaper model.
  * This tracker is informational only — it does NOT block Copilot usage.
  *
  * Usage:
@@ -66,7 +65,7 @@ function check() {
     }
 
     const remaining = Math.ceil((expiresAt - new Date()) / 60000);
-    // Exit 0 — Copilot is still usable in low-cost mode (Pro users get free fallback model)
+    // Exit 0 — Copilot is still usable in low-cost mode
     console.log(
       `degraded: Copilot is in low-cost mode (auto-downgraded model). Resets in ~${remaining} min. Still usable.`
     );

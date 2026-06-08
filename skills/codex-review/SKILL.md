@@ -91,12 +91,12 @@ Use `$DATETIME` in all output filenames below to avoid overwriting previous runs
 Run the companion script's review command with `--base` and `--wait`:
 
 ```bash
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+900} node "$CODEX_COMPANION" review --base "$BASE" --wait \
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" review --base "$BASE" --wait \
   > "$LOGDIR/${DATETIME}-codex-review.md" \
   2>"$LOGDIR/${DATETIME}-codex-review-stderr.log"
 ```
 
-Launch as a **background Bash task** with a **15-minute timeout**.
+Launch as a **background Bash task** with a **25-minute timeout**.
 
 ### Step 4: Collect Results and Check for Rate Limiting
 
@@ -143,7 +143,7 @@ If fixes were applied, commit with a descriptive message.
 
 ## Timeout Policy
 
-- **Timeout**: 15 minutes (900s via `gtimeout`/`timeout` command, auto-detected)
+- **Timeout**: 25 minutes (1500s via `gtimeout`/`timeout` command, auto-detected)
 - **If codex times out**: Silently fall back to Opus (2 `code-reviewer` subagents with `model: opus`)
 
 ## Important Notes

@@ -13,11 +13,13 @@ echo "=== JLCPCB Parts Database Updater ==="
 echo ""
 
 # Check dependencies
-for cmd in curl 7z; do
+for cmd in curl 7z sqlite3; do
   if ! command -v "$cmd" &>/dev/null; then
     echo "ERROR: '$cmd' is required but not installed."
     if [ "$cmd" = "7z" ]; then
       echo "Install with: brew install p7zip"
+    elif [ "$cmd" = "sqlite3" ]; then
+      echo "Install with: brew install sqlite"
     fi
     exit 1
   fi
@@ -107,6 +109,22 @@ mv "$WORK_DIR/cache.sqlite3" "$DB_FILE"
 
 # Clean up
 rm -rf "$WORK_DIR"
+
+# Defensive slim-down: the OLD upstream format ("cache.sqlite3" v1) bundled a
+# ~20 GB raw per-part payload table (jlcpcb_component_details) that the finder
+# never queries. The current "source-db-v2" format omits it, but if a future or
+# older build ships it, drop it and reclaim the space. No-op on v2.
+if sqlite3 "$DB_FILE" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='jlcpcb_component_details' LIMIT 1;" | grep -q 1; then
+  echo "  Purging unused raw-payload table (jlcpcb_component_details) + VACUUM..."
+  sqlite3 "$DB_FILE" "DROP TABLE jlcpcb_component_details; VACUUM;"
+fi
+
+# Remove the previous backup so old DBs don't pile up (each is multi-GB). The DB
+# is always re-downloadable, so a stale .bak has little value once the new one is in place.
+if [ -f "$DB_DIR/cache.sqlite3.bak" ]; then
+  echo "  Removing previous backup cache.sqlite3.bak"
+  rm -f "$DB_DIR/cache.sqlite3.bak"
+fi
 
 # Show result
 NEW_SIZE=$(du -h "$DB_FILE" | cut -f1)

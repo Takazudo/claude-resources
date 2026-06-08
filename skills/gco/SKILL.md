@@ -1,6 +1,6 @@
 ---
 name: gco
-description: "Run GitHub Copilot CLI as a read-only sub-agent from Claude Code. Use when: (1) User says 'gco', 'copilot', or 'ask copilot', (2) Delegating code review or research to Copilot, (3) Getting a second opinion on code or architecture. Read-only mode (no file writes), claude-opus-4.6 model."
+description: "Run GitHub Copilot CLI as a read-only sub-agent from Claude Code. Use when: (1) User says 'gco', 'copilot', or 'ask copilot', (2) Delegating code review or research to Copilot, (3) Getting a second opinion on code or architecture. Read-only mode (no file writes), gpt-5.4 model."
 user-invocable: true
 argument-hint: <prompt>
 allowed-tools:
@@ -19,12 +19,8 @@ Run GitHub Copilot CLI in read-only mode for code review, research, and investig
 - Copilot runs non-interactively with `-p` (prompt) and `-s` (silent output)
 - Read-only enforced via `--deny-tool='write'` (hard tool-level block) and read-only preamble in prompt
 - Uses `--no-ask-user` and `--allow-all-tools` for fully autonomous execution
-- Model: `claude-opus-4.6` (primary), auto-fallback to `gpt-4.1` (free tier) on no-quota
+- Model: `gpt-5.4`
 - Timeout: 15 minutes
-
-## Cheap variant
-
-If you already know Premium quota is low and want to skip the opus attempt, use `/gcoc` instead — identical behavior but forces the free `gpt-4.1` model from the start.
 
 ## Process
 
@@ -51,10 +47,9 @@ Run as a **background Bash task** with 15-minute timeout.
 ### Step 3: Collect and Present Results
 
 1. Read the output file (`$LOGDIR/${DATETIME}-gco-${SLUG}.md`)
-2. If empty or missing, check stderr log for errors
-3. **Check the stderr log for a `GCO_USED_FALLBACK=` line.** If present, `gco-run.sh` auto-retried with `gpt-4.1` because the primary model was out of quota. Notify the user with one line: **"Used gpt-4.1 instead of claude-opus-4.6 because of no quota."** Proceed with the output — it is still valid.
-4. Synthesize and present findings to the user
-5. Include the log file path for reference
+2. If empty or missing, check stderr log for errors — a no-quota (402) error means Copilot Premium is exhausted; report it and fall back to Claude Code tools
+3. Synthesize and present findings to the user
+4. Include the log file path for reference
 
 ## Important Notes
 

@@ -13,8 +13,10 @@ End-of-workflow audit for GitHub issues, PRs, and branches the calling workflow 
 This skill is invoked at the **end** of a parent workflow — never mid-flight. Typical callers:
 
 - `/big-plan` — at Step 10 (Close source issues). Manifest: source issues passed to the planning session.
-- `/x-as-pr` — after Session Report / Requirements Verification. Manifest: tracking issue (if `--make-issue`), the working branch (if `-a` and PR merged), unrelated-findings issues raised mid-workflow.
-- `/x-wt-teams` — replaces the old "Close Tracking Issue" + Step 16 cleanup. Manifest: tracking issue, sub-issues (if epic), root PR, base branch, topic branches, `-a` flag status.
+- `/x-as-pr` — after Session Report / Requirements Verification. Manifest: tracking issue (if `--make-issue`), the working branch (if the PR was auto-merged via `-m` / Merge Mode), unrelated-findings issues raised mid-workflow.
+- `/x-wt-teams` — replaces the old "Close Tracking Issue" + Step 16 cleanup. Manifest: tracking issue, sub-issues (if epic), root PR, base branch, topic branches, auto-merged status (the caller's `-m` flag).
+
+Note on flag naming: this skill's own `-a` / `--auto-merged` flag means "the caller auto-merged the root PR." In the calling workflows that signal is their `-m` / `--merge` flag (their `-a` is the autonomy/auto-chain flag and does NOT imply a merge) — callers pass `-a` here iff `-m` was on their invocation.
 
 Other callers can use it the same way: build a manifest, invoke, execute the returned plan.
 
@@ -95,7 +97,7 @@ Audit procedure:
    - If pr-merged=false → action: keep.
    - NEVER propose deleting `parent` branches — those belong to other work.
 
-4. When the workflow's `auto-flag` is true (`-a` was passed) AND root-PR-merged is true, be more aggressive about deleting working/base/topic branches. The user explicitly opted into full auto-cleanup.
+4. When the workflow's `auto-flag` is true (the caller auto-merged via its `-m` / `--merge` flag, passed to this skill as `-a` / `--auto-merged`) AND root-PR-merged is true, be more aggressive about deleting working/base/topic branches. The user explicitly opted into full auto-cleanup.
 
 5. When in doubt about any resource, choose KEEP and explain in the reason. The manager will surface ambiguous cases to the user.
 
@@ -218,7 +220,7 @@ If the **Ambiguous** section is non-empty, do NOT auto-resolve. Surface to the u
 - **Closing issues is reversible.** `gh issue reopen` exists. Default to closing when the agent is confident.
 - **Deleting branches is harder to reverse.** The agent must show pr-merged=true before proposing delete. If `git branch -d` (without force) refuses, trust the refusal — there are unmerged commits.
 - **Unrelated-findings issues are ALWAYS KEPT unless closed by `-fix`.** They are explicitly opt-in follow-up work, so the audit never closes an open one. The exception is the `-fix` / `--auto-fix` auto-fix step in `/x-as-pr` / `/x-wt-teams`: it closes the `agent-found` issues it actually fixed (linking the fix PR) before cleanup runs. The audit leaves those already-closed and keeps every still-open one. The agent's prompt enforces this; the manager doesn't second-guess.
-- **The user's `-a` / `--auto` flag is the signal for aggressive cleanup.** Without `-a`, prefer keeping branches around — the user may want to inspect locally before deleting. With `-a` and root-PR-merged, the user opted in to full cleanup including local dead branches (this is the specific bug the skill fixes: `--delete-branch` removes remote, the old workflow left local behind).
+- **The caller's `-m` / `--merge` flag (passed here as `-a` / `--auto-merged`) is the signal for aggressive cleanup.** Without it, prefer keeping branches around — the user may want to inspect locally before deleting. With it and root-PR-merged, the user opted in to full cleanup including local dead branches (this is the specific bug the skill fixes: `--delete-branch` removes remote, the old workflow left local behind).
 
 ## When to skip this skill
 

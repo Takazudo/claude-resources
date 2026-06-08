@@ -3,22 +3,14 @@
 # Usage: gco-run.sh "<prompt>" <output-file> [stderr-file]
 #
 # Env vars:
-#   GCO_MODEL        Primary model (default: claude-opus-4.6).
-#                    Set to "gpt-4.1" to force cheap mode (used by /gcoc-* skills).
-#
-# Behavior:
-#   - On "no quota" (HTTP 402) from the primary model, automatically retries
-#     with gpt-4.1 (zero-multiplier free model on the Pro plan) and appends
-#     "GCO_USED_FALLBACK=gpt-4.1 ..." to the stderr file so the caller can
-#     inform the user.
+#   GCO_MODEL        Model to use (default: gpt-5.4).
 set -euo pipefail
 
 PROMPT="$1"
 OUTPUT_FILE="$2"
 STDERR_FILE="${3:-/dev/null}"
 
-MODEL="${GCO_MODEL:-claude-opus-4.6}"
-FALLBACK_MODEL="gpt-4.1"
+MODEL="${GCO_MODEL:-gpt-5.4}"
 
 # Read-only preamble
 RO_PREAMBLE="You are operating in read-only mode. Your role is research and review only.
@@ -53,35 +45,12 @@ else
   exit 1
 fi
 
-run_copilot() {
-  local model="$1"
-  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+900} $COPILOT_CMD \
-    -p "$FULL_PROMPT" \
-    -s \
-    --no-ask-user \
-    --model "$model" \
-    --deny-tool='write' \
-    --allow-all-tools \
-    > "$OUTPUT_FILE" \
-    2>"$STDERR_FILE"
-}
-
-# First attempt with the primary model
-set +e
-run_copilot "$MODEL"
-RC=$?
-set -e
-
-# If Copilot returned a no-quota error (402), retry with the free gpt-4.1 model.
-# Skip retry if primary was already gpt-4.1 — nothing cheaper to fall back to.
-if grep -qiE "no quota|quota exceeded|402 you have no quota" "$OUTPUT_FILE" "$STDERR_FILE" 2>/dev/null; then
-  if [ "$MODEL" != "$FALLBACK_MODEL" ]; then
-    set +e
-    run_copilot "$FALLBACK_MODEL"
-    RC=$?
-    set -e
-    echo "GCO_USED_FALLBACK=$FALLBACK_MODEL (primary model '$MODEL' returned 402 no-quota)" >> "$STDERR_FILE"
-  fi
-fi
-
-exit $RC
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+900} $COPILOT_CMD \
+  -p "$FULL_PROMPT" \
+  -s \
+  --no-ask-user \
+  --model "$MODEL" \
+  --deny-tool='write' \
+  --allow-all-tools \
+  > "$OUTPUT_FILE" \
+  2>"$STDERR_FILE"

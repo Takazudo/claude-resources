@@ -24,7 +24,7 @@ Before doing anything, check if Copilot is currently in degraded mode:
 RATE_CHECK=$(node $HOME/.claude/scripts/gco-rate-limit.js check 2>&1)
 ```
 
-If the output starts with `degraded:`, **notify the user** that Copilot is in low-cost mode (auto-downgraded model, free for Pro users) but **proceed with Copilot anyway** — it is still usable. Do NOT skip or fall back.
+If the output starts with `degraded:`, **notify the user** that Copilot is in low-cost mode (auto-downgraded model) but **proceed with Copilot anyway** — it is still usable. Do NOT skip or fall back.
 
 ### Step 1: Determine Base Branch
 
@@ -86,30 +86,21 @@ bash $HOME/.claude/skills/gco/scripts/gco-run.sh \
 
 Run as a **background Bash task** with 15-minute timeout.
 
-### Step 4: Collect Results and Check for Quota Fallback
+### Step 4: Collect Results
 
 After Copilot completes (or times out):
 
-1. **Check for quota fallback** — grep the stderr log for `GCO_USED_FALLBACK=`:
-
-   ```bash
-   grep '^GCO_USED_FALLBACK=' "$LOGDIR/${DATETIME}-gco-review-stderr.log"
-   ```
-
-   If found, `gco-run.sh` auto-retried with `gpt-4.1` because the primary model was out of quota. **Notify the user** with one line: **"Used gpt-4.1 instead of claude-opus-4.6 because of no quota."** Proceed — the output is still valid.
-
-2. Read the output file (`$LOGDIR/${DATETIME}-gco-review.md`)
-3. If empty or missing, check stderr log for errors
-4. If Copilot failed or timed out, jump to **Fallback**
+1. Read the output file (`$LOGDIR/${DATETIME}-gco-review.md`)
+2. If empty or missing, check stderr log for errors (a 402 no-quota error means Copilot Premium is exhausted — treat it as a failure)
+3. If Copilot failed or timed out, jump to **Fallback**
 
 ### Step 5: Fallback
 
-If Copilot timed out, produced **no usable output**, or is **not installed**:
+If Copilot timed out, produced **no usable output**, hit **no-quota (402)**, or is **not installed**:
 
 - **Notify the user** about the fallback
 - Spawn **2 `code-reviewer` subagents** in parallel (like /light-review) to review the diff against `$BASE`
 - Continue as if `/light-review` was invoked
-- Note: Quota exhaustion alone is NOT a fallback trigger — `gco-run.sh` auto-retries with `gpt-4.1` (free) and produces valid output
 
 ### Step 6: Synthesize and Report
 
@@ -133,5 +124,3 @@ If fixes were applied, commit with a descriptive message.
 - Copilot cannot modify files — all writes done by Claude Code
 - NEVER use `~` in paths — use `$HOME`
 - Output files: `$LOGDIR/${DATETIME}-gco-review.md` (timestamped)
-- **Quota fallback policy**: When the primary model returns HTTP 402 no-quota, `gco-run.sh` automatically retries with `gpt-4.1` (free zero-multiplier model on the Pro plan) and writes `GCO_USED_FALLBACK=gpt-4.1 ...` to the stderr file. Claude MUST check stderr for this marker and tell the user "Used gpt-4.1 instead of claude-opus-4.6 because of no quota." Output is still valid — do not fall back to 2-reviewer Claude Code unless Copilot actually fails (timeout, no output, not installed)
-- **Cheap variant**: Use `/gcoc-review` to skip opus entirely and run gpt-4.1 from the start

@@ -93,13 +93,13 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+900} node "$CODEX_COMPANION" task \
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
   "<translation prompt>" \
   > "$LOGDIR/${DATETIME}-codex-translation-draft.md" \
   2>"$LOGDIR/${DATETIME}-codex-translation-draft-stderr.log"
 ```
 
-**Timeout: 15 minutes.**
+**Timeout: 25 minutes.**
 
 ### Step 4: Check for Rate Limiting
 
@@ -140,7 +140,7 @@ Present the translation to the user. Include the draft log path.
 
 ## Timeout Policy
 
-- **Timeout**: 15 minutes (900s)
+- **Timeout**: 25 minutes (1500s)
 - **If codex times out**: Silently fall back to Opus (subagent at `model: opus`)
 - Codex runs read-only — cannot modify files
 

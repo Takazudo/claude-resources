@@ -1,6 +1,6 @@
 ---
 name: opus-2nd
-description: "Second opinion from Claude Opus on a plan or approach. Use when: (1) Planning phase of /big-plan needs a higher-quality review than /codex-2nd / /gco-2nd / /gcoc-2nd, (2) User says 'opus 2nd' or 'opus opinion', (3) Wanting Anthropic's larger model to critique a plan. Spawns a general-purpose Agent with model: opus that reads the plan file and returns structured feedback. Anthropic quota — not free."
+description: "Second opinion from Claude Opus on a plan or approach. Use when: (1) Planning phase of /big-plan needs a higher-quality review than /codex-2nd / /gco-2nd, (2) User says 'opus 2nd' or 'opus opinion', (3) Wanting Anthropic's larger model to critique a plan. Spawns a general-purpose Agent with model: opus that reads the plan file and returns structured feedback. Anthropic quota — not free."
 argument-hint: <plan-file-path>
 ---
 
@@ -74,7 +74,7 @@ The Agent's response IS the review. Hand it back to the caller verbatim or under
 
 ## Important Notes
 
-- Opus uses Anthropic quota — more expensive than `/codex-2nd` / `/gco-2nd` / `/gcoc-2nd`. Justify the cost with concrete, actionable feedback
+- Opus uses Anthropic quota — more expensive than `/codex-2nd` / `/gco-2nd`. Justify the cost with concrete, actionable feedback
 - Caller is responsible for consolidating Opus output with other reviewers when multiple flags were combined
 - Read-only — the spawned Agent must never edit files
 - NEVER use `~` in paths — use `$HOME`

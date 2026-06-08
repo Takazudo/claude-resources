@@ -3,20 +3,26 @@
 /**
  * JLCPCB Database Query Script
  *
+ * Targets the yaqwsx/jlcparts "source-db-v2" schema (tables: jlc_components,
+ * lcsc_components, meta). Everything the finder needs lives denormalized in
+ * jlc_components (category/subcategory/manufacturer are plain text columns;
+ * tier is library_type 'base'/'expand'; there is no separate categories table).
+ *
  * Usage:
  *   node query.js list-categories [keyword]
- *   node query.js search-parts <category_id> [keyword] [limit]
+ *   node query.js search-parts <category> [keyword] [limit]   # category is a NAME substring
  *   node query.js search-all <keyword> [limit]
  *   node query.js lookup <lcsc_number>
  *   node query.js db-info
  *
  * Examples:
- *   node query.js list-categories
  *   node query.js list-categories "audio"
- *   node query.js search-parts 208 "3.5" 10
+ *   node query.js search-parts "Audio" "3.5" 10
  *   node query.js search-all "CH340" 10
  *   node query.js lookup C12345
  *   node query.js db-info
+ *
+ * Override the DB path with the JLCPCB_DB_PATH env var (defaults to ~/.jlcpcb-db/cache.sqlite3).
  */
 
 import Database from 'better-sqlite3';
@@ -27,8 +33,8 @@ import { existsSync, statSync } from 'fs';
 const args = process.argv.slice(2);
 const command = args[0];
 
-// Find database
-const dbPath = join(homedir(), '.jlcpcb-db', 'cache.sqlite3');
+// Find database (env override wins, e.g. for testing a freshly downloaded DB)
+const dbPath = process.env.JLCPCB_DB_PATH || join(homedir(), '.jlcpcb-db', 'cache.sqlite3');
 
 if (!existsSync(dbPath)) {
   console.error('ERROR: Database not found at', dbPath);
@@ -38,6 +44,11 @@ if (!existsSync(dbPath)) {
 
 // Connect to database
 const db = new Database(dbPath, { readonly: true });
+
+// Common column projection; library_type -> basic (1/0) to keep the old output shape.
+const COLS = `lcsc, mfr, description, package, stock,
+              (library_type = 'base') AS basic, preferred, price, datasheet,
+              category, subcategory`;
 
 function formatPart(r, categoryInfo) {
   const partNumber = `C${r.lcsc}`;
@@ -57,69 +68,79 @@ function formatPart(r, categoryInfo) {
 }
 
 function formatPrice(priceStr) {
+  // v2 format: "1-999:0.0077,1000-3999:0.0065,...,100000-:0.0051"
   try {
-    const prices = JSON.parse(priceStr);
-    if (Array.isArray(prices) && prices.length > 0) {
-      return prices.map(p => `${p.qFrom}+: $${Number(p.price).toFixed(4)}`).join(', ');
-    }
+    const tiers = priceStr.split(',').map(s => {
+      const [range, price] = s.split(':');
+      return `${range}: $${Number(price).toFixed(4)}`;
+    });
+    const shown = tiers.slice(0, 3).join(', ');
+    return tiers.length > 3 ? `${shown}, …` : shown;
   } catch {
-    // not JSON, return as-is
+    return priceStr;
   }
-  return priceStr;
 }
 
 try {
   if (command === 'list-categories') {
     const keyword = args[1] || '';
-    let categories;
+    let rows;
 
     if (keyword) {
-      categories = db
+      rows = db
         .prepare(
-          `SELECT id, category, subcategory FROM categories
+          `SELECT category, subcategory, COUNT(*) AS cnt FROM jlc_components
            WHERE category LIKE ? OR subcategory LIKE ?
+           GROUP BY category, subcategory
            ORDER BY category, subcategory`
         )
         .all(`%${keyword}%`, `%${keyword}%`);
     } else {
-      categories = db
-        .prepare('SELECT id, category, subcategory FROM categories ORDER BY category, subcategory')
+      rows = db
+        .prepare(
+          `SELECT category, subcategory, COUNT(*) AS cnt FROM jlc_components
+           GROUP BY category, subcategory
+           ORDER BY category, subcategory`
+        )
         .all();
     }
 
-    if (categories.length === 0) {
+    if (rows.length === 0) {
       console.log('No categories found');
     } else {
-      categories.forEach(c => {
-        console.log(`${c.id}: ${c.category} > ${c.subcategory}`);
+      rows.forEach(c => {
+        console.log(`${c.category} > ${c.subcategory} (${c.cnt.toLocaleString()} parts)`);
       });
-      console.log(`\n${categories.length} categories found`);
+      console.log(`\n${rows.length} categories found`);
     }
 
   } else if (command === 'search-parts') {
-    const categoryId = parseInt(args[1]);
+    const category = args[1];
     const keyword = args[2] || '';
     const limit = parseInt(args[3]) || 20;
 
-    if (isNaN(categoryId)) {
-      console.error('ERROR: category_id must be a number');
+    if (!category) {
+      console.error('ERROR: category is required (a category/subcategory name substring)');
+      console.error('Usage: node query.js search-parts <category> [keyword] [limit]');
+      console.error('Tip: run list-categories to see available names.');
       process.exit(1);
     }
 
     let query, params;
+    const catClause = '(category LIKE ? OR subcategory LIKE ?)';
 
     if (keyword) {
-      query = `SELECT lcsc, mfr, description, package, stock, basic, preferred, price, datasheet
-               FROM components
-               WHERE category_id = ? AND (mfr LIKE ? OR description LIKE ?)
+      query = `SELECT ${COLS}
+               FROM jlc_components
+               WHERE ${catClause} AND (mfr LIKE ? OR description LIKE ?)
                ORDER BY stock DESC LIMIT ?`;
-      params = [categoryId, `%${keyword}%`, `%${keyword}%`, limit];
+      params = [`%${category}%`, `%${category}%`, `%${keyword}%`, `%${keyword}%`, limit];
     } else {
-      query = `SELECT lcsc, mfr, description, package, stock, basic, preferred, price, datasheet
-               FROM components
-               WHERE category_id = ?
+      query = `SELECT ${COLS}
+               FROM jlc_components
+               WHERE ${catClause}
                ORDER BY stock DESC LIMIT ?`;
-      params = [categoryId, limit];
+      params = [`%${category}%`, `%${category}%`, limit];
     }
 
     const results = db.prepare(query).all(...params);
@@ -127,7 +148,7 @@ try {
     if (results.length === 0) {
       console.log('No results found');
     } else {
-      results.forEach(r => formatPart(r));
+      results.forEach(r => formatPart(r, `${r.category} > ${r.subcategory}`));
       console.log(`\n${results.length} results`);
     }
 
@@ -143,13 +164,10 @@ try {
 
     const results = db
       .prepare(
-        `SELECT c.lcsc, c.mfr, c.description, c.package, c.stock,
-                c.basic, c.preferred, c.price, c.datasheet,
-                cat.category, cat.subcategory
-         FROM components c
-         JOIN categories cat ON c.category_id = cat.id
-         WHERE c.mfr LIKE ? OR c.description LIKE ? OR CAST(c.lcsc AS TEXT) LIKE ?
-         ORDER BY c.stock DESC LIMIT ?`
+        `SELECT ${COLS}
+         FROM jlc_components
+         WHERE mfr LIKE ? OR description LIKE ? OR CAST(lcsc AS TEXT) LIKE ?
+         ORDER BY stock DESC LIMIT ?`
       )
       .all(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, limit);
 
@@ -173,13 +191,9 @@ try {
 
     const result = db
       .prepare(
-        `SELECT c.lcsc, c.mfr, c.description, c.package, c.stock,
-                c.basic, c.preferred, c.price, c.datasheet, c.joints,
-                c.last_update,
-                cat.category, cat.subcategory
-         FROM components c
-         JOIN categories cat ON c.category_id = cat.id
-         WHERE c.lcsc = ?`
+        `SELECT ${COLS}, joints, fetched_at
+         FROM jlc_components
+         WHERE lcsc = ?`
       )
       .get(parseInt(lcscId));
 
@@ -188,37 +202,43 @@ try {
     } else {
       formatPart(result, `${result.category} > ${result.subcategory}`);
       console.log(`   Joints: ${result.joints}`);
-      if (result.last_update) {
-        console.log(`   Last updated: ${new Date(result.last_update * 1000).toISOString().split('T')[0]}`);
+      if (result.fetched_at) {
+        console.log(`   Data fetched: ${new Date(result.fetched_at * 1000).toISOString().split('T')[0]}`);
       }
     }
 
   } else if (command === 'db-info') {
-    const totalParts = db.prepare('SELECT COUNT(*) as count FROM components').get().count;
-    const totalCategories = db.prepare('SELECT COUNT(*) as count FROM categories').get().count;
-    const basicParts = db.prepare('SELECT COUNT(*) as count FROM components WHERE basic = 1').get().count;
-    const preferredParts = db.prepare('SELECT COUNT(*) as count FROM components WHERE preferred = 1').get().count;
-    const inStock = db.prepare('SELECT COUNT(*) as count FROM components WHERE stock > 0').get().count;
+    const totalParts = db.prepare('SELECT COUNT(*) as count FROM jlc_components').get().count;
+    const totalCategories = db
+      .prepare("SELECT COUNT(*) as count FROM (SELECT DISTINCT category, subcategory FROM jlc_components)")
+      .get().count;
+    const basicParts = db.prepare("SELECT COUNT(*) as count FROM jlc_components WHERE library_type = 'base'").get().count;
+    const preferredParts = db.prepare('SELECT COUNT(*) as count FROM jlc_components WHERE preferred = 1').get().count;
+    const inStock = db.prepare('SELECT COUNT(*) as count FROM jlc_components WHERE stock > 0').get().count;
+    const dataDate = db.prepare('SELECT MAX(fetched_at) as t FROM jlc_components').get().t;
     const dbStat = statSync(dbPath);
     const dbSizeMB = (dbStat.size / 1024 / 1024).toFixed(0);
 
     console.log('JLCPCB Parts Database Info');
     console.log('─'.repeat(40));
-    console.log(`Database path:   ${dbPath}`);
-    console.log(`Database size:   ${dbSizeMB} MB`);
-    console.log(`Total parts:     ${totalParts.toLocaleString()}`);
-    console.log(`Total categories: ${totalCategories}`);
-    console.log(`Basic parts:     ${basicParts.toLocaleString()}`);
-    console.log(`Preferred parts: ${preferredParts.toLocaleString()}`);
-    console.log(`In stock:        ${inStock.toLocaleString()}`);
-    console.log(`DB modified:     ${dbStat.mtime.toISOString().split('T')[0]}`);
+    console.log(`Database path:    ${dbPath}`);
+    console.log(`Database size:    ${dbSizeMB} MB`);
+    console.log(`Total parts:      ${totalParts.toLocaleString()}`);
+    console.log(`Total categories: ${totalCategories.toLocaleString()}`);
+    console.log(`Basic parts:      ${basicParts.toLocaleString()}`);
+    console.log(`Preferred parts:  ${preferredParts.toLocaleString()}`);
+    console.log(`In stock:         ${inStock.toLocaleString()}`);
+    if (dataDate) {
+      console.log(`Data fetched:     ${new Date(dataDate * 1000).toISOString().split('T')[0]}`);
+    }
+    console.log(`File modified:    ${dbStat.mtime.toISOString().split('T')[0]}`);
 
   } else {
     console.error('Unknown command:', command);
     console.error('');
     console.error('Usage:');
     console.error('  node query.js list-categories [keyword]');
-    console.error('  node query.js search-parts <category_id> [keyword] [limit]');
+    console.error('  node query.js search-parts <category> [keyword] [limit]');
     console.error('  node query.js search-all <keyword> [limit]');
     console.error('  node query.js lookup <lcsc_number>');
     console.error('  node query.js db-info');

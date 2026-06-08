@@ -1,7 +1,7 @@
 ---
 name: light-review
-description: "Lightweight code review. Dispatches to GitHub Copilot CLI (/gcoc-review) by default, or to Claude / Codex / Copilot-Opus depending on flags. Use when: (1) Quick review of a small change, (2) Child agents self-reviewing before reporting to manager, (3) User says 'light review' or 'quick review', (4) Review is needed but /deep-review is overkill. Always operates in PR/diff mode."
-argument-hint: "[-haiku|-so|-op] [-co|-gco|-gcoc]"
+description: "Lightweight code review. Dispatches to OpenAI Codex CLI (/codex-review) by default, or to Claude / Copilot depending on flags. Use when: (1) Quick review of a small change, (2) Child agents self-reviewing before reporting to manager, (3) User says 'light review' or 'quick review', (4) Review is needed but /deep-review is overkill. Always operates in PR/diff mode."
+argument-hint: "[-haiku|-so|-op] [-co|-gco]"
 ---
 
 # Light Review
@@ -23,7 +23,7 @@ Lightweight code review. Runs whichever reviewers are specified by flags; falls 
 - `-so` / `--sonnet` — Claude Sonnet
 - `-op` / `--opus` — Claude Opus
 
-If none passed and no backend flag is passed either, the skill falls to the **backend default** (`-gcoc`) — no Claude reviewers run.
+If none passed and no backend flag is passed either, the skill falls to the **backend default** (`-co`) — no Claude reviewers run.
 
 If a model flag IS passed, it turns on the Claude-reviewers branch (2 `code-reviewer` subagents at that model).
 
@@ -32,23 +32,22 @@ If multiple model flags are passed, the last one wins.
 ### Backend flags (combinable — external review tools)
 
 - `-co` / `--codex` — OpenAI Codex CLI (`/codex-review`)
-- `-gco` / `--github-copilot` — GitHub Copilot CLI, Opus (`/gco-review`)
-- `-gcoc` / `--github-copilot-cheap` — GitHub Copilot CLI, GPT-4.1 free (`/gcoc-review`)
+- `-gco` / `--github-copilot` — GitHub Copilot CLI, GPT-5.4 (`/gco-review`)
 
 Multiple backend flags may be combined — each specified backend runs in parallel and findings are consolidated.
 
-**Default for this skill**: `-gcoc` (used when neither a model flag nor any backend flag is passed).
+**Default for this skill**: `-co` (used when neither a model flag nor any backend flag is passed).
 
 ### Flag-resolution summary
 
 | Flags passed | What runs |
 |---|---|
-| (none) | `/gcoc-review` only |
+| (none) | `/codex-review` only |
 | `-op` (or `-so`, `-haiku`) | 2 Claude reviewers at that model |
 | `-gco` | `/gco-review` only |
 | `-co` | `/codex-review` only |
 | `-op -gco` | 2 Opus Claude reviewers **and** `/gco-review` in parallel |
-| `-co -gcoc` | `/codex-review` **and** `/gcoc-review` in parallel |
+| `-co -gco` | `/codex-review` **and** `/gco-review` in parallel |
 
 ## Process
 
@@ -120,13 +119,12 @@ For each specified backend, invoke the matching skill in parallel (single messag
 
 - `-co` → `Skill(skill="codex-review")` — silently falls back to **Opus** (2 `code-reviewer` subagents at `model: opus`) if codex is rate-limited
 - `-gco` → `Skill(skill="gco-review")`
-- `-gcoc` → `Skill(skill="gcoc-review")`
 
 Each backend skill already handles its own rate-limit / fallback behavior silently. For `-co`, that fallback is Opus — the user picked `-co` to mean "the better reviewer," and Opus is the Claude-side stand-in when codex is down.
 
 #### Default (no flags)
 
-Equivalent to `-gcoc`. Invoke `/gcoc-review` only.
+Equivalent to `-co`. Invoke `/codex-review` only.
 
 **CRITICAL: Launch all reviewers (Claude + backend) in parallel in a single message.**
 

@@ -93,13 +93,13 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1200} node "$CODEX_COMPANION" task \
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
   "<research prompt>" \
   > "$LOGDIR/${DATETIME}-codex-research-{topic-slug}.md" \
   2>"$LOGDIR/${DATETIME}-codex-research-{topic-slug}-stderr.log"
 ```
 
-**Timeout: 20 minutes.** Research can take longer than other tasks.
+**Timeout: 25 minutes.**
 
 ### Step 4: Check for Rate Limiting
 
@@ -144,7 +144,7 @@ pnpm dlx @takazudo/mdx-formatter --write <file>
 
 ## Timeout Policy
 
-- **Timeout**: 20 minutes (1200s) — research needs more time than other tasks
+- **Timeout**: 25 minutes (1500s)
 - **If codex times out**: Silently fall back to Opus (`researcher` subagent at `model: opus`)
 - Research is read-only — codex cannot modify files
 
@@ -152,7 +152,7 @@ pnpm dlx @takazudo/mdx-formatter --write <file>
 
 - Codex can do web research natively
 - All file writing done by Claude Code, never by codex
-- Long timeout (20 min) because research can take time
+- Long timeout (25 min) to give research room to complete
 - Falls back to a `researcher` subagent at `model: opus` if codex fails
 - **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to the researcher subagent at `model: opus`. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do. Opus is the designated Claude-side stand-in for codex throughout these skills
 - NEVER use `~` in paths — use `$HOME`

@@ -81,13 +81,13 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+900} node "$CODEX_COMPANION" task \
+${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
   "<detailed prompt here>" \
   > "$LOGDIR/${DATETIME}-codex-writer-draft.md" \
   2>"$LOGDIR/${DATETIME}-codex-writer-draft-stderr.log"
 ```
 
-**Timeout: 15 minutes.** Codex reads workspace files for context but cannot write.
+**Timeout: 25 minutes.** Codex reads workspace files for context but cannot write.
 
 ### Step 4: Check for Rate Limiting
 
@@ -124,7 +124,7 @@ Tell the user what was written and where. Include the draft log path for referen
 
 ## Timeout Policy
 
-- **Timeout**: 15 minutes (900s)
+- **Timeout**: 25 minutes (1500s)
 - **If codex times out**: Silently fall back to Opus (`markdown-writer` subagent at `model: opus`)
 - Codex is used for drafting only — Claude Code handles all file operations
 
