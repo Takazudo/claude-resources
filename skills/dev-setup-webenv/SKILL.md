@@ -36,8 +36,11 @@ For `--committed` on a shared repo, prefer also passing `--self-only` (see below
 ## Prerequisites
 
 - The public mirror must already contain the web profile (`web/` +
+
   `scripts/setup-web.sh`). Publish it with `/claude-resources-share` first.
+
 - The project's web **network policy must allow `github.com`** egress, or the
+
   clone fails (the bootstrap degrades to a no-op in that case).
 
 ## Workflow
@@ -82,8 +85,11 @@ exists, **merge** the `SessionStart` hook into it rather than overwriting.
 set -euo pipefail
 
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
-# --self-only gate (uncomment + set address to limit to one user on a shared repo):
-# [ "$(git config user.email 2>/dev/null)" = "takatsudo@pxgrid.com" ] || exit 0
+# --self-only gate (uncomment + set address to limit to one user on a shared repo).
+# MUST use $CLAUDE_CODE_USER_EMAIL — the web harness sets it per signed-in user.
+# Do NOT use `git config user.email`: on web that is a generic shared identity
+# (noreply@anthropic.com) for everyone, so it would never match — not even for you.
+# [ "${CLAUDE_CODE_USER_EMAIL:-}" = "you@example.com" ] || exit 0
 
 SRC="$HOME/.claude-src"
 URL="https://github.com/Takazudo/claude-resources"
@@ -100,8 +106,11 @@ fi
 bash "$SRC/scripts/setup-web.sh"
 ```
 
-If `--self-only` is passed, uncomment the email gate and set the address to the
-user's git email. Then commit both files (use `/commits`) and push.
+If `--self-only` is passed, uncomment the gate and set the address to the user's
+**signed-in email** (`$CLAUDE_CODE_USER_EMAIL`, which the web harness sets per
+user). Do not gate on `git config user.email` — on web it is a shared generic
+identity, so the gate would never fire. Then commit both files (use `/commits`)
+and push.
 
 ### Step 2b: Env-script snippet (`--env-script`, default)
 
@@ -130,8 +139,13 @@ network policy must allow `github.com`).
 ## Notes
 
 - `settings.local.json` is **not** an option — it is git-ignored and never
+
   reaches the web container, which clones from the remote.
+
 - The bootstrap is plain bash and needs no skills pre-installed, so the first web
+
   session self-populates `~/.claude`.
+
 - `setup-web.sh` sources from its own location, so it correctly copies the
+
   cloned mirror's config (not the consumer project) into `~/.claude`.
