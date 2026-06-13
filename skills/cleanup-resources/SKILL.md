@@ -94,6 +94,7 @@ Audit procedure:
 3. For every branch in the manifest:
    - Check remote state: `gh api repos/{owner}/{repo}/branches/{name}` or `git ls-remote --heads origin <branch>`.
    - Check local state: assume the manager will check with `git branch --list <name>` before deleting.
+   - **On web (`$CLAUDE_CODE_REMOTE=true`, web-mode.md §5): a branch whose role is `session-web`, or whose name matches the manifest's `protected-session-branch`, is the session branch the platform owns → action: keep, reason "web session branch — platform-owned", ALWAYS, even when pr-merged=true. Never propose delete (local or remote) for it. This protects the session branch by exact name, NOT by the `claude/*` prefix — `claude/agent-fix-*` fix branches are still deletable below.**
    - If pr-merged=true and the branch's role is `topic`, `working`, `base`, or `fix` → action: delete (both local and remote where applicable). Reason: "PR merged, branch is a dead pointer."
    - If the remote has already been deleted (e.g. by `gh pr merge --delete-branch`) but the local still exists → action: delete-local-only.
    - If pr-merged=false → action: keep.
@@ -176,6 +177,9 @@ for each "Delete (branches)" entry:
 
 ```bash
 CURRENT=$(git branch --show-current)
+# On web (web-mode.md §5): NEVER check out off the session branch to delete it — the session branch
+# is protected (role: session-web / protected-session-branch) and is not in the delete list, so this
+# block never fires for it. Do not git checkout the default branch on web (it is not pushable).
 if [ "$CURRENT" = "<branch-to-delete>" ]; then
   git fetch origin --prune
   git checkout <parent-branch>
@@ -222,6 +226,7 @@ If the **Ambiguous** section is non-empty, do NOT auto-resolve. Surface to the u
 - **Closing issues is reversible.** `gh issue reopen` exists. Default to closing when the agent is confident.
 - **Deleting branches is harder to reverse.** The agent must show pr-merged=true before proposing delete. If `git branch -d` (without force) refuses, trust the refusal — there are unmerged commits.
 - **Unrelated-findings issues are ALWAYS KEPT unless closed by `-fix`.** They are explicitly opt-in follow-up work, so the audit never closes an open one. The exception is the `-fix` / `--auto-fix` auto-fix step in `/x-as-pr` / `/x-wt-teams`: it closes the `agent-found` issues it actually fixed (linking the fix PR) before cleanup runs. The audit leaves those already-closed and keeps every still-open one. The agent's prompt enforces this; the manager doesn't second-guess.
+- **On web (web-mode.md §5), the session branch is platform-owned and protected by exact name.** Callers pass it as `role: session-web` with `protected-session-branch: <name>`. The audit ALWAYS keeps it (even pr-merged=true), and the manager never checks out off it to delete it. Protect by name, not by the `claude/*` prefix — dead `claude/agent-fix-*` branches must still be deleted.
 - **The caller's `-m` / `--merge` flag (passed here as `-a` / `--auto-merged`) is the signal for aggressive cleanup.** Without it, prefer keeping branches around — the user may want to inspect locally before deleting. With it and root-PR-merged, the user opted in to full cleanup including local dead branches (this is the specific bug the skill fixes: `--delete-branch` removes remote, the old workflow left local behind).
 
 ## When to skip this skill

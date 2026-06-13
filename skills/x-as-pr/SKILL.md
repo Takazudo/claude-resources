@@ -8,7 +8,7 @@ argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--
 
 Start a development workflow by creating a branch and draft PR before implementation — or create a PR from existing work on the current branch.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co` / Copilot `-gco`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR).
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co` / Copilot `-gco`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR). **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — commit directly on it (the adopt-current-branch model) and target `$WEB_PARENT` (the fork-from / default branch). Do NOT create `topic/<slug>` and do NOT push an empty start commit; create the draft PR via MCP **after the first real commit** (head=`$WEB_BASE`, base=`$WEB_PARENT`) — no empty-diff PR. Push only the branch you are on. `-m` merges into `$WEB_PARENT` and does **not** delete the session branch (web owns it; `/pr-complete` and `/cleanup-resources` are web-aware). Fix branches are `claude/agent-fix-<slug>`. Do NOT run the terminal `gh pr view --json baseRefName` preference step — parent is `$WEB_PARENT` unconditionally.
 
 ## !! CRITICAL — PR TARGET BRANCH RULE !!
 
@@ -19,6 +19,8 @@ As the very first action in this skill, record the current branch:
 ```bash
 INVOCATION_BRANCH=$(git branch --show-current)
 ```
+
+> **On web (web-mode.md §5):** run the canonical §5 detection — `$INVOCATION_BRANCH` IS `$WEB_BASE` (the `claude/*` session branch, the **base**), and the PR targets `$WEB_PARENT` (the fork-from / default branch), NOT `$INVOCATION_BRANCH`. Capture once. The `--base "$INVOCATION_BRANCH"` invariant below is terminal-only and inverts here.
 
 Every `gh pr create` call in this skill must pass `--base "$INVOCATION_BRANCH"` (or a user-specified base) — NEVER omit `--base`, because `gh pr create` defaults to the repo's default branch (usually `main`), which is almost always wrong here.
 
@@ -83,7 +85,7 @@ If ambiguous, ask the user to clarify.
 
 ## Default Behavior: ALWAYS Create a New Branch
 
-**Unless `--stay` / `-s` is explicitly passed by the user, this skill ALWAYS creates a new branch from the current (invocation) branch** and opens a new PR targeting the current branch. This is the default and only behavior. It applies regardless of:
+**Unless `--stay` / `-s` is explicitly passed by the user, this skill ALWAYS creates a new branch from the current (invocation) branch** and opens a new PR targeting the current branch. This is the default and only behavior. **On web this default does NOT apply (web-mode.md §5):** web always behaves as the adopt-current-branch case — commit on `$WEB_BASE` (the `claude/*` session branch) and PR `$WEB_BASE` → `$WEB_PARENT`; the Scenarios table below collapses to that single row. It applies regardless of:
 
 - Whether the current branch has an existing PR
 - Whether the current branch has uncommitted or unpushed commits
@@ -126,6 +128,8 @@ When `-s` or `--stay` is **explicitly passed by the user**, stay on the current 
 - Check if a PR already exists for this branch: `gh pr view --json baseRefName -q '.baseRefName'`
 - If yes, reuse that PR (record its number) — no new PR needed
 - If no PR exists, use the repository's default branch as `TARGET_BRANCH` and create a new draft PR
+
+> **On web (web-mode.md §5):** this `--stay` path is exactly the default web model — `$WEB_BASE` is the base, the PR targets `$WEB_PARENT` (the fork-from / default branch). Do NOT run the `gh pr view --json baseRefName` preference above — even when the session branch already has a PR, parent = `$WEB_PARENT` unconditionally (web = adopt-current-branch with parent forced to default). Replace `gh pr view` with MCP only for reading PR existence, not for choosing the base.
 3. If there are uncommitted changes, commit them with a descriptive message (no empty commits)
 4. If implementation instructions are provided, start implementation (commit locally, no push)
 5. All post-implementation steps (deep review, push, CI watch, PR revision) work the same
@@ -393,6 +397,8 @@ gh issue view <issue-num>
 
 Use the issue title and body as context for branch naming and implementation. **The issue content IS the implementation request** — implement what the issue describes.
 
+**Delegated resources:** if the issue references `_temp-resource/<issue>-<topic>/`, a prior session left prototypes / design refs / fixtures there (the `dev-setup-temp-resource` convention). They're committed on the branch — read them from the working tree; no Dropbox/download. If you in turn must hand resources to a still-later session, follow that skill to store them under `_temp-resource/<issue>-<slug>/` and reference the in-repo path. Delete a consumed subdir before the PR merges so it doesn't reach the base branch (harmless if left — tooling ignores `_temp-resource/`).
+
 Record the issue number as `ISSUE_NUM` for progress logging.
 
 #### Claim the Issue (Prevent Session Conflicts)
@@ -431,6 +437,7 @@ Otherwise, derive `{SLUG}` (max 40 chars, lowercase, hyphens) from the issue tit
 
 - If user specified a base branch, use it
 - Otherwise, use `INVOCATION_BRANCH` (the branch that was checked out when the command was invoked)
+  - **On web (web-mode.md §5):** invert this — `TARGET_BRANCH` = `$WEB_PARENT` (the fork-from / repo default branch); `$INVOCATION_BRANCH` (the `claude/*` session branch, `$WEB_BASE`) is the working **base** you commit on, not the PR target. Do NOT prefer an existing PR's base — parent is `$WEB_PARENT` unconditionally.
 
 Record this as `TARGET_BRANCH`.
 
@@ -438,25 +445,33 @@ Record this as `TARGET_BRANCH`.
 
 ### Step 4: Create Branch and Draft PR
 
+> **On web (web-mode.md §5): SKIP this entire block.** Stay on `$WEB_BASE` (the `claude/*` session branch) — no `git checkout -b`, no empty commit, no `git push -u`. Defer PR creation: after the first real commit lands on `$WEB_BASE`, push `$WEB_BASE` and create the draft PR via MCP `create_pull_request` head=`$WEB_BASE` base=`$WEB_PARENT` draft:true (creating it now with no diff fails with "No commits between …"). The `!! PR TARGET CHECK !!` "MUST be INVOCATION_BRANCH" assertion is terminal-only — on web `base` = `$WEB_PARENT`. The guard makes this executable.
+
 ```bash
-# Create and switch to new branch from TARGET_BRANCH
-git checkout -b <BRANCH_NAME> <TARGET_BRANCH>
+if [ "$CLAUDE_CODE_REMOTE" = "true" ]; then
+  # Web: stay on $WEB_BASE; no branch, no empty commit, no push here.
+  # Draft PR is deferred to after the first real commit (MCP create_pull_request,
+  # head=$WEB_BASE base=$WEB_PARENT draft:true).
+  :
+else
+  # Create and switch to new branch from TARGET_BRANCH
+  git checkout -b <BRANCH_NAME> <TARGET_BRANCH>
 
-# Create empty start commit — [skip ci] is GitHub's native skip instruction: the commit changes
-# nothing, so CI on it is guaranteed-green waste; the real commits that follow trigger CI normally
-git commit --allow-empty -m "= start <SLUG> dev = [skip ci]"
+  # Create empty start commit — [skip ci] is GitHub's native skip instruction: the commit changes
+  # nothing, so CI on it is guaranteed-green waste; the real commits that follow trigger CI normally
+  git commit --allow-empty -m "= start <SLUG> dev = [skip ci]"
 
-# Push to remote (only the initial empty commit — this is the only push until implementation is complete)
-git push -u origin <BRANCH_NAME>
+  # Push to remote (only the initial empty commit — this is the only push until implementation is complete)
+  git push -u origin <BRANCH_NAME>
 
-# Create draft PR against TARGET_BRANCH
-# !! PR TARGET CHECK !! — <TARGET_BRANCH> MUST be INVOCATION_BRANCH (recorded at the start),
-# not the repo default branch. If you about to pass `--base main` on a session that was
-# invoked from `topic/foo`, STOP — that is the bug the top-of-file rule prohibits.
-gh pr create \
-  --base <TARGET_BRANCH> \
-  --title "<PR_TITLE>" \
-  --body "$(cat <<'EOF'
+  # Create draft PR against TARGET_BRANCH
+  # !! PR TARGET CHECK !! — <TARGET_BRANCH> MUST be INVOCATION_BRANCH (recorded at the start),
+  # not the repo default branch. If you about to pass `--base main` on a session that was
+  # invoked from `topic/foo`, STOP — that is the bug the top-of-file rule prohibits.
+  gh pr create \
+    --base <TARGET_BRANCH> \
+    --title "<PR_TITLE>" \
+    --body "$(cat <<'EOF'
 ## Summary
 <brief description based on issue or instructions>
 
@@ -467,7 +482,8 @@ gh pr create \
 - (to be determined)
 EOF
 )" \
-  --draft
+    --draft
+fi
 ```
 
 The PR title should be descriptive based on the issue or instructions provided.
@@ -888,6 +904,8 @@ This creates a self-correcting loop that ensures nothing from the original spec 
 
 **Only run this step if `-m` or `--merge` was passed.** Otherwise, skip to STOP below. (This was `-a`'s job before the `-a`/`-m` split — `-a` is now the autonomy/chain flag and does NOT merge.)
 
+> **On web (web-mode.md §5):** `-m` merges `$WEB_BASE` → `$WEB_PARENT` (repo default). `/pr-complete` is web-aware and does NOT `--delete-branch` the `claude/*` session branch — the web owns it; there is no `base/<topic>` to clean up (Part E). After the merge, the manager returns to `$WEB_BASE` (it survives — the default branch is not pushable on web), NOT `$WEB_PARENT`. Replace every `gh pr view` / `gh pr merge` with MCP.
+
 After requirements verification passes (or after the session report if no issue is linked), automatically invoke `/pr-complete -c -w` to:
 
 1. Wait for CI checks to pass
@@ -900,6 +918,8 @@ This is intended for safe-to-merge, fully automated workflows. If CI fails or th
 **After `/pr-complete` succeeds**, checkout the merged target branch and pull so the manager lands somewhere live:
 
 ```bash
+# On web (web-mode.md §5): return to $WEB_BASE (it survives; the default branch is not pushable):
+#   git checkout "$WEB_BASE"
 # Determine the target branch the PR was merged into
 TARGET_BRANCH=$(gh pr view <PR_NUMBER> --json baseRefName -q '.baseRefName')
 
@@ -947,7 +967,7 @@ gh label create "needs-decision" \
 
 ### Landing each fix
 
-**Target the parent / ultimate-landing branch, NOT an intermediate base** — for `/x-as-pr` that is `TARGET_BRANCH` (the branch the main PR targets). This keeps fix branches valid even when `-m` already merged + deleted the main working branch. Each `agent-fix/<slug>` branch is created from `TARGET_BRANCH` and its PR targets `TARGET_BRANCH`.
+**Target the parent / ultimate-landing branch, NOT an intermediate base** — for `/x-as-pr` that is `TARGET_BRANCH` (the branch the main PR targets). This keeps fix branches valid even when `-m` already merged + deleted the main working branch. Each `agent-fix/<slug>` branch is created from `TARGET_BRANCH` and its PR targets `TARGET_BRANCH`. **On web (web-mode.md §5):** `TARGET_BRANCH` here = `$WEB_PARENT` (the repo default). Name fix branches `claude/agent-fix-<slug>` (only `claude/`-prefixed branches are pushable), push only that branch (it is the current branch in its worktree), then return to `$WEB_BASE`. The session branch is not deleted, so the "even when `-m` already deleted the main branch" assumption does not apply — but `claude/agent-fix-*` branches ARE deletable (only `$WEB_BASE` is protected).
 
 For each fix branch (the tiny bundle, or one per non-trivial issue):
 
@@ -1012,7 +1032,7 @@ Skill tool: skill="cleanup-resources", args="workflow:x-as-pr <-a if -m was pass
   - **Review-fix issue** (if review fixes were delegated) — role: `fix`. Sonnet should propose CLOSE if the fix-delegation agent merged its fixes successfully.
   - **`agent-found` issues closed by `-fix`** (if the auto-fix step ran) — already closed by this session; the audit confirms KEEP-as-closed.
 - Branches to include:
-  - **Working branch** (`$BRANCH_NAME`) — role: `working`. Pass `pr-merged: <true|false>` based on whether `-m` resulted in a successful merge.
+  - **Working branch** (`$BRANCH_NAME`) — role: `working`. Pass `pr-merged: <true|false>` based on whether `-m` resulted in a successful merge. **On web (web-mode.md §5):** the working branch IS the `claude/*` session branch (`$WEB_BASE`) — pass it as `role: session-web` with `protected-session-branch: <its literal name>`, never `working`. KEEP regardless of merge state; never delete local or remote.
   - **`agent-fix/<slug>` branches** (if the `-fix` step created any) — role: `fix`. Pass `pr-merged: <true if the fix PR merged — always under `-m`, else false>` so merged fix branches are cleaned up and unmerged ones (ready PRs awaiting the user) are kept.
   - **Target branch** (`$TARGET_BRANCH`) — role: `parent`. Always KEEP (cleanup-resources protects parent roles).
 - PRs to include:
@@ -1031,7 +1051,7 @@ After `/cleanup-resources` returns its report, surface the closed/deleted/kept c
 
 **CRITICAL RULES:**
 
-- **If `-m` / `--merge` was used and the PR was merged**: You are already on the target branch (e.g., `main`) after the merge-mode checkout+pull. `/cleanup-resources` will have proposed deleting the dead local working branch — once executed, no stale local branch is left behind. Stay on the target branch.
-- **Otherwise**: **Stay on `<BRANCH_NAME>`.** Do NOT checkout `main`, the parent branch, or any other branch. The user expects to remain on the working branch when the workflow finishes (and `/cleanup-resources` will have kept the branch since pr-merged is false).
+- **If `-m` / `--merge` was used and the PR was merged**: You are already on the target branch (e.g., `main`) after the merge-mode checkout+pull. `/cleanup-resources` will have proposed deleting the dead local working branch — once executed, no stale local branch is left behind. Stay on the target branch. **On web:** you are back on `$WEB_BASE` (the session branch survives — the default branch is not pushable); `/cleanup-resources` keeps it (protected by name). See web-mode.md §5.
+- **Otherwise**: **Stay on `<BRANCH_NAME>`.** Do NOT checkout `main`, the parent branch, or any other branch. The user expects to remain on the working branch when the workflow finishes (and `/cleanup-resources` will have kept the branch since pr-merged is false). **On web:** "stay on the working branch" = stay on `$WEB_BASE`, the session branch. See web-mode.md §5.
 - **Never skip `/cleanup-resources`.** Even when there are no resources to close or delete, the audit run is fast and produces a paper trail. Skipping is the historical bug — do not relitigate.
 - **Do NOT do anything else** unless the user asks.

@@ -85,11 +85,17 @@ exists, **merge** the `SessionStart` hook into it rather than overwriting.
 set -euo pipefail
 
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
-# --self-only gate (uncomment + set address to limit to one user on a shared repo).
-# MUST use $CLAUDE_CODE_USER_EMAIL — the web harness sets it per signed-in user.
-# Do NOT use `git config user.email`: on web that is a generic shared identity
-# (noreply@anthropic.com) for everyone, so it would never match — not even for you.
-# [ "${CLAUDE_CODE_USER_EMAIL:-}" = "you@example.com" ] || exit 0
+# --self-only gate (uncomment to limit loading to YOUR web sessions on a shared
+# repo) WITHOUT committing any personal identifier. Opt in by setting
+# CLAUDE_WEB_PROFILE_OPT_IN=1 in your per-user web env (Claude Code on the web →
+# Environment variables — per-account, not tracked in git). Other accounts that
+# never set it no-op; it supports multiple accounts (each opts in), survives
+# account switches (set the var in the new account's env — no source change), and
+# fails loudly, not silently.
+# [ "${CLAUDE_WEB_PROFILE_OPT_IN:-}" = "1" ] || {
+#   echo "web-bootstrap: CLAUDE_WEB_PROFILE_OPT_IN not set — skipping" >&2
+#   exit 0
+# }
 
 SRC="$HOME/.claude-src"
 URL="https://github.com/Takazudo/claude-resources"
@@ -106,11 +112,20 @@ fi
 bash "$SRC/scripts/setup-web.sh"
 ```
 
-If `--self-only` is passed, uncomment the gate and set the address to the user's
-**signed-in email** (`$CLAUDE_CODE_USER_EMAIL`, which the web harness sets per
-user). Do not gate on `git config user.email` — on web it is a shared generic
-identity, so the gate would never fire. Then commit both files (use `/commits`)
-and push.
+If `--self-only` is passed, uncomment the marker gate above. It gates on a marker
+env var the user sets in their **per-user web environment** (Claude Code on the
+web → Environment variables), e.g. `CLAUDE_WEB_PROFILE_OPT_IN=1` — never on a
+committed email/identity. This keeps any personal identifier out of the repo, is
+**deterministic** (no dependency on the harness-supplied `$CLAUDE_CODE_USER_EMAIL`,
+which can be unset or wrong on web), supports **multiple accounts** (each opts in
+independently) and **survives account switches** (set the var in the new account's
+env — no source change), and **fails loudly**. Tell the user to add
+`CLAUDE_WEB_PROFILE_OPT_IN=1` to each repo's web env vars once. Then commit both
+files (use `/commits`) and push.
+
+> Avoid an email/hash-literal gate (`$CLAUDE_CODE_USER_EMAIL == you@example.com`):
+> it bakes identity into source, breaks on account switch, and depends on the
+> harness email var being populated on web — a silent-failure trap.
 
 ### Step 2b: Env-script snippet (`--env-script`, default)
 

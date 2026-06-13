@@ -8,7 +8,7 @@ argument-hint: "[-c/--close] [-k/--keep-issue] [-w/--watch-ci] [-now/--no-wait]"
 
 This PR is checked, reviewed, and no other tasks are left. Complete the following:
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Check CI, merge the PR, and close the linked issue via the GitHub MCP (`pull_request_read` / `get_check_runs`, `merge_pull_request`, `issue_write`), not `gh`.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Check CI, merge the PR, and close the linked issue via the GitHub MCP (`pull_request_read` / `get_check_runs`, `merge_pull_request`, `issue_write`), not `gh`. **Branch deletion — see web-mode.md §5:** when the PR's head is the `claude/*` session branch (the common web case — head=`$WEB_BASE`, base=`$WEB_PARENT`), merge via MCP `merge_pull_request` **WITHOUT any branch-delete** (no `delete_branch:true`). The web platform owns the session branch — never delete it. Deleting a `claude/agent-fix-*` fix branch is fine; deleting the session branch is not. Translate the `--delete-branch` in Step 1 / `--no-wait` accordingly: on web, drop the delete for the session branch.
 
 ## Step 0: Pre-flight — check for uncommitted changes
 
@@ -30,7 +30,7 @@ Before anything else, run `git status` and `git diff --stat` to check for unstag
 - Tell the user: "CI is still running. Watching in background via /watch-ci"
 - do NOT block the conversation with polling
 5. Once all CI checks are green and the PR is approved:
-- Merge the PR using `gh pr merge --merge --delete-branch`
+- Merge the PR using `gh pr merge --merge --delete-branch` (**on web (web-mode.md §5): MCP `merge_pull_request` with NO branch-delete when the head is the `claude/*` session branch — the web owns it; only `claude/agent-fix-*` heads may be deleted**)
 - Confirm the operation completed successfully
 
 **Important:** Before merging, verify:

@@ -8,7 +8,7 @@ argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--
 
 Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and Claude Code agent teams. **This is fully automated** — you (the manager) create the infrastructure and spawn child agents to do the work. Never ask the user to manually start sessions in worktrees.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co` / Copilot `-gco`. No Dropbox.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co` / Copilot `-gco`. No Dropbox. **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — do NOT create `base/<project-name>` and do NOT push an empty start commit (web = the adopt-current-branch case). Topics fork from `$WEB_BASE` and merge back into it **locally**; the root PR is `$WEB_BASE` → `$WEB_PARENT` (the repo default branch — this inverts the ROOT PR TARGET rule below), created **after the first real commit exists** (no empty-diff PR). Push only `$WEB_BASE` while checked out on it — drop the per-topic push loop and the per-topic documentation PRs (topics are merged locally and never pushed). `-m` merges `$WEB_BASE` → `$WEB_PARENT` via MCP **without deleting the session branch** (web owns it); after merge `git checkout "$WEB_BASE"`, not the default. **Super-epic mode is unsupported on web** — refuse early (see Step 1a). When pushing before a PR, push **only the branch you are checked out on**.
 
 ## References
 
@@ -26,6 +26,8 @@ Detail lives in `references/` so this file stays a workflow spine. Open the rele
 ## !! CRITICAL — ROOT PR TARGET BRANCH RULE !!
 
 **The root PR's base MUST be the current (invocation) branch, NOT the repository's default branch.**
+
+> **On web this rule INVERTS — see web-mode.md §5.** The invocation branch is the `claude/*` session branch (`$WEB_BASE`) and becomes the **base**; the root PR targets `$WEB_PARENT` (the repo default, the fork-from branch) — head=`$WEB_BASE`, base=`$WEB_PARENT`, created via MCP after the first real commit. The "default branch is almost always wrong" warning below applies to the terminal only.
 
 As the very first action, record the current branch:
 
@@ -90,6 +92,8 @@ worktrees/
 ```
 
 Each topic gets its own worktree directory, its own branch, and its own PR targeting the base branch. The manager merges topic PRs into the base branch, then creates one root PR from base into the parent branch.
+
+> **On web (web-mode.md §5):** drop the `base/<project-name>` layer. `$WEB_BASE` (the `claude/*` session branch) IS the base — topics fork from `$WEB_BASE` and merge into `$WEB_BASE` **locally** (never pushed); the single root PR is `$WEB_BASE` → `$WEB_PARENT` (repo default).
 
 **Super-Epic child variant** — `<parent-branch>` is fixed to the super-epic base `base/<super-title>`, and `<project-name>` equals `<super-title>-<epic-slug>`. The root PR becomes the epic-PR and targets the super-epic base rather than main. See `references/super-epic-mode.md`.
 
@@ -177,13 +181,14 @@ Use the issue body as the primary input for planning. Set `ISSUE_NUMBER=<number>
 
 - **Topics** — use the child sub-issues listed (each `[Sub]` issue becomes one topic). For Super-Epic child sessions, topics come from inline sub-tasks in the epic body instead.
 - **Base branch** — use the `base/...` name stated in the issue body (do NOT invent)
+- **Pre-made base branch ("Use this PR as base")** — if the epic body says to use an existing PR / base branch as the base (the `/big-plan` resource-handoff case from the `dev-setup-temp-resource` skill — it carries `_temp-resource/{epic#}-{slug}/` for the implementer), record that branch + PR. In Step 2 you will **reuse** it instead of creating a new base branch, and the resources are already on it for the child agents.
 - **Dependency order** — respect the dependency graph; start with independent topics first
 - **Execution mode per topic** — extract the `**Execution mode:** {subagents|teams}` marker from each `[Sub]` issue body (or each inline sub-task in Super-Epic mode). This drives Step 5's spawn path. See `references/execution-modes.md` for the parsing logic, default-to-teams fallback, and mixed-mode degradation rule.
 - **Model per topic** — extract the `**Model:** {opus|sonnet|haiku}` marker from each `[Sub]` issue body (or each inline sub-task in Super-Epic mode). This drives the per-child model assignment in Step 5. A manual `-t-op` / `-t-so` flag on this invocation OVERRIDES per-topic markers session-wide. Default-when-missing-and-no-flag: `opus`. See `references/per-topic-models.md` for the resolution table.
 
 Do NOT re-plan or re-analyze. Do NOT update the epic issue body. Proceed to Step 2 with the extracted topics, base branch, and per-topic execution mode.
 
-**Super-Epic child mode** — if the epic body also contains `**Super-epic:** #N` (and the two related markers), this is a Super-Epic child session. Apply ALL Step 1a / Step 2 overrides from `references/super-epic-mode.md`: parent branch is the super-epic base (NOT invocation branch), `EPIC_BASE` is verbatim from the marker, topics come from inline sub-tasks, super-epic base existence is verified, and `SUPER_EPIC_NUMBER` / `SUPER_EPIC_BASE` / `EPIC_BASE` are captured for later steps.
+**Super-Epic child mode** — if the epic body also contains `**Super-epic:** #N` (and the two related markers), this is a Super-Epic child session. Apply ALL Step 1a / Step 2 overrides from `references/super-epic-mode.md`: parent branch is the super-epic base (NOT invocation branch), `EPIC_BASE` is verbatim from the marker, topics come from inline sub-tasks, super-epic base existence is verified, and `SUPER_EPIC_NUMBER` / `SUPER_EPIC_BASE` / `EPIC_BASE` are captured for later steps. **On web (`$CLAUDE_CODE_REMOTE=true`) Super-Epic mode is UNSUPPORTED (web-mode.md §5):** it needs real `base/<super>` / `base/<super>-<epic>` branches that are neither `claude/`-prefixed (unpushable) nor the session branch. If both web and the Super-epic markers are detected, **refuse early**: print "Super-epic mode is not supported on Claude Code on the web — run this epic from the terminal." and STOP. Do not attempt the single-base fallback for super-epics.
 
 **Claim the issue** — post a claim comment so other Claude Code sessions don't start parallel work. See `references/issue-templates.md` for the per-mode wording.
 
@@ -228,9 +233,21 @@ Two orthogonal flag families:
 
 ### Step 2: Create Base Branch and Root PR
 
-**CRITICAL: `-s` / `--stay` is STRICTLY opt-in.** Only use the `--stay` flow if the user explicitly passed `-s` or `--stay`. Do NOT auto-detect. Default ALWAYS creates a new branch — even if the current branch has an existing PR. See `references/arguments.md` for the full `--stay` mechanism.
+**CRITICAL: `-s` / `--stay` is STRICTLY opt-in.** Only use the `--stay` flow if the user explicitly passed `-s` or `--stay`. Do NOT auto-detect. Default ALWAYS creates a new branch — even if the current branch has an existing PR. See `references/arguments.md` for the full `--stay` mechanism. **On web this default does NOT hold (web-mode.md §5):** web always behaves as the adopt-current-branch case — `$WEB_BASE` (the `claude/*` session branch) is the base regardless of flags; no new base branch is created. The parent is `$WEB_PARENT` (the fork-from / default branch) **unconditionally — do NOT run the `gh pr view --json baseRefName` preference step**, even if the session branch already has a PR.
 
 **Super-Epic child mode**: parent branch is `$SUPER_EPIC_BASE`, base branch is `$EPIC_BASE` verbatim (from the marker). Root PR targets `$SUPER_EPIC_BASE`. See `references/super-epic-mode.md`.
+
+#### Pre-made base branch (resource handoff) — reuse, do NOT create
+
+If Step 1 found a "**Use this PR as base**" note on the epic (the `/big-plan` resource-handoff case, per the `dev-setup-temp-resource` skill), the base branch **already exists on the remote** with `_temp-resource/{epic#}-{slug}/` committed on it. Reuse it — do NOT create a new one or an empty start commit:
+
+```bash
+git fetch origin <stated-base-branch>
+git checkout <stated-base-branch>
+git pull origin <stated-base-branch>
+```
+
+The root PR is the existing base PR `/big-plan` opened (don't create a second one — just adopt it for the rest of the workflow). Then go to Step 3; topic worktrees fork from this base, so every child inherits the resources, and each sub-issue points at `_temp-resource/{epic#}-{slug}/` in its working tree. Skip the "Default flow" below. **On web (web-mode.md §5):** there is no separate pre-made base branch to `git fetch` / `git checkout` — `/big-plan`'s web variant committed `_temp-resource` directly onto `$WEB_BASE` (the session branch). Treat the handoff as "resources are already on `$WEB_BASE`"; do NOT checkout a different branch (it would leave the session branch and break push-only-current-branch).
 
 #### Default flow (no `--stay`) — ALWAYS used unless `-s` / `--stay` explicitly passed
 
@@ -244,24 +261,33 @@ INVOCATION_BRANCH=$(git branch --show-current)  # Record before any checkout
 
 **CRITICAL**: Create the root PR immediately with an empty commit. This locks in the correct parent branch from the start.
 
+> **On web (web-mode.md §5):** run the canonical detection from §5 to set `$WEB_BASE` / `$WEB_PARENT`, stay on `$WEB_BASE`, and SKIP the entire terminal block below — no `git checkout <parent>`, no `base/<project-name>`, no empty commit, no `git push -u`. The draft root PR is created **later** (after the first real commit lands on `$WEB_BASE`) via MCP `create_pull_request` head=`$WEB_BASE` base=`$WEB_PARENT` draft:true; push `$WEB_BASE` first. The guard below makes this executable — do not run the terminal commands on web.
+
 ```bash
-git checkout <parent-branch>
-git pull origin <parent-branch>
+if [ "$CLAUDE_CODE_REMOTE" = "true" ]; then
+  # Web: §5 detection already set WEB_BASE / WEB_PARENT. Stay on WEB_BASE.
+  # Root PR is deferred to after the first real commit (MCP create_pull_request,
+  # head=$WEB_BASE base=$WEB_PARENT draft:true). Do NOT create base/<project-name>,
+  # do NOT empty-commit, do NOT push here.
+  :
+else
+  git checkout <parent-branch>
+  git pull origin <parent-branch>
 
-git checkout -b base/<project-name>
+  git checkout -b base/<project-name>
 
-# [skip ci] = GitHub-native skip instruction — the empty commit changes nothing, so CI on it
-# is guaranteed-green waste; real commits that follow trigger CI normally
-git commit --allow-empty -m "= start <project-name> dev = [skip ci]"
-git push -u origin base/<project-name>
+  # [skip ci] = GitHub-native skip instruction — the empty commit changes nothing, so CI on it
+  # is guaranteed-green waste; real commits that follow trigger CI normally
+  git commit --allow-empty -m "= start <project-name> dev = [skip ci]"
+  git push -u origin base/<project-name>
 
-# !! PR TARGET CHECK !! — <parent-branch> MUST be INVOCATION_BRANCH (recorded above) for non-Super-Epic
-# sessions, or $SUPER_EPIC_BASE for Super-Epic child mode. NEVER omit --base — `gh pr create` falls
-# back to the repo default branch (usually main). That is the bug the top-of-file rule prohibits.
-gh pr create \
-  --base <parent-branch> \
-  --title "<project-name>: root PR title" \
-  --body "$(cat <<'EOF'
+  # !! PR TARGET CHECK !! — <parent-branch> MUST be INVOCATION_BRANCH (recorded above) for non-Super-Epic
+  # sessions, or $SUPER_EPIC_BASE for Super-Epic child mode. NEVER omit --base — `gh pr create` falls
+  # back to the repo default branch (usually main). That is the bug the top-of-file rule prohibits.
+  gh pr create \
+    --base <parent-branch> \
+    --title "<project-name>: root PR title" \
+    --body "$(cat <<'EOF'
 ## Summary
 (in progress)
 
@@ -269,7 +295,8 @@ gh pr create \
 (to be added as topics are completed)
 EOF
 )" \
-  --draft
+    --draft
+fi
 ```
 
 Save the root PR number — you will update it as topics are merged.
@@ -297,6 +324,8 @@ If `EXISTING_PR` exists: reuse it. If not: create a new draft PR targeting `PARE
 For each topic:
 
 ```bash
+# On web (web-mode.md §5): fork from $WEB_BASE (the session branch), not base/<project-name>:
+#   git worktree add worktrees/<topic-name> -b <topic-name> "$WEB_BASE"
 git worktree add worktrees/<topic-name> -b <project-name>/<topic-name> base/<project-name>
 ```
 
@@ -372,7 +401,10 @@ For each topic, issue an Agent tool call (parallel, capped at 6 concurrent):
      a. The worktree absolute path to work in
      b. What to implement for this topic
      c. Branch name: <project-name>/<topic-name>
-     d. Base branch: base/<project-name>
+     d. Base branch: base/<project-name>   (on web: $WEB_BASE, the claude/* session branch — web-mode.md §5)
+     d2. If the sub-issue references `_temp-resource/<issue>-<topic>/`, tell the child those delegated
+         resources (prototypes / design refs / fixtures) are already in its working tree at that path —
+         read them directly; no download / Dropbox.
      e. COMMIT ONLY — DO NOT PUSH. All commits stay local. Pushing happens in Step 11.
      f. NO DIRECT BROWSER TOOLING. Children must NEVER invoke /headless-browser, /verify-ui, or any
         Playwright / Chrome DevTools-backed tool. If browser verification is needed, commit and
@@ -424,6 +456,7 @@ The active agent count stays at ≤6 at all times.
 Children committed locally without pushing. Merge their branches into base **locally** with git:
 
 ```bash
+# On web (web-mode.md §5): the base is $WEB_BASE (the session branch), so: git checkout "$WEB_BASE"
 git checkout base/<project-name>
 
 # Regular merge, NOT squash
@@ -466,9 +499,13 @@ This closes the tmux panes and frees disk space. The rest of the workflow (revie
 
 Ensure the base branch is up to date with any remote changes:
 
+> **On web (web-mode.md §5):** SKIP this sync entirely — `$WEB_BASE` is local-only until Step 11, there is no remote `base/<project-name>` ref to fetch, and there are no concurrent remote writers to the session branch (the Step 6 topic merges are already in `$WEB_BASE`). The guard below makes that executable.
+
 ```bash
-git fetch origin base/<project-name>
-git merge origin/base/<project-name>
+if [ "$CLAUDE_CODE_REMOTE" != "true" ]; then
+  git fetch origin base/<project-name>
+  git merge origin/base/<project-name>
+fi
 ```
 
 Re-read the issue TODO to confirm the next step:
@@ -556,35 +593,51 @@ Skip if changes are purely backend or non-visual.
 
 Push everything in one batch — first push after the initial empty commit. This avoids running CI on every intermediate commit.
 
-```bash
-# Push the base branch (contains all merged topic work + review fixes)
-git push origin base/<project-name>
+> **On web (web-mode.md §5): push ONLY `$WEB_BASE`, and DROP the topic-branch push loop.** Topic branches were merged into `$WEB_BASE` locally and are not `claude/`-prefixed — the proxy refuses non-current, non-`claude/` pushes. The manager is checked out on `$WEB_BASE` after Step 6, so `git push origin "$WEB_BASE"` satisfies push==current. The guard below makes this executable.
 
-# Push topic branches so PRs can be created for documentation
-for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
-  git push origin "$branch"
-done
+```bash
+if [ "$CLAUDE_CODE_REMOTE" = "true" ]; then
+  # Push only the session base (manager is on it after Step 6).
+  git push origin "$WEB_BASE"
+else
+  # Push the base branch (contains all merged topic work + review fixes)
+  git push origin base/<project-name>
+
+  # Push topic branches so PRs can be created for documentation
+  for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
+    git push origin "$branch"
+  done
+fi
 ```
 
 After pushing, create topic PRs for documentation/tracking, close them, then **immediately delete topic branches**.
 
 **IMPORTANT**: Topic branches are already merged locally into base (Step 6). If the remote base already contains the topic commits, `gh pr create` fails with "No commits between base and head". Always guard against this — check if the PR was actually created before trying to close it. **Never call `gh pr close` with an empty PR number** — `gh` will default to closing the current branch's PR (the root PR), which is destructive.
 
-```bash
-for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
-  if gh pr create --base base/<project-name> --head "$branch" --title "<topic> implementation" --body "Part of <project-name> development" --fill 2>/dev/null; then
-    PR_NUM=$(gh pr list --head "$branch" --json number -q '.[0].number')
-    if [ -n "$PR_NUM" ]; then
-      gh pr close "$PR_NUM" --comment "Already merged into base branch locally"
-    fi
-  fi
-done
+> **On web (web-mode.md §5):** SKIP the per-topic documentation PRs entirely (topics live only locally, merged into `$WEB_BASE`) and drop every `git push origin --delete <topic>` (non-current, non-`claude/` push → rejected). Local `git branch -d <topic>` is fine. The empty-`PR_NUM` guard below MUST be preserved when any PR op is translated to MCP — a `gh pr close` with an empty number closes the **root PR** (destructive). The guard wraps both loops.
 
-# Clean up topic branches immediately (merged into base, PRs are closed)
-for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
-  git branch -d "$branch"
-  git push origin --delete "$branch"
-done
+```bash
+if [ "$CLAUDE_CODE_REMOTE" = "true" ]; then
+  # Topics were never pushed on web — no documentation PRs, no remote delete.
+  for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
+    git branch -d "$branch" 2>/dev/null || true
+  done
+else
+  for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
+    if gh pr create --base base/<project-name> --head "$branch" --title "<topic> implementation" --body "Part of <project-name> development" --fill 2>/dev/null; then
+      PR_NUM=$(gh pr list --head "$branch" --json number -q '.[0].number')
+      if [ -n "$PR_NUM" ]; then
+        gh pr close "$PR_NUM" --comment "Already merged into base branch locally"
+      fi
+    fi
+  done
+
+  # Clean up topic branches immediately (merged into base, PRs are closed)
+  for branch in <project-name>/topicA <project-name>/topicB <project-name>/topicC; do
+    git branch -d "$branch"
+    git push origin --delete "$branch"
+  done
+fi
 ```
 
 Only the base branch remains.
@@ -661,6 +714,8 @@ After this step, proceed to Close Tracking Issue → Auto-Suggest Next Command (
 
 **Why `-m` defers mid-chain:** when this session is part of a multi-wave / multi-session plan, evaluate the Auto-Suggest signals (Signal A / Signal B — see "Auto-Suggest Next Command" below) BEFORE merging. If a next wave remains, do NOT merge here — the root/epic PR must stay open so later waves keep accumulating onto it. Forward `-m` in the next-wave hand-off (or auto-invocation, under `-a`) instead; the merge runs in the session where no next wave remains (chain termination).
 
+> **On web (web-mode.md §5):** `-m` merges `$WEB_BASE` → `$WEB_PARENT` (repo default) via MCP `merge_pull_request` — `/pr-complete` is web-aware and does NOT pass a branch-delete (Part E), so the `claude/*` session branch survives. After the merge, **`git checkout "$WEB_BASE"`** (it still exists) so the manager stays on a pushable branch — do NOT stay on `$WEB_PARENT` (the default branch is not pushable on web; the STOP rule "stay on the base" maps to `$WEB_BASE`). The CI-fix subagent must NOT push to `$WEB_PARENT` (not checked out on it, not `claude/`-prefixed) — route the fix through a `claude/agent-fix-<slug>` branch + PR (the branch-protection fallback path is the only path on web). Replace every `gh pr view` / `gh pr merge` below with MCP.
+
 After Step 15 passes, automatically:
 
 1. Invoke `/pr-complete -c` to wait for CI, merge the root PR (`--merge --delete-branch`), and close the linked issue.
@@ -673,6 +728,9 @@ After Step 15 passes, automatically:
 4. **After clean post-merge CI**, checkout the merged target branch and pull so the manager lands somewhere live:
 
 ```bash
+# On web (web-mode.md §5): the manager returns to $WEB_BASE (it survives; the default branch
+# is not pushable), NOT $TARGET_BRANCH:
+#   git checkout "$WEB_BASE"
 TARGET_BRANCH=$(gh pr view <root-pr-number> --json baseRefName -q '.baseRefName')
 
 git checkout "$TARGET_BRANCH"
@@ -743,7 +801,7 @@ gh label create "needs-decision" \
 - **TINY / trivial / localized** (one-liner, obvious cleanup, single-spot fix): **bundle ALL tiny fixes into ONE shared fix PR** on a single `agent-fix/<slug>` branch.
 - **NON-TRIVIAL but bounded:** **each gets its OWN `agent-fix/<slug>` branch + PR.**
 
-**Landing each fix — target the parent / ultimate-landing branch, NOT the intermediate `base/<project-name>`.** For `/x-wt-teams` that is `$PARENT_BRANCH` (the branch the root PR targets; in Super-Epic child mode, `$SUPER_EPIC_BASE`). Targeting the parent keeps fix branches valid even when `-m`'s `/pr-complete --delete-branch` already removed `base/<project-name>`. Create each `agent-fix/<slug>` branch from `$PARENT_BRANCH` and target its PR at `$PARENT_BRANCH`.
+**Landing each fix — target the parent / ultimate-landing branch, NOT the intermediate `base/<project-name>`.** For `/x-wt-teams` that is `$PARENT_BRANCH` (the branch the root PR targets; in Super-Epic child mode, `$SUPER_EPIC_BASE`). Targeting the parent keeps fix branches valid even when `-m`'s `/pr-complete --delete-branch` already removed `base/<project-name>`. Create each `agent-fix/<slug>` branch from `$PARENT_BRANCH` and target its PR at `$PARENT_BRANCH`. **On web (web-mode.md §5):** name fix branches `claude/agent-fix-<slug>` (only `claude/`-prefixed branches are pushable), fork them from `$WEB_PARENT` (the default branch), and push each **while it is the current branch**, then `git checkout "$WEB_BASE"` to return. Prefer bundling ALL tiny fixes into ONE PR — fewer branch switches on web. The session branch is never deleted, and these `claude/agent-fix-*` branches ARE deletable (only `$WEB_BASE` is protected).
 
 For each fix branch (the tiny bundle, or one per non-trivial issue):
 
@@ -783,6 +841,8 @@ Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams <-a if -m was p
 
 (`/cleanup-resources`'s `-a` flag means `--auto-merged` — it maps to this skill's `-m`, the flag that actually merges the root PR. Do NOT pass it just because the auto-chain flag `-a` was on this invocation.)
 
+**Temp-resource cleanup:** if this session consumed a `_temp-resource/{epic#}-{slug}/` handoff (the pre-made base branch case), delete that subdir with a commit on the base branch **before the root PR merges**, so the scratch resources don't reach the parent branch. Harmless if left (tooling ignores `_temp-resource/`), but prefer clean — anything durable should already be migrated into real docs by a docs sub-task. See the `dev-setup-temp-resource` skill.
+
 **Manifest contents for `/x-wt-teams`:**
 
 - Workflow context:
@@ -802,8 +862,8 @@ Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams <-a if -m was p
   - **`agent-found` issues closed by `-fix`** (if the Step 15.5 auto-fix step ran) — already closed by this session; the audit confirms KEEP-as-closed.
   - **Super-epic issue** (Super-Epic child mode only) — role: `claimed-existing` with note "parent super-epic; never close from a child session". ALWAYS KEEP.
 - Branches to include:
-  - **Base branch** (`base/<project-name>`) — role: `base`, `pr-merged: <true if root PR merged>`. When `-m` flow merged the root PR, propose delete (local AND remote — the remote was already removed by `--delete-branch`, but pass `scope: both` so the manager's `git push origin --delete` is idempotent and `git branch -d` cleans up local).
-  - **Topic branches** (`<project-name>/<topic-name>` for each topic) — role: `topic`. Step 11 already deleted these; pass them in the manifest with `scope: both, pr-merged: true` so the agent confirms they're gone and the manager surfaces any stragglers in the "Warnings" section. Defensive only.
+  - **Base branch** (`base/<project-name>`) — role: `base`, `pr-merged: <true if root PR merged>`. When `-m` flow merged the root PR, propose delete (local AND remote — the remote was already removed by `--delete-branch`, but pass `scope: both` so the manager's `git push origin --delete` is idempotent and `git branch -d` cleans up local). **On web (web-mode.md §5):** this "base branch" IS the `claude/*` session branch — pass it as `role: session-web` with `protected-session-branch: <its literal name>`; mark KEEP (web owns it). Never delete local or remote.
+  - **Topic branches** (`<project-name>/<topic-name>` for each topic) — role: `topic`. Step 11 already deleted these; pass them in the manifest with `scope: both, pr-merged: true` so the agent confirms they're gone and the manager surfaces any stragglers in the "Warnings" section. Defensive only. **On web:** topics were never pushed — `scope: local` only.
   - **`agent-fix/<slug>` branches** (if Step 15.5 created any) — role: `fix`, targeting `$PARENT_BRANCH`. Pass `pr-merged: <true if the fix PR merged — always under `-m`, else false>` so merged fix branches are cleaned up and unmerged ones (ready PRs awaiting the user) are kept.
   - **Parent branch** (`$PARENT_BRANCH` or `$SUPER_EPIC_BASE`) — role: `parent`. ALWAYS KEEP (the agent's prompt forbids deleting parent roles).
 - PRs to include:
@@ -872,9 +932,9 @@ A pause is a soft stop — write a one-line "paused: <reason>" note above the ha
 
 **CRITICAL RULES at this point:**
 
-- **If `-m` / `--merge` was used and the PR was merged**: The merge-mode checkout+pull put you on the target branch, and `/cleanup-resources` then proposed deleting the now-dead local `base/<project-name>` (which the manager executed). Stay on the target branch — the dead base is gone.
+- **If `-m` / `--merge` was used and the PR was merged**: The merge-mode checkout+pull put you on the target branch, and `/cleanup-resources` then proposed deleting the now-dead local `base/<project-name>` (which the manager executed). Stay on the target branch — the dead base is gone. (on web the session branch is NOT deleted — after `-m` the manager is back on `$WEB_BASE`, which survives — web-mode.md §5)
 - **If Super-Epic child mode** (any epic — not just the last): You are already on the super-epic base after the mandatory merge step's branch-cleanup. `/cleanup-resources` then audited and confirmed. Stay on the super-epic base; the local epic base is already deleted.
-- **Otherwise (non-Super-Epic, non-`-m`)**: **Stay on `base/<project-name>`.** `/cleanup-resources` proposed KEEP for the base branch (PR not merged yet). Do NOT checkout `main`, the parent branch, or any other branch.
+- **Otherwise (non-Super-Epic, non-`-m`)**: **Stay on `base/<project-name>`.** `/cleanup-resources` proposed KEEP for the base branch (PR not merged yet). Do NOT checkout `main`, the parent branch, or any other branch. (on web: stay on `$WEB_BASE`, the session branch — web-mode.md §5)
 - **Do NOT re-run cleanup** — Step 16 already ran. The "Step 17 (deferred)" manual cleanup hook is only for a later session where the user explicitly asks.
 - **Do NOT delete any branches manually** — `/cleanup-resources` is the only step authorized to delete branches in this workflow. If it didn't delete a branch, leave it alone.
 - **Do NOT do anything else** unless the user asks.
@@ -933,20 +993,20 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 
 | Type | Pattern | Example |
 |------|---------|---------|
-| Base branch | `base/<project>` | `base/marker-fix` |
+| Base branch | `base/<project>` (on web: the `claude/*` session branch `$WEB_BASE` — no `base/<project>`, see web-mode.md §5) | `base/marker-fix` |
 | Topic branch | `<project>/<topic>` | `marker-fix/bogaudio-knobs` |
 | Worktree dir | `worktrees/<topic>` | `worktrees/bogaudio-knobs` |
 
 ## Important Rules
 
-1. **NEVER checkout main or parent branch on your own** — the workflow ends at Step 16 (cleanup audit), and `/cleanup-resources` is the only step authorized to switch branches as part of dead-branch cleanup. Outside its execution, stay on `base/<project-name>`. **Exceptions** (all routed through `/cleanup-resources` per Rule 27, or explicit special cases of Rule 26 Dead Branch Cleanup): (a) `-m` / `--merge` and PR merged → cleanup-resources proposes deleting the dead local `base/<project-name>`; the skill itself handles the checkout-parent + `git branch -d` mechanics. (b) **Super-Epic child mode** → the mandatory super-epic merge step (before Step 16) still checks out `$SUPER_EPIC_BASE` and deletes the local epic base, per step 5 of `references/super-epic-mode.md`. Cleanup-resources then audits and confirms.
+1. **NEVER checkout main or parent branch on your own** — the workflow ends at Step 16 (cleanup audit), and `/cleanup-resources` is the only step authorized to switch branches as part of dead-branch cleanup. Outside its execution, stay on `base/<project-name>`. **Exceptions** (all routed through `/cleanup-resources` per Rule 27, or explicit special cases of Rule 26 Dead Branch Cleanup): (a) `-m` / `--merge` and PR merged → cleanup-resources proposes deleting the dead local `base/<project-name>`; the skill itself handles the checkout-parent + `git branch -d` mechanics. (b) **Super-Epic child mode** → the mandatory super-epic merge step (before Step 16) still checks out `$SUPER_EPIC_BASE` and deletes the local epic base, per step 5 of `references/super-epic-mode.md`. Cleanup-resources then audits and confirms. **On web (web-mode.md §5):** the "dead local base" is the `claude/*` session branch (`$WEB_BASE`) — do NOT delete it (web owns it). After `-m` merge, return to `$WEB_BASE`, not the default branch.
 2. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents.
 3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts.
-4. **Create the root PR immediately in Step 2** — empty commit + draft PR locks in the correct parent branch.
+4. **Create the root PR immediately in Step 2** — empty commit + draft PR locks in the correct parent branch. **On web:** no empty start commit and no `base/<project-name>` — the `claude/*` session branch is the base; the root PR is created via MCP (head=`$WEB_BASE`, base=`$WEB_PARENT`) after the first real commit. See web-mode.md §5.
 5. **Never force push** — regular merge only, preserves history.
 6. **Push-forbid during work** — child agents commit locally only. All pushing happens in Step 11 after deep review. Saves CI resources.
-7. **Topic branches merge locally first** — manager merges via `git merge`, not GitHub PR merge. Topic branches are pushed later for documentation only.
-8. **Root PR targets the parent branch** — handled automatically by creating it in Step 2. Super-Epic child sessions target the super-epic base; see `references/super-epic-mode.md`.
+7. **Topic branches merge locally first** — manager merges via `git merge`, not GitHub PR merge. Topic branches are pushed later for documentation only. **On web:** topic branches are merged locally into `$WEB_BASE` and never pushed (push-only-current-branch) — drop the documentation push. See web-mode.md §5.
+8. **Root PR targets the parent branch** — handled automatically by creating it in Step 2. Super-Epic child sessions target the super-epic base; see `references/super-epic-mode.md`. **On web this inverts:** the root PR targets `$WEB_PARENT` (repo default); the session branch is the base. See web-mode.md §5.
 9. **worktrees/ must be in .gitignore** — worktrees are local only.
 10. **Manager stays at repo root** — never cd into worktrees for git ops.
 11. **Each child agent works in its worktree** — git ops affect that branch only.
@@ -972,7 +1032,7 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 
     Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Merge Mode after `/pr-complete` (Rule 1 exception (a)), the Step 17 deferred manual cleanup hook. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged. **As of Rule 27, the actual implementation of this cleanup is delegated to `/cleanup-resources` at Step 16 — hand-rolled `git branch -d` blocks should not be added; let cleanup-resources do it.**
 
-27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-m` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks.
+27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-m` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks. **On web:** there is no `base/<topic>` and the session branch must survive (protected by name in the manifest) — the "(c)" leftover-base framing does not apply. See web-mode.md §5.
 
 ## Prerequisites
 
