@@ -8,7 +8,7 @@ argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--
 
 Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and Claude Code agent teams. **This is fully automated** — you (the manager) create the infrastructure and spawn child agents to do the work. Never ask the user to manually start sessions in worktrees.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co` / Copilot `-gco`. No Dropbox. **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — do NOT create `base/<project-name>` and do NOT push an empty start commit (web = the adopt-current-branch case). Topics fork from `$WEB_BASE` and merge back into it **locally**; the root PR is `$WEB_BASE` → `$WEB_PARENT` (the repo default branch — this inverts the ROOT PR TARGET rule below), created **after the first real commit exists** (no empty-diff PR). Push only `$WEB_BASE` while checked out on it — drop the per-topic push loop and the per-topic documentation PRs (topics are merged locally and never pushed). `-m` merges `$WEB_BASE` → `$WEB_PARENT` via MCP **without deleting the session branch** (web owns it); after merge `git checkout "$WEB_BASE"`, not the default. **Super-epic mode is unsupported on web** — refuse early (see Step 1a). When pushing before a PR, push **only the branch you are checked out on**.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co` / Copilot `-gco`. No Dropbox. **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — do NOT create `base/<project-name>` and do NOT push an empty start commit (web = the adopt-current-branch case). Topics fork from `$WEB_BASE` and merge back into it **locally**; the root PR is `$WEB_BASE` → `$WEB_PARENT` (the repo default branch — this inverts the ROOT PR TARGET rule below), created **after the first real commit exists** (no empty-diff PR). Push only `$WEB_BASE` while checked out on it — drop the per-topic push loop and the per-topic documentation PRs (topics are merged locally and never pushed). `-m` merges `$WEB_BASE` → `$WEB_PARENT` via MCP **without deleting the session branch** (web owns it); after merge `git checkout "$WEB_BASE"`, not the default. **Super-epic mode is unsupported on web** — refuse early (see Step 1a). When pushing before a PR, push **only the branch you are checked out on**. **Concurrency — see web-mode.md §6:** the local 6-concurrent-child cap is Mac-freeze protection and does NOT apply on web — fan out all topics in one parallel batch (the browser one-at-a-time rule and the port `flock` rule still hold).
 
 ## References
 
@@ -388,7 +388,7 @@ Note: reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children. Only `-t
 This is the common, steady-state default. **Skip TeamCreate and TaskCreate entirely** — spawn each topic as a one-shot Agent tool call pointing at its pre-created worktree. No team, no shutdown ceremony, no SendMessage. The full subagents-path routing and the Step 7 simplification live in `references/execution-modes.md`.
 
 ```
-For each topic, issue an Agent tool call (parallel, capped at 6 concurrent):
+For each topic, issue an Agent tool call (parallel, capped at 6 concurrent — **on web: uncapped, fan out all topics at once; web-mode.md §6**):
    - subagent_type: "frontend-worktree-child" (or "general-purpose" for non-frontend topics)
    - model: the per-topic resolved model — see "Resolve model per topic" above. Always set explicitly per child; different children in the same session may run different models.
    - (Do NOT pass `isolation: "worktree"` — the worktree already exists from Step 3. Do NOT pass
@@ -432,7 +432,7 @@ For each topic, issue an Agent tool call (parallel, capped at 6 concurrent):
 
 If any topic is marked `teams` (see `references/execution-modes.md` for the marker), or any topic is missing the `Execution mode:` marker, the session uses the teams path instead. **Read `references/teams-path.md` for the full team workflow** — TeamCreate + named teammates, idle/wake, the shutdown_request teardown, and TeamDelete. It reuses the canonical prompt body (items a–j) above with its team-specific deltas.
 
-**Spawn child agents in parallel — capped at 6 concurrent.** Use multiple Agent tool calls in a single message for the first batch (Task tool calls on the teams path). Each agent should:
+**Spawn child agents in parallel — capped at 6 concurrent (on web: uncapped — one batch, web-mode.md §6).** Use multiple Agent tool calls in a single message for the first batch (Task tool calls on the teams path). Each agent should:
 
 1. Work in its assigned worktree directory
 2. Implement the topic
@@ -445,6 +445,8 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 #### Concurrency Limit: Max 6 Child Agents at Once
 
 **CPU load protection**: Never run more than **6 child agents concurrently**. Running 7+ parallel agents overloads the local machine.
+
+> **On web (web-mode.md §6):** this cap is Mac-freeze protection and does NOT apply — the cloud container is not your interactive machine. Spawn **all** topics in one parallel batch (one Agent call per topic in a single message); do not throttle to 6 or queue. (The browser "one alive at a time" rule and the port `flock` rule still hold — their reasons are context-window token balloon and port collisions, not CPU freeze.)
 
 - **6 or fewer topics**: Spawn all in parallel.
 - **7+ topics**: Spawn the first 6 in parallel, queue the rest. As each active agent completes and reports back, spawn the next queued topic. Continue until the queue is empty.
@@ -1016,7 +1018,7 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. Skip with `--no-issue`. Closing happens via `/cleanup-resources` at Step 16 (mandatory), not via a bespoke `gh issue close` call buried in the workflow tail. See Rule 27.
 16. **pnpm worktree cleanup breaks symlinks** — Step 7 runs `pnpm install --ignore-scripts` to fix.
 17. **NEVER auto-detect `-s` / `--stay`** — always create a new base branch unless explicitly passed. Do not infer from branch state, existing PRs, or context.
-18. **Max 6 concurrent child agents** — Step 5 caps parallelism. With 7+ topics, queue the rest and spawn as earlier agents complete.
+18. **Max 6 concurrent child agents** — Step 5 caps parallelism. With 7+ topics, queue the rest and spawn as earlier agents complete. **On web (web-mode.md §6) this cap is lifted** — fan out all topics in one batch (it is Mac-freeze protection, irrelevant in the cloud container).
 19. **Playwright / browser tools go through an isolated one-shot Opus subagent** — see `references/resource-coordination.md`. Neither manager nor child may invoke browser tools directly. At most one browser-verification subagent alive at a time, sequential only.
 20. **No heavy / port-based tests in child agents** — see `references/resource-coordination.md`. Children commit + report; manager runs sequentially on merged base. Legitimate short port-binding work uses `flock`.
 21. **Auto-Suggest Next Command is MANDATORY for multi-session plans** — before STOP, if Signal A (Super-Epic) or Signal B (`--stay` accumulating-epic) applies, MUST print a copy-pasteable next command. The user should never have to type "give me next command" for a planned multi-session workflow.

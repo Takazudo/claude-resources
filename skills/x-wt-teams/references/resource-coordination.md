@@ -12,7 +12,7 @@ Two HARD RULES that prevent parallel child worktrees from melting the local mach
 
 1. **Child agents**: NEVER invoke `/headless-browser` or `/verify-ui` directly. If a topic needs browser-based verification, the child agent commits its code and **reports back to the manager** that a browser check is requested (include the URL, what to check, and which selectors matter). The child does NOT run the check itself.
 2. **Manager**: Also NEVER invokes `/headless-browser` or `/verify-ui` in its own context. Instead, spawn a **fresh dedicated Opus subagent** via the Agent tool, let that subagent run the browser tool, collect its result, and **kill the subagent immediately after** the single confirmation returns.
-3. **One at a time, sequential only**: At most **one** browser-verification subagent may be alive across the entire workflow. Never spawn two in parallel — even if two topics want a UI check, queue them and run sequentially.
+3. **One at a time, sequential only**: At most **one** browser-verification subagent may be alive across the entire workflow. Never spawn two in parallel — even if two topics want a UI check, queue them and run sequentially. **This rule holds on web too** — web-mode.md §6 lifts the child-count cap but explicitly NOT this one (its reason is context-window token balloon from large DOM/snapshot output, not Mac CPU).
 4. **Kill after each confirmation**: After the subagent returns its result, do not keep it alive for follow-up checks. Each verification gets its own fresh subagent. This prevents the Playwright / DevTools context from accumulating tokens across checks.
 
 ### Dispatch pattern

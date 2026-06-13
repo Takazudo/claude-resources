@@ -224,7 +224,7 @@ Record the choice and a one-line reason per sub-task. The annotation goes next t
 
 **Group sub-tasks into waves.** A wave is a set of sub-tasks that can run concurrently in one `/x-wt-teams` session. Waves run sequentially — wave N+1 starts only after every sub-task in wave N is merged into the epic base.
 
-- **Wave size ≤ 6 is a planning annotation, not a session boundary** — `/x-wt-teams` enforces the 6-concurrent-child cap itself (to avoid freezing the local machine), throttling within a single session. You annotate waves for the human's benefit; you do NOT split work across sessions to honor the cap. If a dependency tier exceeds 6, label it wave Na / wave Nb so the grouping is readable — one session still executes both.
+- **Wave size ≤ 6 is a planning annotation, not a session boundary** — `/x-wt-teams` enforces the 6-concurrent-child cap itself (to avoid freezing the local machine), throttling within a single session. You annotate waves for the human's benefit; you do NOT split work across sessions to honor the cap. If a dependency tier exceeds 6, label it wave Na / wave Nb so the grouping is readable — one session still executes both. **On web (web-mode.md §6) the 6-cap is lifted** (cloud container, not your Mac), so wave Na/Nb sub-splitting for the cap reason is unnecessary — a wave can fan out all its sub-tasks at once.
 - **A single huge plan stays one epic** — 18 truly parallelizable sub-tasks is one epic run by one `/x-wt-teams {epic-url}` session (6 at a time), not three epics and not three sessions.
 - **A typical multi-phase plan is also one epic** — e.g., `wave 1: backend (4 sub-tasks)` → `wave 2: backend confirm (1 sub-task)` → `wave 3: frontend (3 sub-tasks)`. One session runs all three waves in dependency order; one epic; one PR. (Multi-session `--stay` is the exception — only when the user wants to review artifacts between waves; see Step 11.)
 
@@ -548,7 +548,7 @@ After `/cleanup-resources` returns its report, surface the closed/kept counts to
 
 Print a summary. **The decisions table is mandatory** — never omit it. The user reviews this table to confirm or override each sub-task's execution mode, model, and wave before running `/x-wt-teams`.
 
-**Default — one `/x-wt-teams {epic-issue-url}` invocation runs the entire plan.** `/x-wt-teams` reads the epic body, expands every sub-issue into a topic, respects each sub-issue's dependency order (so wave-N sub-issues run before wave-N+1 sub-issues), and caps concurrent children at 6. The "Wave" annotations are a planning aid for the human; execution sequencing is driven by the per-sub-issue `Depends on: #N1, #N2` notes and the concurrency cap.
+**Default — one `/x-wt-teams {epic-issue-url}` invocation runs the entire plan.** `/x-wt-teams` reads the epic body, expands every sub-issue into a topic, respects each sub-issue's dependency order (so wave-N sub-issues run before wave-N+1 sub-issues), and caps concurrent children at 6 (on web: uncapped — web-mode.md §6). The "Wave" annotations are a planning aid for the human; execution sequencing is driven by the per-sub-issue `Depends on: #N1, #N2` notes and the concurrency cap.
 
 **No planning flags get forwarded.** Print the `/x-wt-teams` line without appending `-op` or `-co`/`-gco`, even when the user originally invoked `/big-plan` with them. Per-sub-task models are already recorded in the sub-issue bodies, and reviewer flags for the implementation session are the user's choice (they add `-gco -co`, etc., to `/x-wt-teams` manually when they want a reviewer on the implementation session).
 
@@ -596,7 +596,7 @@ Recommendation depends on the **Plan mode** (recorded in the plan log per Step 3
 
 - **Goal-clear (bugfix / regression / refactor / performance / parity):** run autonomously
   end-to-end. Rely on the per-sub-issue `Depends on:` notes for dep-ordered parallel
-  execution (cap 6). Add `-a` to auto-chain multi-session waves and `-m` to auto-merge
+  execution (cap 6; on web uncapped — web-mode.md §6). Add `-a` to auto-chain multi-session waves and `-m` to auto-merge
   the root PR at the end. **Do NOT recommend "checkpoint between Wave N and Wave N+1"** —
   decision points are baked in as Opus sub-tasks per Step 3.6. The user's time should
   not be the gate.

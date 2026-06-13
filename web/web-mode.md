@@ -1,7 +1,7 @@
 # Web mode contract (Claude Code on the web)
 
 When `$CLAUDE_CODE_REMOTE=true`, skills run in the cloud container, which differs
-from the macOS terminal in five ways. Skills reference this file so the rules
+from the macOS terminal in six ways. Skills reference this file so the rules
 live in one place — keep one copy of each skill and make only these touch points
 environment-aware.
 
@@ -162,3 +162,25 @@ is merged. Protect it by **name**, not by the `claude/*` prefix — dead
 The terminal's `--stay`, the "Use this PR as base" resource-handoff reuse, and a
 single-base epic all **converge** to this model on web. The two-base super-epic
 does not — it is out of scope on web.
+
+## 6. Subagent fan-out — the local 6-concurrent cap does not apply
+
+`/x-wt-teams` (and the `/big-plan` chain that drives it) throttles child-agent
+fan-out to **6 concurrent** on the terminal. That cap exists for one reason — to
+stop a parallel run from freezing the user's **interactive Mac** (CPU thrash,
+many heavy processes). The cloud container is not that machine, so on web the cap
+is **lifted: spawn all topics in one parallel batch** (one Agent call per topic
+in a single message) instead of queueing in groups of 6.
+
+Two limits remain, because their reason is NOT "don't freeze the Mac":
+
+- The container still has finite RAM/CPU, so this is "no fixed small cap," not
+  "literally unbounded." For a pathologically large single wave, let the harness
+  queue / use judgment. In practice `/x-wt-teams` topic counts are small (a
+  handful), so fanning them all out at once is fine.
+- The **browser-verification "one alive at a time, sequential" rule and the port
+  `flock` rule** (`x-wt-teams/references/resource-coordination.md`) STILL apply.
+  Their reasons — context-window token balloon (large DOM/accessibility
+  snapshots) and port collisions on the shared container filesystem — are
+  environment-independent. "No child-count cap" does NOT license many concurrent
+  browser subagents.

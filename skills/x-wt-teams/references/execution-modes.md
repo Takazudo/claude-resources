@@ -106,7 +106,7 @@ This is **advisory, not blocking**. Don't pause for confirmation when no drift s
 `spawn_path == "subagents"` is the inline default in `SKILL.md` Step 5. This is the exact Agent-call shape for each topic (the canonical prompt body items a–j are in `SKILL.md` Step 5):
 
 1. **No TeamCreate. No TaskCreate.** Skip both.
-2. For each topic, issue an Agent tool call in the **same message** (parallel) — capped at 6 concurrent (same rule as the teams path):
+2. For each topic, issue an Agent tool call in the **same message** (parallel) — capped at 6 concurrent (same rule as the teams path; **on web: uncapped, fan out all topics at once — web-mode.md §6**):
 
    ```
    Agent({
@@ -125,7 +125,7 @@ This is **advisory, not blocking**. Don't pause for confirmation when no drift s
 
 3. **Do NOT pass `isolation: "worktree"`** — the worktree was already created in Step 3. The agent works in the existing worktree directory; it does not create its own.
 4. **No `team_name`, no `name`** — these are team-only parameters.
-5. With 7+ topics, spawn the first 6 in parallel and queue the rest. As each Agent call returns, spawn the next queued topic. Same rule as the teams path.
+5. With 7+ topics, spawn the first 6 in parallel and queue the rest. As each Agent call returns, spawn the next queued topic. Same rule as the teams path. **On web (web-mode.md §6): no cap — spawn all topics in one batch.**
 
 ## Step 7 cleanup — subagents path
 
