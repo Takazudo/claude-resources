@@ -8,6 +8,8 @@ argument-hint: "[-c/--close] [-k/--keep-issue] [-w/--watch-ci] [-now/--no-wait]"
 
 This PR is checked, reviewed, and no other tasks are left. Complete the following:
 
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Check CI, merge the PR, and close the linked issue via the GitHub MCP (`pull_request_read` / `get_check_runs`, `merge_pull_request`, `issue_write`), not `gh`.
+
 ## Step 0: Pre-flight — check for uncommitted changes
 
 Before anything else, run `git status` and `git diff --stat` to check for unstaged or staged-but-uncommitted changes.

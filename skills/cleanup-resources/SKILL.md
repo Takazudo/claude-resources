@@ -8,6 +8,8 @@ argument-hint: "[workflow:big-plan|x-as-pr|x-wt-teams] [-a|--auto-merged] [extra
 
 End-of-workflow audit for GitHub issues, PRs, and branches the calling workflow touched. Long workflows (big-plan, x-as-pr, x-wt-teams) tend to drop the trailing "close the source issue" / "delete the dead local branch" steps because context drifts. This skill forces an explicit checkpoint: gather a manifest of every touched resource, hand it to a fresh Sonnet agent for audit, then execute the safe actions and report.
 
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Gather the manifest and execute closes / merges / branch deletes via the GitHub MCP (`issue_read` / `issue_write`, `pull_request_read`, `list_pull_requests`, `merge_pull_request`), not `gh`. Spawn the audit step as a Claude subagent (no agent teams).
+
 ## Who calls this skill
 
 This skill is invoked at the **end** of a parent workflow — never mid-flight. Typical callers:

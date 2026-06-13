@@ -8,6 +8,8 @@ argument-hint: "[-haiku|-so|-op] [-co|-gco]"
 
 Lightweight code review. Runs whichever reviewers are specified by flags; falls back to the skill's defaults when none are passed.
 
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). This is **Claude-only** — the default `/codex-review` backend and `-gco`/`/gco-review` are unavailable, so **default to a Claude reviewer** and ignore `-co`/`-gco`. Read the PR diff and raise any `agent-found` issues via the GitHub MCP, not `gh`.
+
 ## Review Focus
 
 - Silly mistakes, bugs, and logic errors

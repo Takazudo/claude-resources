@@ -6,6 +6,8 @@ argument-hint: "[-haiku|-so|-op] [-co|-gco] [-t|-nt] [-ri|--raise-issues] [-nori
 
 # Deep Review
 
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). This is **Claude-only** — the default `/codex-review` backend and `-gco`/`/gco-review` are unavailable, so **default to a Claude reviewer** and ignore `-co`/`-gco`. The default `-t` team-fix mode does **not** use agent teams here: fan out **subagents** for fixes instead of delegating to `/x-wt-teams`. Read the diff and raise `agent-found` issues via the GitHub MCP, not `gh`.
+
 Perform a practical code quality review with priorities:
 
 **PRIMARY FOCUS (most important):**
@@ -29,7 +31,7 @@ Perform a practical code quality review with priorities:
 
 - `-haiku` / `--haiku` — Claude Haiku
 - `-so` / `--sonnet` — Claude Sonnet
-- `-op` / `--opus` — Claude Opus
+- `-op` / `--opus` — Claude Opus 4.8 (Anthropic's top model; runs with a 1M-token context window)
 
 Passing any model flag opts in to the full Claude reviewer workflow (3 reviewers on a PR diff, 6 reviewers on a full project scan) and sets the `model:` field for every `code-reviewer` subagent spawned in Steps A-2 / B-2.
 
@@ -579,7 +581,7 @@ When the team-fix flag is on (the default), do NOT apply fixes inline. Instead, 
 
 3. **Invoke `/x-wt-teams --no-review -nf -nori --stay <fix-instructions>`** as the next action. Forward the same reviewer flags (`-haiku|-so|-op`, `-co|-gco`) that this `/deep-review` invocation received — the inner session's `--no-review` skips its own manager-level Step 9, but the child agent's `/light-review` self-check still runs and uses those reviewer flags to stay consistent. `-nf -nori` keep the inner session from auto-fixing or raising issues on its own (see the recursion guard above).
 
-   **Fix-agent model**: `/x-wt-teams`'s team-member flags are `-t-op` / `-t-so` (default `opus`). If `/deep-review` was given `-so` or `-haiku` to save tokens on reviewers and you want the fix-agent to run at the same tier, also pass `-t-so`. Without `-t-so`, the fix-agent defaults to opus.
+   **Fix-agent model**: `/x-wt-teams`'s team-member flags are `-t-op` / `-t-so` (default `opus`). If `/deep-review` was given `-so` or `-haiku` to save tokens on reviewers and you want the fix-agent to run at the same tier, also pass `-t-so`. Without a team-member flag, the fix-agent defaults to opus.
 
    **Single fix topic by default.** Bundle all findings into ONE topic so the inner session spawns a single fix agent in a single worktree. Multiple parallel fix topics would risk conflicting edits on overlapping files. If the findings are genuinely independent and span clearly separate file sets, you may split into multiple topics — but the default is one.
 

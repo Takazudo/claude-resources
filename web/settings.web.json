@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "ENABLE_TOOL_SEARCH": "auto:5"
+  },
+  "permissions": {
+    "allow": [
+      "Edit(~/.claude/**)",
+      "Write(~/.claude/**)",
+      "Edit(.claude/**)",
+      "Write(.claude/**)",
+      "Bash(mkdir -p ~/.claude:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(cp:*)",
+      "WebSearch"
+    ],
+    "deny": [
+      "Bash(git config:*)",
+      "Bash(chmod 777:*)",
+      "Bash(rm -rf /*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push origin --force:*)",
+      "Bash(git push origin -f:*)"
+    ],
+    "defaultMode": "auto"
+  },
+  "model": "Opus",
+  "skillOverrides": {
+    "codex-review": "off",
+    "gco-review": "off",
+    "ascii-circuit-diagram-creator": "off",
+    "claude-resources-share": "user-invocable-only",
+    "claudemd-refactor": "user-invocable-only",
+    "dependabot-resolve": "user-invocable-only",
+    "dev-actions-self-runner": "user-invocable-only",
+    "dev-cloudflare-pages-ci-setup": "user-invocable-only",
+    "dev-electron": "off",
+    "dev-figma-capture": "off",
+    "dev-figma-script-install": "off",
+    "dev-gh-actions-doc-auto-merge": "user-invocable-only",
+    "dev-repo-bigbang-move": "user-invocable-only",
+    "easyeda2kicad": "off",
+    "figrefer": "user-invocable-only",
+    "git-prune-branches-both": "user-invocable-only",
+    "git-prune-branches-local": "user-invocable-only",
+    "git-prune-branches-remote": "user-invocable-only",
+    "jlcpcb-bom-generate-from-kicad": "user-invocable-only",
+    "jlcpcb-component-finder": "user-invocable-only",
+    "jlcpcb-component-finder-update-db": "user-invocable-only",
+    "kicad-sch-tweak": "off",
+    "kicad-svg-fix": "user-invocable-only",
+    "pdf-combine": "user-invocable-only",
+    "schemdraw-circuit-generator": "off",
+    "youtube-text-fetch": "user-invocable-only",
+    "zeno-tweak": "user-invocable-only",
+    "zudo-pattern-gen-thumb": "user-invocable-only"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash $HOME/.claude/scripts/security/deny-check.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash $HOME/.claude/hooks/allow-worktree-teammate-edits.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "effortLevel": "xhigh",
+  "autoMemoryEnabled": false,
+  "skipDangerousModePermissionPrompt": true,
+  "skipAutoPermissionPrompt": true,
+  "permissionExplainerEnabled": false,
+  "commands": {
+    "enabled": true,
+    "useProjectCommands": true
+  },
+  "skills": {
+    "enabled": true
+  }
+}

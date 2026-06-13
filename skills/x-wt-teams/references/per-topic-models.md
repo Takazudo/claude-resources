@@ -21,7 +21,7 @@ Markers are written by `/big-plan`. Same parsing approach as the execution-mode 
 **Non-Super-Epic mode** (each topic is its own `[Sub]` issue) — body line, immediately after the `---` divider:
 
 ```
-**Model:** opus — UI work, polished output benefits from larger model
+**Model:** opus — UI work, polished output benefits from the top model
 ```
 
 or
@@ -47,7 +47,7 @@ gh issue view <sub-issue-number> | grep -E '^\*\*Model:\*\* '
 ```markdown
 - **Header nav component** — adds the top nav with auth dropdown
   - **Execution mode:** subagents — independent
-  - **Model:** opus — UI work, larger model wins on visual polish
+  - **Model:** opus — UI work, the top model wins on visual polish
 - **Schema migration** — D1 migration for users table
   - **Execution mode:** subagents — independent
   - **Model:** sonnet — mechanical migration, no judgment needed
@@ -65,13 +65,15 @@ When spawning each child (either Step 5 path), set the `model` parameter to that
 
 There is no per-team model setting that applies to all teammates; the model is per-spawn.
 
+Resolved values map directly to the Agent tool's `model` parameter — it accepts `opus` / `sonnet` / `haiku`. A `**Model:** opus` marker or a session-wide `-t-op` override both spawn children with `model: "opus"`.
+
 ## What to tell the user
 
 Surface the resolution before spawning so the user can sanity-check it:
 
 ```
 Models per topic:
-  - topicA: opus (annotated: UI work, larger model)
+  - topicA: opus (annotated: UI work, top model)
   - topicB: sonnet (annotated: mechanical refactor)
   - topicC: opus (default, no annotation)
 ```
@@ -103,7 +105,7 @@ See `references/arguments.md` for the canonical flag table and the two-flag-fami
 ## Defaults rationale
 
 - **Default is `opus`** — preserves the pre-annotation behavior of `/x-wt-teams` (which was implicit-opus). New sessions without `/big-plan` annotations behave identically to before.
-- **`/big-plan`'s default is also `opus`** — matches this default, so most topics will spawn on opus unless the planner explicitly downgraded.
+- **`/big-plan` annotates every sub-task explicitly** — its default annotation is `sonnet` (with `opus` for top-model work), so this `opus` fallback mostly applies to topics created outside `/big-plan`.
 - **Sonnet is opt-in for mechanical work** — the planner has to identify "this is follow-the-pattern" to mark it. Avoids accidental quality drops on judgment-heavy tasks.
 - **Haiku is rare** — the planner has to identify a genuinely trivial task. Almost all real implementation work warrants Sonnet or above.
 

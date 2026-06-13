@@ -8,6 +8,8 @@ argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--
 
 Route development requests to the right workflow skill: `/x-as-pr` (single-topic) or `/x-wt-teams` (multi-topic parallel).
 
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — GitHub via the GitHub MCP (not `gh`), Claude-only (ignore Codex `-co` / Copilot `-gco`), subagents-only (no agent teams; route multi-topic work to subagent fan-out, not the teams path), no Dropbox.
+
 ## !! CRITICAL — PR TARGET BRANCH RULE !!
 
 **The downstream skill MUST target the current (invocation) branch, NOT the repository's default branch.**
@@ -68,7 +70,7 @@ If any flags ARE passed explicitly, use those as-is — do NOT add the `-v` defa
 
 `-op` / `-so` / `-haiku` and `-co` / `-gco` are **reviewer flags** — they change which reviewer(s) run, not subagents or team members. Forward them all to the chosen skill.
 
-- `-op` / `-so` / `-haiku` — Claude reviewer model for `/deep-review` / `/review-loop`. Pick at most one.
+- `-op` / `-so` / `-haiku` — Claude reviewer model for `/deep-review` / `/review-loop`; `-op` / `--opus` = Opus 4.8 (Anthropic's top model; runs with a 1M-token context window). Pick at most one.
 - `-co` / `--codex` — add codex reviewer (`/codex-review`) plus codex writer / research.
 - `-gco` / `--github-copilot` — add GitHub Copilot CLI reviewer (`/gco-review`, GPT-5.4) plus copilot 2nd opinion / research.
 

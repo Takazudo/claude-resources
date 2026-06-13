@@ -8,6 +8,8 @@ argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--
 
 Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and Claude Code agent teams. **This is fully automated** — you (the manager) create the infrastructure and spawn child agents to do the work. Never ask the user to manually start sessions in worktrees.
 
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co` / Copilot `-gco`. No Dropbox.
+
 ## References
 
 Detail lives in `references/` so this file stays a workflow spine. Open the relevant reference whenever the workflow touches its topic — these are not optional:
@@ -16,7 +18,7 @@ Detail lives in `references/` so this file stays a workflow spine. Open the rele
 - **`references/super-epic-mode.md`** — Super-Epic child mode lifecycle: detection markers, Step 1a / Step 2 overrides, mandatory epic-PR merge, Auto-Suggest variant, why `-m` is ignored.
 - **`references/reviewer-modes.md`** — `-co` / `-gco` substitution tables and Combined Reviewer Mode (run all selected backends).
 - **`references/execution-modes.md`** — subagents vs teams routing: how `/big-plan`'s `Execution mode:` markers are read, default-to-teams fallback, mixed-mode degradation, Step 5 / Step 7 path differences, drift sanity check.
-- **`references/teams-path.md`** — the on-demand teams-path body (read ONLY when a topic is marked `teams` or a marker is missing): TeamCreate + named teammates, the SendMessage no-backticks Ink-crash rule, idle/wake, the shutdown_request teardown, TeamDelete. The common subagents default is inline in Step 5 / Step 7.
+- **`references/teams-path.md`** — the on-demand teams-path body (read ONLY when a topic is marked `teams` or a marker is missing): TeamCreate + named teammates, idle/wake, the shutdown_request teardown, TeamDelete. The common subagents default is inline in Step 5 / Step 7.
 - **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, manual `-t-op` / `-t-so` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
 - **`references/issue-templates.md`** — tracking issue body, claim comments, unrelated-findings issue, Step 14 session report, Step 15 verification comments, accumulating-epic Auto-Suggest hand-off.
 - **`references/resource-coordination.md`** — Playwright / browser isolation rule and port-binding `flock` rule (full patterns).
@@ -71,10 +73,6 @@ These rules apply to the manager session and are carried into child agent prompt
 **Heavy / port-based tests**: Child agents must NOT run full e2e / integration suites, long builds, or hold a dev server (`pnpm dev` etc.) open for verification. Children commit + report back; the manager runs these sequentially on the merged base. Legitimate short port-binding work uses `flock` on `/tmp/x-wt-teams-<repo>-locks/port-<N>.lock`.
 
 **See `references/resource-coordination.md` for the full dispatch pattern, lock pattern, and rationale. Both rules are HARD — they prevent local-machine freezes and token blow-ups.**
-
-## SendMessage Content — No Markdown Code Spans (teams path only)
-
-`SendMessage` is only used on the **teams** path (peers / manager messaging mid-flight). The common subagents default never calls it. The HARD RULE — no backticks / code fences in any `SendMessage` content, to avoid the Claude Code v2.1.117 Ink crash that tears down the team directory — and its rationale, examples, and scope live in **`references/teams-path.md`** under "SendMessage Content". Read that section whenever the spawn path resolves to teams.
 
 ## Architecture
 
@@ -387,8 +385,8 @@ For each topic, issue an Agent tool call (parallel, capped at 6 concurrent):
      h. (If issue tracking is active) ISSUE_NUMBER and instruction to comment on it when done:
         gh issue comment <ISSUE_NUMBER> --body "### topic-<name> — completed\n\n<summary>"
      i. DO NOT use SendMessage — there is no team in this session. Return a brief plain-text summary
-        when done. (On the teams path this item becomes the active SendMessage no-backticks rule —
-        see references/teams-path.md.)
+        when done. (On the teams path this item becomes: report via SendMessage instead — see
+        references/teams-path.md.)
      j. REBUILD TOUCHED WORKSPACE PACKAGES BEFORE REPORTING DONE. If the project has a workspace/
         monorepo layout and commits touched source inside a package whose consumer imports through
         a built artifact (e.g. an `exports` map → ./dist/...), the agent MUST rebuild that package
@@ -400,7 +398,7 @@ For each topic, issue an Agent tool call (parallel, capped at 6 concurrent):
 
 #### Teams path (on-demand — read `references/teams-path.md`)
 
-If any topic is marked `teams` (see `references/execution-modes.md` for the marker), or any topic is missing the `Execution mode:` marker, the session uses the teams path instead. **Read `references/teams-path.md` for the full team workflow** — TeamCreate + named teammates, the SendMessage no-backticks Ink-crash rule, idle/wake, the shutdown_request teardown, and TeamDelete. It reuses the canonical prompt body (items a–j) above with its team-specific deltas.
+If any topic is marked `teams` (see `references/execution-modes.md` for the marker), or any topic is missing the `Execution mode:` marker, the session uses the teams path instead. **Read `references/teams-path.md` for the full team workflow** — TeamCreate + named teammates, idle/wake, the shutdown_request teardown, and TeamDelete. It reuses the canonical prompt body (items a–j) above with its team-specific deltas.
 
 **Spawn child agents in parallel — capped at 6 concurrent.** Use multiple Agent tool calls in a single message for the first batch (Task tool calls on the teams path). Each agent should:
 
@@ -410,7 +408,7 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co` / `-gco`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
-7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. (Subagents path: return a plain-text summary. Teams path: report via SendMessage with no backticks / code fences — see `references/teams-path.md`.)
+7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. (Subagents path: return a plain-text summary. Teams path: report via SendMessage — see `references/teams-path.md`.)
 
 #### Concurrency Limit: Max 6 Child Agents at Once
 

@@ -18,6 +18,46 @@ Semantic versioning follows the `MAJOR.MINOR.PATCH` format:
 1.0.0-rc.1      # Release candidate
 ```
 
+## dist-tags: `latest`, `next`, and the pre-1.0 (0.x) strategy
+
+The dist-tag decides which version a *tagless* install gets. It is the most consequential release decision and the easiest to get subtly wrong — a stale `latest` silently downgrades every new consumer.
+
+### `latest` is special and unavoidable
+
+A bare `npm install <pkg>` (or `pnpm add` / `pnpm dlx`) is equivalent to `npm install <pkg>@latest`: a **direct dist-tag pointer dereference, not a semver range match**. Whatever version `latest` points at is exactly what new consumers get — even a prerelease. So keeping `latest` on the newest shippable build is the whole game.
+
+### Pre-1.0 ruling: ship clean `0.MINOR.PATCH` straight to `latest`
+
+While the package is `0.x`, do **not** put a `-next`/`-beta` suffix on the everyday dev mainline. The `0.x` major-zero is itself SemVer's "anything may change" signal (SemVer §4), so:
+
+- breaking change → **minor** bump (`0.2.0` → `0.3.0`)
+- everything else → **patch** bump (`0.2.0` → `0.2.1`)
+
+Every release is then a clean, monotonically-increasing version that npm routes to `latest` automatically, so a tagless install always resolves the newest build with zero machinery. This is what esbuild (hundreds of versions, never a prerelease), pre-1.0 Vite, Bun, and Biome all do — `0.x` *is* the unstable channel; a suffix only signals previewing a *specific* upcoming version.
+
+### Prereleases are an opt-in side channel, never the mainline
+
+Reserve `-alpha`/`-beta`/`-rc`/`-next` plus the `next` (or `canary`) dist-tag for genuine previews: a `1.0.0-beta` run-up, or a bleeding-edge line published *ahead of* `latest` for users who opt in via `@next`. Across React, Vue 3, Bun, and Biome, `next`/`canary`/`nightly` always denotes a line ahead of or distinct from `latest` — so **never mirror `next` onto `latest`** (it makes `@next` meaningless and abuses the convention).
+
+### Derive the dist-tag from the version string in CI — always pass `--tag`
+
+```bash
+if [[ "$VERSION" == *-* ]]; then DIST_TAG=next; else DIST_TAG=latest; fi
+npm publish --tag "$DIST_TAG"     # or: pnpm publish --tag "$DIST_TAG"
+```
+
+npm ≥ 11 **hard-errors** when you publish a prerelease with no `--tag` ("You must specify a tag using --tag when publishing a prerelease version"); npm ≤ 10 **silently routed** the prerelease onto `latest` — a silent-downgrade footgun for every tagless consumer. Either way, never rely on the implicit default for a prerelease. At `1.0.0` the normal stable/preview split resumes automatically under this same rule (clean `1.0.0` → `latest`, `1.1.0-rc.1` → `next`) — no special-casing.
+
+### Anti-pattern: the "dual-tag advance-latest" probe
+
+A tempting pattern during a prerelease cycle is to publish `0.2.0-next.N` to `next` *and also* bump `latest` to it, gated by a probe that only advances `latest` while `latest` is itself a prerelease. **Avoid this.** The probe self-disables the instant a clean `X.Y.Z` ever holds `latest`, after which every subsequent `-next.N` publish moves only `next` — silently stranding `latest` on the old stable while development races ahead (exactly the zudolab/zudo-doc#1999 bug: `latest` sat on `0.1.0` while `next` reached `0.2.0-next.9`, so tagless installs got the year-old version). If the goal is "tagless install gets the newest during 0.x," the clean-mainline ruling above achieves it with nothing to get stuck — don't suffix-and-dual-tag. To unstick an already-stale `latest`, either ship a clean version (preferred — it supersedes the stale tag via the normal path) or, as a stopgap, re-point it directly with `npm dist-tag add <pkg>@<ver> latest`.
+
+### Range mechanics worth knowing (node-semver)
+
+- The **prerelease-exclusion rule applies to ranges, not to the tagless install.** `^0.2.0` does NOT match `0.2.0-next.9` — a range only sees a prerelease if it carries a prerelease on the *same* `X.Y.Z` tuple. So a caret range saved in a consumer's `package.json` never picks up your `-next` builds; only the initial `@latest` pointer does.
+- On `0.x`, **caret collapses to tilde**: `^0.2.0` ≡ `~0.2.0` ≡ `>=0.2.0 <0.3.0-0`. A consumer on `^0.2.x` will not auto-cross to `0.3.0` — which is correct, because `0.2` → `0.3` is a breaking change they should opt into. (`^0.0.x` pins to an exact patch — no auto-updates at all.)
+- `includePrerelease` flips the exclusion off, but `npm install` does not set it, so it is not a lever consumers can pull.
+
 ### Release Automation Tool Comparison
 
 #### Changesets

@@ -99,4 +99,3 @@ The project's `CLAUDE.md` may name the workspace root (`packages/`, `sub-package
 
 - If anything is unclear, ask the manager via SendMessage with full context
 - After completing work, report via SendMessage with brief status (1-2 sentences), PR URL, and log file path
-- **No backticks or code fences in SendMessage content.** The `message` and `summary` fields must be plain prose — reference file paths, function names, shell commands, and identifiers as unquoted words (src/api.ts, not the backtick-wrapped form). This is a workaround for Claude Code v2.1.117 Ink rendering bug #51855: an inline code span in a teammate message crashes the recap pane and tears down the whole team directory. A PreToolUse hook will reject SendMessage calls containing a backtick, so retries are forced anyway — save yourself the round-trip. Markdown is still fine everywhere else (commits, PR bodies, issue comments, log files, source code); this rule applies only to SendMessage.

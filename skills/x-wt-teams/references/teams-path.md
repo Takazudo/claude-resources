@@ -4,26 +4,11 @@ The **teams** path is the escape hatch for sessions where at least one topic nee
 
 This is the one capability with no Workflow-tool / one-shot-subagent equivalent (peers messaging each other mid-task), so it is preserved as a cheap escape hatch — never delete it.
 
-## SendMessage Content — No Markdown Code Spans (Ink Crash Workaround)
-
-**HARD RULE**: Every `SendMessage` tool call — manager → child, child → manager, or peer → peer — MUST use plain prose in the `message` content. No backticks, no triple-backtick code fences, no inline markdown code formatting of any kind. Reference file paths, function names, shell commands, and identifiers as unquoted words.
-
-**Why**: Claude Code v2.1.117 has an unfixed Ink rendering bug ([anthropics/claude-code#51855](https://github.com/anthropics/claude-code/issues/51855)). When a teammate's message contains inline code spans, Claude Code's `※ recap:` summary line crashes with `<Box> can't be nested inside <Text>` at `createInstance` (`cli.js:495:249`). The crashed pane then tears down the whole `$HOME/.claude/teams/<name>/` directory, cascading to all other teammates. In a 6-way parallel workflow, one stray backtick in one message can kill the entire run. Receive-side stalls have also been observed, so the rule applies in both directions.
-
-**Examples:**
-
-- Bad: "Committed the fix to `src/api.ts` — run `pnpm test` to verify"
-- Good: "Committed the fix to src/api.ts — run pnpm test to verify"
-- Bad: triple-backtick fenced diff or code block inside the message
-- Good: "See the log file at {logdir}/… for the diff"
-
-**Scope**: Applies ONLY to `SendMessage` tool calls. Markdown (including backticks and code fences) is still fine everywhere else — commits, PR bodies, issue comments, log files, TaskCreate descriptions, source code. When the upstream bug is fixed, revisit and drop this workaround.
-
 ## Step 5 — Teams-path spawn
 
 This replaces the inline subagents-path spawn in `SKILL.md` Step 5. The **prompt body (items a–j)** is identical to the canonical one inlined in `SKILL.md` Step 5 — reuse it verbatim, with these team-specific differences:
 
-- Item (i) becomes the active SendMessage rule: when reporting via SendMessage, message content must be plain prose (no backticks / code fences). See "SendMessage Content" above.
+- Item (i) becomes: report via SendMessage when done instead of returning a plain-text summary.
 - The agent IS part of a team — it may SendMessage peers and the manager (the subagents path tells children NOT to use SendMessage; the teams path enables it).
 
 Use TeamCreate to create a team, then the Task tool to spawn child agents — one per topic. Each agent works in its own worktree directory.
@@ -42,8 +27,8 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
      worktrees/<topic>/ segment. Confirm the hook is registered in settings.json before first use.)
    - model: the per-topic resolved model — see "Resolve model per topic" in SKILL.md Step 5. Always set explicitly per child; different children in the same session may run different models.
    - prompt: the canonical prompt body (items a–j) from SKILL.md Step 5, with the team-specific
-     differences noted above (item (i) is the active SendMessage no-backticks rule; the child IS on
-     a team and may message peers / the manager).
+     differences noted above (item (i) becomes report-via-SendMessage; the child IS on a team and
+     may message peers / the manager).
 ```
 
 **Spawn child agents in parallel — capped at 6 concurrent.** Use multiple Task tool calls in a single message for the first batch. Each agent should:
@@ -54,7 +39,7 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
 4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co` / `-gco`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
-7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. No backticks / code fences in SendMessage.
+7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path.
 
 The Step 5 concurrency cap (max 6 child agents at once) applies identically to the teams path — see `SKILL.md` Step 5 "Concurrency Limit".
 

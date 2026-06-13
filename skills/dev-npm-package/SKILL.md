@@ -1,6 +1,6 @@
 ---
 name: dev-npm-package
-description: "Develop npm packages with Node.js and TypeScript following modern best practices. Use when: (1) Creating a new npm package, (2) Setting up package.json exports (dual ESM/CJS or ESM-only), (3) Configuring TypeScript for library authoring (Bundler or Node16 moduleResolution), (4) Building/publishing with tsup or tsc, (5) Creating CLI tools with bin field, (6) Testing with vitest, (7) CI/CD for npm publishing, (8) ESM/CJS interop issues. Keywords: npm package, publish to npm, library development."
+description: "Develop npm packages with Node.js and TypeScript following modern best practices. Use when: (1) Creating a new npm package, (2) Setting up package.json exports (dual ESM/CJS or ESM-only), (3) Configuring TypeScript for library authoring (Bundler or Node16 moduleResolution), (4) Building/publishing with tsup or tsc, (5) Creating CLI tools with bin field, (6) Testing with vitest, (7) CI/CD for npm publishing, (8) ESM/CJS interop issues, (9) Choosing a versioning / dist-tag / release-channel strategy — especially the pre-1.0 (0.x) ruling for what `latest` vs `next` should point at, how to tag prereleases, and avoiding the stale-`latest` footgun. Use this whenever the user mentions dist-tags, `latest`/`next`, prerelease tagging, 0.x versioning, or 'what version/release strategy should we use', even if they don't explicitly say 'npm package'. Keywords: npm package, publish to npm, library development, dist-tag, latest vs next, prerelease tagging, 0.x versioning, release strategy, semver channel."
 ---
 
 # npm Package Development
@@ -226,6 +226,18 @@ program.parse();
 
 CLI argument parsing libraries: **commander** (most popular, subcommands), **yargs** (validation, middleware), **citty** (lightweight ESM-first).
 
+## Versioning & release channels (standard ruling)
+
+The default install is the `latest` dist-tag: a tagless `npm install <pkg>` (or `pnpm add` / `pnpm dlx`) dereferences `latest` **directly** — it is NOT a semver range match, so whatever `latest` points at is exactly what new consumers get, prerelease or not. Keeping `latest` on the newest shippable build is the whole game; never strand it on an old version.
+
+**Pre-1.0 (`0.x`) — ship clean `0.MINOR.PATCH` straight to `latest`.** Do not put a `-next`/`-beta` suffix on the everyday dev mainline. `0.x` (major-zero) is itself SemVer's "anything may change" signal, so a breaking change rides a **minor** bump (`0.2` → `0.3`) and everything else a **patch** bump. Every release is then a clean, monotonically-increasing version that npm routes to `latest` automatically — a tagless install always gets the newest build, with no machinery to get stuck (esbuild, pre-1.0 Vite, Bun, Biome all do this).
+
+**Prereleases are an opt-in side channel, not the mainline.** Reserve `-alpha`/`-beta`/`-rc`/`-next` plus the `next` (or `canary`) dist-tag for genuine previews — a `1.0.0-beta` run-up, or a bleeding-edge line published *ahead of* `latest`. `next` conventionally means "ahead of/distinct from `latest`" — never mirror it onto `latest`.
+
+**In CI, derive `--tag` from the version string and always pass it explicitly:** hyphen → `--tag next`, clean `X.Y.Z` → `--tag latest`. npm ≥ 11 hard-errors when you publish a prerelease without `--tag`; npm ≤ 10 silently routed prereleases onto `latest` (a silent-downgrade footgun). Never rely on the implicit default for a prerelease. At `1.0.0` the normal stable/preview split resumes automatically under this same rule — no special-casing.
+
+Detailed mechanics, the **dual-tag "advance-latest" anti-pattern** that strands `latest`, and `^0.x` range gotchas: [references/publishing.md](references/publishing.md).
+
 ## Key Rules
 
 ### exports Field
@@ -285,5 +297,5 @@ npm publish --dry-run      # Simulate publish
 Read these when you need specifics:
 
 - **Build tools, tsconfig, testing, linting, monorepo**: [references/tooling.md](references/tooling.md) - tsup/tsdown/unbuild comparison, TypeScript config, vitest setup, Biome vs ESLint, pnpm workspaces + Turborepo, dev workflow
-- **Publishing, versioning, CI/CD, security**: [references/publishing.md](references/publishing.md) - semver, Changesets/semantic-release, GitHub Actions OIDC trusted publishing, npm provenance, publint/attw, size-limit, supply chain security
+- **Publishing, versioning, dist-tags, CI/CD, security**: [references/publishing.md](references/publishing.md) - semver, **dist-tag strategy (`latest`/`next`, the pre-1.0 `0.x` clean-mainline ruling, the dual-tag stale-`latest` anti-pattern, `^0.x` range mechanics)**, Changesets/semantic-release, GitHub Actions OIDC trusted publishing, npm provenance, publint/attw, size-limit, supply chain security
 - **Architecture, ESM/CJS, exports, CLI, dependencies**: [references/patterns.md](references/patterns.md) - dual publishing patterns, conditional exports, subpath exports, dependency types (peer/optional/bundled), CLI bin setup, argument parsing, tree-shaking optimization

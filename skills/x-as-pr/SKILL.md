@@ -8,6 +8,8 @@ argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--
 
 Start a development workflow by creating a branch and draft PR before implementation — or create a PR from existing work on the current branch.
 
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co` / Copilot `-gco`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR).
+
 ## !! CRITICAL — PR TARGET BRANCH RULE !!
 
 **The new PR's base MUST be the current (invocation) branch, NOT the repository's default branch.**

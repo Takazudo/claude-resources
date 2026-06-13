@@ -31,6 +31,7 @@ In normal mode (no flag), follow the original gates: ask for confirmation after 
 | `$HOME/.claude/agents/` | `agents/` |
 | `$HOME/.claude/hooks/` | `hooks/` |
 | `$HOME/.claude/scripts/` | `scripts/` |
+| `$HOME/.claude/web/` | `web/` |
 | `$HOME/.claude/CLAUDE.md` | `CLAUDE.md` |
 
 ## Excludes (apply to all rsync operations)
@@ -94,7 +95,7 @@ First, remove all old content in the target (preserving `.git/`, `.gitignore`, `
 ```bash
 # Remove previous copies (but preserve git and repo meta files)
 cd $HOME/repos/p/claude-resources
-for dir in commands skills agents hooks scripts; do
+for dir in commands skills agents hooks scripts web; do
   rm -rf "./$dir"
 done
 rm -f ./CLAUDE.md
@@ -106,7 +107,7 @@ Then copy fresh from source using rsync. **IMPORTANT**: Pass each `--exclude` fl
 SRC="$HOME/.claude"
 DST="$HOME/repos/p/claude-resources"
 
-for dir in commands skills agents hooks scripts; do
+for dir in commands skills agents hooks scripts web; do
   rsync -av --no-links \
     --exclude=node_modules \
     --exclude=.claude \
@@ -165,7 +166,7 @@ Report file counts per directory:
 
 ```bash
 DST="$HOME/repos/p/claude-resources"
-for dir in commands skills agents hooks scripts; do
+for dir in commands skills agents hooks scripts web; do
   echo "$dir: $(find "$DST/$dir" -type f | wc -l) files"
 done
 echo "CLAUDE.md: 1 file"
@@ -197,5 +198,5 @@ The following items are known and acceptable — do NOT flag them during the Ste
 - **Never skip Step 1.** The safety scan is mandatory every time.
 - **Never auto-confirm a non-clean scan.** In auto mode, only proceed when the scan is fully clean; any HIGH/MEDIUM finding stops the flow and requires user input. In normal mode, always wait for explicit user approval after the scan.
 - **Never store rsync excludes in a shell variable.** Pass each `--exclude` flag inline to avoid glob expansion issues.
-- **Never delete `.claude-plugin/`** during cleanup. Step 3 only removes `commands/`, `skills/`, `agents/`, `hooks/`, `scripts/`, and `CLAUDE.md` — the plugin manifests are public-repo-only files and must persist across shares.
+- **Never delete `.claude-plugin/`** during cleanup. Step 3 only removes `commands/`, `skills/`, `agents/`, `hooks/`, `scripts/`, `web/`, and `CLAUDE.md` — the plugin manifests are public-repo-only files and must persist across shares.
 - **Never include symlinks.** Use `--no-links` in rsync. Symlinked skills/commands/agents point to project-local repos that do not exist on a fresh machine and would break installs from the marketplace.
