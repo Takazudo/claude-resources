@@ -108,6 +108,39 @@ private or client work. Reduce the repro to the package's API surface — no
 client names, private URLs, business logic, or pasted blocks of the current
 project's proprietary code.
 
+### Fallback: when you can't file on the upstream repo
+
+Filing on the upstream repo means opening an issue on a **different** repo than
+the working directory. Restricted environments — notably Claude Code on the web
+— may not have permission for that. If `gh issue create -R <upstream>` fails
+with an auth/permission error, file the issue on the **working repo** instead so
+the finding still survives the session; never silently drop it.
+
+When falling back:
+
+- Check the working repo (not the upstream repo) for an existing placeholder
+
+  first, so you don't file the same one twice.
+
+- Title it `[upstream: <owner>/<repo>] <concise summary>` so it's easy to spot
+
+  and move later.
+
+- Open the body with a callout naming the real target, then the normal body
+
+  shape above:
+
+```markdown
+> **Upstream report** — this is a bug/improvement report for the upstream
+> package `<pkg>@<version>`, which lives at `<owner>/<repo>`. Filed here because
+> this session can't open issues on that repo. To be refiled upstream in a
+> separate session.
+```
+
+Tell the user it landed on the working repo as a placeholder and that they'll
+move it upstream in another session — don't try to route around the permission
+error by other means.
+
 ## Step 5: Keep dev moving
 
 Filing the issue is a side quest — return to the main task immediately after.
