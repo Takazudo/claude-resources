@@ -36,6 +36,11 @@ for dir in skills agents commands scripts hooks web; do
 done
 [ -f "$REPO/CLAUDE.md" ] && cp -a "$REPO/CLAUDE.md" "$DEST/CLAUDE.md"
 
+# Clone public wisdom repos and symlink their skills into ~/.claude/skills/.
+# Runs AFTER the cp -a mirror so wisdom skill names (which are gitignored on Mac
+# and therefore absent from the public mirror) cannot collide with mirrored skills.
+bash "$REPO/scripts/setup-web-wisdom.sh"
+
 # Overlay the web-safe settings: no IFTTT/statusline/plugins, no Mac-absolute
 # paths. deny-check.sh reads this file, so it must land before the next session.
 cp -a "$REPO/web/settings.web.json" "$DEST/settings.json"

@@ -55,6 +55,53 @@ workflow chain:
 `settings.web.json` also disables the `codex-review` and `gco-review` backends
 and omits the agent-teams env flag.
 
+## Wisdom skills
+
+`scripts/setup-web-wisdom.sh` runs as a second SessionStart step (web-only,
+after `setup-web.sh`) and bakes a curated set of public wisdom repos into the
+container.
+
+### Which repos are baked
+
+| Skill(s) provided | Source repo |
+|---|---|
+| `test-wisdom`, `verify-ui`, `headless-browser`, `verify-ui-ai` | `Takazudo/zudo-test-wisdom` |
+| `cloudflare-wisdom` | `Takazudo/zudo-cloudflare-wisdom` |
+| `tauri-wisdom` | `Takazudo/zudo-tauri-wisdom` |
+| `codemirror-wisdom` | `Takazudo/zudo-codemirror-wisdom` |
+| `css-wisdom` | `zudolab/zudo-css-wisdom` |
+
+Repos are cloned in priority order — cheaper Takazudo repos first so the most
+commonly used skills (`test-wisdom` / browser helpers) appear earliest.
+
+### Cache: `$HOME/.claude-wisdom`
+
+Each repo is cloned once into `$HOME/.claude-wisdom/<repo-name>`. On subsequent
+runs within the same container the script runs `git pull --ff-only` instead of
+re-cloning. The first run in a fresh container clones all repos over the
+network; subsequent runs within the same container are much faster.
+**Cross-session `$HOME` persistence is assumed but not guaranteed** — the
+graceful fallback is a full re-clone on the next fresh container.
+
+### Web-only and graceful
+
+The script exits early when `$CLAUDE_CODE_REMOTE` is not set to `"true"`
+(Mac terminal), so the SessionStart hook is safe to leave wired up
+unconditionally. Every repo in the loop runs under `set +e` with per-repo git
+and npm timeouts (75 s each), plus a 5-minute overall wall-clock budget. If
+any step fails the script logs a warning and continues. **The script always
+exits 0**, so a wisdom-baking failure never aborts the SessionStart hook or
+blocks the session.
+
+### Lookup/read mode and `settings.web.json` overrides
+
+Wisdom skills are documentation lookups — they read bundled Markdown and never
+write back to their source repos. They are therefore **intentionally left
+enabled** on web with no `skillOverrides` entries. If a future wisdom skill
+needs hardware or local-only tooling that cannot work headless, add a targeted
+`"<skill-name>": "off"` override to `settings.web.json` with a comment
+explaining why.
+
 ## Distribution to other repos (follow-up)
 
 This loader works for web sessions **in this repo**. Making the profile load in

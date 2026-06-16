@@ -184,3 +184,46 @@ Two limits remain, because their reason is NOT "don't freeze the Mac":
   snapshots) and port collisions on the shared container filesystem — are
   environment-independent. "No child-count cap" does NOT license many concurrent
   browser subagents.
+
+## 7. Browser verification on web
+
+The container blocks Playwright's browser-download CDN, so the auto-download
+path fails. A pre-installed Chromium lives under `/opt/pw-browsers/` and must
+be located at runtime:
+
+```bash
+CHROME_BIN=$(ls -d /opt/pw-browsers/*/chrome-linux/chrome 2>/dev/null | sort -V | tail -1)
+```
+
+Do **not** hardcode the version directory (`<ver>`); glob and pick the newest
+so the contract survives container image bumps. Guard against a missing binary:
+
+```bash
+if [ -z "$CHROME_BIN" ]; then
+  echo "ERROR: pre-installed Chromium not found under /opt/pw-browsers/"; exit 1
+fi
+```
+
+Do **not** fall back to the CDN download — it is blocked.
+
+Pass the located path and the required sandbox flags when launching:
+
+```js
+const chromeBin = execSync(
+  'ls -d /opt/pw-browsers/*/chrome-linux/chrome 2>/dev/null | sort -V | tail -1'
+).toString().trim();
+const browser = await chromium.launch({
+  executablePath: chromeBin,
+  args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+});
+```
+
+Also bind the dev server to `127.0.0.1`. Subdomain hostnames like
+`foo.localhost` are **not** resolved in the container, so any URL that relies
+on them will time out; use `http://127.0.0.1:<port>` directly.
+
+- These rules apply only when `$CLAUDE_CODE_REMOTE=true`.
+- `/verify-ui` and `/headless-browser` (the "seeing-eye" fallback) already
+  implement this contract on web.
+- Both skills are present in the container via `scripts/setup-web-wisdom.sh`
+  (this epic).
