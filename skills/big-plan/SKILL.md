@@ -10,6 +10,8 @@ Planning-only skill. Explore the codebase, propose a breakdown, save a plan log 
 
 > **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Create/edit the epic + sub-issues via the GitHub MCP (`issue_write`, `sub_issue_write`), not `gh`, and pre-create the `epic`/`sub` labels (no create-label MCP tool). The default Codex Step-5 plan reviewer (`-co`) is unavailable — use a **Claude** reviewer (e.g. `/opus-2nd`) and ignore `-co`/`-gco`. Plan logs land in the ephemeral `/tmp` cclogs stub, so persist anything important into the epic issue body. The `/x-wt-teams` / `/x-as-pr` it auto-invokes runs **subagents-only** (no agent teams). **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`); there is no `base/{slug}`, parent = the fork-from branch (`$WEB_PARENT`, today the repo default). Write issue bodies, the Step 6 proposal, and the Step 11 pause checks against that — the session branch being non-`main` is **normal**, not a nested-base warning, and is NOT a pause condition. When writing the base-branch name into any issue body, substitute the **resolved literal** name (`git branch --show-current`, e.g. `claude/serene-galileo-7uqa3g`), never the token `$WEB_BASE`. **Super-epic plans are unsupported on web** — if a plan would be super-epic, say so and stop (run it from the terminal).
 
+> **In a limited verification env (Claude Code web)** the implementation session's final visual / Mac-only check can't run. `/big-plan` is planning-only, so the actual `mac`-label handoff fires **downstream** in the `/x-as-pr` / `/x-wt-teams` it invokes (they receive `-m` / `-v` and own it) — see [`web/mac-handoff.md`](../../web/mac-handoff.md). `/big-plan`'s only jobs here: seed the `mac` label in the label bootstrap (Step "Bootstrap labels") so it exists for the downstream skill, do **not** add a Step 11 pause for this, and let the `-m` cleanup tail keep `mac-deferred` issues open.
+
 This skill is useful for **almost every implementation task**, not just huge ones. It captures intent, breaks work into reviewable units, and creates a paper trail that survives context compression.
 
 ## Input Parsing
@@ -695,6 +697,7 @@ Every issue this skill creates carries a tier label so the hierarchy is scannabl
 |---|---|---|---|
 | Epic | `epic` | `#1D76DB` (blue) | Step 7 |
 | Sub | `sub` | `#0E8A16` (green) | Step 8 |
+| Mac | `mac` | `#5319E7` (purple) | downstream `/x-as-pr` / `/x-wt-teams` handoff — see [`web/mac-handoff.md`](../../web/mac-handoff.md) |
 
 **Ensure labels exist before the first `gh issue create` call of the session.** Run this bootstrap block once per session. Safe to re-run — `gh label create` is only invoked when the label is missing, so pre-existing customized colors are preserved:
 
@@ -708,9 +711,12 @@ ensure_label() {
 
 ensure_label "epic" "1D76DB" "Big-plan epic tracking multiple sub-issues"
 ensure_label "sub"  "0E8A16" "Big-plan sub-task under an epic"
+# Seed the mac-handoff label so the downstream implementation skill can apply it on web.
+# Canonical spec lives in web/mac-handoff.md §3 — keep this in sync (≤100 chars; GitHub rejects longer).
+ensure_label "mac"  "5319E7" "Implemented in a limited env (web); final result unverified — check on Mac."
 ```
 
-Apply `--label {tier}` on each `gh issue create` — epic issue: `--label epic` (Step 7); each sub-issue: `--label sub` (Step 8).
+Apply `--label {tier}` on each `gh issue create` — epic issue: `--label epic` (Step 7); each sub-issue: `--label sub` (Step 8). The `mac` label is **not** applied at plan time — it is seeded here only so the downstream `/x-as-pr` / `/x-wt-teams` handoff can apply it (`web/mac-handoff.md`).
 
 ## GitHub Copilot Mode (`-gco` / `--github-copilot`)
 

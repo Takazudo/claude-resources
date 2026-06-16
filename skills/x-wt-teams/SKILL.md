@@ -10,6 +10,8 @@ Coordinate parallel development of multiple related features using git worktrees
 
 > **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co` / Copilot `-gco`. No Dropbox. **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — do NOT create `base/<project-name>` and do NOT push an empty start commit (web = the adopt-current-branch case). Topics fork from `$WEB_BASE` and merge back into it **locally**; the root PR is `$WEB_BASE` → `$WEB_PARENT` (the repo default branch — this inverts the ROOT PR TARGET rule below), created **after the first real commit exists** (no empty-diff PR). Push only `$WEB_BASE` while checked out on it — drop the per-topic push loop and the per-topic documentation PRs (topics are merged locally and never pushed). `-m` merges `$WEB_BASE` → `$WEB_PARENT` via MCP **without deleting the session branch** (web owns it); after merge `git checkout "$WEB_BASE"`, not the default. **Super-epic mode is unsupported on web** — refuse early (see Step 1a). When pushing before a PR, push **only the branch you are checked out on**. **Concurrency — see web-mode.md §6:** the local 6-concurrent-child cap is Mac-freeze protection and does NOT apply on web — fan out all topics in one parallel batch (the browser one-at-a-time rule and the port `flock` rule still hold).
 
+> **In a limited verification env (Claude Code web)** the final visual / browser / Mac-only check can't run, so follow [`web/mac-handoff.md`](../../web/mac-handoff.md) — the **`mac`-label handoff**. When `DEFER_MAC` is set (limited env AND (`-v` passed OR the diff touched UI files), per mac-handoff.md §1–§2): Step 10 (Verify UI) is skipped; with `-m`, Merge Mode merges anyway (CI still gates it) and raises a `mac` issue afterward; without `-m`, the `mac` signal + a "verify on Mac" comment go on the tracking issue **and** the root PR. Off web (Mac / WSL / local) this is always inert.
+
 ## References
 
 Detail lives in `references/` so this file stays a workflow spine. Open the relevant reference whenever the workflow touches its topic — these are not optional:
@@ -579,6 +581,8 @@ If you are about to run `git push` and you have NOT yet invoked the review skill
 
 **Only run if `-v` / `--verify-ui` was passed.** Skip otherwise.
 
+> **Limited env (web) — Mac handoff.** First evaluate `DEFER_MAC` per [`web/mac-handoff.md`](../../web/mac-handoff.md) §1–§2: `LIMITED_ENV` (web) AND (`-v` was passed **OR** the diff against the root-PR base touched UI files). When `DEFER_MAC=true`, **do NOT dispatch the verify-ui subagent** — it cannot verify here. Instead: with `-m`, remember `DEFER_MAC` and let Merge Mode raise the `mac` issue after merging (§6-A); without `-m`, apply mac-handoff.md §4–§5 + §6-B now — the `mac` signal (label → `[Mac] ` title → comment) + the "verify on Mac" comment on the tracking issue **and** the root PR, recorded `role: mac-deferred` for Step 16 cleanup. Off web (Mac / WSL / local) `DEFER_MAC` is always false — run the normal step below.
+
 After Step 9 fixes are committed:
 
 1. **Launch a verification target** — start the project's dev server, use a PR preview URL, or any other means to get the implementation running in a browser.
@@ -704,6 +708,8 @@ This creates a self-correcting loop that ensures nothing from the original spec 
 
 The merge has 5 sub-steps: re-confirm CI green, `gh pr merge --merge --delete-branch`, comment on the super-epic issue (do NOT close it), and switch to the super-epic base while deleting the now-dead local epic base. Full sequence with the exact commands and Dead Branch Cleanup details: **`references/super-epic-mode.md`**.
 
+> **Limited env (web) — Mac handoff.** This mandatory merge runs even though `-m` is ignored in Super-Epic mode, so if `DEFER_MAC` was set at Step 10 it merged without the local visual/Mac check. After the epic-PR merges, raise the `mac`-labeled issue per [`web/mac-handoff.md`](../../web/mac-handoff.md) §6-A (linking the merged epic-PR + tracking issue), `role: mac-deferred`. Do not change the mandatory merge itself — only add the post-merge signal.
+
 After this step, proceed to Close Tracking Issue → Auto-Suggest Next Command (Super-Epic variant) → STOP.
 
 ---
@@ -738,6 +744,8 @@ TARGET_BRANCH=$(gh pr view <root-pr-number> --json baseRefName -q '.baseRefName'
 git checkout "$TARGET_BRANCH"
 git pull origin "$TARGET_BRANCH"
 ```
+
+> **Limited env (web) — Mac handoff (`-m`).** If `DEFER_MAC` was set at Step 10, the merge above proceeded **without** the local visual/Mac check — but `/pr-complete -c` still gated it on CI (we never force-merge red CI; the handoff covers only the local/visual gap). Once the merge succeeds, raise a new `mac`-labeled tracking issue per [`web/mac-handoff.md`](../../web/mac-handoff.md) §6-A — title prefixed `[Mac] `, body documenting the unverified merge and linking the merged root PR + the tracking issue — and record it `role: mac-deferred` for Step 16.
 
 **Do NOT delete the dead local source branch here.** Branch deletion is now handled by `/cleanup-resources` at Step 16, which has full context on every branch the workflow touched (base + topics) and applies the safety mechanics (`git branch -d` not `-D`, parent-branch checkout if needed) consistently. The merge-then-cleanup-resources sequence is the single source of truth for end-of-workflow branch cleanup — keeping it in one place avoids the double-cleanup confusion the old inline block produced. See Rule 27.
 
@@ -863,6 +871,7 @@ Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams <-a if -m was p
   - **Review-fix issues** from `/deep-review -t` team-fix delegation (if any) — role: `fix`. Sonnet proposes CLOSE if the fix-delegation session merged its fixes.
   - **`agent-found` issues closed by `-fix`** (if the Step 15.5 auto-fix step ran) — already closed by this session; the audit confirms KEEP-as-closed.
   - **Super-epic issue** (Super-Epic child mode only) — role: `claimed-existing` with note "parent super-epic; never close from a child session". ALWAYS KEEP.
+  - **Mac-handoff resources** (only if `DEFER_MAC` fired, per [`web/mac-handoff.md`](../../web/mac-handoff.md)) — the `mac`-labeled issue raised after a `-m` (or Super-Epic mandatory) merge (case A), or the tracking issue + root PR flagged without `-m` (case B) — role: `mac-deferred`, `keep-open: true`. The audit must **never** auto-close these: they are pending human verification on a Mac. This overrides the CLOSE proposals above for those specific resources.
 - Branches to include:
   - **Base branch** (`base/<project-name>`) — role: `base`, `pr-merged: <true if root PR merged>`. When `-m` flow merged the root PR, propose delete (local AND remote — the remote was already removed by `--delete-branch`, but pass `scope: both` so the manager's `git push origin --delete` is idempotent and `git branch -d` cleans up local). **On web (web-mode.md §5):** this "base branch" IS the `claude/*` session branch — pass it as `role: session-web` with `protected-session-branch: <its literal name>`; mark KEEP (web owns it). Never delete local or remote.
   - **Topic branches** (`<project-name>/<topic-name>` for each topic) — role: `topic`. Step 11 already deleted these; pass them in the manifest with `scope: both, pr-merged: true` so the agent confirms they're gone and the manager surfaces any stragglers in the "Warnings" section. Defensive only. **On web:** topics were never pushed — `scope: local` only.

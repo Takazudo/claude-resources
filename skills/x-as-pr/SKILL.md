@@ -10,6 +10,8 @@ Start a development workflow by creating a branch and draft PR before implementa
 
 > **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co` / Copilot `-gco`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR). **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — commit directly on it (the adopt-current-branch model) and target `$WEB_PARENT` (the fork-from / default branch). Do NOT create `topic/<slug>` and do NOT push an empty start commit; create the draft PR via MCP **after the first real commit** (head=`$WEB_BASE`, base=`$WEB_PARENT`) — no empty-diff PR. Push only the branch you are on. `-m` merges into `$WEB_PARENT` and does **not** delete the session branch (web owns it; `/pr-complete` and `/cleanup-resources` are web-aware). Fix branches are `claude/agent-fix-<slug>`. Do NOT run the terminal `gh pr view --json baseRefName` preference step — parent is `$WEB_PARENT` unconditionally.
 
+> **In a limited verification env (Claude Code web)** the final visual / browser / Mac-only check can't run, so follow [`web/mac-handoff.md`](../../web/mac-handoff.md) — the **`mac`-label handoff**. When `DEFER_MAC` is set (limited env AND (`-v` passed OR the diff touched UI files), per mac-handoff.md §1–§2): with `-m`, merge anyway (CI still gates it) and raise a `mac` issue afterward; without `-m`, put the `mac` signal + a "verify on Mac" comment on the original issue **and** the root PR. Off web (Mac / WSL / local) this is always inert.
+
 ## !! CRITICAL — PR TARGET BRANCH RULE !!
 
 **The new PR's base MUST be the current (invocation) branch, NOT the repository's default branch.**
@@ -766,6 +768,12 @@ Do NOT run deep review if:
 
 **Only run this step if `-v` / `--verify-ui` was passed.**
 
+> **Limited env (web) — Mac handoff.** First evaluate `DEFER_MAC` per [`web/mac-handoff.md`](../../web/mac-handoff.md) §1–§2: `LIMITED_ENV` (web) AND (`-v` was passed **OR** the diff against `$TARGET_BRANCH` touched UI files). When `DEFER_MAC=true`, **do NOT run `/verify-ui`** — it cannot verify here. Instead:
+> - **`-m` passed:** skip verification now and remember `DEFER_MAC`; Merge Mode below merges (CI-gated) and then raises the `mac` issue (mac-handoff.md §6-A).
+> - **`-m` not passed:** apply mac-handoff.md §4–§5 + §6-B now — put the `mac` signal (label → `[Mac] ` title → comment) and the "verify on Mac" comment on the original issue (if one is linked) **and** the root PR, and record both as `role: mac-deferred` for the cleanup manifest. Then continue (push / CI / PR revision).
+>
+> Off web (Mac / WSL / local) `DEFER_MAC` is always false — run the normal step below.
+
 After the review step (whether `/deep-review` or `/review-loop`) is complete and fixes are committed:
 
 1. **Launch a verification target** — start the project's dev server, use a PR preview URL, or any other means to get the implementation running in a browser
@@ -928,6 +936,8 @@ git checkout "$TARGET_BRANCH"
 git pull origin "$TARGET_BRANCH"
 ```
 
+> **Limited env (web) — Mac handoff (`-m`).** If `DEFER_MAC` was set at the Verify-UI step, the merge above proceeded **without** the local visual/Mac check — but CI gating was still enforced by `/pr-complete -c` (we never force-merge red CI; the handoff covers only the local/visual gap). Once the merge succeeds, raise a new `mac`-labeled tracking issue per [`web/mac-handoff.md`](../../web/mac-handoff.md) §6-A — title prefixed `[Mac] `, body documenting the unverified merge and linking the merged PR + the original issue — and record it `role: mac-deferred` for the cleanup manifest below.
+
 **Do NOT delete the dead local working branch here.** Branch deletion is handed off to `/cleanup-resources` (next step), which audits every branch the workflow touched and applies the safety mechanics consistently. Doing it inline AND in the cleanup step caused the double-cleanup-confusion bug.
 
 ---
@@ -1031,6 +1041,7 @@ Skill tool: skill="cleanup-resources", args="workflow:x-as-pr <-a if -m was pass
   - **Unrelated-findings issues** raised during coding/review (track them in session state as you create them) — role: `unrelated-finding`. ALWAYS KEEP unless closed by `-fix` (the auto-fix step closes the ones it fixed and links the fix PR; the audit leaves those closed and keeps every still-open one).
   - **Review-fix issue** (if review fixes were delegated) — role: `fix`. Sonnet should propose CLOSE if the fix-delegation agent merged its fixes successfully.
   - **`agent-found` issues closed by `-fix`** (if the auto-fix step ran) — already closed by this session; the audit confirms KEEP-as-closed.
+  - **Mac-handoff resources** (only if `DEFER_MAC` fired, per [`web/mac-handoff.md`](../../web/mac-handoff.md)) — the `mac`-labeled issue raised after a `-m` merge (case A), or the original issue + root PR flagged without `-m` (case B) — role: `mac-deferred`, `keep-open: true`. The audit must **never** auto-close these: they are pending human verification on a Mac.
 - Branches to include:
   - **Working branch** (`$BRANCH_NAME`) — role: `working`. Pass `pr-merged: <true|false>` based on whether `-m` resulted in a successful merge. **On web (web-mode.md §5):** the working branch IS the `claude/*` session branch (`$WEB_BASE`) — pass it as `role: session-web` with `protected-session-branch: <its literal name>`, never `working`. KEEP regardless of merge state; never delete local or remote.
   - **`agent-fix/<slug>` branches** (if the `-fix` step created any) — role: `fix`. Pass `pr-merged: <true if the fix PR merged — always under `-m`, else false>` so merged fix branches are cleaned up and unmerged ones (ready PRs awaiting the user) are kept.
