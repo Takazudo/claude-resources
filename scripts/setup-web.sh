@@ -45,6 +45,15 @@ bash "$REPO/scripts/setup-web-wisdom.sh"
 # paths. deny-check.sh reads this file, so it must land before the next session.
 cp -a "$REPO/web/settings.web.json" "$DEST/settings.json"
 
+# Pre-set the committer identity the web container's commit-verification hook
+# (~/.claude/stop-hook-git-check.sh, platform-injected — NOT shipped by this repo)
+# expects, so the agent never has to run `git config` itself. NOTE: the container
+# has no signing key, so commits stay unsigned and GitHub shows them "Unverified"
+# regardless — this only normalizes the email/name half of that check. See
+# web/web-mode.md §5 "Commit identity & the Unverified-commit hook".
+git config --global user.email "noreply@anthropic.com"
+git config --global user.name "Claude"
+
 # Dropbox dirs do not exist in the container; stub the env vars to a temp dir so
 # skills that reference them degrade gracefully instead of erroring. $CLAUDE_ENV_FILE
 # persists exports for the session (provided by the web harness during SessionStart).

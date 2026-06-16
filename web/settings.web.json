@@ -14,11 +14,12 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(git pull:*)",
+      "Bash(git config user.email:*)",
+      "Bash(git config user.name:*)",
       "Bash(cp:*)",
       "WebSearch"
     ],
     "deny": [
-      "Bash(git config:*)",
       "Bash(chmod 777:*)",
       "Bash(rm -rf /*)",
       "Bash(git push --force:*)",

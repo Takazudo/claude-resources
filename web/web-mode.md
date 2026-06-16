@@ -163,6 +163,39 @@ The terminal's `--stay`, the "Use this PR as base" resource-handoff reuse, and a
 single-base epic all **converge** to this model on web. The two-base super-epic
 does not — it is out of scope on web.
 
+### Commit identity & the "Unverified-commit" hook
+
+Web commits are authored as `Claude <noreply@anthropic.com>` (our `setup-web.sh`
+pins this `--global`) and are **unsigned** — the container has no GPG/SSH signing
+key — so GitHub shows them **Unverified**. This is a **platform limitation, not a
+bug in our setup**, and it is unavoidable for any commit created with local `git`
+on web.
+
+The web container ships its own commit-verification hook at
+`~/.claude/stop-hook-git-check.sh` (**platform-injected — not in `claude-settings`,
+so we cannot edit or remove it from this repo**). After a commit it may warn that
+the branch will show as Unverified and suggest
+`git config … && git commit --amend --no-edit --reset-author`.
+
+**Do not follow that suggestion on web:**
+
+- The committer email is **already** `noreply@anthropic.com`, so the email half of
+  the check already passes — `git config` would be a no-op (and our web profile now
+  permits `git config user.email`/`user.name` precisely so this is never a hard
+  block, but it changes nothing).
+- `--amend --reset-author` **cannot add a signature** — the missing signature is
+  the only thing left making the commit Unverified, and there is no key to sign
+  with. Amending just rewrites the tip for no gain.
+
+So the warning is **expected platform noise** for our workflow — acknowledge it and
+move on; it does not indicate anything is wrong with the commit's identity.
+
+**If a genuinely Verified commit is ever required**, do not chase a signing key —
+create the commit through the **GitHub MCP** (`create_or_update_file` /
+`push_files`, see §4). Commits made via GitHub's API are web-flow-signed by GitHub
+and show as **Verified**; locally-`git`-made commits pushed through the proxy are
+not.
+
 ## 6. Subagent fan-out — the local 6-concurrent cap does not apply
 
 `/x-wt-teams` (and the `/big-plan` chain that drives it) throttles child-agent
