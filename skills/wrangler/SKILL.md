@@ -855,7 +855,6 @@ npm install -D @cloudflare/vitest-pool-workers vitest
 ```
 
 `vitest.config.ts`:
-
 ```typescript
 import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 

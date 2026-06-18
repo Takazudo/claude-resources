@@ -64,13 +64,11 @@ Audit Progress:
 ### Phase 1: Performance Trace
 
 1. Navigate to the target URL:
-
    ```
    navigate_page(url: "<target-url>")
    ```
 
 2. Start a performance trace with reload to capture cold-load metrics:
-
    ```
    performance_start_trace(autoStop: true, reload: true)
    ```
@@ -78,7 +76,6 @@ Audit Progress:
 3. Wait for trace completion, then retrieve results.
 
 **Troubleshooting:**
-
 - If trace returns empty or fails, verify the page loaded correctly with `navigate_page` first
 - If insight names don't match, inspect the trace response to list available insights
 
@@ -99,13 +96,11 @@ Common insight names:
 | Network Dependencies | `NetworkRequestsDepGraph` | Request chains delaying critical resources |
 
 Example:
-
 ```
 performance_analyze_insight(insightSetId: "<id-from-trace>", insightName: "LCPBreakdown")
 ```
 
 **Key thresholds (good/needs-improvement/poor):**
-
 - TTFB: < 800ms / < 1.8s / > 1.8s
 - FCP: < 1.8s / < 3s / > 3s
 - LCP: < 2.5s / < 4s / > 4s
@@ -117,7 +112,6 @@ performance_analyze_insight(insightSetId: "<id-from-trace>", insightName: "LCPBr
 ### Phase 3: Network Analysis
 
 List all network requests to identify optimization opportunities:
-
 ```
 list_network_requests(resourceTypes: ["Script", "Stylesheet", "Document", "Font", "Image"])
 ```
@@ -132,7 +126,6 @@ list_network_requests(resourceTypes: ["Script", "Stylesheet", "Document", "Font"
 6. **Unused preconnects**: If flagged, verify by checking if ANY requests went to that origin. If zero requests, it's definitively unused—recommend removal. If requests exist but loaded late, the preconnect may still be valuable.
 
 For detailed request info:
-
 ```
 get_network_request(reqid: <id>)
 ```
@@ -140,13 +133,11 @@ get_network_request(reqid: <id>)
 ### Phase 4: Accessibility Snapshot
 
 Take an accessibility tree snapshot:
-
 ```
 take_snapshot(verbose: true)
 ```
 
 **Flag high-level gaps:**
-
 - Missing or duplicate ARIA IDs
 - Elements with poor contrast ratios (check against WCAG AA: 4.5:1 for normal text, 3:1 for large text)
 - Focus traps or missing focus indicators

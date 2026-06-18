@@ -38,16 +38,14 @@ The user pasted the prompt. You are in a multi-step dialog. Detect what you can,
 2. **Wrangler check.** `npx wrangler --version`. If missing, ask once: "Install wrangler with `npm install --save-dev wrangler` (Node project) or `npm install -g wrangler` (other)? Proceed?" **[wait for user]** If install is blocked entirely (corporate policy, blocked npm), fall back to driving Steps 4-5 via `curl` against `api.cloudflare.com/client/v4/`.
 
 3. **Auth + scope probe (FIRST irreversible action).** Run `scripts/auth-probe.sh`. Branch on `status`:
-- `ok`: continue to Step 4. The script already picked the account (single-account token, or one matching `$CLOUDFLARE_ACCOUNT_ID`).
-- `missing_token`, `missing_scope`, or `missing_workers_scope`: ask the user to create a token at https://dash.cloudflare.com/profile/api-tokens → Custom token → permissions `Account.Turnstile:Edit` **and** `Account.Workers Scripts:Edit` → include the target account in Account Resources. **Do NOT direct them to `wrangler login`**. Its OAuth scope doesn't include `Account.Turnstile:Edit` or `Account.Workers Scripts:Edit`. Offer three ways to hand the token over, cleanest first:
-  1. **Export + relaunch** (token never enters chat): `export CLOUDFLARE_API_TOKEN=<token>` then restart the agent from that terminal.
-  2. **Save to file** (token in file with user-only perms, not in chat): `umask 077 && printf '%s' '<token>' > ~/.cf-turnstile-token`, then read with `TOKEN=$(cat ~/.cf-turnstile-token)`.
-  3. **Paste in chat** (fastest, but token lands in conversation log; user should rotate it after if the log is ever shared).
-
+   - `ok`: continue to Step 4. The script already picked the account (single-account token, or one matching `$CLOUDFLARE_ACCOUNT_ID`).
+   - `missing_token`, `missing_scope`, or `missing_workers_scope`: ask the user to create a token at https://dash.cloudflare.com/profile/api-tokens → Custom token → permissions `Account.Turnstile:Edit` **and** `Account.Workers Scripts:Edit` → include the target account in Account Resources. **Do NOT direct them to `wrangler login`**. Its OAuth scope doesn't include `Account.Turnstile:Edit` or `Account.Workers Scripts:Edit`. Offer three ways to hand the token over, cleanest first:
+     1. **Export + relaunch** (token never enters chat): `export CLOUDFLARE_API_TOKEN=<token>` then restart the agent from that terminal.
+     2. **Save to file** (token in file with user-only perms, not in chat): `umask 077 && printf '%s' '<token>' > ~/.cf-turnstile-token`, then read with `TOKEN=$(cat ~/.cf-turnstile-token)`.
+     3. **Paste in chat** (fastest, but token lands in conversation log; user should rotate it after if the log is ever shared).
      If the user picks option 3 (paste in chat), you can use the wait to run Steps 5, 6, 7 (Domain, Codebase scan, Insertion plan). Options 1 and 2 will restart your session, so do not pre-fetch state in those cases. When auth is established, re-run `auth-probe.sh`, then continue to Step 8.
-
-- `multiple_accounts`: the token covers more than one account and `$CLOUDFLARE_ACCOUNT_ID` is unset. Present the numbered `accounts` list. **[wait for user]** Then export `CLOUDFLARE_ACCOUNT_ID=<chosen>` and re-run `auth-probe.sh`.
-- `account_mismatch`: `$CLOUDFLARE_ACCOUNT_ID` is set but isn't one of the token's accounts. Show the `accounts` list and ask the user to either `unset CLOUDFLARE_ACCOUNT_ID` or set it to one of those IDs.
+   - `multiple_accounts`: the token covers more than one account and `$CLOUDFLARE_ACCOUNT_ID` is unset. Present the numbered `accounts` list. **[wait for user]** Then export `CLOUDFLARE_ACCOUNT_ID=<chosen>` and re-run `auth-probe.sh`.
+   - `account_mismatch`: `$CLOUDFLARE_ACCOUNT_ID` is set but isn't one of the token's accounts. Show the `accounts` list and ask the user to either `unset CLOUDFLARE_ACCOUNT_ID` or set it to one of those IDs.
 
 4. **Account selection.** If `auth-probe.sh` returned `ok` after a `multiple_accounts` round-trip, this is already done. Otherwise the script picked the single account silently and you continue to Step 5.
 
@@ -95,11 +93,11 @@ If the user tells you they already have a Turnstile widget set up and want to wi
 
 1. Skip Step 8 (widget creation). The sitekey already exists; get it from the user.
 2. Fetch the widget metadata via `scripts/fetch-secret.sh --account-id <id> --sitekey <key>`. Branch on `status`:
-- `ok`: read `secret`, `clearance_level`, and `domains` from the response. Confirm `domains` includes the user's production hostname; if not, surface the gap before proceeding.
-- `missing_read_scope`: tell the user to add `Account.Turnstile:Read` to the token, or fall back to asking them to paste the secret. In the paste path, you do not have `clearance_level` or `domains`; ask the user to confirm both.
+   - `ok`: read `secret`, `clearance_level`, and `domains` from the response. Confirm `domains` includes the user's production hostname; if not, surface the gap before proceeding.
+   - `missing_read_scope`: tell the user to add `Account.Turnstile:Read` to the token, or fall back to asking them to paste the secret. In the paste path, you do not have `clearance_level` or `domains`; ask the user to confirm both.
 3. Check `clearance_level` from the response (or the user's answer):
-- `no_clearance`: standard recovery (deploy Worker, wire siteverify).
-- anything else: ask whether they want siteverify on top of pre-clearance, or exit per the scope boundary.
+   - `no_clearance`: standard recovery (deploy Worker, wire siteverify).
+   - anything else: ask whether they want siteverify on top of pre-clearance, or exit per the scope boundary.
 4. Continue from Step 9 (Worker deploy). Site key does not change. Dashboard's `Deployment` column flips from `Manual` to `Spin` on the first request carrying `data-action="turnstile-spin-v1"`.
 5. Never recreate the widget to get a fresh secret. That breaks the existing sitekey everywhere it's deployed.
 
@@ -125,19 +123,16 @@ If the existing handler was a stub, Spin leaves it a stub gated on success. The 
 During the Step 6 codebase scan, also look for existing reCAPTCHA or hCaptcha. If found, switch Step 7 to a migration plan.
 
 Detection signals:
-
 - reCAPTCHA: `https://www.google.com/recaptcha/api.js`, `class="g-recaptcha"`, `data-sitekey="6L..."`, backend POST to `/recaptcha/api/siteverify`
 - hCaptcha: `https://js.hcaptcha.com/1/api.js`, `class="h-captcha"`, backend POST to `https://hcaptcha.com/siteverify`
 
 Substitution:
-
 - Replace script tags with `https://challenges.cloudflare.com/turnstile/v0/api.js` (`async defer`).
 - Replace `class="g-recaptcha"` / `class="h-captcha"` divs with `class="cf-turnstile"`, update `data-sitekey` to the new Turnstile sitekey, add `data-action="turnstile-spin-v1"`.
 - Token field changes from `g-recaptcha-response` to `cf-turnstile-response`.
 - Backend siteverify URL points at the Spin-deployed Worker. Drop `RECAPTCHA_SECRET` / `HCAPTCHA_SECRET` env vars.
 
 Edge cases to surface to the user:
-
 - **reCAPTCHA v3 score thresholds.** Turnstile has no score. Tell the user explicitly that migrated code will reject on `success === false`.
 - **reCAPTCHA Enterprise.** Don't auto-migrate. Point at [developers.cloudflare.com/turnstile/migration/recaptcha/](https://developers.cloudflare.com/turnstile/migration/recaptcha/).
 - **Custom `action=` values.** Preserve any custom action the user passed to `grecaptcha.execute` as `data-action` on the widget. Use `turnstile-spin-v1` only when no custom action exists.
