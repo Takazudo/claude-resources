@@ -5,11 +5,14 @@ description: >-
   `/big-plan -m -a`. Collects candidates, triages out work that needs careful human judgment,
   confirms once, then handles the rest autonomously one issue at a time. Use when: (1) User says
   '/issue-sweep', 'sweep issues', 'sweep open issues', 'handle the open issues', 'clear the issue
-  backlog', or 'do the issues', (2) The user wants to batch-process a label's worth of issues
-  (e.g. `agent-found`, `mac`), (3) After a work round that left a pile of follow-up issues.
-  Options: `-f`/`--filter LABEL` keeps only issues carrying that label; `-ex`/`--exclude LABEL`
-  drops issues carrying it; with no options it sweeps ALL open issues. Skips issues that need
-  careful human judgment (huge multi-major version bumps, super-big epics, design calls).
+  backlog', or 'do the issues', (2) The user wants to batch-process a label's worth of issues (e.g.
+  `agent-found`, `mac`), (3) After a work round that left a pile of follow-up issues. Options:
+  "`-f`/`--filter LABEL` keeps only issues carrying that label; `-ex`/`--exclude LABEL`" drops
+  issues carrying it; with no options it sweeps ALL open issues. Locally-checkable "verify X" tasks
+  are verified directly and closed (not run through `/big-plan`). Skips issues that need careful
+  human judgment (huge multi-major version bumps, super-big epics, design calls); verification tasks
+  that can't be auto-verified locally (auth/deploy/external/subjective) are left open and
+  auto-labeled `needs-human-verified`.
 user-invocable: true
 argument-hint: "[-f|--filter LABEL] [-ex|--exclude LABEL]"
 ---
@@ -60,18 +63,29 @@ scale of the sweep is clear before triaging.
 
 For each candidate, read its concrete detail with `/gh-fetch-issue <number>` (this downloads
 embedded screenshots so they are actually readable — plain `gh issue view` cannot show them).
+For a large candidate set, delegate the reading to parallel subagents (one per chunk) that return
+a compact `#N | classification | one-line scope | reason` per issue — keep the judgment yourself.
 
-Classify each issue:
+Classify each issue into one of three buckets:
 
-- **Handle** — well-scoped, normal-sized work the autonomous chain can finish safely.
-- **Skip** — needs careful human judgment. Leave it open (do **not** auto-add a `deferred` label
-  — suggest it instead). Skip when the issue is:
+- **Handle** — well-scoped, normal-sized work the autonomous chain can finish safely. This
+  includes **"verify X" tasks that are checkable locally** (no auth, no deployed env, no external
+  service, not a subjective judgment call) — those are handled by verifying directly and closing
+  (see Step 4), not by `/big-plan`.
+- **Skip — design/scope** — leave it open; **suggest** a `deferred` label (do **not** auto-apply
+  it). Skip here when the issue is:
   - a large multi-major dependency / version bump (e.g. "bump X from 1 → 4"),
   - a super-big epic (an `[Epic]` issue, or one that would fan out into many sub-issues),
   - any change whose correctness hinges on a design decision a human should make.
+- **Skip — needs human verification** — a verification (`[Mac]`/manual) task that **cannot be
+  auto-verified locally**: it requires authenticated login, a deployed/production environment, an
+  external third-party service (e.g. an X/Twitter card validator), or a subjective visual /
+  aesthetic / cultural-fidelity judgment at scale. Leave it open and **auto-apply** the
+  `needs-human-verified` label (create the label once if it does not exist — see Step 3a). This
+  label is applied automatically; `deferred` is only ever suggested.
 
-When unsure whether something is "too big," lean toward **Skip** and surface it in Step 3 rather
-than autonomously running it.
+When unsure whether something is "too big," lean toward a **Skip** bucket and surface it in
+Step 3 rather than autonomously running it.
 
 ## Step 3: Confirm with the user
 
@@ -83,6 +97,21 @@ Present a triage table before doing anything irreversible:
 Get explicit confirmation (use `AskUserQuestion`) before launching. This is the single human
 checkpoint.
 
+## Step 3a: Label the "needs human verification" skips
+
+For every issue in the **Skip — needs human verification** bucket, apply the
+`needs-human-verified` label. Create the label once if it is missing:
+
+```bash
+gh label create "needs-human-verified" --color "1D76DB" \
+  --description "Verification task that can't be auto-verified locally; needs a human (auth/deploy/subjective)"
+# then, per issue:
+gh issue edit <N> --add-label "needs-human-verified"
+```
+
+(Keep the description ≤ 100 characters — GitHub rejects longer, and multi-byte dashes inflate the
+count.) Do **not** apply `deferred` here — that one stays a suggestion in the final report.
+
 ## Step 4: Handle each issue via `/big-plan -m -a`
 
 Process the **handle** list **one issue at a time** — each issue is independent, so batching them
@@ -92,8 +121,8 @@ the obviously-same surface may be grouped, but one-at-a-time is the default.)
 For each issue:
 
 1. Invoke `/big-plan -m -a <issue-url>`.
-   - `-a` runs plan → create sub-issues → implement → review autonomously.
-   - `-m` merges the resulting PR into the invocation branch, then cleans up and watches base CI
+- `-a` runs plan → create sub-issues → implement → review autonomously.
+- `-m` merges the resulting PR into the invocation branch, then cleans up and watches base CI
      (auto-fixing on red).
 2. Let it finish before starting the next issue.
 
@@ -101,9 +130,16 @@ Notes:
 
 - Run the sweep from the branch where this work should land (e.g. a long-lived release-candidate
   branch), not directly on a protected production branch.
-- Some issues are "verify X" tasks. If verification shows the current state is already correct,
-  `-a` will find nothing to implement — in that case verify directly (`/verify-ui` or
-  `/headless-browser`) and close the issue with a short note instead of forcing an empty PR.
+- **"Verify X" tasks that are locally checkable** (the Handle bucket) do **not** go through
+  `/big-plan` — running it on a pure-verify issue forces an empty PR. Instead, spin up the app
+  and verify directly (`/verify-ui` or `/headless-browser`, driving the real running app). Close
+  the issue with a short evidence-backed note if it passes; only if verification reveals a real
+  defect do you open a fix-PR (via `/x-as-pr` or `/big-plan`). For a batch of independent UI
+  verifications, delegate each (or each cluster) to a parallel subagent that drives the running
+  dev server and returns a PASS/FAIL verdict with concrete evidence (computed styles, scroll
+  numbers, screenshots) — then you close/fix based on the verdicts. (Browser gotcha: a Playwright
+  `launchPersistentContext` with a shared profile dir can break an app's MSW boot; prefer
+  `launch()` + `newContext()`, or the headless-browser skill's per-session profile.)
 - If a `/big-plan` run fails or stalls, stop, report which issue, and let the user decide before
   continuing the rest.
 
@@ -113,5 +149,6 @@ Summarize the sweep:
 
 - **Handled & merged**: `#N` …
 - **Verified & closed** (no code change needed): `#N` …
-- **Skipped** (with reason): `#N` …
+- **Skipped — needs human verification** (labeled `needs-human-verified`): `#N` …
+- **Skipped — design/scope** (suggest `deferred`): `#N` …
 - **Failed / needs attention**: `#N` …
