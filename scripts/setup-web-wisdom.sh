@@ -25,7 +25,7 @@
 # Worst case per repo: GIT_TIMEOUT + SETUP_TIMEOUT = 75 + 75 = 150s.
 # Five repos at worst: 750s — the OVERALL_BUDGET_SECONDS cap cuts this to 5 min.
 GIT_TIMEOUT=75             # seconds for git clone / pull per repo
-SETUP_TIMEOUT=75           # seconds for npm run setup:doc-skill per repo
+SETUP_TIMEOUT=75           # seconds for npm run setup:doc-skill-silent per repo
 OVERALL_BUDGET_SECONDS=300 # 5-minute wall-clock cap for the entire loop
 
 # ── Guard: web-only ────────────────────────────────────────────────────────────
@@ -34,14 +34,16 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
 fi
 
 # ── Manifest ──────────────────────────────────────────────────────────────────
-# Cheap Takazudo/* repos first (priority: test-wisdom / browser skills appear
-# soonest). css-wisdom (zudolab) is last and allowed to fail gracefully.
+# Cheap repos first (priority: test-wisdom / browser skills appear soonest).
+# css-wisdom is last (heavier setup: it runs a generate step before symlinking)
+# and allowed to fail gracefully. All repos live under github.com/Takazudo now
+# (css-wisdom was transferred from zudolab/ — the old URL only 301-redirects).
 WISDOM_REPOS=(
   "https://github.com/Takazudo/zudo-test-wisdom"
   "https://github.com/Takazudo/zudo-cloudflare-wisdom"
   "https://github.com/Takazudo/zudo-tauri-wisdom"
   "https://github.com/Takazudo/zudo-codemirror-wisdom"
-  "https://github.com/zudolab/zudo-css-wisdom"
+  "https://github.com/Takazudo/zudo-css-wisdom"
 )
 
 WISDOM_BASE="$HOME/.claude-wisdom"
@@ -89,20 +91,21 @@ for repo_url in "${WISDOM_REPOS[@]}"; do
   fi
   set -e
 
-  # ── run setup:doc-skill ──────────────────────────────────────────────────────
-  # printf '\n' satisfies the `read` skill-name prompt in Takazudo/* repos
-  # (accepts the default); it is harmless for css-wisdom which has no prompt.
+  # ── run setup:doc-skill-silent ───────────────────────────────────────────────
+  # Use the non-interactive `setup:doc-skill-silent` variant: every wisdom repo's
+  # setup-doc-skill.sh now prompts for the skill name unless --silent is passed
+  # (the silent script passes it), so no `read` prompt can block this headless run.
   # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 prevents headless-browser's postinstall
   # from hitting the CDN (which is blocked in web containers).
   #
-  # Note: setup-doc-skill.sh in Takazudo/* repos creates the global skill
-  # symlinks (ln -s into ~/.claude/skills/) BEFORE its internal npm install
-  # loop, so test-wisdom / verify-ui / headless-browser / verify-ui-ai symlinks
-  # are available even if playwright install subsequently fails.
+  # Note: setup-doc-skill.sh creates the global skill symlinks (ln -s into
+  # ~/.claude/skills/) BEFORE its internal npm install loop, so test-wisdom /
+  # verify-ui / headless-browser / verify-ui-ai symlinks are available even if
+  # playwright install subsequently fails.
   set +e
   (
     cd "$repo_dir" || exit 1
-    timeout "$SETUP_TIMEOUT" bash -c 'printf "\n" | PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm run setup:doc-skill' 2>&1
+    timeout "$SETUP_TIMEOUT" bash -c 'PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm run setup:doc-skill-silent' 2>&1
   )
   setup_exit=$?
   set -e
