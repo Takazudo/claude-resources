@@ -12,7 +12,7 @@ description: >-
   are verified directly and closed (not run through `/big-plan`). Skips issues that need careful
   human judgment (huge multi-major version bumps, super-big epics, design calls); verification tasks
   that can't be auto-verified locally (auth/deploy/external/subjective) are left open and
-  auto-labeled `needs-human-verified`.
+  auto-labeled `needs-human-verify`.
 user-invocable: true
 argument-hint: "[-f|--filter LABEL] [-ex|--exclude LABEL]"
 ---
@@ -81,7 +81,7 @@ Classify each issue into one of three buckets:
   auto-verified locally**: it requires authenticated login, a deployed/production environment, an
   external third-party service (e.g. an X/Twitter card validator), or a subjective visual /
   aesthetic / cultural-fidelity judgment at scale. Leave it open and **auto-apply** the
-  `needs-human-verified` label (create the label once if it does not exist — see Step 3a). This
+  `needs-human-verify` label (create the label once if it does not exist — see Step 3a). This
   label is applied automatically; `deferred` is only ever suggested.
 
 When unsure whether something is "too big," lean toward a **Skip** bucket and surface it in
@@ -100,13 +100,13 @@ checkpoint.
 ## Step 3a: Label the "needs human verification" skips
 
 For every issue in the **Skip — needs human verification** bucket, apply the
-`needs-human-verified` label. Create the label once if it is missing:
+`needs-human-verify` label. Create the label once if it is missing:
 
 ```bash
-gh label create "needs-human-verified" --color "1D76DB" \
+gh label create "needs-human-verify" --color "1D76DB" \
   --description "Verification task that can't be auto-verified locally; needs a human (auth/deploy/subjective)"
 # then, per issue:
-gh issue edit <N> --add-label "needs-human-verified"
+gh issue edit <N> --add-label "needs-human-verify"
 ```
 
 (Keep the description ≤ 100 characters — GitHub rejects longer, and multi-byte dashes inflate the
@@ -149,6 +149,6 @@ Summarize the sweep:
 
 - **Handled & merged**: `#N` …
 - **Verified & closed** (no code change needed): `#N` …
-- **Skipped — needs human verification** (labeled `needs-human-verified`): `#N` …
+- **Skipped — needs human verification** (labeled `needs-human-verify`): `#N` …
 - **Skipped — design/scope** (suggest `deferred`): `#N` …
 - **Failed / needs attention**: `#N` …
