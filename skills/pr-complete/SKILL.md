@@ -8,7 +8,7 @@ argument-hint: "[-c/--close] [-k/--keep-issue] [-w/--watch-ci] [-now/--no-wait]"
 
 This PR is checked, reviewed, and no other tasks are left. Complete the following:
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Check CI, merge the PR, and close the linked issue via the GitHub MCP (`pull_request_read` / `get_check_runs`, `merge_pull_request`, `issue_write`), not `gh`. **Branch deletion — see web-mode.md §5:** when the PR's head is the `claude/*` session branch (the common web case — head=`$WEB_BASE`, base=`$WEB_PARENT`), merge via MCP `merge_pull_request` **WITHOUT any branch-delete** (no `delete_branch:true`). The web platform owns the session branch — never delete it. Deleting a `claude/agent-fix-*` fix branch is fine; deleting the session branch is not. Translate the `--delete-branch` in Step 1 / `--no-wait` accordingly: on web, drop the delete for the session branch.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Check CI, merge the PR, and close the linked issue via the GitHub MCP (`pull_request_read` / `get_check_runs`, `merge_pull_request`, `issue_write`), not `gh`. **CI-watch + merge run in-turn on web — see web-mode.md §8:** web has no background-task wakeup, so do **NOT** "watch CI in the background" and end the turn (Step 1.4's background path and "do NOT block the conversation with polling" are terminal-only). Instead poll the PR's checks via MCP in a loop and merge in the **same run** the moment they're green — under `-m`/`-c` the merge is already authorized; never end the turn at "CI running, I'll check back." **Branch deletion — see web-mode.md §5:** when the PR's head is the `claude/*` session branch (the common web case — head=`$WEB_BASE`, base=`$WEB_PARENT`), merge via MCP `merge_pull_request` **WITHOUT any branch-delete** (no `delete_branch:true`). The web platform owns the session branch — never delete it. Deleting a `claude/agent-fix-*` fix branch is fine; deleting the session branch is not. Translate the `--delete-branch` in Step 1 / `--no-wait` accordingly: on web, drop the delete for the session branch.
 
 ## Step 0: Pre-flight — check for uncommitted changes
 
@@ -29,6 +29,7 @@ Before anything else, run `git status` and `git diff --stat` to check for unstag
 - Invoke `/watch-ci` to monitor CI in the background
 - Tell the user: "CI is still running. Watching in background via /watch-ci"
 - do NOT block the conversation with polling
+- **On web (web-mode.md §8): do the opposite — block in-turn.** There is no background-task wakeup on web, so a background watch + turn-end leaves the PR unmerged. Poll the checks via MCP (`pull_request_read` / `get_check_runs`) in a loop (~30–60 s between polls) until terminal, then merge in the same run (step 5) the moment they're green. Do not end the turn at "watching in background."
 5. Once all CI checks are green and the PR is approved:
 - Merge the PR using `gh pr merge --merge --delete-branch` (**on web (web-mode.md §5): MCP `merge_pull_request` with NO branch-delete when the head is the `claude/*` session branch — the web owns it; only `claude/agent-fix-*` heads may be deleted**)
 - Confirm the operation completed successfully
@@ -107,5 +108,7 @@ If `--watch-ci` or `-w` is passed, after the PR is successfully merged:
 3. If CI runs exist on the target branch, invoke `/watch-ci` to monitor the merge target branch CI in the background
 - `/watch-ci` already handles merged PRs — it will detect the merged state and watch the target branch CI
 4. If no CI runs exist on the target branch, skip and report: "No CI detected on the merge target branch."
+
+**On web (web-mode.md §8): the post-merge watch is also in-turn — do NOT background `/watch-ci`.** Web has no background-task wakeup, so a backgrounded post-merge watch would leave this step hanging exactly like the pre-merge case. Poll the target-branch CI via MCP (`pull_request_read` / `actions_*` per github-ops.md) in a loop (~30–60 s between polls) until terminal, then report. If it goes red, fix via a `claude/agent-fix-*` PR (web-mode.md §5) and re-poll until green. Stay in the turn — never end at "watching in background, I'll check back."
 
 **This option is only activated when explicitly passed.** Without `-w`, pr-complete does not watch post-merge CI.

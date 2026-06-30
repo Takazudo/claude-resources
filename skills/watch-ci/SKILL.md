@@ -10,7 +10,7 @@ Also supports watching CI on the merge target branch when a PR is already merged
 
 The polling itself is a pure shell loop (`gh` CLI + `jq`) launched via `Bash` with `run_in_background: true`. No subagent is spawned — token cost is paid only at launch and at completion, not on every poll cycle.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). `gh` is unavailable, so the `gh`-based poll scripts won't run — poll CI through the GitHub MCP instead (`pull_request_read` with `get_check_runs`, or `actions_*` / `get_job_logs`), or the `Monitor` tool. There is no macOS notifier on web; just report status when checks finish.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). `gh` is unavailable, so the `gh`-based poll scripts won't run — poll CI through the GitHub MCP instead (`pull_request_read` with `get_check_runs`, or `actions_*` / `get_job_logs`), or the `Monitor` tool. There is no macOS notifier on web; just report status when checks finish. **When this watch is part of a `-m` merge flow** (`/pr-complete -c -w`, or the Merge Mode of `/x-as-pr` / `/x-wt-teams`), follow **web-mode.md §8: poll in-turn and block** until the checks are terminal — Step 3's "launch a background poll and end the turn" model is **terminal-only**, because web has no background-task wakeup, so a background watch + turn-end would leave the merge unfired. Stay in the turn until terminal, then let the caller merge in the same run.
 
 ## Scripts
 

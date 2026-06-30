@@ -90,6 +90,8 @@ When `-a` or `--auto` is passed, forward it to the chosen skill. `-a` means "run
 
 When `-m` or `--merge` is passed, forward it to the chosen skill. When the final implementation is done, the downstream skill merges the PR into its base branch, runs the cleanup phase, and watches CI on the base branch (fixing it if it goes red) — via `/pr-complete` + `/watch-ci`. On the escalation path, `/big-plan` forwards `-m` into whichever implementation skill it chains into. Intended for safe-to-merge work; without `-m`, the workflow ends with a ready-but-unmerged PR.
 
+**On web (web-mode.md §8):** the downstream merge runs **in-turn** — the agent polls CI via the GitHub MCP and merges in the same run once green, because web has no background-task wakeup to resume a backgrounded `/watch-ci`. So on web, `-a -m` must finish at a *merged* PR in one autonomous run; the agent must not stop at "PR ready, CI running, I'll check back" (the recurring "agent is waiting for my order to merge" failure). Off web this is inert — the terminal's background-poll path already auto-resumes.
+
 ### No Review Mode (`-nor` / `--no-review`)
 
 When `-nor` or `--no-review` is passed, forward it to the chosen skill. The downstream skill skips the post-implementation review step entirely (no `/deep-review`, no `/review-loop`, no fix-delegation Agent) and goes straight from implementation to push / CI watch / PR revision. Use when the task is throwaway or you've already reviewed the changes yourself.

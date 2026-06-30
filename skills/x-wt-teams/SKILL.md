@@ -723,11 +723,13 @@ After this step, proceed to Close Tracking Issue → Auto-Suggest Next Command (
 **Why `-m` defers mid-chain:** when this session is part of a multi-wave / multi-session plan, evaluate the Auto-Suggest signals (Signal A / Signal B — see "Auto-Suggest Next Command" below) BEFORE merging. If a next wave remains, do NOT merge here — the root/epic PR must stay open so later waves keep accumulating onto it. Forward `-m` in the next-wave hand-off (or auto-invocation, under `-a`) instead; the merge runs in the session where no next wave remains (chain termination).
 
 > **On web (web-mode.md §5):** `-m` merges `$WEB_BASE` → `$WEB_PARENT` (repo default) via MCP `merge_pull_request` — `/pr-complete` is web-aware and does NOT pass a branch-delete (Part E), so the `claude/*` session branch survives. After the merge, **`git checkout "$WEB_BASE"`** (it still exists) so the manager stays on a pushable branch — do NOT stay on `$WEB_PARENT` (the default branch is not pushable on web; the STOP rule "stay on the base" maps to `$WEB_BASE`). The CI-fix subagent must NOT push to `$WEB_PARENT` (not checked out on it, not `claude/`-prefixed) — route the fix through a `claude/agent-fix-<slug>` branch + PR (the branch-protection fallback path is the only path on web). Replace every `gh pr view` / `gh pr merge` below with MCP.
+>
+> **CI-watch + merge are in-turn on web (web-mode.md §8).** Web has no background-task wakeup, so the Step 1/2 "`/pr-complete -c` then `/watch-ci` in the background" loop never completes on web — the root PR sits ready-but-unmerged and the user thinks you're waiting on them. Under `-m` (and once no next wave remains), poll the root PR's checks via MCP in a loop and **merge in the same run** the moment they're green; the post-merge `/watch-ci` is likewise an in-turn poll. Do **NOT** end the turn at "root PR ready, CI running, I'll check back" — `-a -m` must finish at a merged PR in one autonomous run (stop only on CI failure after the 2-cycle cap, or a real blocker like an expired MCP token).
 
 After Step 15 passes, automatically:
 
 1. Invoke `/pr-complete -c` to wait for CI, merge the root PR (`--merge --delete-branch`), and close the linked issue.
-2. After the merge, invoke `/watch-ci <root-pr-number>` on the merged target branch to confirm post-merge CI is green.
+2. After the merge, invoke `/watch-ci <root-pr-number>` on the merged target branch to confirm post-merge CI is green. (**On web (web-mode.md §8): poll the target-branch CI via MCP in-turn — do NOT background `/watch-ci`. Stay in the turn until terminal, then proceed; there is no background-task wakeup on web to resume a backgrounded watch.**)
 3. **If CI goes red**:
 - Fetch the failed run logs: `gh run view <run-id> --log-failed`
 - Spawn a dedicated Opus subagent with the failure details to investigate the root cause, fix the code, and push the fix directly to the target branch.

@@ -260,3 +260,50 @@ on them will time out; use `http://127.0.0.1:<port>` directly.
   implement this contract on web.
 - Both skills are present in the container via `scripts/setup-web-wisdom.sh`
   (this epic).
+
+## 8. The `-m` merge runs in-turn on web — never punt CI to the background
+
+On the terminal, `/pr-complete -c -w` watches CI by launching a `gh` poll loop as
+a **background** `Bash` task; when that task exits, the harness re-invokes the
+agent with a `<task-notification>`, so "CI green → merge" fires autonomously
+without the agent having to stay in the turn. **On web that wakeup does not
+exist:** `gh` is unavailable (no background poll script to run), and a
+self-scheduled "I'll check back in N minutes" frequently never fires. The result
+is the failure this contract exists to kill — the PR is created and marked ready,
+CI is "watching in the background," the turn ends, and **the merge never
+happens**, so a `/x -m -a` that promised hands-off end-to-end instead looks like
+the agent is waiting for permission to merge.
+
+So on web, treat **"watch CI then merge" as one blocking, in-turn step**:
+
+1. **Poll in-turn, do not yield the turn.** Loop on the PR's checks via the
+   GitHub MCP (`pull_request_read` with `get_check_runs`) — wait ~30–60 s between
+   polls (a short foreground `Bash` sleep, or the `Monitor` tool) — until **every
+   required check is terminal**. Stay in the same turn; do **not** end your
+   message with "CI is running, I'll check back."
+2. **Merge immediately when green.** The moment all checks are green, merge in the
+   same run via `merge_pull_request` (no branch-delete for the `claude/*` session
+   head — §5), then continue straight into the post-merge steps (close issue,
+   `-w` target-branch CI, cleanup audit). Do **not** hand the merge decision back
+   to the user — under `-m` they already authorized it.
+3. **On CI failure**, run the skill's normal bounded fix cycles (investigate → fix
+   on the session branch or a `claude/agent-fix-*` branch as the skill directs →
+   re-poll). Only stop after the skill's cycle cap, and then say exactly what
+   failed.
+4. **Bounded, with a self-continue fallback — never a user handoff.** Poll
+   in-turn for up to ~30 min. If CI is genuinely still pending past that, do
+   **not** stop and wait for the user — self-schedule a continuation
+   (`mcp__claude_ai_Claude_Code_Remote__send_later`, a few minutes out) whose
+   prompt is "re-poll PR #N and merge when green, per `-m`," so the chain resumes
+   itself. The only legitimate hard stops are CI **failure** (after the fix cap)
+   and a real blocker (expired MCP token, branch-protection refusal) — and a
+   blocker stop must name the exact action you need from the user.
+
+This applies wherever a web skill would "watch CI in the background and merge when
+green": `/pr-complete -c -w`, `/watch-ci`, and the Merge Mode of `/x-as-pr` and
+`/x-wt-teams`. The post-merge `-w` watch is the same in-turn poll (report when
+green; if the target-branch CI goes red, fix via a `claude/agent-fix-*` PR per
+§5). The terminal background-poll model (`/watch-ci` via `Bash
+run_in_background`) is **terminal-only** — its "do NOT block the conversation
+with polling" instruction does **not** apply on web, where blocking in-turn is
+exactly what makes the merge complete.

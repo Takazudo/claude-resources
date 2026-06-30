@@ -26,7 +26,7 @@ behind the broader [`web-mode.md`](./web-mode.md) contract.
 | `gh pr view` / `gh pr view --json baseRefName` | `pull_request_read` |
 | `gh pr list --head <branch>` | `list_pull_requests` (`head` filter) |
 | `gh pr merge` | `merge_pull_request` |
-| `gh pr checks` (CI) | `pull_request_read` + `actions_*` / `get_job_logs` |
+| `gh pr checks` (CI) | `pull_request_read` (`get_check_runs` for check status) + `actions_*` / `get_job_logs` |
 | `gh label create` | *(no MCP equivalent — see gaps)* |
 
 ## Gaps & nuances

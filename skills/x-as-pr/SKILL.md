@@ -913,6 +913,8 @@ This creates a self-correcting loop that ensures nothing from the original spec 
 **Only run this step if `-m` or `--merge` was passed.** Otherwise, skip to STOP below. (This was `-a`'s job before the `-a`/`-m` split — `-a` is now the autonomy/chain flag and does NOT merge.)
 
 > **On web (web-mode.md §5):** `-m` merges `$WEB_BASE` → `$WEB_PARENT` (repo default). `/pr-complete` is web-aware and does NOT `--delete-branch` the `claude/*` session branch — the web owns it; there is no `base/<topic>` to clean up (Part E). After the merge, the manager returns to `$WEB_BASE` (it survives — the default branch is not pushable on web), NOT `$WEB_PARENT`. Replace every `gh pr view` / `gh pr merge` with MCP.
+>
+> **CI-watch + merge are in-turn on web (web-mode.md §8).** This is the step that most often stalls: web has no background-task wakeup, so the terminal "`/watch-ci` in the background → get notified → merge" loop never completes — the PR sits ready-but-unmerged and the user thinks you're waiting on them. Under `-m`, poll the PR's checks via MCP in a loop and **merge in the same run** the moment they're green. Do **NOT** end the turn at "PR ready, CI running, I'll check back" — `-m` already authorized the merge, so `/x -a -m` must finish at a merged PR in one autonomous run (stop only on CI failure after the fix cap, or a real blocker like an expired MCP token).
 
 After requirements verification passes (or after the session report if no issue is linked), automatically invoke `/pr-complete -c -w` to:
 
