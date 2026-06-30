@@ -9,16 +9,20 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: codex-imagegen.sh --prompt <text> [--out <path>] [--in <image>]... [--size WxH]
+Usage: codex-imagegen.sh --prompt <text> [--out <path>] [--in <image>]... [--size WxH] [--project-dir <dir>]
 
-  --prompt   What to generate, or how to redesign the input image (required).
-  --out      Output PNG. Optional. A bare name or relative path lands under the
-             repo-scoped cclogs dir (<cclogs>/<repo>/imagegen/); an absolute
-             path is used as-is. Omitted -> auto-named from the prompt there.
-  --in       Input image to attach as vision/edit source. Repeatable
-             (e.g. a screenshot to redesign, plus a style reference).
-  --size     Exact output WxH in pixels (e.g. 600x600). imagegen emits a preset
-             size; this hard-resizes via sips (macOS) or ImageMagick/Pillow (Linux/WSL).
+  --prompt       What to generate, or how to redesign the input image (required).
+  --out          Output PNG. Optional. A bare name or relative path lands under the
+                 repo-scoped cclogs dir (<cclogs>/<repo>/imagegen/); an absolute
+                 path is used as-is. Omitted -> auto-named from the prompt there.
+  --project-dir  Repo dir used to resolve the cclogs <repo> slug. Defaults to the
+                 current dir. Pass this when invoking from a throwaway cwd (e.g. a
+                 /tmp scratchpad) so output still lands in <cclogs>/<repo>/ instead
+                 of falling back to <cclogs>/_misc/.
+  --in           Input image to attach as vision/edit source. Repeatable
+                 (e.g. a screenshot to redesign, plus a style reference).
+  --size         Exact output WxH in pixels (e.g. 600x600). imagegen emits a preset
+                 size; this hard-resizes via sips (macOS) or ImageMagick/Pillow (Linux/WSL).
 
 Examples:
   codex-imagegen.sh --prompt "a flat red apple on white"
@@ -32,26 +36,32 @@ EOF
 OUT=""
 PROMPT=""
 SIZE=""
+PROJDIR=""
 INS=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --out)    OUT="$2"; shift 2 ;;
-    --prompt) PROMPT="$2"; shift 2 ;;
-    --in)     INS+=("$2"); shift 2 ;;
-    --size)   SIZE="$2"; shift 2 ;;
+    --out)         OUT="$2"; shift 2 ;;
+    --prompt)      PROMPT="$2"; shift 2 ;;
+    --in)          INS+=("$2"); shift 2 ;;
+    --size)        SIZE="$2"; shift 2 ;;
+    --project-dir) PROJDIR="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
 
 [ -n "$PROMPT" ] || { echo "ERROR: --prompt is required" >&2; usage; exit 2; }
+[ -z "$PROJDIR" ] || [ -d "$PROJDIR" ] || { echo "ERROR: --project-dir not a directory: $PROJDIR" >&2; exit 2; }
 command -v codex >/dev/null || { echo "ERROR: codex CLI not found on PATH" >&2; exit 1; }
 
 # Default save location = repo-scoped, Dropbox-synced cclogs dir, resolved by the
 # canonical helper (handles env var, platform defaults, worktrees, _misc fallback).
-# Resolve before any cd so get-logdir reads the project's cwd, not this script's.
-IMGDIR="$(node "$HOME/.claude/scripts/get-logdir.js" 2>/dev/null || true)/imagegen"
+# get-logdir detects the repo via `git rev-parse` from its cwd, so anchor it to the
+# project dir: --project-dir when given, else the caller's cwd. This is what lets a
+# caller working out of a /tmp scratchpad still route output to <cclogs>/<repo>/.
+LOGDIR_CWD="${PROJDIR:-$PWD}"
+IMGDIR="$( (cd "$LOGDIR_CWD" && node "$HOME/.claude/scripts/get-logdir.js") 2>/dev/null || true)/imagegen"
 if [ -z "$OUT" ]; then
   slug="$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | cut -c1-40 | sed 's/^-*//;s/-*$//')"
   [ -n "$slug" ] || slug="image"

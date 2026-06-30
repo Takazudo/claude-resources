@@ -43,6 +43,8 @@ scripts/codex-imagegen.sh --out redesign.png --in baseline.png \
 
 The script saves into the **repo-scoped, Dropbox-synced cclogs dir** — `<cclogs-base>/<repo>/imagegen/` — resolved automatically by `$HOME/.claude/scripts/get-logdir.js` (the same `{logdir}` rule the other skills use; worktree-aware, `_misc/` when outside a git repo). Don't hand-build the path: pass just a filename to `--out`, or omit it. An absolute `--out` overrides this when a specific destination is needed.
 
+`get-logdir` detects the repo with `git rev-parse` **from the current directory**, so invoking the script from a non-repo cwd (a `/tmp` scratchpad, a Dropbox prototype dir) silently routes output to `<cclogs>/_misc/imagegen/` instead of the repo. Pass **`--project-dir <repo-dir>`** to anchor resolution to the repo regardless of where the command runs — e.g. a design-polish loop that screenshots into `/tmp` should pass `--project-dir "$REPO_ROOT"` so mockups still land in `<cclogs>/<repo>/imagegen/`.
+
 ## Cost — this burns ChatGPT plan usage fast
 
 Each image costs roughly **90k–100k tokens** of ChatGPT/Codex usage (image turns run ~3–5× heavier than text). Fine for a handful of design explorations; don't loop it dozens of times without telling the user. The script reports the tokens used per call.
