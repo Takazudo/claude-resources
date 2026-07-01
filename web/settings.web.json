@@ -32,7 +32,6 @@
   "model": "Opus",
   "skillOverrides": {
     "codex-review": "off",
-    "gco-review": "off",
     "ascii-circuit-diagram-creator": "off",
     "claude-resources-share": "user-invocable-only",
     "claudemd-refactor": "user-invocable-only",

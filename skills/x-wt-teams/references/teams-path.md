@@ -36,7 +36,7 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
-4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co` / `-gco`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`).
+4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
 7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path.

@@ -5,7 +5,7 @@ Single source of truth for every `/x-wt-teams` flag. The skill body links here i
 ## Argument hint
 
 ```
-[-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot]
+[-haiku|-so|-op] [-co|--codex]
 [-t-op|--team-opus] [-t-so|--team-sonnet]
 [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui]
 [-nor|--no-review]
@@ -17,18 +17,17 @@ Single source of truth for every `/x-wt-teams` flag. The skill body links here i
 
 Two orthogonal groups govern delegation:
 
-- **Reviewer flags** — `-op` / `-so` / `-haiku` / `-co` / `-gco`. These choose which reviewer(s) run at Step 9 (final QA), in `/light-review` self-checks, and for 2nd-opinions during planning. They do NOT affect child agents or fix-delegation agents. Multiple flags combine (Combined Reviewer Mode — see `reviewer-modes.md`).
+- **Reviewer flags** — `-op` / `-so` / `-haiku` / `-co`. These choose which reviewer(s) run at Step 9 (final QA), in `/light-review` self-checks, and for 2nd-opinions during planning. They do NOT affect child agents or fix-delegation agents. Multiple flags combine (Combined Reviewer Mode — see `reviewer-modes.md`).
 - **Team-member flags** — `-t-op` / `-t-so`. These override the model for every spawned child agent (Step 5 worktree teammates) and every fix-delegation agent (Step 9 review-fix delegation, `/x-as-pr` post-review fix agent). Session-wide; overrides per-topic `/big-plan` annotations.
 
 ## Flag table
 
 | Flag | Aliases | What it does | Conflicts / notes |
 |---|---|---|---|
-| `-op` | `--opus` | Run Claude reviewer (`/deep-review` / `/review-loop`) at Opus. | Mutually exclusive with `-so`, `-haiku`. Combinable with `-co` / `-gco`. |
-| `-so` | `--sonnet` | Run Claude reviewer at Sonnet. | Mutually exclusive with `-op`, `-haiku`. Combinable with `-co` / `-gco`. |
-| `-haiku` | `--haiku` | Run Claude reviewer at Haiku. | Mutually exclusive with `-op`, `-so`. Combinable with `-co` / `-gco`. |
+| `-op` | `--opus` | Run Claude reviewer (`/deep-review` / `/review-loop`) at Opus. | Mutually exclusive with `-so`, `-haiku`. Combinable with `-co`. |
+| `-so` | `--sonnet` | Run Claude reviewer at Sonnet. | Mutually exclusive with `-op`, `-haiku`. Combinable with `-co`. |
+| `-haiku` | `--haiku` | Run Claude reviewer at Haiku. | Mutually exclusive with `-op`, `-so`. Combinable with `-co`. |
 | `-co` | `--codex` | Codex-based reviewer (`/codex-review`) plus codex writer / research tooling. **Default when no reviewer flag is passed** — codex is the house default 2nd agent. Silently falls back to **Opus** (subagent at `model: opus`) if codex is rate-limited or unavailable. See `reviewer-modes.md`. | Combinable with all other reviewer flags. When passed without any Claude model flag, the Claude reviewer is replaced (not added). |
-| `-gco` | `--github-copilot` | Add GitHub Copilot CLI reviewer (`/gco-review`, GPT-5.4) plus copilot 2nd-opinion / research. See `reviewer-modes.md`. | Combinable with all other reviewer flags. |
 | `-t-op` | `--team-opus` | Force every child agent and fix-delegation agent to Opus. Session-wide override of per-topic `/big-plan` `**Model:**` markers. | Mutually exclusive with `-t-so`. **Manager always runs as Opus regardless.** Default without any team-member flag stays `opus`. |
 | `-t-so` | `--team-sonnet` | Force every child agent and fix-delegation agent to Sonnet. Session-wide override. | Mutually exclusive with `-t-op`. There is no `-t-haiku` — haiku is rare enough that it stays opt-in via `/big-plan` per-topic markers only. |
 | `-a` | `--auto` | Auto-chain flag. When Auto-Suggest matches Signal A (Super-Epic child) or Signal B (`--stay` accumulating-epic) with a next wave remaining, invoke the next-wave command immediately via Skill instead of printing-and-stopping; append `-a` (and forward `-m` / `-nf` / `-nori`) so the chain self-runs. Pause and surface to the user only on a blocker. Does **NOT** merge — that's `-m`. | Replaces the retired `-seq` flag. Only meaningful for multi-wave plans (typically `/big-plan` epics); single-session runs are no-ops. Combinable with all other flags. See "`-a` chain mechanism" below. |
@@ -52,7 +51,7 @@ Two orthogonal groups govern delegation:
 
 The resolved reviewer flag set is applied at:
 
-1. **Step 9 final review** — `/deep-review` (or `/review-loop`) is invoked with the Claude model flag forwarded. If `-co` / `-gco` are also passed, the corresponding non-Claude reviewers run sequentially on the same base branch and their findings combine (see `reviewer-modes.md`).
+1. **Step 9 final review** — `/deep-review` (or `/review-loop`) is invoked with the Claude model flag forwarded. If `-co` is also passed, the codex reviewer also runs on the same base branch and its findings combine (see `reviewer-modes.md`).
 2. **Claude-side 2nd opinion** — when no backend flag is active, `/codex-2nd` still runs as a default planning-phase 2nd opinion. When a Claude model flag is passed alongside backend flags, every matching `*-2nd` command runs in sequence.
 3. **Child self-review** — child agents run `/light-review` with active backend flags forwarded. The Claude model flag does NOT change `/light-review`'s default unless backend flags are also omitted.
 
@@ -65,7 +64,7 @@ The resolved team-member flag (`-t-op` / `-t-so`, default `opus`) is applied at:
 
 ## Two flag families are orthogonal
 
-Reviewer flags and team-member flags do not interact — pass any combination. Example: `-so -gco -t-op` means "run Claude reviewer at Sonnet AND `/gco-review` for QA, with all child agents on Opus."
+Reviewer flags and team-member flags do not interact — pass any combination. Example: `-so -co -t-op` means "run Claude reviewer at Sonnet AND `/codex-review` for QA, with all child agents on Opus."
 
 ## `-s` / `--stay` mechanism
 

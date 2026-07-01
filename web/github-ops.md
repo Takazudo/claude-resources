@@ -42,7 +42,7 @@ behind the broader [`web-mode.md`](./web-mode.md) contract.
   see an unpushed branch.
 - **Repo scope.** MCP starts scoped to the session's repo. For cross-repo work,
   add the target repo via the platform's `add_repo` before issue/PR calls.
-- **Reviewers & teams.** Codex/Copilot reviewers and the agent-teams path are
+- **Reviewers & teams.** The Codex reviewer and the agent-teams path are
   not used on web — see rules 2 & 3 of [`web-mode.md`](./web-mode.md)
   (Claude-only reviewers, subagent fan-out instead of teams).
 

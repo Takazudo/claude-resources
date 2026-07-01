@@ -1,14 +1,14 @@
 ---
 name: x-wt-teams
 description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main)."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
 
 Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and Claude Code agent teams. **This is fully automated** — you (the manager) create the infrastructure and spawn child agents to do the work. Never ask the user to manually start sessions in worktrees.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co` / Copilot `-gco`. No Dropbox. **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — do NOT create `base/<project-name>` and do NOT push an empty start commit (web = the adopt-current-branch case). Topics fork from `$WEB_BASE` and merge back into it **locally**; the root PR is `$WEB_BASE` → `$WEB_PARENT` (the repo default branch — this inverts the ROOT PR TARGET rule below), created **after the first real commit exists** (no empty-diff PR). Push only `$WEB_BASE` while checked out on it — drop the per-topic push loop and the per-topic documentation PRs (topics are merged locally and never pushed). `-m` merges `$WEB_BASE` → `$WEB_PARENT` via MCP **without deleting the session branch** (web owns it); after merge `git checkout "$WEB_BASE"`, not the default. **Super-epic mode is unsupported on web** — refuse early (see Step 1a). When pushing before a PR, push **only the branch you are checked out on**. **Concurrency — see web-mode.md §6:** the local 6-concurrent-child cap is Mac-freeze protection and does NOT apply on web — fan out all topics in one parallel batch (the browser one-at-a-time rule and the port `flock` rule still hold).
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co`. No Dropbox. **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — do NOT create `base/<project-name>` and do NOT push an empty start commit (web = the adopt-current-branch case). Topics fork from `$WEB_BASE` and merge back into it **locally**; the root PR is `$WEB_BASE` → `$WEB_PARENT` (the repo default branch — this inverts the ROOT PR TARGET rule below), created **after the first real commit exists** (no empty-diff PR). Push only `$WEB_BASE` while checked out on it — drop the per-topic push loop and the per-topic documentation PRs (topics are merged locally and never pushed). `-m` merges `$WEB_BASE` → `$WEB_PARENT` via MCP **without deleting the session branch** (web owns it); after merge `git checkout "$WEB_BASE"`, not the default. **Super-epic mode is unsupported on web** — refuse early (see Step 1a). When pushing before a PR, push **only the branch you are checked out on**. **Concurrency — see web-mode.md §6:** the local 6-concurrent-child cap is Mac-freeze protection and does NOT apply on web — fan out all topics in one parallel batch (the browser one-at-a-time rule and the port `flock` rule still hold).
 
 > **In a limited verification env (Claude Code web)** the final visual / browser / Mac-only check can't run, so follow [`web/mac-handoff.md`](../../web/mac-handoff.md) — the **`mac`-label handoff**. When `DEFER_MAC` is set (limited env AND (`-v` passed OR the diff touched UI files), per mac-handoff.md §1–§2): Step 10 (Verify UI) is skipped; with `-m`, Merge Mode merges anyway (CI still gates it) and raises a `mac` issue afterward; without `-m`, the `mac` signal + a "verify on Mac" comment go on the tracking issue **and** the root PR. Off web (Mac / WSL / local) this is always inert.
 
@@ -18,7 +18,7 @@ Detail lives in `references/` so this file stays a workflow spine. Open the rele
 
 - **`references/arguments.md`** — every flag (model, backend, `-s` / `-a` / `-m` / `--no-review`, etc.), how they combine, manager-invariant rule.
 - **`references/super-epic-mode.md`** — Super-Epic child mode lifecycle: detection markers, Step 1a / Step 2 overrides, mandatory epic-PR merge, Auto-Suggest variant, why `-m` is ignored.
-- **`references/reviewer-modes.md`** — `-co` / `-gco` substitution tables and Combined Reviewer Mode (run all selected backends).
+- **`references/reviewer-modes.md`** — `-co` substitution tables and Combined Reviewer Mode (run all selected backends).
 - **`references/execution-modes.md`** — subagents vs teams routing: how `/big-plan`'s `Execution mode:` markers are read, default-to-teams fallback, mixed-mode degradation, Step 5 / Step 7 path differences, drift sanity check.
 - **`references/teams-path.md`** — the on-demand teams-path body (read ONLY when a topic is marked `teams` or a marker is missing): TeamCreate + named teammates, idle/wake, the shutdown_request teardown, TeamDelete. The common subagents default is inline in Step 5 / Step 7.
 - **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, manual `-t-op` / `-t-so` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
@@ -230,7 +230,7 @@ This is advisory. If codex is unresponsive, proceed with the original plan.
 
 Two orthogonal flag families:
 
-- **Reviewer flags** — `-op` / `-so` / `-haiku` choose the Claude reviewer model; `-co` / `-gco` add codex / Copilot reviewer backends. All combine — multiple flags means run every selected reviewer. See `references/reviewer-modes.md` for substitution tables and Combined Reviewer Mode rules.
+- **Reviewer flags** — `-op` / `-so` / `-haiku` choose the Claude reviewer model; `-co` adds the codex reviewer backend. All combine — multiple flags means run every selected reviewer. See `references/reviewer-modes.md` for substitution tables and Combined Reviewer Mode rules.
 - **Team-member flags** — `-t-op` / `-t-so` override the model for child worktree agents and fix-delegation agents session-wide, replacing any per-topic `Model:` annotations from `/big-plan`. Without a flag, each child's model resolves per-topic from the annotation (default `opus`). See `references/per-topic-models.md` for resolution order and `references/arguments.md` for the canonical flag table.
 
 ### Step 2: Create Base Branch and Root PR
@@ -439,7 +439,7 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
-4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co` / `-gco`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`).
+4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
 7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. (Subagents path: return a plain-text summary. Teams path: report via SendMessage — see `references/teams-path.md`.)
@@ -560,7 +560,7 @@ For the legacy inline-fix flow (manager applies fixes in own context, no nested 
 
 #### Reviewer-mode substitution
 
-If `-co` / `-gco` is active, substitute the reviewer skill: `/codex-review` / `/gco-review`. With multiple flags, run all selected backends sequentially and merge findings. Full rules: `references/reviewer-modes.md`.
+If `-co` is active, substitute the reviewer skill: `/codex-review`. With multiple flags, run all selected reviewers sequentially and merge findings. Full rules: `references/reviewer-modes.md`.
 
 #### Common steps
 
@@ -818,7 +818,7 @@ gh label create "needs-decision" \
 For each fix branch (the tiny bundle, or one per non-trivial issue):
 
 1. `git checkout -b agent-fix/<slug> <PARENT_BRANCH>`, implement the fix(es), commit locally.
-2. **Run `/light-review`** before merge — forward active reviewer flags (`-op` / `-so` / `-haiku` / `-co` / `-gco`) so `-op` → opus-backed review. Tiny bundle reviewed as a unit; per-issue fixes individually. Address high-priority findings and commit.
+2. **Run `/light-review`** before merge — forward active reviewer flags (`-op` / `-so` / `-haiku` / `-co`) so `-op` → opus-backed review. Tiny bundle reviewed as a unit; per-issue fixes individually. Address high-priority findings and commit.
 3. Push and open the fix PR (`gh pr create --base <PARENT_BRANCH> ...`), body linking the `agent-found` issue(s) it closes.
 4. **Verify the fix** (build / tests / the issue's described check). Heavy / port-based verification goes through the manager on the merged branch, never a child — same rule as the rest of the workflow; browser checks go through the isolated Opus subagent (`references/resource-coordination.md`).
 5. **On success: CLOSE the corresponding `agent-found` issue and link the fix PR** (overrides cleanup's "always keep" for FIXED issues only; left-open / unfixed ones stay open and kept):

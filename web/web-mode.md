@@ -15,13 +15,12 @@ MCP (`mcp__github__*`). Translate every `gh` command to its MCP equivalent per
 - **Pre-create labels** (e.g. `epic`, `sub`, `agent-found`) — there is no
   create-label MCP tool.
 
-## 2. Claude-only — no Codex, no Copilot
+## 2. Claude-only — no Codex
 
-Codex (`-co` / `/codex-review`) and GitHub Copilot (`-gco` / `/gco-review`) CLIs
-are not available in the container. The `codex-review` and `gco-review` skills
-are disabled in `settings.web.json`.
+The Codex CLI (`-co` / `/codex-review`) is not available in the container. The
+`codex-review` skill is disabled in `settings.web.json`.
 
-- **Ignore `-co` and `-gco` flags.**
+- **Ignore the `-co` flag.**
 - Any step whose default backend is Codex (e.g. `/light-review` and
   `/deep-review` default to `/codex-review`) **defaults to a Claude reviewer
   instead** (Sonnet, or the model set by a `-op`/`-so`/`-haiku` flag).

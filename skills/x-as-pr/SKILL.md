@@ -1,14 +1,14 @@
 ---
 name: x-as-pr
 description: "Start a development workflow as a draft PR. Creates a NEW branch from the current branch, empty start commit, draft PR targeting the current branch, then implements. ALWAYS creates a new branch by default — produces a nested PR-on-PR when the current branch already has one. Use when: (1) User says 'dev as pr', (2) User wants a PR-first workflow before coding, (3) User passes -s/--stay to reuse the current branch instead of nesting, (4) User passes a GitHub issue URL to implement, (5) User passes --make-issue/--issue to create an issue first. Logs progress via issue comments when an issue is linked."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
 
 Start a development workflow by creating a branch and draft PR before implementation — or create a PR from existing work on the current branch.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co` / Copilot `-gco`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR). **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — commit directly on it (the adopt-current-branch model) and target `$WEB_PARENT` (the fork-from / default branch). Do NOT create `topic/<slug>` and do NOT push an empty start commit; create the draft PR via MCP **after the first real commit** (head=`$WEB_BASE`, base=`$WEB_PARENT`) — no empty-diff PR. Push only the branch you are on. `-m` merges into `$WEB_PARENT` and does **not** delete the session branch (web owns it; `/pr-complete` and `/cleanup-resources` are web-aware). Fix branches are `claude/agent-fix-<slug>`. Do NOT run the terminal `gh pr view --json baseRefName` preference step — parent is `$WEB_PARENT` unconditionally.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR). **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — commit directly on it (the adopt-current-branch model) and target `$WEB_PARENT` (the fork-from / default branch). Do NOT create `topic/<slug>` and do NOT push an empty start commit; create the draft PR via MCP **after the first real commit** (head=`$WEB_BASE`, base=`$WEB_PARENT`) — no empty-diff PR. Push only the branch you are on. `-m` merges into `$WEB_PARENT` and does **not** delete the session branch (web owns it; `/pr-complete` and `/cleanup-resources` are web-aware). Fix branches are `claude/agent-fix-<slug>`. Do NOT run the terminal `gh pr view --json baseRefName` preference step — parent is `$WEB_PARENT` unconditionally.
 
 > **In a limited verification env (Claude Code web)** the final visual / browser / Mac-only check can't run, so follow [`web/mac-handoff.md`](../../web/mac-handoff.md) — the **`mac`-label handoff**. When `DEFER_MAC` is set (limited env AND (`-v` passed OR the diff touched UI files), per mac-handoff.md §1–§2): with `-m`, merge anyway (CI still gates it) and raise a `mac` issue afterward; without `-m`, put the `mac` signal + a "verify on Mac" comment on the original issue **and** the root PR. Off web (Mac / WSL / local) this is always inert.
 
@@ -70,7 +70,6 @@ Parse `$ARGUMENTS` to extract:
 - **`-nori` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. With `-l`, also forwarded to the inner `/review-loop` so its deferred needs-consideration findings stay terminal-only. Replaces the older `--noi` / `--noissue` spellings. See "Raising Issues for Unrelated Findings" below
 - **Reviewer model flags** (`-op` / `--opus`, `-so` / `--sonnet`, `-haiku` / `--haiku`): Claude model used by the Step "Automatic Deep Review" reviewer (`/deep-review` or `/review-loop`). Pick at most one. **Default when no reviewer flag is passed at all: `-co` — `/codex-review` (codex is the house default reviewer; `/deep-review` with no flags delegates to it).** See "Reviewer Mode (Claude model)" below.
 - **`-co` or `--codex` flag**: Add codex-based reviewer / writer / research. See "Codex Mode" below. Combines with every other reviewer flag — multiple flags means run all selected reviewers. **Silent Opus fallback** — every codex-backed step (`/codex-review`, `/codex-2nd`, `/codex-research`, `/codex-writer`) silently falls back to a subagent at `model: opus` if codex is rate-limited or unavailable. The `-co` flag means "the better reviewer/tool"; Opus is the Claude-side stand-in when codex is down.
-- **`-gco` or `--github-copilot` flag**: Add GitHub Copilot CLI (GPT-5.4) reviewer / 2nd opinion / research. See "GitHub Copilot Mode" below. Combines with every other reviewer flag.
 - **Team-member model flags** (`-t-op` / `--team-opus`, `-t-so` / `--team-sonnet`): Override the model used by the fix-delegation Agent spawned after review (and any other subagents spawned during implementation). Pick at most one. **Default: `opus`.** No `-t-haiku` — haiku is too small for fix-delegation work and not offered as a session-wide override. See "Team Member Model Override" below.
 - **`-a` or `--auto` flag**: Autonomy/chain flag, usually arriving forwarded from `/x` or `/big-plan -a`. `/x-as-pr` is already fully autonomous (Auto-Pilot is always on) and single-topic (no waves to chain), so `-a` adds no extra behavior here — accept it for chain-compatibility. It does **NOT** merge the PR; merging is `-m`'s job
 - **`-m` or `--merge` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes — merge the PR into its base branch, close the linked issue, and watch post-merge CI on the base branch (fixing it if red). See "Merge Mode" below
@@ -294,7 +293,7 @@ This step is advisory. If codex is unresponsive or provides no useful feedback, 
 
 Reviewer flags and team-member flags are orthogonal.
 
-- **Reviewer flags** (`-op` / `-so` / `-haiku` / `-co` / `-gco`) — choose which reviewer(s) run at the post-implementation review step and for any `/light-review` self-check. Multiple flags combine.
+- **Reviewer flags** (`-op` / `-so` / `-haiku` / `-co`) — choose which reviewer(s) run at the post-implementation review step and for any `/light-review` self-check. Multiple flags combine.
 - **Team-member flags** (`-t-op` / `-t-so`) — override the model for the fix-delegation Agent (and any other subagents spawned during implementation). Session-wide.
 
 ## Reviewer Mode (Claude model: `-op` / `-so` / `-haiku`)
@@ -308,7 +307,7 @@ Multiple Claude model flags → last one wins (documented, not an error).
 
 **Default when NO reviewer flag is passed at all**: `-co` — `/codex-review` (codex is the house default reviewer; `/deep-review` invoked with no flags delegates to it). Claude model flags opt IN to the Claude reviewer workflow.
 
-Claude model flags **combine** with `-co` / `-gco` — passing `-op -gco` means run `/deep-review` at Opus AND `/gco-review`. See "Combined Reviewer Mode" in the backend mode sections below.
+Claude model flags **combine** with `-co` — passing `-op -co` means run `/deep-review` at Opus AND `/codex-review`. See "Combined Reviewer Mode" in the backend mode sections below.
 
 ## Team Member Model Override (`-t-op` / `-t-so`)
 
@@ -348,30 +347,9 @@ All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
 ---
 
-## GitHub Copilot Mode (`-gco` / `--github-copilot`)
-
-When `-gco` or `--github-copilot` is passed, the following substitutions apply throughout the entire workflow:
-
-| Default tool | GCO replacement | Used for |
-|---|---|---|
-| `/deep-review` | `/gco-review` | Post-implementation code review |
-| `/review-loop N` | `/gco-review` (run once) | Review loop mode review step |
-| `/codex-2nd` (planning phase) | `/gco-2nd` | Second opinion on plans |
-| Agent tool (web search, research) | `/gco-research` | Any web search or codebase research during planning/implementation |
-
-**How it affects the workflow:**
-
-- **Post-Implementation Review**: Instead of `/deep-review` or `/review-loop`, invoke `/gco-review`. If `-l`/`--review-loop` is also passed, still invoke `/gco-review` once (not multiple rounds). `/gco-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed here.
-- **Second Opinion (planning phase)**: Instead of `/codex-2nd`, invoke `/gco-2nd`. If Copilot is rate-limited, `/gco-2nd` silently skips.
-- **Research during planning/implementation**: When you need to research libraries, APIs, or best practices (web search or codebase exploration), prefer `/gco-research` over the Agent tool or WebSearch.
-
-All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
-
----
-
 ## Combined Reviewer Mode (multiple reviewer flags)
 
-All reviewer flags — Claude model (`-op` / `-so` / `-haiku`) and non-Claude backend (`-co` / `-gco`) — combine freely. When the user passes more than one (e.g. `-op -gco`, `-co -gco`, `-so -co -gco`), run **all** selected reviewers.
+All reviewer flags — Claude model (`-op` / `-so` / `-haiku`) and the codex backend (`-co`) — combine freely. When the user passes more than one (e.g. `-op -co`, `-so -co`), run **all** selected reviewers.
 
 **Rules:**
 
@@ -746,7 +724,7 @@ After the review produces findings that require code changes, **delegate the fix
    ```
 
 - **Model**: set `model:` from the resolved team-member flag — `-t-op` → `"opus"`, `-t-so` → `"sonnet"`, default `"opus"`. This is the fix-delegation agent, not a reviewer — reviewer flags do NOT apply here.
-- **Reviewer flags forwarded to `/light-review`**: pass whichever of `-op` / `-so` / `-haiku` / `-co` / `-gco` were on the original invocation. If none were passed, omit them — `/light-review` falls to its own default (`-co`).
+- **Reviewer flags forwarded to `/light-review`**: pass whichever of `-op` / `-so` / `-haiku` / `-co` were on the original invocation. If none were passed, omit them — `/light-review` falls to its own default (`-co`).
 
 3. **Verify** — after the agent returns, confirm fixes were committed (`git log --oneline -5`)
 4. **Close the fix issue** if the agent didn't already
@@ -984,7 +962,7 @@ gh label create "needs-decision" \
 For each fix branch (the tiny bundle, or one per non-trivial issue):
 
 1. `git checkout -b agent-fix/<slug> <TARGET_BRANCH>` and implement the fix(es). Commit locally.
-2. **Run `/light-review`** before merge — forward the active reviewer flags (`-op` / `-so` / `-haiku` / `-co` / `-gco`) so `-op` → opus-backed review. The tiny bundle is reviewed as a unit; per-issue fixes are reviewed individually. Address high-priority findings and commit.
+2. **Run `/light-review`** before merge — forward the active reviewer flags (`-op` / `-so` / `-haiku` / `-co`) so `-op` → opus-backed review. The tiny bundle is reviewed as a unit; per-issue fixes are reviewed individually. Address high-priority findings and commit.
 3. Push and open the fix PR (`gh pr create --base <TARGET_BRANCH> ...`), body linking the `agent-found` issue(s) it closes (e.g. `Closes #<n>`).
 4. **Verify the fix** (build / tests / the issue's described check, as appropriate).
 5. **On success: CLOSE the corresponding `agent-found` issue and link the fix PR:**

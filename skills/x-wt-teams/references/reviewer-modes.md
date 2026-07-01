@@ -1,8 +1,8 @@
 # Reviewer Backend Modes
 
-Full substitution rules for `-co` / `-gco`, plus the combined-mode behavior with Claude reviewer model flags (`-op` / `-so` / `-haiku`). The skill body links here from Step 1 (planning), Step 5 (child self-review), and Step 9 (final quality assurance).
+Full substitution rules for `-co`, plus the combined-mode behavior with Claude reviewer model flags (`-op` / `-so` / `-haiku`). The skill body links here from Step 1 (planning), Step 5 (child self-review), and Step 9 (final quality assurance).
 
-All reviewer flags — both Claude model (`-op` / `-so` / `-haiku`) and non-Claude backend (`-co` / `-gco`) — are reviewer-changers. They are **NOT mutually exclusive** with each other; passing multiple means run them all.
+All reviewer flags — both Claude model (`-op` / `-so` / `-haiku`) and the non-Claude backend (`-co`) — are reviewer-changers. They are **NOT mutually exclusive** with each other; passing multiple means run them all.
 
 These flags are orthogonal to team-member flags (`-t-op` / `-t-so`), which govern child agents and fix-delegation agents — not reviewers. See `references/arguments.md` for the two-family distinction.
 
@@ -27,26 +27,9 @@ These flags are orthogonal to team-member flags (`-t-op` / `-t-so`), which gover
 
 All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
-## GitHub Copilot Mode (`-gco` / `--github-copilot`)
-
-| Default tool | GCO replacement | Used for |
-|---|---|---|
-| `/deep-review` | `/gco-review` | Step 9 quality assurance |
-| `/review-loop N` | `/gco-review` (run once) | Review-loop mode |
-| `/light-review` in child agents | `/light-review -gco` | Child self-review (routes to `/gco-review`) |
-| `/codex-2nd` (planning phase) | `/gco-2nd` | Second opinion |
-| Agent tool (web search, research) | `/gco-research` | Web/codebase research |
-
-**Effect on workflow:**
-
-- **Step 5**: Children use `/gco-review` for self-review. `/gco-review` silently falls back to Claude Code reviewers if Copilot is rate-limited — no special handling needed.
-- **Step 9**: Invoke `/gco-review`. If `-l` is also passed, still run once.
-- **Planning 2nd opinion**: Use `/gco-2nd` instead of `/codex-2nd`. Silent skip on rate limits is fine.
-- **Research**: Prefer `/gco-research` over Agent tool / WebSearch.
-
 ## Combined Reviewer Mode (multiple reviewer flags)
 
-All reviewer flags — Claude model (`-op` / `-so` / `-haiku`) and non-Claude backend (`-co` / `-gco`) — combine freely. When the user passes more than one, run **all** selected reviewers. Multiple independent reviewers catch different classes of issues; combining them is an explicit quality-coverage choice.
+All reviewer flags — Claude model (`-op` / `-so` / `-haiku`) and the non-Claude backend (`-co`) — combine freely. When the user passes more than one, run **all** selected reviewers. Multiple independent reviewers catch different classes of issues; combining them is an explicit quality-coverage choice.
 
 **Rule: if multiple reviewer flags are passed, run them all — never pick one and drop the others.** Do not treat as redundant or "pick the best." The user is paying (in time, in quota) for multi-angle review on purpose.
 
@@ -56,22 +39,21 @@ All reviewer flags — Claude model (`-op` / `-so` / `-haiku`) and non-Claude ba
 |---|---|---|---|
 | `-op` / `-so` / `-haiku` | `/deep-review` (or `/review-loop`) at the chosen Claude model | `/codex-2nd` (default planning 2nd opinion still uses codex unless a backend flag overrides) | none — `/light-review` falls back to its own default |
 | `-co` | `/codex-review` | `/codex-2nd` | `-co` |
-| `-gco` | `/gco-review` | `/gco-2nd` | `-gco` |
 
 When **no reviewer flag** is passed at all, the default reviewer is `/codex-review` (`-co` is the house default — `/deep-review` invoked with no flags delegates to it). Single backend flag without any Claude model flag replaces the default — does NOT also run Claude reviewers.
 
-To explicitly run BOTH Claude reviewer AND a backend reviewer, pass at least one Claude model flag together with the backend flag (e.g., `-op -gco`).
+To explicitly run BOTH Claude reviewer AND a backend reviewer, pass at least one Claude model flag together with the backend flag (e.g., `-op -co`).
 
 ### How combinations apply per affected step
 
-- **Step 5 (child self-review)**: Forward every active backend flag to `/light-review`. Example: `/light-review -co -gco`. `/light-review` dispatches to each backend's reviewer in turn (or falls back silently for unavailable backends). If the child only supports one flag at a time, fire `/light-review` once per backend sequentially.
+- **Step 5 (child self-review)**: Forward the active backend flag to `/light-review`. Example: `/light-review -co`. `/light-review` dispatches to the backend's reviewer (or falls back silently if it is unavailable).
 - **Step 9 (quality assurance)**: Invoke each selected reviewer **sequentially** on the same `base/<project-name>` branch. Collect findings from every run into a single combined fix issue before delegating fixes. Do not stop after the first reviewer — even if it reports "no issues," still run the others. If `-l` / `--review-loop` is also passed, each backend still runs once (no multi-round per backend).
 - **Planning 2nd opinion**: When multiple backend flags are active, invoke every matching `*-2nd` command in sequence and read all of their feedback before finalizing the plan. Silent fallbacks (rate limits, unavailable CLIs) are fine — do not block on them.
-- **Research and doc writing (`-co` interactions)**: When `-co` is combined with `-gco`, codex still owns `/codex-research` and `/codex-writer` for research and docs. For research specifically, you MAY additionally invoke `/gco-research` in parallel when the topic benefits from cross-source coverage — optional. Only `/codex-review` and `/gco-review` are **required** to both run.
+- **Research and doc writing (`-co`)**: When `-co` is active, codex owns `/codex-research` and `/codex-writer` for research and docs.
 
 ### Single-flag fallback
 
-If only one backend flag is passed, behave exactly as the single-mode sections above (Codex Mode / GCO Mode). Combined Reviewer Mode activates only when ≥2 backend flags are present on the invocation.
+If only `-co` is passed (no Claude model flag), behave exactly as the Codex Mode section above. Combined Reviewer Mode activates when a Claude model flag (`-op` / `-so` / `-haiku`) is passed together with `-co` — then both the Claude reviewer and codex run.
 
 ## Review Findings to Fix — combined-mode template
 
@@ -81,9 +63,6 @@ When creating the fix issue in Step 9, label findings by their source backend so
 ## Review Findings to Fix
 
 ### From /codex-review
-- ...
-
-### From /gco-review
 - ...
 ```
 

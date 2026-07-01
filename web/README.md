@@ -37,7 +37,7 @@ reference. Four rules:
 
 1. **GitHub via MCP**, not `gh` — see [`github-ops.md`](./github-ops.md) for the
    command mapping.
-2. **Claude-only** — Codex (`-co`) and Copilot (`-gco`) are disabled; default to
+2. **Claude-only** — Codex (`-co`) is disabled; default to
    Claude reviewers.
 3. **Subagents-only** — no agent teams; fan out one-shot subagents.
 4. **No Dropbox** — persist to the repo or the GitHub issue/PR (`/tmp` is
@@ -52,7 +52,7 @@ These skills carry a web-mode banner pointing at the contract — the full core
 workflow chain:
 `/big-plan`, `/x`, `/x-as-pr`, `/x-wt-teams`, `/light-review`, `/deep-review`,
 `/review-loop`, `/pr-complete`, `/watch-ci`, `/cleanup-resources`.
-`settings.web.json` also disables the `codex-review` and `gco-review` backends
+`settings.web.json` also disables the `codex-review` backend
 and omits the agent-teams env flag.
 
 ## Wisdom skills

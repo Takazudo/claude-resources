@@ -1,14 +1,14 @@
 ---
 name: x
 description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). Review-loop (-l) is opt-in — without -l the downstream skill runs a single /deep-review pass. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-gco|--github-copilot] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
 
 Route development requests to the right workflow skill: `/x-as-pr` (single-topic) or `/x-wt-teams` (multi-topic parallel).
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — GitHub via the GitHub MCP (not `gh`), Claude-only (ignore Codex `-co` / Copilot `-gco`), subagents-only (no agent teams; route multi-topic work to subagent fan-out, not the teams path), no Dropbox.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — GitHub via the GitHub MCP (not `gh`), Claude-only (ignore Codex `-co`), subagents-only (no agent teams; route multi-topic work to subagent fan-out, not the teams path), no Dropbox.
 
 ## !! CRITICAL — PR TARGET BRANCH RULE !!
 
@@ -52,7 +52,7 @@ These rules apply to the facade itself and propagate to the chosen downstream sk
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-gco`, `--github-copilot`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, etc.)
+- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, etc.)
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
@@ -68,11 +68,10 @@ If any flags ARE passed explicitly, use those as-is — do NOT add the `-v` defa
 
 ### Reviewer flags
 
-`-op` / `-so` / `-haiku` and `-co` / `-gco` are **reviewer flags** — they change which reviewer(s) run, not subagents or team members. Forward them all to the chosen skill.
+`-op` / `-so` / `-haiku` and `-co` are **reviewer flags** — they change which reviewer(s) run, not subagents or team members. Forward them all to the chosen skill.
 
 - `-op` / `-so` / `-haiku` — Claude reviewer model for `/deep-review` / `/review-loop`; `-op` / `--opus` = Opus 4.8 (Anthropic's top model; runs with a 1M-token context window). Pick at most one.
 - `-co` / `--codex` — add codex reviewer (`/codex-review`) plus codex writer / research.
-- `-gco` / `--github-copilot` — add GitHub Copilot CLI reviewer (`/gco-review`, GPT-5.4) plus copilot 2nd opinion / research.
 
 All reviewer flags **combine** — passing multiple means run every selected reviewer. **Default when no reviewer flag is passed at all**: `-co` — codex review (`/codex-review`); codex is the house default 2nd agent. See the target skill for substitution tables.
 
@@ -132,7 +131,7 @@ Escalate to planning when the request is research/decomposition-heavy or its sco
 - `/x "big thing"` → `/big-plan -a` (plan + auto-implement; PR left ready-but-unmerged; auto-fix and issue-raising run by default downstream).
 - `/x -a -m "big thing"` → `/big-plan -a -m` (plan + auto-implement + auto-merge + cleanup — full hands-off).
 - `/x -nf "big thing"` → `/big-plan -a -nf` (the no-fix opt-out rides through `/big-plan`'s hand-off into the implementation skill, exactly like `-m`; `-nori` rides the same way).
-- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` ride along. Reviewer flags (`-op` / `-co` / `-gco`) pass through to `/big-plan` and shape its Step 5 plan review. Note that on the escalation path, implementation-only flags (`-v`, `-l`, `-t-op` / `-t-so`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, and `-nori` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
+- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` ride along. Reviewer flags (`-op` / `-co`) pass through to `/big-plan` and shape its Step 5 plan review. Note that on the escalation path, implementation-only flags (`-v`, `-l`, `-t-op` / `-t-so`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, and `-nori` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
 
 **Guardrail (asymmetric cost — escalation is more expensive than a fast path):**
 

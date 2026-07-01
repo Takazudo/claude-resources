@@ -2,14 +2,14 @@
 name: review-loop
 description: "Iterative code review loop running /deep-review multiple times, fixing issues each round. Each round: review (safe fixes applied inline by the reviewer) → big-but-decidable findings are fix-planned, implemented, and merged back via an in-session /big-plan -m -a chain → next round reviews the improved code. Only findings needing a genuine human decision are deferred into GitHub issues (-nori to suppress). Use when: (1) User says 'review-loop', 'review loop', or 'review repeat', (2) User wants continuous review+fix cycles, (3) User wants autonomous review → fix → improve passes before finalizing code, (4) User says 'review 5 rounds' or similar."
 user-invocable: true
-argument-hint: "[count] [--stay|--as-pr] [-ri|--raise-issues] [-nori|--no-raise-issues] [-haiku|-so|-op] [-co|--codex] [-gco|--github-copilot]"
+argument-hint: "[count] [--stay|--as-pr] [-ri|--raise-issues] [-nori|--no-raise-issues] [-haiku|-so|-op] [-co|--codex]"
 ---
 
 # Review Loop
 
 Run a reviewer skill repeatedly, fixing issues each round. Progressively kills bugs, improves code quality, and **implements** improvement opportunities instead of just filing them.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Claude-only — ignore Codex `-co` / Copilot `-gco` and use a Claude reviewer. The inner `/big-plan -m -a` fix chain runs **subagents-only** (no agent teams), with GitHub work via the MCP, not `gh`. Deferred findings become `agent-found` issues via the GitHub MCP.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Claude-only — ignore Codex `-co` and use a Claude reviewer. The inner `/big-plan -m -a` fix chain runs **subagents-only** (no agent teams), with GitHub work via the MCP, not `gh`. Deferred findings become `agent-found` issues via the GitHub MCP.
 
 **review-loop is a thin orchestrator: it does NOT apply fixes itself.** Each round has two fix vehicles, and review-loop only routes between them:
 
@@ -38,15 +38,14 @@ Parse arguments to extract:
 - **-nori** / **--no-raise-issues**: Don't create GitHub issues for deferred findings — list them in the final report only. Also forwarded to each round's `/big-plan` chain so the whole loop stays terminal-only.
 - **Model flags** (`-haiku` / `--haiku`, `-so` / `--sonnet`, `-op` / `--opus`): Set the Claude model used when Claude reviewers run — `-op` runs them on Opus 4.8 (Anthropic's top model; it runs with a 1M-token context window). Pick at most one. When reviewers run at a model, the default is `-op` (matches `/deep-review`). With no flags at all the round uses `/codex-review`; Review-PR mode forces `-op` if none is given (full-project scan needs it).
 - **-co** or **--codex**: Add the OpenAI Codex reviewer. Codex review uses OpenAI Codex CLI for higher-quality reviews. If codex is rate-limited or unavailable, it silently falls back to **Opus** — so `-co` always means "the better reviewer."
-- **-gco** or **--github-copilot**: Add the GitHub Copilot CLI reviewer (GPT-5.4).
 
 **Backend routing — combine vs. replace (this is why `-op -co` means "opus AND codex").** A backend flag's behavior depends on whether a model flag is also present, mirroring `/deep-review`'s own augment semantics:
 
 - **Model flag + backend flag(s)** (e.g. `-op -co`): forward everything to `/deep-review -nt`, which runs the Claude reviewers at that model **alongside** the requested backend(s) in parallel and fixes inline. This is the path that gives "opus + codex."
-- **Backend flag alone, no model flag** (e.g. just `-co`): run that backend **instead of** Claude reviewers — invoke the standalone `/codex-review` / `/gco-review` (codex-only, Opus as rate-limit fallback). This is the "just give me codex" shortcut.
+- **Backend flag alone, no model flag** (e.g. just `-co`): run that backend **instead of** Claude reviewers — invoke the standalone `/codex-review` (codex-only, Opus as rate-limit fallback). This is the "just give me codex" shortcut.
 - **No flags at all**: `/codex-review` directly — the same reviewer `/deep-review` defaults to.
 
-`/deep-review -nt` accepts multiple backend flags at once, so `-op -co -gco` runs Opus reviewers + codex + Copilot in parallel. The standalone-skill path (backend flag alone) takes a single backend.
+`/deep-review -nt` accepts multiple backend flags at once, so `-op -co` runs Opus reviewers + codex in parallel. The standalone-skill path (backend flag alone) takes a single backend.
 
 These flags shape the **review rounds only** — the per-round `/big-plan` chain (Step 2c) always runs `-m -a -pc` (plus `-nori` when passed) with its own default plan reviewer.
 
@@ -127,16 +126,16 @@ review-loop applies no fixes of its own — it invokes one reviewer skill that r
 
 **Branch on the Step 1 mode first** (this ordering matters — the no-flag path below would review an empty diff in Review-PR mode):
 
-**Review-PR mode** — the review branch's diff is empty, so the diff-only reviewers (`/codex-review` / `/gco-review`) would find **nothing**; only `/deep-review`'s full-project mode (Mode B) does. So always invoke `/deep-review -nt -nori` **with a model flag** (the user's `-haiku`/`-so`/`-op` if given), defaulting to `-op` when the user passed none, and forward any backend flags (`-nori` because review-loop owns the issue-raising — Step 3 raises the deduped deferred list once, instead of each round's `/deep-review` raising its own):
+**Review-PR mode** — the review branch's diff is empty, so the diff-only reviewer (`/codex-review`) would find **nothing**; only `/deep-review`'s full-project mode (Mode B) does. So always invoke `/deep-review -nt -nori` **with a model flag** (the user's `-haiku`/`-so`/`-op` if given), defaulting to `-op` when the user passed none, and forward any backend flags (`-nori` because review-loop owns the issue-raising — Step 3 raises the deduped deferred list once, instead of each round's `/deep-review` raising its own):
 
 ```
-Skill(skill="deep-review", args="-nt -nori -op [-co|-gco if passed]")
+Skill(skill="deep-review", args="-nt -nori -op [-co if passed]")
 ```
 
 **In-place mode** — route by flags:
 
 - **Model flag present** (with or without backend flags): `Skill(skill="deep-review", args="-nt -nori -op -co")` (forward the model flag + every backend flag, plus `-nt -nori` — review-loop raises the deduped deferred findings itself at Step 3, so the inner `/deep-review` must not raise per-round). Claude reviewers run alongside any backends in parallel, fix and commit inline, scoped to the branch diff (`$BASE...HEAD`).
-- **Backend flag alone** (no model flag): invoke the standalone backend — `/codex-review` (`-co`), `/gco-review` (`-gco`). Each reviews, fixes, and commits on its own (verified: both have Apply-Fixes + Commit steps), falling back to Claude reviewers if its backend is rate-limited.
+- **Backend flag alone** (no model flag): invoke the standalone backend — `/codex-review` (`-co`). It reviews, fixes, and commits on its own (verified: it has Apply-Fixes + Commit steps), falling back to Claude reviewers if codex is rate-limited.
 - **No flags**: invoke `/codex-review` — the same reviewer `/deep-review` defaults to, called directly so it reviews + fixes + commits in one clean pass.
 
 Wait for the reviewer to complete (it has already committed this round's safe fixes). Then push, so the remote is current before the Step 2c chain runs:
@@ -251,14 +250,6 @@ Backend flag alone — runs `/codex-review` (OpenAI Codex CLI) for each round, c
 
 Model flag **plus** backend flag — forwards to `/deep-review -nt -op -co`, running Opus reviewers **alongside** codex each round and fixing inline. Use this combo when you want both perspectives, not codex instead of Opus.
 
-### GitHub Copilot-powered review
-
-```
-/review-loop 3 --github-copilot
-```
-
-Uses `/gco-review` (GitHub Copilot CLI, GPT-5.4) instead of `/deep-review` for each round.
-
 ### Quick single round
 
 ```
@@ -272,8 +263,8 @@ Uses `/gco-review` (GitHub Copilot CLI, GPT-5.4) instead of `/deep-review` for e
 - **Always pass `-nt -nori` to `/deep-review`** — `-nt` so the reviewer fixes inline rather than spawning its own fix team (when `/x-wt-teams` runs in this loop it runs inside the Step 2c `/big-plan` chain — planned, issue-backed, merged back — never as a raw review-fix spawn), `-nori` so it doesn't raise issues per round (review-loop raises the deduped deferred list once at Step 3; one raise-owner per session).
 - **Default 2 rounds — N scales freely.** Two rounds already mean review → implement → re-review → implement, which catches most of what a loop can catch. The per-round `/big-plan -m -a` chains run in-session but delegate the heavy lifting to subagent teams, so the manager session stays light — pass a bigger N when you want more passes.
 - **Workspace mode (Step 1):** branch **with** a PR → review in place (diff vs PR base); branch **without** a PR → create a review branch + draft PR to the current branch and review there (full-project, since the new branch's diff is empty). `--stay` forces in-place; `--as-pr` forces the review-PR flow. `$WORK_BRANCH` (the branch the rounds run on) is also each round's `/big-plan` parent branch — the chain's `-m` merge is what lands the big fixes back on it.
-- **Reviewer routing:** model flag (`-haiku`/`-so`/`-op`, ± backend) → `/deep-review -nt` (Claude reviewers + any backends in parallel, inline fix); backend flag alone → standalone `/codex-review` / `/gco-review`; no flags → `/codex-review`. Review-PR mode forces a model flag (`-op` default) because the empty diff needs full-project mode. Review-round flags never forward to the Step 2c `/big-plan` chain (only `-nori` does).
-- With `--codex` (alone), review uses `/codex-review`. If codex is rate-limited, it silently falls back to **Opus** — `-co` means "the better reviewer." `--github-copilot` (alone) uses `/gco-review`, falling back to Claude reviewers if Copilot is rate-limited.
+- **Reviewer routing:** model flag (`-haiku`/`-so`/`-op`, ± backend) → `/deep-review -nt` (Claude reviewers + any backends in parallel, inline fix); backend flag alone → standalone `/codex-review`; no flags → `/codex-review`. Review-PR mode forces a model flag (`-op` default) because the empty diff needs full-project mode. Review-round flags never forward to the Step 2c `/big-plan` chain (only `-nori` does).
+- With `--codex` (alone), review uses `/codex-review`. If codex is rate-limited, it silently falls back to **Opus** — `-co` means "the better reviewer."
 - **A `/big-plan` pause is a feature, not a failure.** If a round's chain stops at a confirmation gate (design-decision classification, unresolved verification), that's the "really necessary decision" case — the loop waits for the user there. Keep it rare by routing only decidable findings into the chain.
 - Later rounds often find fewer issues as earlier rounds fixed the low-hanging fruit; a clean round ends the loop early.
 - **Issues are for deferred findings only.** Fixed findings never get GitHub issues — the commit is the record for inline fixes, and the merged epic (closed by its chain's cleanup) is the record for plan-and-implement fixes. Deferred (decision-needing) findings become `agent-found` issues by default so the decision they need isn't lost when the session ends; `-nori` keeps them terminal-only.

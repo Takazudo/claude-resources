@@ -1,12 +1,12 @@
 ---
 name: deep-review
-description: "Deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation when a quality check is needed, (3) Before marking a PR as ready. Default backend is /codex-review. Opt into Claude reviewers with -haiku|-so|-op (auto-detects PR vs full-project mode). Supports -co|-gco external backends. Default team-fix mode (-t) delegates fixes to /x-wt-teams --no-review --stay; pass -nt/--no-team for inline fixes. Unfixed findings become agent-found GitHub issues by default (-nori to suppress)."
-argument-hint: "[-haiku|-so|-op] [-co|-gco] [-t|-nt] [-ri|--raise-issues] [-nori|--no-raise-issues]"
+description: "Deep code quality review focused on structure, refactoring, and best practices. Use when: (1) User says 'review', 'deep review', or 'code review', (2) After implementation when a quality check is needed, (3) Before marking a PR as ready. Default backend is /codex-review. Opt into Claude reviewers with -haiku|-so|-op (auto-detects PR vs full-project mode). Supports the -co external backend. Default team-fix mode (-t) delegates fixes to /x-wt-teams --no-review --stay; pass -nt/--no-team for inline fixes. Unfixed findings become agent-found GitHub issues by default (-nori to suppress)."
+argument-hint: "[-haiku|-so|-op] [-co] [-t|-nt] [-ri|--raise-issues] [-nori|--no-raise-issues]"
 ---
 
 # Deep Review
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). This is **Claude-only** — the default `/codex-review` backend and `-gco`/`/gco-review` are unavailable, so **default to a Claude reviewer** and ignore `-co`/`-gco`. The default `-t` team-fix mode does **not** use agent teams here: fan out **subagents** for fixes instead of delegating to `/x-wt-teams`. Read the diff and raise `agent-found` issues via the GitHub MCP, not `gh`.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). This is **Claude-only** — the default `/codex-review` backend is unavailable, so **default to a Claude reviewer** and ignore `-co`. The default `-t` team-fix mode does **not** use agent teams here: fan out **subagents** for fixes instead of delegating to `/x-wt-teams`. Read the diff and raise `agent-found` issues via the GitHub MCP, not `gh`.
 
 Perform a practical code quality review with priorities:
 
@@ -40,9 +40,8 @@ If multiple model flags are passed, the last one wins.
 ### Backend flags (combinable — external reviewers run in parallel)
 
 - `-co` / `--codex` — **default strategy.** Alone (or with no flags at all), delegates to `/codex-review`. Combined with a Claude model flag, prefer the OpenAI Codex side-by-side review. If codex is rate-limited or otherwise unavailable, **silently fall back to Opus** (delegated via `/codex-review`, which spawns 2 `code-reviewer` subagents at `model: opus`). The user's choice of `-co` means "give me the better reviewer" — codex when up, Opus when not. Never surface the rate limit, never pause.
-- `-gco` / `--github-copilot` — also invoke `/gco-review` (GPT-5.4) in parallel with the Claude reviewers
 
-When a Claude model flag is passed, codex side-by-side runs opportunistically (see Steps A-2b / A-2c / B-2b / B-2c). `-co` upgrades this from "opt-in when not rate-limited" to "always run a codex-equivalent reviewer — codex when up, Opus when down". `-gco` adds an additional external reviewer alongside Claude reviewers.
+When a Claude model flag is passed, codex side-by-side runs opportunistically (see Steps A-2b / A-2c / B-2b / B-2c). `-co` upgrades this from "opt-in when not rate-limited" to "always run a codex-equivalent reviewer — codex when up, Opus when down".
 
 Multiple backend flags combine — every specified backend runs in parallel and all findings consolidate in Step 3.
 
@@ -72,13 +71,13 @@ Skill(skill="codex-review")
 
 `/codex-review` already handles PR-vs-default-branch detection internally (and silently falls back to Opus if codex is rate-limited), so the rest of this workflow can be skipped in the default case. Once it returns, jump straight to **Step 3: Synthesize Review Results** to present its findings, then proceed to Step 4 (Present Findings) and Step 5 (which branches on `-t` / `-nt`). Team-fix mode applies regardless of how the review was produced — `/codex-review` findings get the same `-t` delegation treatment as Claude-reviewer findings.
 
-**Only continue below when a Claude model flag (`-haiku` / `-so` / `-op`) or the `-gco` backend flag was passed.** Those flags opt in to the Claude reviewer workflow; `-co` can still be combined with them to guarantee the codex side-by-side reviewer in Steps A-2b / A-2c / B-2b / B-2c.
+**Only continue below when a Claude model flag (`-haiku` / `-so` / `-op`) was passed.** Those flags opt in to the Claude reviewer workflow; `-co` can still be combined with them to guarantee the codex side-by-side reviewer in Steps A-2b / A-2c / B-2b / B-2c.
 
 ### Step 2: Determine Review Mode
 
 **CRITICAL: Decide between a branch-diff review and a full-project scan by asking "does this branch have changes against a base?" — NOT "does a PR exist?".** A feature branch with commits ahead of its base but no PR yet must still be reviewed as a diff of its own changes, not as a whole-project scan. Keying off PR existence is the bug that makes `/review-loop` on a no-PR branch feel like it "reviews from main": the whole repo gets scanned instead of the branch's work.
 
-1. **Resolve the current branch and its base — same logic the external backends (`/codex-review`, `/gco-review`) use, and the same parent resolution as `/x-wt-teams --stay`:**
+1. **Resolve the current branch and its base — same logic the external backend (`/codex-review`) uses, and the same parent resolution as `/x-wt-teams --stay`:**
 
    ```bash
    BRANCH=$(git branch --show-current)
@@ -270,16 +269,6 @@ ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" advers
 - The standard review (Step A-2b) catches implementation bugs and defects
 - Together they provide comprehensive cross-model coverage
 - If codex fails or times out, proceed with other reviewers' results only
-
-### Step A-2d: Run GitHub Copilot Review in Parallel (if `-gco` passed)
-
-If `-gco` / `--github-copilot` was passed, invoke `/gco-review` in parallel with the Claude and codex reviewers:
-
-```
-Skill(skill="gco-review")
-```
-
-`/gco-review` already silently falls back to Claude-based reviewers if Copilot is rate-limited — no extra handling needed. Its findings consolidate in Step 3 along with the other reviewers.
 
 ---
 
@@ -521,14 +510,6 @@ ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" advers
 - If codex fails or times out, proceed with other reviewers' results only
 - Include findings in synthesis if available
 
-### Step B-2d: Run GitHub Copilot Review in Parallel (if `-gco` passed)
-
-Same pattern as A-2d:
-
-- `-gco` → `Skill(skill="gco-review")` in parallel with the other reviewers
-
-It silently falls back if Copilot is rate-limited. Findings consolidate in Step 3.
-
 ---
 
 ## Post-Review Steps (both modes)
@@ -579,7 +560,7 @@ When the team-fix flag is on (the default), do NOT apply fixes inline. Instead, 
    CURRENT_BRANCH=$(git branch --show-current)
    ```
 
-3. **Invoke `/x-wt-teams --no-review -nf -nori --stay <fix-instructions>`** as the next action. Forward the same reviewer flags (`-haiku|-so|-op`, `-co|-gco`) that this `/deep-review` invocation received — the inner session's `--no-review` skips its own manager-level Step 9, but the child agent's `/light-review` self-check still runs and uses those reviewer flags to stay consistent. `-nf -nori` keep the inner session from auto-fixing or raising issues on its own (see the recursion guard above).
+3. **Invoke `/x-wt-teams --no-review -nf -nori --stay <fix-instructions>`** as the next action. Forward the same reviewer flags (`-haiku|-so|-op`, `-co`) that this `/deep-review` invocation received — the inner session's `--no-review` skips its own manager-level Step 9, but the child agent's `/light-review` self-check still runs and uses those reviewer flags to stay consistent. `-nf -nori` keep the inner session from auto-fixing or raising issues on its own (see the recursion guard above).
 
    **Fix-agent model**: `/x-wt-teams`'s team-member flags are `-t-op` / `-t-so` (default `opus`). If `/deep-review` was given `-so` or `-haiku` to save tokens on reviewers and you want the fix-agent to run at the same tier, also pass `-t-so`. Without a team-member flag, the fix-agent defaults to opus.
 
@@ -653,7 +634,7 @@ Fixed findings never get issues — the commit is the record.
 - **Unfixed findings become `agent-found` issues by default (`-ri`, Step 8).** `-nori` keeps them terminal-only; orchestrators that raise issues themselves (`/review-loop`) pass `-nori` so each session has exactly one raise-owner.
 - **CRITICAL (flag-driven path):** when a Claude model flag is passed, all reviews MUST be launched in parallel in a single message using the resolved model
 - **Mode selection keys off branch changes, not PR existence:** any non-default branch with commits ahead of `$BASE` gets a diff review (Mode A) even without a PR. Full-project scan (Mode B) is reserved for the default branch or a branch with nothing to diff. This keeps `/review-loop` anchored to the current branch's work instead of scanning the whole repo.
-- **PR / branch-diff mode (Mode A):** 3 Claude reviewers analyze `git diff $BASE...HEAD`, plus any backend reviewers (`-co` / `-gco`) in parallel
+- **PR / branch-diff mode (Mode A):** 3 Claude reviewers analyze `git diff $BASE...HEAD`, plus any backend reviewers (`-co`) in parallel
 - **Full project mode (Mode B):** 6 Claude reviewers scan the entire codebase independently, plus any backend reviewers in parallel
 - **Primary focus:** Bugs, problems, and actionable improvements
 - **Secondary focus:** Security issues (point out if found, but not the main focus)
