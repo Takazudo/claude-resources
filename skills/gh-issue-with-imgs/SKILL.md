@@ -32,61 +32,24 @@ Extract from the skill arguments:
 - `--body` (optional) - issue body text
 - `--img` (one or more) - paths to image files
 
-### Step 2: Ensure Attachments Release Exists
+### Step 2: Upload Images and Get URLs
 
-Check for a non-draft release tagged `_attachments` in the repo. Create if missing.
-
-If an old **draft** `_attachments` release exists (from before this fix), delete it first — draft releases don't have tags, so assets uploaded to them return 404 for unauthenticated access.
-
-```bash
-# Check if a tagged (non-draft) release exists
-gh release view _attachments --repo <owner/repo> 2>/dev/null
-
-# If it doesn't exist, check for and clean up any old draft release named "_attachments"
-# (Draft releases have no tag, so we search by title via the API)
-OLD_DRAFT_ID=$(gh api repos/<owner/repo>/releases --jq '.[] | select(.draft == true and .name == "_attachments") | .id' 2>/dev/null)
-if [ -n "$OLD_DRAFT_ID" ]; then
-  gh api -X DELETE repos/<owner/repo>/releases/$OLD_DRAFT_ID
-fi
-
-# Create the non-draft release (NOT --draft — draft assets require auth and return 404 for anonymous access)
-gh release create _attachments --title "_attachments" --notes "Image attachments for issues. Do not delete." --repo <owner/repo>
-```
-
-### Step 3: Upload Images
-
-For each `--img` path, generate a unique filename to avoid collisions, then upload.
+Upload all `--img` paths with the helper script — it ensures the non-draft
+`_attachments` release exists (cleaning up any legacy draft release), uploads
+each file under a unique name, and prints one public download URL per input
+path, in order:
 
 ```bash
-# Generate unique name: timestamp + original filename
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-UNIQUE_NAME="${TIMESTAMP}-$(basename <path>)"
-
-# Upload
-gh release upload _attachments "<path>#${UNIQUE_NAME}" --repo <owner/repo> --clobber
+bash $HOME/.claude/skills/gh-issue-with-imgs/scripts/upload-to-release.sh <owner/repo> <path> [<path> ...]
 ```
 
-**Important**: The `#name` syntax renames the asset on upload. Use `--clobber` to overwrite if name collision occurs.
+Why a script rather than `gh release upload <file>#<name>`: the `#<name>` suffix
+only sets the asset's *display label* — the asset `name` (and download URL) stays
+the sanitized original basename, so same-named files collide. The script copies
+each file to a unique, URL-safe temp name and uploads that, yielding a predictable
+URL. Capture stdout; each line is the `browser_download_url` for the matching input.
 
-If `gh release upload` does not support the `#name` rename syntax, copy the file to a temp location with the unique name instead:
-
-```bash
-TMPFILE="/tmp/${UNIQUE_NAME}"
-cp "<path>" "$TMPFILE"
-gh release upload _attachments "$TMPFILE" --repo <owner/repo> --clobber
-rm "$TMPFILE"
-```
-
-### Step 4: Get Asset URLs
-
-Fetch the download URLs for uploaded assets.
-
-```bash
-gh api repos/<owner/repo>/releases/tags/_attachments \
-  --jq '.assets[] | select(.name == "<UNIQUE_NAME>") | .browser_download_url'
-```
-
-### Step 5: Build Issue Body
+### Step 3: Build Issue Body
 
 Append image markdown to the body:
 
@@ -98,7 +61,7 @@ Append image markdown to the body:
 
 For multiple images, add each on its own line.
 
-### Step 6: Create the Issue
+### Step 4: Create the Issue
 
 ```bash
 gh issue create \
@@ -120,3 +83,4 @@ Print the created issue URL.
 - Works for both public and private repos (private repo assets require authentication to view)
 - Image size limit: same as GitHub release assets (2 GB per file)
 - Supported formats: any image format (png, jpg, gif, svg, webp, etc.)
+- The `scripts/upload-to-release.sh` helper is shared: the gh-fetch-issue skill reuses it to embed `/ss` screenshot placeholders into existing issues

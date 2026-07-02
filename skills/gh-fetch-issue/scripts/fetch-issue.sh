@@ -140,6 +140,21 @@ process_content() {
         http_code=$(curl -sL -w '%{http_code}' -o "$filepath" \
           "$url" 2>/dev/null || echo "000")
       fi
+      # Private-repo release assets 404 on the browser download URL even with a
+      # token; fetch them through the API asset endpoint instead.
+      if [[ "$http_code" != "200" && "$url" =~ ^https://github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/(.+)$ ]]; then
+        local r_owner="${BASH_REMATCH[1]}"
+        local r_repo="${BASH_REMATCH[2]}"
+        local r_tag="${BASH_REMATCH[3]}"
+        local r_name="${BASH_REMATCH[4]}"
+        local asset_id
+        asset_id=$(gh api "repos/${r_owner}/${r_repo}/releases/tags/${r_tag}" \
+          --jq ".assets[] | select(.name == \"${r_name}\") | .id" 2>/dev/null | head -1)
+        if [[ -n "$asset_id" ]] && gh api "repos/${r_owner}/${r_repo}/releases/assets/${asset_id}" \
+            -H "Accept: application/octet-stream" > "$filepath" 2>/dev/null; then
+          http_code="200"
+        fi
+      fi
       if [[ "$http_code" != "200" ]]; then
         rm -f "$filepath"
         echo "  Warning: Failed to download $url" >&2
