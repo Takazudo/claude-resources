@@ -258,7 +258,7 @@ Remaining open sub-issues:
 **Required elements in the printed command:**
 
 - **Same reviewer / team-member flags** as this session (e.g., `-op`, `-co`, `-t-so`). Forward whatever was used.
-- **Chain / merge flags** — forward `-a` / `-m` / `-nf` / `-nori` if they were on this session (auto-fix and issue-raising are defaults — only the opt-outs need forwarding). (Under `-a`, the manager also auto-invokes this command immediately per the Auto-Suggest chain rule instead of stopping; `-m` merges the epic PR only at chain termination, never on an intermediate wave.)
+- **Chain / merge flags** — forward `-a` / `-m` / `-nf` / `-nori` / `-lo` if they were on this session (auto-fix and issue-raising are defaults — only the opt-outs need forwarding). (Under `-a`, the manager also auto-invokes this command immediately per the Auto-Suggest chain rule instead of stopping; `-m` merges the epic PR only at chain termination, never on an intermediate wave.)
 - **`--stay` MUST be present** — accumulating-epic continuation, not a fresh workflow.
 - **Wave / sub label** (e.g., "Wave 4b only: Sub 10b #1493 —") if user's original instructions used one; omit otherwise.
 - **Explicit "Do NOT run /pr-complete or merge PR #<EPIC_PR> (accumulating epic PR)"** clause so the next session preserves the accumulating pattern.

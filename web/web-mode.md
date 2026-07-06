@@ -124,12 +124,19 @@ WEB_PARENT="$WEB_DEFAULT"                    # parent = the branch the session w
   pushable branch; do NOT stay on `$WEB_PARENT` (it is not pushable).
 - **`/x-as-pr`** — commit directly on `$WEB_BASE` (do not branch `topic/<slug>`);
   the PR is `$WEB_BASE` → `$WEB_PARENT`.
-- **`/big-plan`** — planning only: the planned base IS the session branch, parent
-  = `$WEB_PARENT`. Write issue bodies with the **resolved literal** branch name
-  (run `git branch --show-current`, e.g. `claude/serene-galileo-7uqa3g`) — never
-  the token `$WEB_BASE`, or the downstream skill's "do NOT invent the base name"
-  rule has nothing real to use. The resource-handoff case commits
-  `_temp-resource/...` directly onto `$WEB_BASE`.
+- **`/big-plan`** — planning only, and the issues it creates **outlive the
+  session**: they are usually implemented by a fresh session (terminal or web)
+  for which this session's `claude/*` name is a stale, meaningless ref. So issue
+  bodies get the **same portable spec as a terminal plan**: base =
+  `base/{slug}`, parent = the resolved `$WEB_PARENT` literal (e.g. `main`) —
+  never the session-branch name. (On web the skill's `$PARENT_BRANCH` variable
+  holds the session branch, so substitute `$WEB_PARENT` wherever issue text
+  would embed `$PARENT_BRANCH`.) A web implementation session substitutes its
+  own session branch as the base at runtime (this section); a terminal session
+  creates `base/{slug}` as written. Exception — resource handoff:
+  `_temp-resource/...` is committed directly onto `$WEB_BASE` and pushed with
+  its base PR, so that branch is real and durable; the epic's "Use this PR as
+  base" note names it literally.
 - **`-m` / merge** — merge `$WEB_BASE` → `$WEB_PARENT` via MCP
   `merge_pull_request`, **without a branch-delete flag**. **Do NOT delete the
   `claude/*` session branch — the web platform owns it.** There is no

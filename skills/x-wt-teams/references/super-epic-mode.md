@@ -213,7 +213,7 @@ The mandatory merge above already handles the epic-PR. `-m` is redundant there. 
 
 If the user passes `-m` in Super-Epic mode, treat it as a no-op and proceed with the mandatory merge step.
 
-**`-a` / `--auto` (auto-chain) is NOT ignored** — it drives the next-sibling-epic chain: when `-a` is on the invocation and Auto-Suggest finds a remaining sibling epic, the manager invokes the next epic's command itself (appending `-a`, forwarding `-m` / `-nf` / `-nori`) instead of printing-and-stopping. See the parent SKILL.md "Auto-Suggest Next Command" section.
+**`-a` / `--auto` (auto-chain) is NOT ignored** — it drives the next-sibling-epic chain: when `-a` is on the invocation and Auto-Suggest finds a remaining sibling epic, the manager invokes the next epic's command itself (appending `-a`, forwarding `-m` / `-nf` / `-nori` / `-lo`) instead of printing-and-stopping. See the parent SKILL.md "Auto-Suggest Next Command" section.
 
 ## Important rules that ONLY apply in Super-Epic child mode
 

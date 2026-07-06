@@ -1,7 +1,7 @@
 ---
 name: x
-description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). Review-loop (-l) is opt-in — without -l the downstream skill runs a single /deep-review pass. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
+description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). Review-loop (-l) is opt-in — without -l the downstream skill runs a single /deep-review pass. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m. Pass -lo/--local to keep the run's bookkeeping (plan / tracking / spec) in a cclogs dir instead of creating GitHub issues — for public / team repos where those issues read as spam; agent-found problem issues are still raised (add -nori to suppress those too). Note -lo (local) is distinct from -l (review-loop)."
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
@@ -52,7 +52,8 @@ These rules apply to the facade itself and propagate to the chosen downstream sk
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, etc.)
+- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-lo`, `--local`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, etc.)
+- **`-lo` and `-l` are different flags** — `-lo` / `--local` is local mode; `-l` / `--review-loop` is the review loop. Match the exact token when parsing so they don't get conflated.
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
@@ -107,6 +108,12 @@ Auto-fix is the downstream **default**: after the main work, `/x-as-pr` and `/x-
 
 `/x` only **parses and forwards**: forward whichever flag was on the invocation to the chosen skill (and into the `/big-plan -a` escalation — see Strategy Selection). If neither was passed, no forwarding is needed — the downstream default already auto-fixes. See the chosen skill's "Auto-Fixing Raised Findings" step for behavior.
 
+### Local Mode (`-lo` / `--local`)
+
+When `-lo` or `--local` is passed, forward it to the chosen skill (fast paths **and** the `/big-plan -a` escalation). The downstream skill keeps the run's bookkeeping — the plan, tracking issue, spec, and step-by-step progress — in a cclogs coordination directory instead of GitHub issues, so a public / team repo doesn't accumulate workflow-spam issues. `agent-found` problem issues are still raised (they're legitimate bug reports, not spam) unless `-nori` is also passed. `/x` only parses and forwards — all behavior lives downstream (see `$HOME/.claude/skills/x-wt-teams/references/local-mode.md`).
+
+**`-lo` is not `-l`.** `-lo` / `--local` is local mode; `-l` / `--review-loop` is the review loop. They compose (`/x -lo -l "…"` = local mode + review loop) — match exact tokens so one is never read as the other.
+
 ## Strategy Selection
 
 Routing has **two axes**. Decide both before invoking anything.
@@ -126,12 +133,13 @@ Escalate to planning when the request is research/decomposition-heavy or its sco
 
 **`/x` appends `-a` on the escalation, even when the user didn't type it.** The user asked `/x` for action, so the plan must chain into the implementation skill in the same session — not end at a planning-only hand-off. `/big-plan -a` auto-creates the issues (skipping the Step 6 confirmation wait, with its own concern-signal fallbacks) and then auto-invokes the implementation skill. `/big-plan` keeps the single-vs-multi routing downstream (single-sub-issue plan → `/x-as-pr`; multi → `/x-wt-teams`), so there is no duplicated single/multi logic here.
 
-**Forward `-m`, `-nf`, and `-nori` cleanly into the escalation:**
+**Forward `-m`, `-nf`, `-nori`, and `-lo` cleanly into the escalation:**
 
 - `/x "big thing"` → `/big-plan -a` (plan + auto-implement; PR left ready-but-unmerged; auto-fix and issue-raising run by default downstream).
 - `/x -a -m "big thing"` → `/big-plan -a -m` (plan + auto-implement + auto-merge + cleanup — full hands-off).
 - `/x -nf "big thing"` → `/big-plan -a -nf` (the no-fix opt-out rides through `/big-plan`'s hand-off into the implementation skill, exactly like `-m`; `-nori` rides the same way).
-- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` ride along. Reviewer flags (`-op` / `-co`) pass through to `/big-plan` and shape its Step 5 plan review. Note that on the escalation path, implementation-only flags (`-v`, `-l`, `-t-op` / `-t-so`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, and `-nori` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
+- `/x -lo "big thing"` → `/big-plan -a -lo` (local mode rides all the way down: `/big-plan` writes the plan to cclogs instead of an epic/sub issues and hands the plan path — not an issue URL — to the implementation skill).
+- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` / `-lo` ride along. Reviewer flags (`-op` / `-co`) pass through to `/big-plan` and shape its Step 5 plan review. Note that on the escalation path, implementation-only flags (`-v`, `-l`, `-t-op` / `-t-so`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, `-nori`, and `-lo` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
 
 **Guardrail (asymmetric cost — escalation is more expensive than a fast path):**
 
@@ -191,7 +199,7 @@ Once the strategy is chosen, invoke the appropriate skill.
 **Plan-first escalation (Axis 1 → big):** append `-a` (and forward `-m` / `-nf` / `-nori` if passed) and invoke `/big-plan`. `-a` is appended by `/x` even when the user didn't type it — `/x`'s contract is action, so the plan chains into implementation in-session.
 
 ```
-Skill tool: skill="big-plan", args="-a <-m if passed> <-nf if passed> <-nori if passed> <other flags> <instructions-or-issue-refs>"
+Skill tool: skill="big-plan", args="-a <-m if passed> <-nf if passed> <-nori if passed> <-lo if passed> <other flags> <instructions-or-issue-refs>"
 ```
 
 (If the request was ambiguous and `-a` was NOT passed, ask the one-line plan/build confirm first — see Strategy Selection — then either escalate as above or take a fast path per the answer.)
@@ -204,7 +212,7 @@ Skill tool: skill="x-as-pr", args="<flags> <instructions>"
 Skill tool: skill="x-wt-teams", args="<flags> <instructions>"
 ```
 
-Pass through ALL arguments (flags + instructions) to the chosen skill (`-a`, `-m`, `-f`/`-nf`, and `-ri`/`-nori` included — they're forwarded on every route; the defaults `-f`/`-ri` need no forwarding when not explicitly typed).
+Pass through ALL arguments (flags + instructions) to the chosen skill (`-a`, `-m`, `-f`/`-nf`, `-ri`/`-nori`, and `-lo`/`--local` included — they're forwarded on every route; the defaults `-f`/`-ri` need no forwarding when not explicitly typed).
 
 ## Important Notes
 

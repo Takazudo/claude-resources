@@ -1,7 +1,7 @@
 ---
 name: x-as-pr
 description: "Start a development workflow as a draft PR. Creates a NEW branch from the current branch, empty start commit, draft PR targeting the current branch, then implements. ALWAYS creates a new branch by default — produces a nested PR-on-PR when the current branch already has one. Use when: (1) User says 'dev as pr', (2) User wants a PR-first workflow before coding, (3) User passes -s/--stay to reuse the current branch instead of nesting, (4) User passes a GitHub issue URL to implement, (5) User passes --make-issue/--issue to create an issue first. Logs progress via issue comments when an issue is linked."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number] [branch-name] [base-branch]"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number|plan-path] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
@@ -64,6 +64,7 @@ Parse `$ARGUMENTS` to extract:
 - **`--make-issue` or `--issue` flag**: If present, create a GitHub issue before starting (see "Issue Creation Mode" below)
 - **`-s` or `--stay` flag**: If present, stay on the current branch instead of creating a new one (see "Stay Mode" below). **Opt-in only — never auto-detected.**
 - **`-l` or `--review-loop` flag**: If present, replace the final review step with `/review-loop 5` instead of `/deep-review` (see "Post-Implementation: Automatic Deep Review" below)
+- **`-lo` or `--local` flag**: Local mode — keep this run's bookkeeping (the `--make-issue` tracking issue, progress log, and review-fix delegation issue) in a cclogs coordination directory instead of GitHub issues, for public / team repos where those issues read as spam. See "Local Mode" below and the shared spec `$HOME/.claude/skills/x-wt-teams/references/local-mode.md`. `agent-found` problem issues are still raised (governed by `-ri` / `-nori`). **`-lo` is not `-l`** — `-lo` is local mode, `-l` is the review loop; match the exact token. A path argument under `local-workflow/` (handed off by `/big-plan --local`) is the spec file, read in place of an issue.
 - **`-v` or `--verify-ui` flag**: If present, run `/verify-ui` after review fixes to verify frontend changes visually (see "Post-Implementation: Verify UI" below)
 - **`-nor` or `--no-review` flag**: Skip the post-implementation review entirely (no `/deep-review`, no `/review-loop`, no fix-delegation Agent). Just do the implementation, then proceed straight to verify-ui (if `-v` was passed), push, CI watch, and PR revision. See "No Review Mode" below
 - **`-ri` or `--raise-issues` flag**: Explicitly enable raising GitHub issues for unrelated problems found during coding or reviewing (bugs, code smells, improvement possibilities). **This is the default** — pass for clarity, but the behavior is on unless `-nori` is passed. See "Raising Issues for Unrelated Findings" below
@@ -83,6 +84,23 @@ Parse `$ARGUMENTS` to extract:
 **When a GitHub issue URL or number is provided, treat it as an implementation request** — read the issue and implement what it describes. The issue title/body ARE the implementation instructions.
 
 If ambiguous, ask the user to clarify.
+
+## Local Mode (`-lo` / `--local`)
+
+**Only when `-lo` / `--local` was passed.** Otherwise ignore this section.
+
+Local mode keeps this run's *bookkeeping* out of the GitHub issue tracker — for public / team repos where a `--make-issue` tracking issue, its progress comments, and a review-fix delegation issue read as spam. That content moves to a **cclogs coordination directory**; the branch / draft PR / review / push flow is unchanged (local mode touches only issues, never PRs). Read the shared spec once: **[`$HOME/.claude/skills/x-wt-teams/references/local-mode.md`](../x-wt-teams/references/local-mode.md)**. What changes here:
+
+- **Resolve `LOCAL_DIR`** at the point you'd otherwise create the first issue: `LOCAL_DIR="$(node $HOME/.claude/scripts/get-logdir.js)/local-workflow/$(date +%Y%m%d_%H%M%S)-<SLUG>"`, `mkdir -p`. Print it.
+- **`--make-issue` / `--issue`** → instead of `gh issue create`, write the spec to `$LOCAL_DIR/plan.md` (Summary + Plan + TODO) and the ledger to `$LOCAL_DIR/progress.md`. `ISSUE_NUM` stays unset.
+- **Plan-path argument** (a `sub-*.md` file or dir under `local-workflow/`, handed off by `/big-plan --local`) → read the spec from it in place of `gh issue view`; treat its body as the implementation request.
+- **Passed `#issue` / URL under `-lo`** → read the issue as the implementation request (normal), but do NOT post the claim comment or per-step progress comments on it — this run's progress goes to `progress.md`.
+- **TODO checklist + progress logging** → maintain them in `progress.md` (check off steps, append milestone entries, re-read to find "what's next") instead of the issue body / `gh issue comment`.
+- **Review-fix delegation** → write the findings to `$LOCAL_DIR/fix-spec.md` and point the fix Agent at that path, instead of creating a `Review fixes: <slug>` issue.
+- **Session report + requirements verification** → the `{logdir}` report still happens; write the report to `$LOCAL_DIR/session-report.md` and read requirements back from `plan.md` (or the handed-off spec), instead of the issue-comment / `gh issue view` paths.
+- **Cleanup manifest** → there is no tracking / review-fix issue to close; the branch/PR audit is unchanged.
+
+**`agent-found` problem issues are NOT suppressed** — they're still raised as real GitHub issues (governed by `-ri` / `-nori`), and the `-f` auto-fix step still fixes them. A genuine bug report isn't the spam `--local` targets; pass `-nori` to silence those too.
 
 ## Default Behavior: ALWAYS Create a New Branch
 
@@ -400,6 +418,7 @@ gh issue comment "$ISSUE_NUM" --body "🤖 Starting work on this issue in a Clau
 
 - `--make-issue` / `--issue` was used (the issue was just created by this session — no conflict risk)
 - No issue is linked
+- **Local mode (`-lo`)** — this run keeps its bookkeeping in cclogs; do not claim-comment on a passed issue (see "Local Mode")
 
 This claim happens **before** any branch creation or implementation work. Its sole purpose is to mark the issue as "in progress" so concurrent sessions can see someone is already on it.
 
@@ -688,6 +707,8 @@ After the review produces findings that require code changes, **delegate the fix
 
 **If fixes are needed:**
 
+> **Local mode (`-lo`):** don't create a fix issue. Write the findings to `$LOCAL_DIR/fix-spec.md` and change the Agent prompt to "Read the fix spec at `$LOCAL_DIR/fix-spec.md`" instead of `gh issue view`. Skip the close-the-fix-issue steps. Everything else is identical.
+
 1. **Create a fix issue** capturing all findings:
 
    ```bash
@@ -849,14 +870,15 @@ gh issue comment "$ISSUE_NUM" --body "<report content>"
 
 ## Post-Implementation: Requirements Verification
 
-**Only run this step when a GitHub issue is linked** (`ISSUE_NUM` is set — either passed as argument or created via `--make-issue`). Skip if no issue is linked.
+**Only run this step when there is a durable requirements source** — a linked GitHub issue (`ISSUE_NUM` set, passed or via `--make-issue`), OR a local-mode `plan.md` / handed-off spec. Skip if neither exists.
 
 After the session report, verify that the original requirements have been fully implemented:
 
-### Step 1: Re-read the Issue
+### Step 1: Re-read the Requirements Source
 
 ```bash
-gh issue view "$ISSUE_NUM"
+gh issue view "$ISSUE_NUM"      # issue mode
+# local mode: re-read $LOCAL_DIR/plan.md (or the handed-off sub-spec) instead
 ```
 
 Read the **initial issue body** and any **early comments** (especially the first 1-2 comments) to extract the original requirements. These represent what the user actually asked for.
@@ -867,7 +889,7 @@ Check every requirement, acceptance criterion, and bullet point from the issue a
 
 ### Step 3: Handle Missing Requirements
 
-- **If all requirements are met**: Proceed to STOP. Add a comment on the issue confirming all requirements are satisfied:
+- **If all requirements are met**: Proceed to STOP. Add a comment on the issue confirming all requirements are satisfied (local mode: append the confirmation to `$LOCAL_DIR/progress.md` instead):
 
   ```bash
   gh issue comment "$ISSUE_NUM" --body "All original requirements verified as implemented."
@@ -1009,6 +1031,8 @@ Skill tool: skill="cleanup-resources", args="workflow:x-as-pr <-a if -m was pass
 (`/cleanup-resources`'s `-a` flag means `--auto-merged` — it maps to this skill's `-m`, the flag that actually merges the PR. Do NOT pass it just because the autonomy flag `-a` was on this invocation.)
 
 **Manifest contents for `/x-as-pr`:**
+
+> **Local mode (`-lo`):** no tracking issue and no review-fix issue exist (they're cclogs files), so omit those from the Issues list. The branches / PRs / `agent-found` issues are audited exactly as normal. `$LOCAL_DIR` is left in place — it's a durable cclogs artifact, not a resource to clean up.
 
 - Workflow context:
   - `workflow: x-as-pr`

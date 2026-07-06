@@ -1,7 +1,7 @@
 ---
 name: x-wt-teams
 description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main)."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
+argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -184,7 +184,9 @@ Use the issue body as the primary input for planning. Set `ISSUE_NUMBER=<number>
 **Epic issue shortcut (`[Epic]` in title, created by `/big-plan`):** Planning is already done. Extract directly from the issue body:
 
 - **Topics** — use the child sub-issues listed (each `[Sub]` issue becomes one topic). For Super-Epic child sessions, topics come from inline sub-tasks in the epic body instead.
-- **Base branch** — use the `base/...` name stated in the issue body (do NOT invent)
+- **Base branch** — use the `base/...` name stated in the issue body (do NOT invent). Two overrides:
+  - **On web (web-mode.md §5):** the stated name is not used at all — the `claude/*` session branch IS the base, regardless of what the epic says.
+  - **On terminal, if the stated base is a `claude/*` name** (a plan made on Claude Code web) **without a "Use this PR as base" note**: that was the planning session's ephemeral branch, not a real base — treat the base as unspecified, create `base/{project-name}` from the invocation branch as normal (Step 2), and note the substitution in the claim comment. (With the "Use this PR as base" note, the branch is a pushed resource-handoff base — reuse it per the next bullet and Step 2.)
 - **Pre-made base branch ("Use this PR as base")** — if the epic body says to use an existing PR / base branch as the base (the `/big-plan` resource-handoff case from the `dev-setup-temp-resource` skill — it carries `_temp-resource/{epic#}-{slug}/` for the implementer), record that branch + PR. In Step 2 you will **reuse** it instead of creating a new base branch, and the resources are already on it for the child agents.
 - **Dependency order** — respect the dependency graph; start with independent topics first
 - **Execution mode per topic** — extract the `**Execution mode:** {subagents|teams}` marker from each `[Sub]` issue body (or each inline sub-task in Super-Epic mode). This drives Step 5's spawn path. See `references/execution-modes.md` for the parsing logic, default-to-teams fallback, and mixed-mode degradation rule.
@@ -200,17 +202,25 @@ Do NOT re-plan or re-analyze. Do NOT update the epic issue body. Proceed to Step
 
 #### 1b: Create new issue (default)
 
-Unless `--no-issue` is passed, create a new tracking issue. **The issue is a spec tracker** — Summary should answer "what are we doing and why?" before listing steps. See `references/issue-templates.md` for the full body template and the per-step progress comment pattern.
+Unless `--local` / `-lo` (or its alias `--no-issue`) is passed, create a new tracking issue. **The issue is a spec tracker** — Summary should answer "what are we doing and why?" before listing steps. See `references/issue-templates.md` for the full body template and the per-step progress comment pattern.
 
 After creation, capture `ISSUE_NUMBER` from the URL.
 
-#### 1c: No issue (`--no-issue`)
+#### 1c: Local mode (`--local` / `-lo`, alias `--no-issue`)
 
-Skip issue creation entirely. All `gh issue comment` calls throughout the workflow are skipped.
+No tracking issue is created; the spec + progress ledger live in a **cclogs coordination directory** instead. Read the shared spec **[`references/local-mode.md`](references/local-mode.md)** for the full layout, then:
+
+- Resolve `LOCAL_DIR` (`$LOGDIR/local-workflow/{datetime}-{slug}`) and write `plan.md` (the Summary + Topics + wave/mode/model that the tracking issue would hold) and `progress.md` (the TODO checklist + Progress Log). These are the file equivalents of the tracking issue — set `ISSUE_NUMBER` unset/empty so the `gh issue *` calls below are replaced by their `LOCAL_DIR` counterparts.
+- **If the argument is a plan path** (a directory or `sub-*.md` file under `local-workflow/`, handed off by `/big-plan --local`): reuse it as `LOCAL_DIR` — read the topics, base branch, and per-topic `**Execution mode:**` / `**Model:**` / `**Depends on:**` markers from its `plan.md` + `sub-NN.md` files exactly as epic mode (1a) reads them from `[Sub]` issue bodies. Do NOT re-plan.
+- **If a `#issue` / URL is ALSO passed** (implementing a tracked issue while keeping *this run's* bookkeeping local): read that issue as input (1a) but do NOT post a claim comment or per-step progress comments on it — those go to `progress.md`.
+
+`--local` differs from bare `--no-issue` history: it keeps the `progress.md` ledger so the re-read-after-each-step anti-drift mechanism still works. `--no-issue` is retained as an alias and now behaves identically.
+
+**`agent-found` problem issues are NOT suppressed by `--local`** — they are still raised (governed by `-ri` / `-nori`), because a genuine bug report is a legitimate issue, not workflow spam.
 
 ---
 
-Save `ISSUE_NUMBER` (from 1a or 1b) — passed to all child agents and used for progress comments throughout. After every subsequent step: check off the TODO line in the issue body, comment a brief report, then re-read the issue to confirm what's next. Re-reading is **critical** to prevent losing track during long workflows.
+Save `ISSUE_NUMBER` (from 1a or 1b) — passed to all child agents and used for progress comments throughout. After every subsequent step: check off the TODO line in the issue body, comment a brief report, then re-read the issue to confirm what's next. Re-reading is **critical** to prevent losing track during long workflows. **In local mode (1c):** substitute `progress.md` for the issue everywhere in that sentence — check off its TODO, append a Progress Log entry, then re-read `progress.md` to confirm what's next (see `references/local-mode.md`).
 
 ### Codex 2nd Opinion (Planning Phase)
 
@@ -420,6 +430,9 @@ For each topic, issue an Agent tool call (parallel, capped at 6 concurrent — *
         references/resource-coordination.md.
      h. (If issue tracking is active) ISSUE_NUMBER and instruction to comment on it when done:
         gh issue comment <ISSUE_NUMBER> --body "### topic-<name> — completed\n\n<summary>"
+        (In local mode there is no ISSUE_NUMBER — omit this. Do NOT have the child write the
+         cclogs progress.md itself; concurrent children would race on it. The child just returns
+         its summary per (i), and the manager records topic completion in progress.md.)
      i. DO NOT use SendMessage — there is no team in this session. Return a brief plain-text summary
         when done. (On the teams path this item becomes: report via SendMessage instead — see
         references/teams-path.md.)
@@ -443,7 +456,7 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
 4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
-6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
+6. (If issue tracking is active) Comment on the tracking issue with a brief completion note. (Local mode: skip — report via the return value / SendMessage per step 7; the manager logs it to `progress.md`.)
 7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path. (Subagents path: return a plain-text summary. Teams path: report via SendMessage — see `references/teams-path.md`.)
 
 #### Concurrency Limit: Max 6 Child Agents at Once
@@ -683,20 +696,20 @@ gh pr ready <root-pr-number>
 
 Generate a structured report — a log for future Claude Code sessions to reference via `/logrefer`, and a GitHub issue comment for human visibility.
 
-Save to `{logdir}/{timestamp}-x-wt-teams-{slug}.md` and (if issue is linked) post as a comment on `$ISSUE_NUMBER`. Full template and content checklist: `references/issue-templates.md`.
+Save to `{logdir}/{timestamp}-x-wt-teams-{slug}.md` and (if issue is linked) post as a comment on `$ISSUE_NUMBER`. Full template and content checklist: `references/issue-templates.md`. **Local mode:** the `{logdir}` report still happens; instead of an issue comment, also write it to `$LOCAL_DIR/session-report.md`.
 
 ---
 
 ### Step 15: Requirements Verification
 
-**Only when `ISSUE_NUMBER` is set.** Skip if `--no-issue` was used.
+**Runs when there is a durable requirements source to check against** — `ISSUE_NUMBER` is set, OR local mode has a `plan.md`. Skip only when neither exists (a bare `--no-issue` run with no spec written).
 
 After the session report, verify the original requirements are fully implemented:
 
-1. Re-read the issue with `gh issue view "$ISSUE_NUMBER"` — read the **initial issue body** and any **early comments** to extract original requirements.
+1. Re-read the requirements source — `gh issue view "$ISSUE_NUMBER"` (issue mode: the **initial issue body** and any **early comments**), or `$LOCAL_DIR/plan.md` and any `sub-NN.md` (local mode) — to extract original requirements.
 2. Compare every requirement, acceptance criterion, and bullet against actual implementation. Be thorough — check the code, not commit messages.
-3. **All met**: Comment confirming, then proceed to STOP. Wording in `references/issue-templates.md`.
-4. **Missing requirements**: Do NOT stop. Comment listing the gaps, then re-run Steps 3–14 using `--stay` semantics on the existing base branch (same as the Feedback Loop). Re-run Step 15 after the additional implementation. Repeat until everything is satisfied.
+3. **All met**: Comment confirming (local mode: append to `progress.md`), then proceed to STOP. Wording in `references/issue-templates.md`.
+4. **Missing requirements**: Do NOT stop. Note the gaps (issue comment, or `progress.md` in local mode), then re-run Steps 3–14 using `--stay` semantics on the existing base branch (same as the Feedback Loop). Re-run Step 15 after the additional implementation. Repeat until everything is satisfied.
 
 This creates a self-correcting loop that ensures nothing from the original spec is missed, even in long workflows where context can drift.
 
@@ -849,7 +862,7 @@ For each fix branch (the tiny bundle, or one per non-trivial issue):
 
 ### Step 16: Cleanup audit via `/cleanup-resources`
 
-**Always run this step before Auto-Suggest / STOP** (unless `--no-issue` AND no branches were created — extremely rare). Replaces the older bespoke "close tracking issue" step and the deferred manual cleanup hook (now Step 17). The Sonnet subagent re-fetches every resource the workflow touched and returns a structured close/keep/delete plan; the manager (you) executes the plan and prints a final report. This catches the historical bugs where: (a) sub-issues stayed open after their PRs merged, (b) the tracking issue silently stayed open at end of workflow, (c) `-m` deleted the remote base but the local copy stayed behind.
+**Always run this step before Auto-Suggest / STOP** (unless local mode / `--no-issue` AND no branches were created — extremely rare; local mode almost always has branches to audit). Replaces the older bespoke "close tracking issue" step and the deferred manual cleanup hook (now Step 17). The Sonnet subagent re-fetches every resource the workflow touched and returns a structured close/keep/delete plan; the manager (you) executes the plan and prints a final report. This catches the historical bugs where: (a) sub-issues stayed open after their PRs merged, (b) the tracking issue silently stayed open at end of workflow, (c) `-m` deleted the remote base but the local copy stayed behind.
 
 ```
 Skill tool: skill="cleanup-resources", args="workflow:x-wt-teams <-a if -m was passed>"
@@ -923,7 +936,7 @@ If neither signal applies, skip auto-suggest and fall through to STOP.
 
 When `-a` was passed on this invocation AND Signal A or Signal B matched, do not stop after printing the hand-off. Instead:
 
-1. Build the next-wave command exactly as the matching template (`references/super-epic-mode.md` for Signal A, `references/issue-templates.md` for Signal B) prescribes, then **also append `-a`** to the flag list so the chain keeps running on subsequent waves — and forward `-m` / `-nf` / `-nori` if they were on this invocation (auto-fix and issue-raising are defaults, so only the opt-outs need forwarding) (`-m` defers to chain termination, where Merge Mode merges the root PR — non-Super-Epic only; in Super-Epic chains the mandatory epic merge governs and `-m` stays ignored).
+1. Build the next-wave command exactly as the matching template (`references/super-epic-mode.md` for Signal A, `references/issue-templates.md` for Signal B) prescribes, then **also append `-a`** to the flag list so the chain keeps running on subsequent waves — and forward `-m` / `-nf` / `-nori` / `-lo` if they were on this invocation (auto-fix and issue-raising are defaults, so only the opt-outs need forwarding) (`-m` defers to chain termination, where Merge Mode merges the root PR — non-Super-Epic only; in Super-Epic chains the mandatory epic merge governs and `-m` stays ignored).
 2. Print the hand-off block as usual (so the log records the transition), then **immediately invoke the same command via the Skill tool** — `Skill skill="x-wt-teams" args="<flags + url + instructions>"`. This re-enters the skill in the same session and runs the next wave end-to-end.
 3. The chain self-terminates when a future iteration's auto-suggest finds no remaining siblings (last-epic all-done branch in `super-epic-mode.md`, no-next-found fallback in `issue-templates.md`). At that point, print the "all done" message, run Merge Mode if `-m` rode the chain (non-Super-Epic only), and STOP normally.
 
@@ -1029,8 +1042,8 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 11. **Each child agent works in its worktree** — git ops affect that branch only.
 12. **Quality assurance before pushing** — always run Step 9 after merging all topics. Mandatory, never skip.
 13. **CI watch after pushing** — if the project has CI, invoke `/watch-ci` on the root PR (Step 12). Fix and re-push on red.
-14. **Re-read the issue TODO after every step** — `gh issue view` to check the TODO checklist and confirm what comes next. Prevents forgetting steps during long workflows.
-15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. Skip with `--no-issue`. Closing happens via `/cleanup-resources` at Step 16 (mandatory), not via a bespoke `gh issue close` call buried in the workflow tail. See Rule 27.
+14. **Re-read the issue TODO after every step** — `gh issue view` to check the TODO checklist and confirm what comes next. Prevents forgetting steps during long workflows. **Local mode:** re-read `$LOCAL_DIR/progress.md` instead.
+15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. `--local` / `-lo` (alias `--no-issue`) relocates that ledger to a cclogs coordination dir instead (progress.md), keeping the anti-drift re-read; `agent-found` problem issues are still raised. See Step 1c and `references/local-mode.md`. Closing happens via `/cleanup-resources` at Step 16 (mandatory), not via a bespoke `gh issue close` call buried in the workflow tail. See Rule 27.
 16. **pnpm worktree cleanup breaks symlinks** — Step 7 runs `pnpm install --ignore-scripts` to fix. **On web this whole cleanup is skipped (web-mode.md §9)** — worktrees are left in place, so there is nothing to re-fix.
 17. **NEVER auto-detect `-s` / `--stay`** — always create a new base branch unless explicitly passed. Do not infer from branch state, existing PRs, or context.
 18. **Max 6 concurrent child agents** — Step 5 caps parallelism. With 7+ topics, queue the rest and spawn as earlier agents complete. **On web (web-mode.md §6) this cap is lifted** — fan out all topics in one batch (it is Mac-freeze protection, irrelevant in the cloud container).
@@ -1040,7 +1053,7 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP, then switch to the super-epic base and delete the local epic base** — see `references/super-epic-mode.md`. The mandatory merge step is unconditional in Super-Epic child mode, runs even if `-m` was passed. This rule OVERRIDES Rule 1's "stay on `base/<project-name>`" default.
 23. **Execution mode is read from `/big-plan` annotations, not guessed** — when an `[Epic]` or Super-Epic child issue is the input, Step 1a extracts the per-topic `**Execution mode:** {subagents|teams}` markers and Step 5 routes accordingly. The **subagents path is the inline default** (it owns the canonical prompt body in Step 5 / Step 7); the **routing fallback when a marker is missing is teams** (preserves pre-annotation behavior). All-subagents → spawn one-shot Agent calls without TeamCreate (inline). Any-teams or any-missing → full team workflow in `references/teams-path.md`. The skill never auto-classifies execution mode itself — that decision belongs in `/big-plan`. Full routing logic, drift sanity check, and the subagents-path Agent-call shape live in `references/execution-modes.md`; the teams-path body lives in `references/teams-path.md`.
 24. **Per-topic model is read from `/big-plan` annotations, with manual team-member flag override** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku}` marker and Step 5 spawns each child with its own model. A manual `-t-op` / `-t-so` flag on the invocation OVERRIDES every topic's annotation as a session-wide manual override; without a flag, per-topic markers are honored. Default-when-missing-and-no-flag is **opus** (preserves pre-annotation behavior). Reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children — those govern the Step 9 Claude reviewer only. The skill never auto-classifies the model itself — that decision belongs in `/big-plan` or in the user's flag. Full resolution table and rationale: `references/per-topic-models.md`.
-25. **`-a` / `--auto` auto-continues multi-wave plans in one session** — when `-a` is passed AND Auto-Suggest detected a next wave (Signal A or Signal B), the manager appends `-a` to the next-wave command (forwarding `-m` / `-nf` / `-nori` too) and invokes it immediately via the Skill tool instead of stopping. The chain keeps running until a future iteration finds no more siblings; if `-m` rode the chain, the merge runs at chain termination. Pause (soft-stop with hand-off + blocker note) on the conditions listed in the Auto-Suggest sub-section — never silently swallow a blocker to keep the chain going. Single-session runs and `-a`-less invocations are unaffected. (`-a` replaces the retired `-seq` flag; `-a` itself never merges — merging is `-m`'s job.)
+25. **`-a` / `--auto` auto-continues multi-wave plans in one session** — when `-a` is passed AND Auto-Suggest detected a next wave (Signal A or Signal B), the manager appends `-a` to the next-wave command (forwarding `-m` / `-nf` / `-nori` / `-lo` too) and invokes it immediately via the Skill tool instead of stopping. The chain keeps running until a future iteration finds no more siblings; if `-m` rode the chain, the merge runs at chain termination. Pause (soft-stop with hand-off + blocker note) on the conditions listed in the Auto-Suggest sub-section — never silently swallow a blocker to keep the chain going. Single-session runs and `-a`-less invocations are unaffected. (`-a` replaces the retired `-seq` flag; `-a` itself never merges — merging is `-m`'s job.)
 26. **Dead Branch Cleanup Principle (general meta-rule)** — whenever this skill orchestrates a merge (or watches one) where the source branch's work is absorbed into a parent **and** the source remote is deleted (e.g., `gh pr merge --delete-branch`, `/pr-complete`, equivalent), the local source branch is now a dead pointer and MUST be cleaned up before session ends. Pattern:
 1. Capture the dead branch name BEFORE switching off it: `DEAD_BRANCH=$(git branch --show-current)`
 2. `git fetch origin --prune` to drop the now-deleted remote refs
@@ -1049,7 +1062,7 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 
     Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Merge Mode after `/pr-complete` (Rule 1 exception (a)), the Step 17 deferred manual cleanup hook. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged. **As of Rule 27, the actual implementation of this cleanup is delegated to `/cleanup-resources` at Step 16 — hand-rolled `git branch -d` blocks should not be added; let cleanup-resources do it.**
 
-27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-m` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks. **On web:** there is no `base/<topic>` and the session branch must survive (protected by name in the manifest) — the "(c)" leftover-base framing does not apply. See web-mode.md §5.
+27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless local mode / `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-m` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks. **On web:** there is no `base/<topic>` and the session branch must survive (protected by name in the manifest) — the "(c)" leftover-base framing does not apply. See web-mode.md §5.
 
 ## Prerequisites
 
