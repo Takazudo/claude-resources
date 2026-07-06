@@ -1,7 +1,7 @@
 # Web mode contract (Claude Code on the web)
 
 When `$CLAUDE_CODE_REMOTE=true`, skills run in the cloud container, which differs
-from the macOS terminal in six ways. Skills reference this file so the rules
+from the macOS terminal in the ways below. Skills reference this file so the rules
 live in one place — keep one copy of each skill and make only these touch points
 environment-aware.
 
@@ -306,3 +306,17 @@ green; if the target-branch CI goes red, fix via a `claude/agent-fix-*` PR per
 run_in_background`) is **terminal-only** — its "do NOT block the conversation
 with polling" instruction does **not** apply on web, where blocking in-turn is
 exactly what makes the merge complete.
+
+## 9. Skip worktree cleanup — the container is ephemeral
+
+On the terminal, skills that fan out into `worktrees/<topic>/` remove those
+worktrees when the work is done (`git worktree remove`) to free disk and close
+tmux panes. On web neither payoff exists: the container is reclaimed after the
+session (§4), and the teams/tmux path is never taken (§3). So **skip the
+worktree-removal step entirely** — including any follow-up
+`pnpm install --ignore-scripts` that exists only to repair the symlinks that
+removal would have broken. Topic branches already merged into `$WEB_BASE`
+survive on their own; the worktree checkouts are dead weight that vanishes with
+the container. Leaving them does not affect the push (only `$WEB_BASE`'s commits
+are pushed, never untracked worktree directories), so go straight from the merge
+step to the next real step.

@@ -15,6 +15,10 @@ Only placeholders whose file is found in the screenshots dir are resolved;
 unresolved ones are left untouched and reported. Re-running is safe: once a
 line is rewritten it no longer matches, so nothing is uploaded twice.
 
+Only /ss lines authored by a trusted account (repo OWNER/MEMBER/COLLABORATOR)
+are resolved. A /ss line from a non-collaborator is ignored — otherwise it
+could name a local screenshot and trigger its upload to a public release asset.
+
 Usage:
     resolve-ss.py <issue-url-or-number> [--repo owner/repo]
                   [--screenshots-dir DIR] [--dry-run]
@@ -34,10 +38,22 @@ UPLOAD_SCRIPT = os.path.join(
     ".claude/skills/gh-issue-with-imgs/scripts/upload-to-release.sh",
 )
 
+# Only issue/comment authors who are the repo OWNER/MEMBER/COLLABORATOR may drive
+# a screenshot upload. Otherwise a non-collaborator could name a local screenshot
+# file in a comment and trigger its upload to a public release asset (+ an issue
+# rewrite) — a data-exfiltration / write vector — before the reader-side trust
+# fence in fetch-issue.sh ever applies. This is the WRITE side, so trust here is
+# fail-closed: an empty/unknown association is treated as untrusted.
+TRUSTED_ASSOC = {"OWNER", "MEMBER", "COLLABORATOR"}
+
 
 def die(msg):
     print(f"Error: {msg}", file=sys.stderr)
     sys.exit(1)
+
+
+def is_trusted(assoc):
+    return (assoc or "") in TRUSTED_ASSOC
 
 
 def gh_json(args):
@@ -67,6 +83,16 @@ def resolve_ref(issue_input, repo_override):
     die(f"invalid issue reference: {issue_input}")
 
 
+def issue_author_assoc(repo, num):
+    """Issue-level author_association (gh issue view --json omits it; REST has it).
+    Returns "" on failure — which is untrusted under the fail-closed policy."""
+    out = subprocess.run(
+        ["gh", "api", f"repos/{repo}/issues/{num}", "--jq", ".author_association"],
+        capture_output=True, text=True,
+    )
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
 def find_placeholders(text):
     """Return list of (lineno, filename) for each /ss line in text."""
     hits = []
@@ -75,6 +101,39 @@ def find_placeholders(text):
         if m:
             hits.append((i, m.group(1)))
     return hits
+
+
+def collect_ss_references(body, body_assoc, comments):
+    """Distinct /ss filenames from TRUSTED authors only, in first-seen order.
+
+    Fail-closed: a /ss line whose author association is not OWNER/MEMBER/
+    COLLABORATOR (incl. empty/unknown) is ignored, so an untrusted account can
+    never drive a screenshot upload. Returns (referenced, skipped_untrusted)
+    where skipped_untrusted names the sources that had /ss lines but were
+    dropped for being untrusted (for reporting)."""
+    referenced, skipped = [], []
+
+    body_hits = find_placeholders(body)
+    if body_hits:
+        if is_trusted(body_assoc):
+            for _, fn in body_hits:
+                if fn not in referenced:
+                    referenced.append(fn)
+        else:
+            skipped.append("body")
+
+    for c in comments:
+        c_hits = find_placeholders(c.get("body") or "")
+        if not c_hits:
+            continue
+        if is_trusted(c.get("authorAssociation")):
+            for _, fn in c_hits:
+                if fn not in referenced:
+                    referenced.append(fn)
+        else:
+            skipped.append(c.get("url") or "comment")
+
+    return referenced, skipped
 
 
 def rewrite(text, resolved):
@@ -142,18 +201,21 @@ def main():
     body = issue.get("body") or ""
     comments = issue.get("comments") or []
 
-    # Gather every distinct filename referenced by a /ss line, in first-seen order.
-    referenced = []
-    for _, fn in find_placeholders(body):
-        if fn not in referenced:
-            referenced.append(fn)
-    for c in comments:
-        for _, fn in find_placeholders(c.get("body") or ""):
-            if fn not in referenced:
-                referenced.append(fn)
+    # Only resolve /ss lines from trusted authors (fail-closed) — an untrusted
+    # author naming a local screenshot must never drive an upload or a rewrite.
+    # The issue-level association call is made only when the body actually has
+    # /ss lines (avoids a needless API round-trip on the common comment-only case).
+    body_assoc = issue_author_assoc(repo, num) if find_placeholders(body) else ""
+    referenced, skipped_untrusted = collect_ss_references(body, body_assoc, comments)
+
+    for src in skipped_untrusted:
+        print(f"  skip (untrusted author — /ss ignored): {src}", file=sys.stderr)
 
     if not referenced:
-        print("No /ss placeholders found — nothing to resolve.")
+        if skipped_untrusted:
+            print("No /ss placeholders from trusted authors — nothing to resolve.")
+        else:
+            print("No /ss placeholders found — nothing to resolve.")
         return
 
     found, missing = [], []
@@ -178,12 +240,15 @@ def main():
 
     patched = []
 
-    new_body, changed = rewrite(body, resolved)
-    if changed:
-        patch_body(repo, num, new_body, args.dry_run)
-        patched.append("body")
+    if is_trusted(body_assoc):
+        new_body, changed = rewrite(body, resolved)
+        if changed:
+            patch_body(repo, num, new_body, args.dry_run)
+            patched.append("body")
 
     for c in comments:
+        if not is_trusted(c.get("authorAssociation")):
+            continue
         cbody = c.get("body") or ""
         new_c, changed = rewrite(cbody, resolved)
         if not changed:

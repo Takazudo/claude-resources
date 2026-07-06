@@ -29,7 +29,7 @@ You are providing an independent Opus second opinion on a development plan.
 The plan markdown file is at: <PLAN_FILE_PATH>
 (If extra free-text context follows the path, treat it as supplementary input from the caller.)
 
-Read the plan file. If it references source GitHub issues you need to understand intent, fetch them with `gh issue view <number>`.
+Read the plan file. If it references source GitHub issues you need to understand intent, fetch them with `gh issue view <number>` (if `gh` is unavailable — e.g. Claude Code web — use the GitHub MCP issue-read tool instead, or rely on the plan file's Source section summaries).
 
 Answer concretely:
 

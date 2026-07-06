@@ -1,13 +1,6 @@
 ---
 name: dev-clean-wsl
-description: >-
-  Reclaim disk space on WSL2 by purging dev caches and orphaned build artifacts,
-  then guide the user through compacting the ext4.vhdx from Windows. Use when: (1)
-  the user says 'dev-clean-wsl', 'clean wsl', 'wsl disk full', 'free disk space',
-  'reclaim space', 'purge caches', or 'disk almost full' on a WSL machine; (2) a
-  build or tool fails with ENOSPC / no space left; (3) the user wants to shrink the
-  WSL virtual disk. Covers cargo target/registry, pnpm/npm caches, node_modules,
-  and the vhdx-compaction step that actually returns space to the Windows C: drive.
+description: "Reclaim disk space on WSL2 by purging dev caches and orphaned build artifacts, then guide the user through compacting the ext4.vhdx from Windows. Use when: (1) the user says 'dev-clean-wsl', 'clean wsl', 'wsl disk full', 'free disk space', 'reclaim space', 'purge caches', or 'disk almost full' on a WSL machine; (2) a build or tool fails with ENOSPC / no space left; (3) the user wants to shrink the WSL virtual disk. Covers cargo target/registry, pnpm/npm caches, node_modules, and the vhdx-compaction step that actually returns space to the Windows C: drive."
 argument-hint: "[code-root]"
 ---
 
@@ -22,8 +15,11 @@ On WSL2 the Linux filesystem is a single `ext4.vhdx` file that lives on the
 **Windows `C:` drive**. Two consequences drive this whole skill:
 
 1. **`/` looking healthy is not enough.** The disk that actually fills up is
+
    usually `C:`, not the Linux `/`. The scan reports both — read `C:` first.
+
 2. **Deleting files inside WSL does not shrink the vhdx.** The vhdx only grows; freed
+
    blocks stay allocated until the vhdx is **compacted from Windows**. So every purge
    below is "banked" inside WSL and becomes real free space on `C:` only after the
    compaction step. Always finish with that step — skipping it makes the cleanup
@@ -67,6 +63,7 @@ Safety tier, highest-value-and-safest first:
 
 - **User data**, not cache — e.g. `~/youtube-dl`, `~/Downloads`, media. Never auto-delete.
 - **Published/intentional build outputs** — `dist/`, packaged release tarballs.
+
   These are project-specific and may be wanted; do not treat a generic `dist/` as cache.
 
 ## Step 3 — Purge (only what the user confirmed)
@@ -74,11 +71,16 @@ Safety tier, highest-value-and-safest first:
 Safety rules:
 
 - **Relative-path deletes only.** `cd` into the parent, then `rm -rf ./name` —
+
   never `rm -rf /absolute/path`. This is a guardrail against a mistyped absolute path.
+
 - **Check nothing is using a dir before clearing it.** Before wiping a `target/`,
+
   build dir, or CI-runner workspace, confirm no live build/process owns it
   (`ps -eo cmd | grep -iE 'cargo|Runner\.Worker'`). Clearing a dir mid-build breaks it.
+
 - **Confirm "orphaned" before claiming zero-cost.** An in-repo `target/` is orphaned
+
   only if a global `target-dir` redirect (env `CARGO_TARGET_DIR` or
   `~/.cargo/config.toml [build] target-dir`) points elsewhere AND its newest artifact
   predates the switch. The scan prints both signals.
@@ -139,12 +141,35 @@ free numbers from the scan so the user knows what to expect.
 If the scan could not find the vhdx, have the user locate it on Windows with
 `Get-ChildItem -Recurse $env:LOCALAPPDATA -Filter ext4.vhdx`.
 
+## Bonus — stale Codex processes (EMFILE / inotify exhaustion)
+
+Not a disk problem, but the same "WSL slowly rots" family: orphaned codex plugin
+brokers pile up (~3 processes each) and each eats inotify instances; at
+`fs.inotify.max_user_instances=128` Vite starts failing with EMFILE. Sweep them:
+
+```bash
+node $HOME/.claude/scripts/codex-sweep.js
+```
+
+(A SessionStart hook runs this automatically once per 6h; the manual run is for
+when EMFILE already struck. See /codex-sweep for details.)
+
+Belt and braces — raise the ceiling so accumulation between sweeps can't bite:
+
+```bash
+echo 'fs.inotify.max_user_instances=1024' | sudo tee /etc/sysctl.d/60-inotify.conf
+sudo sysctl --system
+```
+
 ## Notes
 
 - Self-hosted CI runners sometimes show up as large dirs. Their `_work/` is
+
   ephemeral CI workspace (safe to clear when idle); fully removing a runner means
   stopping + uninstalling its **root-owned** systemd service first
   (`sudo ./svc.sh stop && sudo ./svc.sh uninstall`), which needs the user's sudo
   password — hand them those commands rather than guessing.
+
 - This skill assumes WSL2. On a non-WSL host the scan still reports reclaimable
+
   caches, but the vhdx/compaction step does not apply — the script flags this.
