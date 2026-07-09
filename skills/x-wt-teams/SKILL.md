@@ -23,6 +23,7 @@ Detail lives in `references/` so this file stays a workflow spine. Open the rele
 - **`references/teams-path.md`** — the on-demand teams-path body (read ONLY when a topic is marked `teams` or a marker is missing): TeamCreate + named teammates, idle/wake, the shutdown_request teardown, TeamDelete. The common subagents default is inline in Step 5 / Step 7.
 - **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, manual `-t-op` / `-t-so` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
 - **`references/issue-templates.md`** — tracking issue body, claim comments, unrelated-findings issue, Step 14 session report, Step 15 verification comments, accumulating-epic Auto-Suggest hand-off.
+- **`references/github-text-conventions.md`** — writing GitHub-posted text: never use a bare `#N` for your own plan items (topics/waves/options) — it autolinks to an unrelated issue/PR; reserve `#N` for real existing issues/PRs.
 - **`references/resource-coordination.md`** — Playwright / browser isolation rule and port-binding `flock` rule (full patterns).
 
 ## !! CRITICAL — ROOT PR TARGET BRANCH RULE !!
@@ -135,6 +136,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 - Only include sections that have values — omit `- issues` if no issue, omit `- parent PR` if no parent PR
 - If neither exists, omit the header entirely
 - **When updating the PR body later** (e.g., via `/pr-revise`), always preserve the reference header at the top — do not remove or replace it
+- **In the PR body prose** (Summary / Changes / anywhere), don't write a bare `#N` to refer to your own numbered items — GitHub autolinks it to an unrelated issue/PR. Use `topic 2`, `(2)`, or the item's name; keep `#N` only for real existing issues/PRs. See [`references/github-text-conventions.md`](references/github-text-conventions.md)
 
 ## Fully Automated Workflow
 

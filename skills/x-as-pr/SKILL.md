@@ -150,8 +150,9 @@ When `-s` or `--stay` is **explicitly passed by the user**, stay on the current 
 
 > **On web (web-mode.md §5):** this `--stay` path is exactly the default web model — `$WEB_BASE` is the base, the PR targets `$WEB_PARENT` (the fork-from / default branch). Do NOT run the `gh pr view --json baseRefName` preference above — even when the session branch already has a PR, parent = `$WEB_PARENT` unconditionally (web = adopt-current-branch with parent forced to default). Replace `gh pr view` with MCP only for reading PR existence, not for choosing the base.
 3. If there are uncommitted changes, commit them with a descriptive message (no empty commits)
-4. If implementation instructions are provided, start implementation (commit locally, no push)
-5. All post-implementation steps (deep review, push, CI watch, PR revision) work the same
+4. If the spec carries visual evidence (screenshots / `expected.png` / `now.png` / `/ss` / image attachments), first produce the Screenshot Requirement Contract (see Step 4.5 — it applies in Stay Mode too)
+5. If implementation instructions are provided, start implementation (commit locally, no push)
+6. All post-implementation steps (deep review, push, CI watch, PR revision) work the same
 
 ---
 
@@ -290,6 +291,16 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 - Only include sections that have values — omit `- issues` if no issue, omit `- parent PR` if no parent PR
 - If neither exists, omit the header entirely
 - **When updating the PR body later** (e.g., via `/pr-revise`), always preserve the reference header at the top — do not remove or replace it
+
+---
+
+## Writing GitHub text — avoid accidental `#N` autolinks
+
+Applies to every GitHub-posted artifact this skill writes: the `--make-issue` body, PR description, progress + report comments, the fix issue, and `agent-found` issues.
+
+**Never write a bare `#N` to refer to your own numbered items** — topics, steps, options, or list entries within the text you're posting. GitHub autolinks `#N` to issue/PR N in the repo, so "step #2" or "上記の#1" renders as a link to an unrelated (usually ancient) issue. Refer to in-document items by a non-linking form instead: `step 2`, `(2)`, `option 2`, `項目1`, or the item's name.
+
+A `#N` that points at a **real existing issue or PR** — `Depends on: #1493`, the parent issue, a superseded issue — is a correct autolink; keep those verbatim. Full rule + example: [`../x-wt-teams/references/github-text-conventions.md`](../x-wt-teams/references/github-text-conventions.md).
 
 ---
 
@@ -488,6 +499,34 @@ fi
 ```
 
 The PR title should be descriptive based on the issue or instructions provided.
+
+### Step 4.5: Screenshot Requirement Contract (when the spec includes visual evidence)
+
+**Run this step before implementation whenever the request carries visual evidence** — screenshots, an `expected.png` / `now.png` (or any before/after) pair, `/ss <file>` placeholders, or image attachments on the issue. The screenshot is the **primary spec**, not supplemental context. Skipping this step is exactly how a change passes `/verify-ui` while still being visually wrong: the agent picks a convenient DOM/code proxy metric, the proxy checks out, and the real visual diff stays unresolved. Simple UI bugs often bypass `/big-plan`, so the contract has to be produced here.
+
+1. **Load the images.** Read every supplied screenshot with the Read tool (resolve `/ss` via `/gh-fetch-issue` or the `/ss` skill; fetch issue-embedded images locally). Do NOT proceed on a screenshot you could not actually open — say so instead of guessing what it shows.
+2. **Describe the visual diff in plain language.** For a before/after pair, state what differs. For a single "expected" shot, state the target end-state.
+3. **Write the contract** — concrete, checkable states:
+
+   ```md
+   ## Screenshot Requirement Contract
+   Expected:
+   - <states that MUST be true after the change>
+
+   Forbidden:
+   - <prior / broken states that must NOT remain — the very thing the screenshot is correcting>
+
+   Unknown:
+   - <anything the image does not settle — needs clarification>
+
+   Viewport:
+   - <widths or breakpoints the screenshot implies, when visible>
+   ```
+
+4. **Record it in the draft PR body** (under `-lo`, in `progress.md` instead) so it survives context compression and is visible to the review and `/verify-ui` steps. On web (web-mode.md §5), the draft PR is deferred until the first real commit — until it exists, hold the contract in your progress notes, then move it into the PR body once created.
+5. **Use it as the source of truth** for both implementation and the `-v` `/verify-ui` pass. Derive the `Forbidden:` states deliberately from the diff, not just the `Expected:` ones — a result that still exhibits a forbidden state is a **FAIL** even when every `Expected:` item is met. (The ReadyCrew failure that motivated this step passed verification because it checked "reason text is wider" — an Expected-ish proxy — while never checking "AI and budget are no longer side-by-side", the forbidden state the screenshot was actually correcting. See `/verify-ui` for the worked example.)
+
+If `Unknown` holds anything that blocks implementation, ask the user one concise question; otherwise proceed on reasonable assumptions and note them in the PR body.
 
 ### Step 5: Start Implementation (Push-Forbid Mode)
 

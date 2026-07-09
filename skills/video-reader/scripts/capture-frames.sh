@@ -15,6 +15,27 @@ set -euo pipefail
 err() { echo "Error: $*" >&2; }
 info() { echo "$*" >&2; }
 
+# Retry a command a few times with backoff, tolerant of transient failures.
+# On WSL2, session dirs live on the DrvFs mount (/mnt/c/...) so Dropbox can
+# be actively syncing them; right after ffmpeg writes hundreds of files,
+# Dropbox's Windows client briefly holds handles on them while scanning/
+# hashing, which can make a directory mv/rm-rf on that mount fail with
+# "Permission denied" for a few seconds until the lock clears.
+retry_transient() {
+  local tries=6 delay=1 i
+  for (( i = 1; i <= tries; i++ )); do
+    if "$@"; then
+      return 0
+    fi
+    if (( i < tries )); then
+      info "  retrying ($i/$tries) after transient failure: $*"
+      sleep "$delay"
+      (( delay = delay * 2 > 8 ? 8 : delay * 2 ))
+    fi
+  done
+  return 1
+}
+
 usage() {
   cat >&2 <<'EOF'
 Usage:
@@ -239,7 +260,7 @@ fi
 # --- Extraction (atomic: temp dir inside the session dir, mv on success) ------
 
 TMP_DIR="$(mktemp -d "$SESSION_DIR/.tmp-extract-XXXXXX")"
-cleanup() { [[ -d "${TMP_DIR:-}" ]] && rm -rf "${TMP_DIR:?}"; }
+cleanup() { [[ -d "${TMP_DIR:-}" ]] && retry_transient rm -rf "${TMP_DIR:?}"; }
 trap cleanup EXIT
 
 info "Extracting frames every ${INTERVAL}s from: $VIDEO_FILE"
@@ -263,7 +284,7 @@ if (( frame_num == 0 )); then
 fi
 
 meta_content > "$TMP_DIR/.meta"
-mv "$TMP_DIR" "$CAPTURES_DIR"
+retry_transient mv "$TMP_DIR" "$CAPTURES_DIR"
 trap - EXIT
 
 info "Extracted $frame_num frames into $CAPTURES_DIR"

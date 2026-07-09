@@ -2,6 +2,8 @@
 
 Reusable markdown templates for the GitHub-issue artifacts produced by this skill. The skill body links here from Step 1b (create issue), the unrelated-findings rule, the accumulating-epic auto-suggest variant, and Step 14 (session report).
 
+> **When filling any template below, never write a bare `#N` to refer to your own numbered items** (topics, steps, options, list entries) — GitHub autolinks `#N` to issue/PR N, so "topic #2" links to an unrelated issue. Use a non-linking form (`topic 2`, `(2)`, `Wave 2`, `項目1`, or the item's name). A `#N` naming a **real existing** issue/PR (`Depends on: #1493`, `Wave 1: #1501, #1502`) is a correct autolink — keep it. Full rule + example: [`github-text-conventions.md`](./github-text-conventions.md).
+
 ## Tracking issue body (Step 1b — create new issue)
 
 The tracking issue is a **spec tracker**, not just a step log. The Summary section should answer "what are we doing and why?" — enough for someone unfamiliar with the task to understand the scope. Not too detailed (that's for the PR), not too brief (that's useless).
