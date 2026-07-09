@@ -8,7 +8,9 @@ commands. This directory + `scripts/setup-web.sh` close that gap.
 ## How it works
 
 1. `.claude/settings.json` registers a **SessionStart hook** that runs
-   `scripts/setup-web.sh`.
+   `.claude/web-bootstrap.sh` — a self-only gate that no-ops unless the session
+   is on web **and** the account has `CLAUDE_WEB_PROFILE_OPT_IN=1` in its
+   per-user web environment variables — which then runs `scripts/setup-web.sh`.
 2. `setup-web.sh` (web-only, idempotent) mirrors the portable trees
    (`skills/ agents/ commands/ scripts/ hooks/` + `CLAUDE.md`) into the
    container's `$HOME/.claude`, then overlays `web/settings.web.json` as
