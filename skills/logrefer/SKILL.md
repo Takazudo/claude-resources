@@ -1,8 +1,8 @@
 ---
 name: logrefer
 description: "Browse and read recent logs and artifacts from $HOME/cclogs/{slug}/. Use when: (1) User wants to see recent agent logs, (2) User says 'logrefer', 'show logs', 'recent logs', (3) User wants to read a specific log file from a previous session."
-user_invocable: true
-argument_description: "[N] [prefix] [read <filename>]"
+user-invocable: true
+argument-hint: "[N] [prefix] [read <filename>]"
 ---
 
 # Log Browser

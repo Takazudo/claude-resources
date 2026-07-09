@@ -40,6 +40,23 @@ Use this as a cutoff for "Latest N" mode — only consider image files whose mod
 
 **Non-image files:** When the argument has a non-image extension (e.g., `.html`, `.txt`, `.json`, `.css`, `.js`, `.svg`, `.md`), look for that file in `$DROPBOX_SCREENSHOTS_DIR` and read it as a text file using the Read tool. This is for when the user shares files (not just screenshots) via the Dropbox screenshots directory.
 
+## Portable mtime helper
+
+`$DROPBOX_SCREENSHOTS_DIR` syncs to both macOS (BSD `stat`) and WSL2/Linux (GNU `stat`), and their flags for "modification time as epoch seconds" differ (`stat -f %m` vs `stat -c %Y`). Naively falling back with `stat -f %m "$f" 2>/dev/null || stat -c %Y "$f"` is not safe: GNU `stat -f` means "show filesystem status" (not "format"), so it still exits non-zero but leaks a garbage filesystem-info block to stdout first, corrupting the captured value. Define this function once at the top of any bash snippet below that needs a file's mtime — each Bash tool call runs in a fresh shell, so redefine it per invocation:
+
+```bash
+mtime_of() {
+  local m
+  m=$(stat -f %m "$1" 2>/dev/null)
+  if [ $? -ne 0 ] || [ -z "$m" ]; then
+    m=$(stat -c %Y "$1" 2>/dev/null)
+  fi
+  echo "$m"
+}
+```
+
+All `stat` calls below use this `mtime_of` helper instead of calling `stat` directly.
+
 ## Find files
 
 ### Latest N images (with timestamp cutoff)
@@ -49,7 +66,7 @@ List all image files (png, jpg, jpeg, gif, webp, tiff) in the screenshots direct
 ```bash
 CUTOFF=<invocation_epoch>
 ls -t "$DROPBOX_SCREENSHOTS_DIR"/*.{png,jpg,jpeg,gif,webp,tiff} 2>/dev/null | while IFS= read -r f; do
-  [ "$(stat -f %m "$f")" -le "$CUTOFF" ] && echo "$f"
+  [ "$(mtime_of "$f")" -le "$CUTOFF" ] && echo "$f"
 done | head -n $N
 ```
 
@@ -106,7 +123,7 @@ After listing files, check whether the results are **fresh enough** relative to 
 CUTOFF=<invocation_epoch>
 FRESHNESS_THRESHOLD=$((CUTOFF - 120))
 # After getting the N files, check the newest one:
-NEWEST_MTIME=$(stat -f %m "$NEWEST_FILE")
+NEWEST_MTIME=$(mtime_of "$NEWEST_FILE")
 if [ "$NEWEST_MTIME" -lt "$FRESHNESS_THRESHOLD" ]; then
   # All results are stale — the new screenshot hasn't synced yet, retry
 fi
@@ -133,10 +150,10 @@ done
 for i in $(seq 1 24); do
   # Re-run the file listing and freshness check
   FILES=$(ls -t "$DROPBOX_SCREENSHOTS_DIR"/*.{png,jpg,jpeg,gif,webp,tiff} 2>/dev/null | while IFS= read -r f; do
-    [ "$(stat -f %m "$f")" -le "$CUTOFF" ] && echo "$f"
+    [ "$(mtime_of "$f")" -le "$CUTOFF" ] && echo "$f"
   done | head -n $N)
   NEWEST=$(echo "$FILES" | head -n 1)
-  [ -n "$NEWEST" ] && [ "$(stat -f %m "$NEWEST")" -ge "$FRESHNESS_THRESHOLD" ] && break
+  [ -n "$NEWEST" ] && [ "$(mtime_of "$NEWEST")" -ge "$FRESHNESS_THRESHOLD" ] && break
   sleep 5
 done
 ```
@@ -183,7 +200,7 @@ sleep 120
 # Re-check for newly synced files (allow mtime up to 180s after invocation epoch)
 LATE_CUTOFF=$((CUTOFF + 180))
 ls -t "$DROPBOX_SCREENSHOTS_DIR"/*.{png,jpg,jpeg,gif,webp,tiff} 2>/dev/null | while IFS= read -r f; do
-  MTIME=$(stat -f %m "$f")
+  MTIME=$(mtime_of "$f")
   [ "$MTIME" -le "$LATE_CUTOFF" ] && [ "$MTIME" -gt "$CUTOFF" ] && echo "[NEW] $f"
 done | head -n 3
 ```

@@ -29,7 +29,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "Opus",
+  "model": "claude-fable-5",
   "skillOverrides": {
     "codex-review": "off",
     "ascii-circuit-diagram-creator": "off",

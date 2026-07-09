@@ -103,13 +103,21 @@ Cloudflare Pages API occasionally returns transient errors (504 Gateway Timeout 
 
 Trigger: push to `main`. Concurrency: `production-deploy`, cancel-in-progress: false.
 
+The `notify` job below follows the canonical IFTTT payload contract owned by `/dev-ci-ifttt-notify`:
+
+| Field | Content | Example |
+| --- | --- | --- |
+| `value1` | `<project>: <emoji> <status>` | `my-app: ✅ Deploy succeeded` |
+| `value2` | Run URL for tapping through | `https://github.com/.../runs/123` |
+| `value3` | (unused / empty) | `""` |
+
 ```yaml
 permissions:
   contents: read
 
 jobs:
   build:
-    # Heavy job — candidate for self-hosted runner via /dev-actions-self-runner
+    # Heavy job — candidate for a larger cloud runner; see /dev-blacksmith-migration
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -117,7 +125,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: pnpm }
+        with: { node-version: 20 }
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - uses: actions/upload-artifact@v4
@@ -164,29 +172,25 @@ jobs:
         if: env.IFTTT_PROD_NOTIFY != ''
         env:
           IFTTT_PROD_NOTIFY: ${{ secrets.IFTTT_PROD_NOTIFY }}
-          RAW_COMMIT_MSG: ${{ github.event.head_commit.message }}
           BUILD_RESULT: ${{ needs.build.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
-          GITHUB_SHA_VAL: ${{ github.sha }}
           SERVER_URL: ${{ github.server_url }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          if [ "$DEPLOY_RESULT" = "success" ]; then STATUS="succeeded"
-          elif [ "$BUILD_RESULT" = "failure" ]; then STATUS="failed (build)"
-          elif [ "$DEPLOY_RESULT" = "failure" ]; then STATUS="failed (deploy)"
-          else STATUS="cancelled"; fi
+          if [ "$DEPLOY_RESULT" = "success" ]; then STATUS="✅ succeeded"
+          elif [ "$BUILD_RESULT" = "failure" ]; then STATUS="❌ failed (build)"
+          elif [ "$DEPLOY_RESULT" = "failure" ]; then STATUS="❌ failed (deploy)"
+          else STATUS="⚠️ cancelled"; fi
 
-          COMMIT_MSG=$(echo "$RAW_COMMIT_MSG" | head -1 | sed 's/"/\\"/g')
-          SHORT_SHA=$(echo "$GITHUB_SHA_VAL" | cut -c1-7)
           RUN_URL="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}"
 
           curl -sSf --max-time 10 -X POST "$IFTTT_PROD_NOTIFY" \
             -H 'Content-Type: application/json' \
             -d "{
-              \"value1\": \"Cloudflare Pages deploy ${STATUS}\",
-              \"value2\": \"${SHORT_SHA} ${COMMIT_MSG}\",
-              \"value3\": \"${RUN_URL}\"
+              \"value1\": \"PROJECT_NAME: ${STATUS}\",
+              \"value2\": \"${RUN_URL}\",
+              \"value3\": \"\"
             }" || echo "::warning::IFTTT notification failed"
 ```
 
@@ -252,5 +256,5 @@ pnpm build  # Verify build works locally
 
 ## Companion Skills
 
-- **`/dev-actions-self-runner`** — Add self-hosted runner with fallback for build jobs
+- **`/dev-blacksmith-migration`** — Move heavy build jobs off `ubuntu-latest` onto Blacksmith/cloud runners
 - **`/dev-ci-ifttt-notify`** — Add IFTTT webhook notifications

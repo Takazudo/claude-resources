@@ -7,6 +7,8 @@ description: "Add IFTTT webhook notification to a GitHub Actions workflow for mo
 
 Add an IFTTT Webhooks notification job to a GitHub Actions workflow. Sends mobile push notifications on deploy success/failure.
 
+The payload layout follows the canonical IFTTT contract (convention C2) owned by `/dev-ci-ifttt-notify` — see that skill for the full rationale. Every skill posting to `IFTTT_PROD_NOTIFY` must use the same value1/value2/value3 layout.
+
 ## Architecture
 
 ```
@@ -29,8 +31,10 @@ The notification is silently skipped when the secret is not set, making it safe 
 - **Trigger**: Webhooks -> "Receive a web request"
 - **Event name**: Choose a name (e.g., `deploy_notify`, project name, etc.)
 - **Action**: Notifications -> "Send a notification from the IFTTT app" (or any other action)
-- **Notification template**: `{{Value1}}: {{Value2}}` (status + commit info). `{{Value3}}` contains the workflow run URL
+- **Notification template**: `{{Value1}}` — already the full `<project>: <emoji> <status>` string, self-explanatory on its own. `{{Value2}}` carries the run URL (use it if the action has a link field); `{{Value3}}` is unused
 3. Copy the webhook URL: `https://maker.ifttt.com/trigger/{EVENT_NAME}/with/key/{KEY}`
+
+> If an applet already exists with the old `{{Value1}}: {{Value2}}` template, its IFTTT-side notification template must be updated to match — the applet lives in IFTTT, not in this repo, so this is a manual user action.
 
 ### 2. GitHub Repository Secret
 
@@ -47,13 +51,15 @@ Add a `notify` job at the end of the workflow. It must `needs` all prior jobs an
 
 #### Payload
 
-IFTTT Webhooks accepts `value1`, `value2`, `value3`:
+IFTTT Webhooks accepts `value1`, `value2`, `value3`. This follows the canonical contract owned by `/dev-ci-ifttt-notify`:
 
-| Field    | Content                                              |
-| -------- | ---------------------------------------------------- |
-| `value1` | Status string (e.g., "succeeded", "failed (build)")  |
-| `value2` | Short commit info (`{7-char SHA} {message}`)         |
-| `value3` | GitHub Actions workflow run URL                      |
+| Field | Content | Example |
+| --- | --- | --- |
+| `value1` | `<project>: <emoji> <status>` | `my-app: ✅ Deploy succeeded` |
+| `value2` | Run URL for tapping through | `https://github.com/.../runs/123` |
+| `value3` | (unused / empty) | `""` |
+
+**Do NOT split project name and status across value1/value2** — the user should see the full picture from the notification title alone.
 
 #### Implementation Pattern
 
@@ -79,30 +85,26 @@ IFTTT Webhooks accepts `value1`, `value2`, `value3`:
 
           # Determine status (check deploy success first, then failures in order)
           if [ "$DEPLOY" = "success" ]; then
-            STATUS="succeeded"
+            STATUS="✅ succeeded"
           elif [ "$QUALITY" = "failure" ]; then
-            STATUS="failed (quality checks)"
+            STATUS="❌ failed (quality checks)"
           elif [ "$BUILD" = "failure" ]; then
-            STATUS="failed (build)"
+            STATUS="❌ failed (build)"
           elif [ "$E2E" = "failure" ]; then
-            STATUS="failed (E2E tests)"
+            STATUS="❌ failed (E2E tests)"
           elif [ "$DEPLOY" = "failure" ]; then
-            STATUS="failed (deploy)"
+            STATUS="❌ failed (deploy)"
           else
-            STATUS="cancelled"
+            STATUS="⚠️ cancelled"
           fi
 
-          # Build commit info
-          COMMIT_MSG=$(git log -1 --format='%s' "${{ github.sha }}" 2>/dev/null || echo "Deploy")
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          # Send webhook
+          # Send webhook — value1 = "<project>: <emoji> <status>", value2 = run URL, value3 unused
           jq -n \
-            --arg v1 "$STATUS" \
-            --arg v2 "$SHORT_SHA $COMMIT_MSG" \
-            --arg v3 "$RUN_URL" \
-            '{value1: $v1, value2: $v2, value3: $v3}' | \
+            --arg v1 "<project-name>: $STATUS" \
+            --arg v2 "$RUN_URL" \
+            '{value1: $v1, value2: $v2, value3: ""}' | \
           curl -sf -X POST "$IFTTT_PROD_NOTIFY" \
             -H 'Content-Type: application/json' \
             -d @-
@@ -112,7 +114,7 @@ IFTTT Webhooks accepts `value1`, `value2`, `value3`:
 
 - **`if: always()`** on the job ensures it runs even when prior jobs fail or are cancelled
 - **`if: env.IFTTT_PROD_NOTIFY != ''`** on the step silently skips when the secret is not configured
-- **`jq -n`** builds the JSON payload safely (no shell injection from commit messages)
+- **`jq -n`** builds the JSON payload safely (no shell injection from dynamic values)
 - **`curl -sf`** fails silently (`-s`) and returns non-zero on HTTP errors (`-f`)
 - **`timeout-minutes: 5`** prevents the notification job from hanging indefinitely
 - **`needs` list** must include all jobs whose results you want to report on
@@ -127,14 +129,15 @@ needs: [build, deploy]
 
 # ...
 if [ "$DEPLOY" = "success" ]; then
-  STATUS="succeeded"
+  STATUS="✅ succeeded"
 elif [ "$BUILD" = "failure" ]; then
-  STATUS="failed (build)"
+  STATUS="❌ failed (build)"
 elif [ "$DEPLOY" = "failure" ]; then
-  STATUS="failed (deploy)"
+  STATUS="❌ failed (deploy)"
 else
-  STATUS="cancelled"
+  STATUS="⚠️ cancelled"
 fi
+# value1 = "<project-name>: $STATUS"
 ```
 
 ### .env.example Entry
@@ -152,5 +155,5 @@ Add a commented reference in `.env.example` for documentation:
 ```bash
 curl -sf -X POST "https://maker.ifttt.com/trigger/{EVENT}/with/key/{KEY}" \
   -H 'Content-Type: application/json' \
-  -d '{"value1": "succeeded", "value2": "abc1234 test commit", "value3": "https://github.com/..."}'
+  -d '{"value1": "my-app: ✅ succeeded", "value2": "https://github.com/owner/repo/actions/runs/123", "value3": ""}'
 ```

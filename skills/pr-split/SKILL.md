@@ -76,6 +76,6 @@ c. **Push and create PR**
 - **CRITICAL: Compare against the correct BASE branch**
 - **CRITICAL: Never alter commits** (no amend, no rebase, no force push)
 - **CRITICAL: Mark original PR as outdated**
-- All PR titles must be in Japanese (project requirement)
+- If the target project's CLAUDE.md defines PR title conventions (e.g. Japanese titles), follow them — otherwise use a clear default
 - Always use squash merge to create clean commits
 - Ask for confirmation before executing

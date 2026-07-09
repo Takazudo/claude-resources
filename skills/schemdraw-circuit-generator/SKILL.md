@@ -221,7 +221,7 @@ AI cannot reliably assess visual quality. Only human confirmation counts.
 
 **Purpose: Generate visual output for HUMAN evaluation, not AI assessment.**
 
-Use HTML wrapper + headless browser to create screenshots for user review:
+Use HTML wrapper + headless browser to create screenshots for user review. The `headless-browser` skill is an **external dependency** (installed from Takazudo/zudo-test-wisdom — not part of this repo). If it isn't installed, degrade gracefully with a warning instead of failing the whole workflow:
 
 ```bash
 # Generate SVG first
@@ -240,13 +240,17 @@ svg{border:2px solid #333;max-width:100%;max-height:90vh;}
 </body></html>
 EOF
 
-# Capture screenshot
-node $HOME/.claude/skills/headless-browser/scripts/headless-check.js \
-  --url file:///tmp/view_diagram.html \
-  --screenshot viewport
+# Capture screenshot (headless-browser skill required; external: Takazudo/zudo-test-wisdom)
+if [ -f "$HOME/.claude/skills/headless-browser/scripts/headless-check.js" ]; then
+  node $HOME/.claude/skills/headless-browser/scripts/headless-check.js \
+    --url file:///tmp/view_diagram.html \
+    --screenshot viewport
+else
+  echo "headless-browser skill not installed (external: Takazudo/zudo-test-wisdom) — skipping screenshot check"
+fi
 ```
 
-Then READ the screenshot and perform comprehensive visual assessment.
+Then READ the screenshot and perform comprehensive visual assessment (when a screenshot was produced).
 
 ### Common IC Connection Patterns (Context7 Reference)
 
@@ -463,7 +467,7 @@ After EACH iteration:
    python3 /tmp/circuit_generator.py
    ```
 
-2. **Generate screenshot:**
+2. **Generate screenshot** (requires the external `headless-browser` skill — Takazudo/zudo-test-wisdom; degrades with a warning if absent):
 
    ```bash
    cat > /tmp/view.html << 'EOF'
@@ -477,8 +481,12 @@ After EACH iteration:
    EOF
    cat /tmp/buck_converter.svg >> /tmp/view.html
    echo "</body></html>" >> /tmp/view.html
-   node $HOME/.claude/skills/headless-browser/scripts/headless-check.js \
-     --url file:///tmp/view.html --screenshot viewport
+   if [ -f "$HOME/.claude/skills/headless-browser/scripts/headless-check.js" ]; then
+     node $HOME/.claude/skills/headless-browser/scripts/headless-check.js \
+       --url file:///tmp/view.html --screenshot viewport
+   else
+     echo "headless-browser skill not installed (external: Takazudo/zudo-test-wisdom) — skipping screenshot check"
+   fi
    ```
 
 3. **Show user the screenshot**

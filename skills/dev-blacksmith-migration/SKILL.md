@@ -5,7 +5,7 @@ description: "Migrate a repo's GitHub Actions CI from the self-hosted-with-fallb
 
 # Blacksmith Migration
 
-Migrate a repo from the "detect-runner with self-hosted fallback" CI pattern to direct [Blacksmith](https://blacksmith.sh/) cloud runner labels. The same playbook applies to other ephemeral cloud runner services (RunsOn, BuildJet, Namespace, Depot) — the runner-label syntax differs, the gotchas don't.
+Migrate a repo from the "detect-runner with self-hosted fallback" CI pattern — the pattern `/dev-actions-self-runner` installs — to direct [Blacksmith](https://blacksmith.sh/) cloud runner labels. The same playbook applies to other ephemeral cloud runner services (RunsOn, BuildJet, Namespace, Depot) — the runner-label syntax differs, the gotchas don't.
 
 ## When this skill triggers
 

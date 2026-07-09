@@ -7,6 +7,8 @@ description: "Add self-hosted runner support with automatic fallback to GitHub-h
 
 Add a reusable `detect-runner.yml` workflow that checks if a self-hosted runner is online via GitHub API, then modify existing workflows to use it for heavy jobs while falling back to `ubuntu-latest` when offline.
 
+**Status:** For repos already on [Blacksmith](https://blacksmith.sh/) or another ephemeral cloud runner, this detect-runner + fallback pattern is superseded — see `/dev-blacksmith-migration` to remove it. Use this skill only for genuinely self-hosted fleets (dedicated always-on hardware/VMs registered as GitHub self-hosted runners).
+
 ## Step 1: Check Project Structure
 
 Verify `.github/workflows/` exists and identify workflows to modify. Focus on **heavy jobs** (build, test, quality checks). Skip lightweight jobs (branch checks, notifications, deploys).
@@ -305,12 +307,13 @@ If the user says **yes**, add a notification step to `detect-runner.yml` after t
           RUN_ID: ${{ github.run_id }}
         run: |
           RUN_URL="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}"
+          PROJECT="$(echo $REPO | rev | cut -d/ -f1 | rev)"
           curl -sSf --max-time 10 -X POST "$IFTTT_PROD_NOTIFY" \
             -H 'Content-Type: application/json' \
             -d "{
-              \"value1\": \"$(echo $REPO | rev | cut -d/ -f1 | rev): self-hosted runner offline\",
-              \"value2\": \"Falling back to ubuntu-latest\",
-              \"value3\": \"${RUN_URL}\"
+              \"value1\": \"${PROJECT}: ⚠️ self-hosted runner offline, falling back to ubuntu-latest\",
+              \"value2\": \"${RUN_URL}\",
+              \"value3\": \"\"
             }" || echo "::warning::IFTTT notification failed"
 ```
 
@@ -323,9 +326,9 @@ Then tell the user:
 > 3. Add the webhook URL as a repo secret named `IFTTT_PROD_NOTIFY`:
 >    - Settings → Secrets and variables → Actions → New repository secret
 >    - Name: `IFTTT_PROD_NOTIFY`
->    - Value: `https://maker.ifttt.com/trigger/{event}/json/with/key/{your-key}`
+>    - Value: `https://maker.ifttt.com/trigger/{event}/with/key/{key}` (the plain endpoint — `/json/with/key/` is a different arbitrary-JSON variant that does not map to value1/value2/value3 ingredients)
 >
-> The notification sends three values: `value1` (status message), `value2` (detail), `value3` (run URL).
+> The payload follows the value1/value2/value3 convention owned by `/dev-ci-ifttt-notify`: `value1` = `{project}: {emoji} {status}` as one string, `value2` = the run URL, `value3` unused.
 > Without the secret, the step is silently skipped.
 
 If the user says **no**, skip this step.
@@ -356,7 +359,7 @@ Without `RUNNER_CHECK_TOKEN`, all jobs run on `ubuntu-latest` as before (safe de
 
   ```yaml
   - name: Clean pnpm setup cache
-    run: rm -rf ~/setup-pnpm ~/setup-pnpm-<slug> || true
+    run: rm -rf $HOME/setup-pnpm $HOME/setup-pnpm-<slug> || true
   - uses: pnpm/action-setup@...
     with:
       version: 10

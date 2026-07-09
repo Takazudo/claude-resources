@@ -10,8 +10,9 @@ Complete reference for slash command frontmatter fields.
 | `argument-hint` | None | Expected arguments shown in autocomplete. Example: `[filename] [options]` |
 | `allowed-tools` | Inherited from conversation | Tools the command can use. Required for bash execution |
 | `model` | Inherited from conversation | Specific model to use. See [model overview](https://docs.claude.com/en/docs/about-claude/models/overview) |
+| `effort` | Session default | Reasoning-effort level: `low`–`max`. See [effort](#effort) |
 | `disable-model-invocation` | `false` | Prevent Claude from auto-invoking via Skill tool |
-| `hooks` | None | Command-scoped hooks. See [hooks documentation](/ja/hooks) |
+| `hooks` | None | Command-scoped hooks. See [hooks documentation](https://code.claude.com/docs/en/hooks) |
 
 ## Field Details
 
@@ -69,19 +70,36 @@ Multiple tools separated by comma.
 
 ### model
 
-Force a specific model for this command.
+Force a specific model for this command. Omitting this field is the recommended default — the command then inherits whatever model the session is already using.
 
 ```yaml
 ---
-model: claude-3-5-haiku-20241022
+model: claude-haiku-4-5-20251001
 ---
 ```
 
-Common model strings:
+Current model strings (see [model overview](https://docs.claude.com/en/docs/about-claude/models/overview) for the full, up-to-date list):
 
-- `claude-sonnet-4-20250514` - Claude Sonnet 4
-- `claude-3-5-haiku-20241022` - Claude 3.5 Haiku (faster, cheaper)
-- `claude-opus-4-20250514` - Claude Opus 4
+- `claude-fable-5` - Fable 5 (most intelligent)
+- `claude-opus-4-8` - Opus 4.8
+- `claude-sonnet-5` - Sonnet 5
+- `claude-haiku-4-5-20251001` - Haiku 4.5 (faster, cheaper)
+
+### effort
+
+Sets the reasoning-effort level for the command's execution:
+
+```yaml
+---
+effort: low
+---
+```
+
+Accepted values: `low`, `medium`, `high`, `xhigh`, `max` (available levels
+depend on the model). Omit for the session default. Lower it for cheap
+mechanical commands; raise it only when the command genuinely needs deeper
+reasoning. This supersedes the old "extended thinking keywords" prompting
+pattern (its docs anchor no longer exists).
 
 ### disable-model-invocation
 
@@ -134,7 +152,7 @@ Hook options:
 description: Deploy application to staging with validation
 argument-hint: [environment] [version]
 allowed-tools: Bash(./scripts:*), Bash(git:*), Bash(docker:*)
-model: claude-sonnet-4-20250514
+model: claude-opus-4-8
 disable-model-invocation: true
 hooks:
   PreToolUse:

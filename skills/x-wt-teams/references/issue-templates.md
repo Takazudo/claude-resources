@@ -186,13 +186,9 @@ After commenting, re-run Steps 3–14 using `--stay` semantics on the existing b
 
 ## Close-tracking-issue comment
 
-**The tracking issue is closed by `/cleanup-resources` at Step 16, not by an inline `gh issue close` here.** See the parent SKILL.md "Step 16: Cleanup audit via `/cleanup-resources`" section for how the manifest is built and how the Sonnet subagent decides. The exact close comment the cleanup skill applies is:
+**The tracking issue is closed by `/cleanup-resources` at Step 16, not by an inline `gh issue close` here.** See the parent SKILL.md "Step 16: Cleanup audit via `/cleanup-resources`" section for how the manifest is built and how the Sonnet subagent decides. The cleanup skill does not apply a fixed close-comment template — its Sonnet subagent proposes a close comment referencing the root PR (a one-line "superseded by" comment, worded per the audit prompt in `skills/cleanup-resources/SKILL.md`) when it proposes `close` for a `tracking` role issue.
 
-```
-Workflow complete. Root PR: <ROOT_PR_URL>
-```
-
-The Sonnet subagent uses that comment template when it proposes `close` for a `tracking` role issue. The manager (you) just executes the plan — do NOT add a separate `gh issue close` call elsewhere in the workflow.
+The manager (you) just executes the plan — do NOT add a separate `gh issue close` call elsewhere in the workflow.
 
 If problems were discovered that need follow-up, they should already have been raised as **separate issues** during the workflow (per "Raising Issues for Unrelated Findings"). Those carry the `unrelated-finding` role in the manifest and the cleanup agent's prompt enforces KEEP for them — they will NOT be closed alongside the tracking issue.
 

@@ -19,10 +19,12 @@ On GitHub: repo Settings > Actions > Runners > New self-hosted runner > **Linux*
 
 ```bash
 mkdir $HOME/actions-runner-REPONAME && cd $HOME/actions-runner-REPONAME
-curl -o actions-runner-linux-x64.tar.gz -L https://github.com/actions/runner/releases/latest/download/actions-runner-linux-x64-2.322.0.tar.gz
+curl -o actions-runner-linux-x64.tar.gz -L https://github.com/actions/runner/releases/download/v2.322.0/actions-runner-linux-x64-2.322.0.tar.gz
 tar xzf actions-runner-linux-x64.tar.gz
 ./config.sh --url https://github.com/OWNER/REPO --token <TOKEN>
 ```
+
+The version above may be stale by the time you read this — `releases/latest/download/` and a pinned filename don't mix (the latest release won't have an old version's asset name, and the command 404s). Get the current version + exact command from GitHub's own registration snippet: repo (or org) **Settings → Actions → Runners → New self-hosted runner** — it generates the `curl`/`tar`/`config.sh` block with the version pinned to whatever GitHub currently ships.
 
 ### 3. Install as systemd service
 

@@ -5,21 +5,48 @@ ephemeral cloud container that clones the **repo** but never sees the local
 `~/.claude`, so a web session starts without the custom skills, agents, and
 commands. This directory + `scripts/setup-web.sh` close that gap.
 
-## How it works
+## How it works — two load paths
 
-1. `.claude/settings.json` registers a **SessionStart hook** that runs
-   `.claude/web-bootstrap.sh` — a self-only gate that no-ops unless the session
-   is on web **and** the account has `CLAUDE_WEB_PROFILE_OPT_IN=1` in its
-   per-user web environment variables — which then runs `scripts/setup-web.sh`.
-2. `setup-web.sh` (web-only, idempotent) mirrors the portable trees
-   (`skills/ agents/ commands/ scripts/ hooks/` + `CLAUDE.md`) into the
+**Primary — environment Setup script (pre-launch).** Paste
+[`web/env-setup-script.sh`](./env-setup-script.sh) into the web environment's
+**Setup script** field (claude.ai/code → Environment). It runs **before Claude
+Code launches**: clones `Takazudo/claude-settings` (falls back to the public
+`claude-resources` tarball when the clone is rejected), then runs
+`scripts/setup-web.sh`, so the profile is fully in place at boot. Environments
+are per-account, so this path is inherently self-only. Also add to the
+environment's **Environment variables** field:
+
+```
+CLAUDE_WEB_PROFILE_OPT_IN=1
+DROPBOX_CCLOGS_DIR=/tmp/cclogs
+DROPBOX_SCREENSHOTS_DIR=/tmp/screenshots
+```
+
+**Secondary — committed SessionStart hook (single-repo top-up).**
+`.claude/settings.json` registers a SessionStart hook running
+`.claude/web-bootstrap.sh` — a self-only gate (no-op unless on web **and**
+`CLAUDE_WEB_PROFILE_OPT_IN=1` is set) that re-runs `scripts/setup-web.sh` from
+the session's own checkout. In a single-repo web session on this repo that
+overlays the **current branch**'s files on top of the pre-launch install (the
+setup script only knows the default branch). The overlay is additive
+(`cp -a` union copy) — files deleted or renamed on the branch may linger from
+the default-branch install. **Limitation (verified in-container):** in multi-repo sessions
+the project dir is `/home/user` with repos as subdirectories, and repo-level
+settings **hooks are not registered** — CLAUDE.md and skills load, hooks don't —
+so this path silently skips there. The Setup script covers those sessions.
+
+Both paths converge on the shared loader:
+
+1. `scripts/setup-web.sh` (web-only, idempotent) mirrors the portable trees
+   (`skills/ agents/ commands/ scripts/ hooks/ web/` + `CLAUDE.md`) into the
    container's `$HOME/.claude`, then overlays `web/settings.web.json` as
    `~/.claude/settings.json`.
-3. Dropbox env vars (`DROPBOX_CCLOGS_DIR`, `DROPBOX_SCREENSHOTS_DIR`) are stubbed
-   to `/tmp` so skills that read them degrade gracefully.
+2. Dropbox env vars (`DROPBOX_CCLOGS_DIR`, `DROPBOX_SCREENSHOTS_DIR`) are stubbed
+   to `/tmp` so skills that read them degrade gracefully (via `$CLAUDE_ENV_FILE`
+   when run as a hook; via the env-vars field for the pre-launch path).
 
-On the Mac terminal the hook no-ops (`$CLAUDE_CODE_REMOTE` is unset), so wiring
-it up is safe.
+On the Mac terminal both paths no-op (`$CLAUDE_CODE_REMOTE` is unset — and the
+Setup script field only exists on web), so the wiring is safe to keep committed.
 
 ## What differs from the macOS settings
 
@@ -59,22 +86,30 @@ and omits the agent-teams env flag.
 
 ## Wisdom skills
 
-`scripts/setup-web-wisdom.sh` runs as a second SessionStart step (web-only,
-after `setup-web.sh`) and bakes a curated set of public wisdom repos into the
-container.
+`scripts/setup-web-wisdom.sh` is invoked by `setup-web.sh` as its **final**
+step (web-only, after the settings overlay — so a timeout in this slow,
+networked step can't leave a session without `settings.json`) and bakes a
+curated set of public wisdom repos into the container.
 
 ### Which repos are baked
 
 | Skill(s) provided | Source repo |
 |---|---|
-| `test-wisdom`, `verify-ui`, `headless-browser`, `verify-ui-ai` | `Takazudo/zudo-test-wisdom` |
+| `test-wisdom` | `Takazudo/zudo-test-wisdom` |
 | `cloudflare-wisdom` | `Takazudo/zudo-cloudflare-wisdom` |
 | `tauri-wisdom` | `Takazudo/zudo-tauri-wisdom` |
 | `codemirror-wisdom` | `Takazudo/zudo-codemirror-wisdom` |
-| `css-wisdom` | `zudolab/zudo-css-wisdom` |
+| `css-wisdom` | `Takazudo/zudo-css-wisdom` |
 
-Repos are cloned in priority order — cheaper Takazudo repos first so the most
-commonly used skills (`test-wisdom` / browser helpers) appear earliest.
+Repos are cloned in priority order — the most commonly used repo
+(`zudo-test-wisdom`) first, the heavier `css-wisdom` setup last.
+
+`zudo-test-wisdom` also carries `verify-ui`, `headless-browser`, and
+`verify-ui-ai` under its own `.claude/skills/`, but `setup-web-wisdom.sh` only
+symlinks **one** doc-lookup skill per repo (`test-wisdom`) into
+`~/.claude/skills/` — those three stay uninstalled unless a session symlinks
+them manually. See [`web-mode.md`](./web-mode.md) §7 for the working
+browser-verification path on web.
 
 ### Cache: `$HOME/.claude-wisdom`
 
@@ -104,16 +139,33 @@ needs hardware or local-only tooling that cannot work headless, add a targeted
 `"<skill-name>": "off"` override to `settings.web.json` with a comment
 explaining why.
 
-## Distribution to other repos (follow-up)
+## Distribution to other repos
 
-This loader works for web sessions **in this repo**. Making the profile load in
-*other* project repos needs the project's web session to fetch this config,
-which depends on whether the locked-down container can reach an external repo at
-hook time — **untested**. Options, once verified:
+Solved by the per-environment **Setup script** (`web/env-setup-script.sh`): it
+runs for every session using that environment regardless of which repo(s) the
+session includes, so no per-repo commit is needed. `/dev-setup-webenv` prints
+the snippet and can additionally commit a per-repo hook as a single-repo
+redundancy fallback (it fetches the public mirror's default branch and skips
+when the env script already installed — only this repo's own hand-written hook
+re-syncs from the session's checkout).
 
-- Per-environment **setup script** (web UI), reused across sessions.
-- A scrubbed public mirror cloned at hook time (the `/claude-resources-share`
-  pipeline already strips private info).
+Network notes (observed in-container 2026-07, **from SessionStart context** —
+i.e. after Claude Code booted; the Setup script runs *pre-launch*, where git
+proxy/credential state is unverified):
+
+- Plain-HTTPS tarball fetch of the public `claude-resources` mirror works.
+- `git clone` of the user's own **public** repos through the scoped proxy works
+  post-boot — the old "out-of-scope clone always 403s" behavior has loosened
+  (e.g. `setup-web-wisdom.sh` clones its five public wisdom repos). The private
+  `claude-settings` clone and *pre-launch* git in general are extrapolations:
+  if they fail, tier 1 degrades to the tarball and the wisdom clones fail
+  (isolated, logged, non-fatal) — check the environment's setup output on
+  first run for `claude-profile: cloned claude-settings` vs `fetched
+  claude-resources tarball` and the wisdom `Done in Ns` summary line.
+- GitHub **release assets** (`github.com/*/releases/download/*`) are still
+  403-blocked under restricted policies — affects packages whose postinstall
+  downloads binaries from releases (e.g. `ffmpeg-static`, `canvas` prebuilds),
+  not this loader.
 
 ## Not yet ported
 

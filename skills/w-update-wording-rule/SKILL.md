@@ -18,10 +18,12 @@ Add a new wording rule to all 4 `vocabulary-rule.md` files in the w repo.
 
 All 4 files must be updated identically:
 
-- `$HOME/repos/w/cg/doc/docs/overview/vocabulary-rule.md`
-- `$HOME/repos/w/esa/doc/docs/overview/vocabulary-rule.md`
-- `$HOME/repos/w/message/doc/docs/overview/vocabulary-rule.md`
-- `$HOME/repos/w/zpaper/doc/docs/overview/vocabulary-rule.md`
+- `$HOME/repos/w/cg/doc/src/content/docs/overview/vocabulary-rule.md`
+- `$HOME/repos/w/esa/doc/src/content/docs/overview/vocabulary-rule.md`
+- `$HOME/repos/w/message/doc/src/content/docs/overview/vocabulary-rule.md`
+- `$HOME/repos/w/zpaper/doc/src/content/docs/overview/vocabulary-rule.md`
+
+> The `cg`, `esa`, and `zpaper` paths follow the `doc/src/content/docs/overview/` layout used by the apply-voice skills and writer agents (the sites migrated to the Astro/zudo-doc layout). The `w/message` repo's layout could not be verified from this environment — it is assumed to have migrated to the same layout, so confirm its `vocabulary-rule.md` path before appending.
 
 ## Process
 
@@ -77,7 +79,7 @@ For a rule "ふうに should be 風に":
 
 ## Important
 
-- Keep the same Docusaurus frontmatter and existing content intact
+- Keep the existing frontmatter and content intact
 - The new rule is appended at the end of the file
 - All 4 files must have identical content after the update
 - Write the explanation and examples in Japanese

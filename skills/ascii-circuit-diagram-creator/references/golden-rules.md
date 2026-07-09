@@ -629,7 +629,7 @@ Before finalizing any diagram:
 3. ✅ All components properly connected (no floating components)
 4. ✅ Parallel components shown as vertical drops to GND
 5. ✅ Diode polarity correct (cathode/anode orientation)
-6. ✅ ASCII-only characters used (no Unicode box-drawing or arrows)
+6. ✅ Unicode box-drawing characters used (no ambiguous ASCII `+` junctions)
 7. ✅ No flying/disconnected lines (vertical lines maintain column alignment)
 8. ✅ Consistent column alignment (no sliding vertical bars)
 9. ✅ Label notation used for distant connections

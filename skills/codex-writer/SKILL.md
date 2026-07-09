@@ -133,5 +133,5 @@ Tell the user what was written and where. Include the draft log path for referen
 - Codex runs in read-only mode — it cannot create or modify files
 - Codex can read workspace files to understand codebase context
 - Claude Code reviews all codex output before writing to files
-- Draft output saved to `$LOGDIR/codex-writer-draft.md`
+- Draft output saved to `$LOGDIR/${DATETIME}-codex-writer-draft.md`
 - **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to a `markdown-writer` subagent at `model: opus`. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do. Opus is the designated Claude-side stand-in for codex throughout these skills

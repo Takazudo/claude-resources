@@ -18,10 +18,11 @@
     "lint": "tsc --noEmit"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240502.0",
+    "@cloudflare/workers-types": "^5.20260101.0",
+    "@types/node": "^24.0.0",
     "typescript": "^5.4.0",
     "vitest": "^2.1.0",
-    "wrangler": "^3.60.0"
+    "wrangler": "^4"
   },
   "keywords": [
     "cloudflare",

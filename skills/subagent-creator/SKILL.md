@@ -20,7 +20,7 @@ Custom agents are **Markdown files with YAML frontmatter** stored in:
 |-------|----------|-------------|
 | `name` | Yes | Lowercase letters and hyphens identifier |
 | `description` | Yes | What the agent does. Claude uses this to decide when to delegate |
-| `model` | No | `sonnet`, `opus`, `haiku`, or `inherit` (default) |
+| `model` | No | `sonnet`, `opus`, `haiku`, `fable`, a full model ID (e.g. `claude-opus-4-8`), or `inherit` (default) — prefer `inherit` so the agent tracks the session model (currently Fable 5, a tier above Opus) |
 | `tools` | No | Allowlist of tools. Inherits all if omitted. Use `Task(agent-name)` to restrict subagent spawning |
 | `disallowedTools` | No | Denylist of tools |
 | `permissionMode` | No | `default`, `acceptEdits`, `delegate`, `dontAsk`, `bypassPermissions`, `plan` |
@@ -44,6 +44,8 @@ Ask user:
 ### Step 2: Choose appropriate settings
 
 **Model selection:**
+
+`opus` is not the top of the overall lineup (`fable` / the session model, currently Fable 5, sits above it) — when the agent should track whatever model is driving the session rather than being pinned, prefer `inherit` over hardcoding a model.
 
 - `opus` - Complex reasoning, code review, architecture decisions
 - `sonnet` - General development, balanced speed/quality

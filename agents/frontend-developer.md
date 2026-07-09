@@ -53,7 +53,6 @@ Assess testability and choose pragmatically:
 ## Tool Usage
 
 - **MCP Playwright**: Verify browser behavior and UI interactions
-- **MCP Context7**: Library/framework-specific guidance
 - **chrome-devtools**: Confirm browser behavior, network throttling, responsive screenshots
 
 ## Communication

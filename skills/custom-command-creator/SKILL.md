@@ -30,7 +30,7 @@ Custom slash commands are Markdown files that define reusable prompts. They're s
 | Project | `.claude/commands/<name>.md` | This project only (shows as "project") |
 | Personal | `$HOME/.claude/commands/<name>.md` | All your projects (shows as "user") |
 
-**Priority**: Project commands override personal commands with same name.
+**Priority**: Enterprise > Personal > Project. When commands share a name across levels, personal (`$HOME/.claude/commands/`) overrides project (`.claude/commands/`) — commands follow the same precedence as skills, since custom commands are a skill variant. See [Skills](https://code.claude.com/docs/en/skills) for the full precedence rule.
 
 ## Command Anatomy
 
@@ -104,11 +104,7 @@ Compare @src/old.js with @src/new.js
 
 ### Extended Thinking
 
-Include [thinking keywords](/ja/common-workflows#use-extended-thinking) to trigger extended thinking mode:
-
-```markdown
-Think deeply about the architecture of this codebase.
-```
+Set the `effort` frontmatter field (`low`–`max`) to control reasoning depth — see [references/frontmatter.md](references/frontmatter.md#effort). The old "thinking keywords" prompting pattern ("think hard", "ultrathink") is superseded; current docs no longer document it.
 
 ## Namespacing
 
@@ -203,7 +199,7 @@ After creating the file:
 1. Confirm the file exists at the target path
 2. Show the user the full content of the created file
 3. Tell them they can use it with `/<command-name>`
-4. **For global commands**: Remind that project-level commands take priority over global commands with the same name
+4. **For global commands**: Remind that a personal (global) command takes priority over a project-level command with the same name — see the Priority note in "Command Locations" above
 5. **For local commands**: Suggest committing to git so the team can share it
 
 ### Key Rules for Creation
@@ -214,7 +210,7 @@ After creating the file:
 - Use `$ARGUMENTS` / `$1` / `$2` for dynamic values, not hardcoded values
 - Don't overcomplicate - a command is a single Markdown file for a reusable prompt
 - Local commands are great for project-specific workflows (deploy, test patterns, review checklists)
-- **File paths must use `$HOME` instead of `~`**: When command instructions reference home directory paths (e.g., log directories, config files), always write `$HOME/cclogs/...` or `$HOME/.claude/...`, NEVER `$HOME/cclogs/...` or `$HOME/.claude/...`. The `~` character is only expanded by interactive shell login contexts. In Node.js `fs` operations, non-login shells, and many tool contexts, `~` is treated as a literal character, which creates an actual directory named `$HOME/` inside the working directory. This applies to paths in the command body text, bash execution snippets, and any instructions that an agent will follow
+- **File paths must use `$HOME` instead of `~`**: When command instructions reference home directory paths (e.g., log directories, config files), always write `$HOME/cclogs/...` or `$HOME/.claude/...`, never `~/cclogs/...` or `~/.claude/...`. The `~` character is only expanded by interactive shell login contexts. In Node.js `fs` operations, non-login shells, and many tool contexts, `~` is treated as a literal character, which creates an actual directory named `~/` inside the working directory instead of resolving to the user's home directory. This applies to paths in the command body text, bash execution snippets, and any instructions that an agent will follow. (Guard note: the `~/...` forms above are the deliberate NEVER-case this rule warns against — a future blanket `~`→`$HOME` find-and-replace must skip this line, or it destroys the contrast the rule depends on.)
 
 ## Examples
 
@@ -274,13 +270,15 @@ Review PR #$1 for:
 
 ### Model-Specific Command
 
+Most commands should omit `model` and inherit the session's active model. Pin a model only when the command's task clearly calls for it, e.g. a cheap, high-volume task that doesn't need a large model:
+
 ```markdown
 ---
-description: Complex analysis with specific model
-model: claude-sonnet-4-20250514
+description: Quick lint-style pass over the diff
+model: claude-haiku-4-5-20251001
 ---
 
-Perform detailed analysis of $ARGUMENTS.
+Perform a lint-style pass on $ARGUMENTS.
 ```
 
 ## Preventing Auto-Invocation
@@ -338,6 +336,6 @@ The `once: true` option runs the hook only once per session.
 
 ## Related Resources
 
-- [Skills](/ja/skills): For complex multi-file capabilities
-- [Hooks](/ja/hooks): For automated workflows around tool events
-- [Permissions](/ja/iam): For controlling tool access
+- [Skills](https://code.claude.com/docs/en/skills): For complex multi-file capabilities
+- [Hooks](https://code.claude.com/docs/en/hooks): For automated workflows around tool events
+- [Permissions](https://code.claude.com/docs/en/permissions): For controlling tool access

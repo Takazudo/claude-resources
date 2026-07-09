@@ -39,7 +39,7 @@ Keep the user's Claude flag spellings so habits transfer. Include only the flags
 
 Use these exact names in every "Related Skills" / routing section:
 
-`big-plan`, `cleanup-resources`, `x`, `x-as-pr`, `x-wt-teams` (canonical), `x-wt-team` (alias), `deep-review` (alias → codex-review), `review-loop`, `verify-ui`, `watch-ci`, `pr-revise`, `gh-fetch-issue`, `codex-2nd`, `codex-review`, `codex-research`, `codex-writer`.
+`big-plan`, `cleanup-resources`, `x`, `x-as-pr`, `x-wt-teams` (canonical), `x-wt-team` (alias), `deep-review` (alias → codex-review), `review-loop`, `verify-ui` (external — from `Takazudo/zudo-test-wisdom`, not a `$HOME/.claude` port; reference only where installed), `watch-ci`, `pr-revise`, `gh-fetch-issue`, `codex-2nd`, `codex-review`, `codex-research`, `codex-writer`.
 
 End every "Related Skills" list with: "If one of these related skills does not exist on the Codex side yet, keep going with the equivalent behavior directly in the current session instead of blocking."
 

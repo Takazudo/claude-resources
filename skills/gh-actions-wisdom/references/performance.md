@@ -25,7 +25,8 @@ For self-hosted runners this is even more pointless — the pnpm store is alread
 ```yaml
 - uses: actions/cache@v4
   with:
-    path: $HOME/.cache/ms-playwright
+    # actions/cache does NOT expand $HOME in path: — use ~ (tilde). CI-YAML action inputs are the exception to this repo's shell/Node "$HOME over ~" rule.
+    path: ~/.cache/ms-playwright
     key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
     restore-keys: |
       playwright-${{ runner.os }}-

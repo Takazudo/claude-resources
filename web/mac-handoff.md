@@ -1,10 +1,14 @@
 # Mac-handoff contract (limited verification environments)
 
 Applies to **Claude Code on the web only** (`$CLAUDE_CODE_REMOTE=true`) — the ephemeral cloud
-container that can run the dev workflow but **cannot perform the final, rich-environment
-verification** the `/big-plan` → `/x-as-pr` / `/x-wt-teams` workflows assume: browser/visual
-checks via Playwright (`/verify-ui`, `/headless-browser`) and any Mac-only CI/build. Without
-that step a run can finish — or auto-merge with `-m` — with the **final result never actually
+container that can run the dev workflow, including a basic Playwright/DOM check via the
+pre-installed Chromium ([`web-mode.md`](./web-mode.md) §7), but **cannot perform the final,
+rich-environment verification** the `/big-plan` → `/x-as-pr` / `/x-wt-teams` workflows assume:
+macOS-native UI rendering, Dropbox-dependent flows, real-device/display rendering, the user's
+own visual judgment, and any Mac-only CI/build. (The `/verify-ui` / `/headless-browser` *skills*
+are not auto-installed on web — `scripts/setup-web-wisdom.sh` only bakes `test-wisdom` — but the
+underlying capability they wrap is available via web-mode.md §7's inline recipe.) Without that
+step a run can finish — or auto-merge with `-m` — with the **final result never actually
 confirmed**.
 
 > **WSL is NOT a limited env here.** WSL is a persistent local machine that runs Playwright
@@ -58,8 +62,11 @@ if [ "$LIMITED_ENV" = true ] && { [ "$VERIFY_UI" = true ] || [ "$UI_CHANGED" = t
 fi
 ```
 
-When `DEFER_MAC=true`, **do not run** `/verify-ui` / `/headless-browser` / browser subagents
-(they can't verify here) — instead apply §5/§6 below. When `DEFER_MAC=false`, behave exactly
+When `DEFER_MAC=true`, the `/verify-ui` / `/headless-browser` *skills* are not available by
+name (not auto-installed on web — see above): don't reach for them as slash commands. A raw
+Playwright check via `web-mode.md` §7's inline recipe can still confirm DOM/rendering basics,
+but it cannot cover macOS-native UI, Dropbox-dependent flows, real-device rendering, or the
+user's own visual judgment — apply §5/§6 below for those. When `DEFER_MAC=false`, behave exactly
 as on a rich env (this is the off-web path — Mac / WSL / local — and the web path for pure
 non-UI work).
 
@@ -112,8 +119,9 @@ reason is human-readable. Template:
 
 ```
 🖥️ **Mac verification needed.** This was implemented on Claude Code web, where the final
-visual / browser / Mac-only check could not run, so the **final result has not been
-confirmed**.
+rich-environment check (macOS-native rendering, Dropbox-dependent flows, real-device rendering,
+your own visual judgment) and any Mac-only CI/build could not run, so the **final result has not
+been confirmed**.
 
 Please verify on a Mac (rich env):
 - run the app / `/verify-ui` on the changed UI
@@ -128,10 +136,13 @@ Pick by whether `-m` / `--merge` was passed. Both run only when `DEFER_MAC=true`
 
 ### A. `-m` / `--merge` passed — merge anyway, then flag a new issue
 
-1. **Skip the local verify step** (don't block on `/verify-ui` — it can't run). **Keep CI
+1. **Skip the rich-environment verify step** (don't block on the parts §1's paragraph scopes
+   out — macOS-native rendering, Dropbox-dependent flows, real-device rendering, the user's own
+   visual judgment; the `/verify-ui` / `/headless-browser` skills aren't installed by name
+   either, though a raw `web-mode.md` §7 Playwright check is available if useful). **Keep CI
    gating:** the merge still goes through the skill's normal `/pr-complete -c` path, which
    waits for GitHub CI to be green. Never force-merge red CI. ("Merge without final
-   confirmation" = skip the *local/visual/Mac* check, not skip CI.)
+   confirmation" = skip the *rich-environment/Mac* check, not skip CI.)
 2. **After the merge succeeds**, create a NEW tracking issue:
    - **title:** `[Mac] Verify merged work — <topic> (#<orig-issue-if-any>)`  ← the `[Mac]`
      prefix means the signal survives even on web where the label can't be created.

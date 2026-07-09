@@ -102,5 +102,4 @@ Use the EXACT base branch from step 2. Include:
 - **CRITICAL: ALWAYS use the original PR's base branch**
 - **CRITICAL: Never alter commits** (no amend, no rebase, no force push)
 - **CRITICAL: Create MULTIPLE meaningful commits** (2-5 minimum)
-- All PR titles must be in Japanese (project requirement)
-- Always include the AI header in PR body and comments
+- If the target project's CLAUDE.md defines PR conventions (e.g. Japanese titles, an AI-attribution header in the PR body/comments), follow them — otherwise use clear defaults

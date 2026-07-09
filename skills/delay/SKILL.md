@@ -1,6 +1,6 @@
 ---
 name: delay
-description: "Schedule instructions to run ONCE at a later time in the current session, via a one-shot in-session cron job (CronCreate with recurring: false). Use when: (1) User invokes /delay, (2) User says 'in N hours/minutes do X', 'schedule X for later', 'do this at 16:30', 'remind me in an hour to X', or any other one-shot delayed-execution request. NOT for recurring intervals (use /loop) and NOT for schedules that must survive closing the terminal (use /schedule — cloud routine). This skill only schedules — it never executes the instructions immediately."
+description: "Schedule instructions to run ONCE at a later time in the current session, via a one-shot in-session cron job (CronCreate with recurring: false). Use when: (1) User invokes /delay, (2) User says 'in N hours/minutes do X', 'schedule X for later', 'do this at 16:30', 'remind me in an hour to X', or any other one-shot delayed-execution request. NOT for recurring intervals (use /loop) and NOT for schedules that must survive closing the terminal (use a cloud Routine — the Claude Code Remote `create_trigger` / `send_later` MCP tools, which persist server-side). This skill only schedules — it never executes the instructions immediately."
 argument-hint: <time spec>, <instructions>
 ---
 
@@ -38,4 +38,4 @@ Arguments: `$ARGUMENTS`
 
 - Exactly one CronCreate call per /delay invocation. Don't add wakeups, loops, or Monitor tasks alongside it.
 - Never run any part of the instructions in the scheduling turn — not even "harmless prep" like a git pull.
-- If the user actually wants a recurring cadence, hand off to /loop; if they need it to survive terminal close, hand off to /schedule.
+- If the user actually wants a recurring cadence, hand off to /loop; if they need it to survive terminal close, hand it off to a cloud Routine (the Claude Code Remote `create_trigger` / `send_later` MCP tools), which persists server-side instead of dying with the session.

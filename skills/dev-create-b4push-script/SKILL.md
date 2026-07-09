@@ -1,6 +1,6 @@
 ---
 name: dev-create-b4push-script
-description: "Create a before-push validation script (b4push) and project-level b4push skill. Analyzes the project, identifies check steps (quality, build, test, doc site, e2e), generates scripts/run-b4push.sh, adds package.json entry, creates .claude/skills/b4push/skill.md. Use when: (1) User says 'create b4push', 'add b4push', 'before push script', (2) Setting up a new project's CI/validation workflow."
+description: "Create a before-push validation script (b4push) and project-level b4push skill. Analyzes the project, identifies check steps (quality, build, test, doc site, e2e), generates scripts/run-b4push.sh, adds package.json entry, creates .claude/skills/b4push/SKILL.md. Use when: (1) User says 'create b4push', 'add b4push', 'before push script', (2) Setting up a new project's CI/validation workflow."
 user-invocable: true
 allowed-tools:
   - Bash
@@ -13,84 +13,17 @@ allowed-tools:
 
 # Create B4Push Script
 
-Generate a comprehensive before-push validation script for the current project.
+Generate a before-push validation script (`scripts/run-b4push.sh`), wire it into `package.json`, and create the project-level `.claude/skills/b4push/SKILL.md`.
+
+**All templates and step tables live in the `/b4push-wisdom` skill — the single canonical source.** Read it before generating anything; do not keep a second copy of the templates here. This skill is the focused "just create the local script + skill" entry point; `/b4push-wisdom` is the full guide (local script + skill + CI workflow).
 
 ## Workflow
 
-### 1. Analyze the project
+1. **Analyze the project** — package manager (lockfiles), available scripts (`check`, `build`, `test`, `lint`, `format`, `typecheck`), doc site (`doc/`, `docs/`, `website/`), e2e tests (playwright/cypress), data-generation scripts. See `/b4push-wisdom` Step 1.
+2. **Determine steps** — pick the check steps that apply, using the step table in `/b4push-wisdom` Step 2.
+3. **Create `scripts/run-b4push.sh`** — use the template in `/b4push-wisdom` Step 3, then `chmod +x scripts/run-b4push.sh`.
+4. **Add the `package.json` script** — `"b4push": "./scripts/run-b4push.sh"` (`/b4push-wisdom` Step 4).
+5. **Create `.claude/skills/b4push/SKILL.md`** — use the project-skill template in `/b4push-wisdom` Step 5. Uppercase `SKILL.md` is canonical; lowercase `skill.md` causes git dual-tracking / clone collisions on case-insensitive filesystems. Give it `user-invocable: true` and `allowed-tools: [Bash]`, with a description whose triggers fire on big changes, PR completion, etc.
+6. **Test** — run `pnpm b4push` and fix any issues found.
 
-Read `package.json` to understand:
-
-- Package manager (pnpm/npm/yarn) - check lockfiles
-- Available scripts: `check`, `build`, `test`, `lint`, `format`, `typecheck`
-- Whether there's a doc site (look for `doc/`, `docs/`, `website/` directories with their own package.json)
-- Whether there are e2e tests (playwright, cypress)
-- Whether there are data generation scripts (e.g., `generate-*` scripts in doc)
-
-### 2. Determine steps
-
-Common step patterns (adapt to project):
-
-| Step | Command | When to include |
-| --- | --- | --- |
-| Code quality | `pnpm check` or `pnpm lint && pnpm format` | Always |
-| TypeScript build | `pnpm build` | If `build` script exists |
-| Unit tests | `pnpm test` | If `test` script exists |
-| Doc data generation | `cd doc && pnpm run generate-*` | If doc site has generate scripts |
-| Doc quality checks | `cd doc && pnpm run check` | If doc site has check script |
-| Doc site build | `cd doc && pnpm build` | If doc site exists |
-| E2E tests | Start server + run playwright | If e2e tests exist |
-
-For projects with e2e tests, add server lifecycle management (start, wait for ready, run tests, kill).
-
-### 3. Create the shell script
-
-Create `scripts/run-b4push.sh` based on the template in `assets/run-b4push-template.sh`.
-
-Key patterns:
-
-- `set -euo pipefail` for strict error handling
-- `FAILURES=()` array - continues all steps even if some fail
-- `step()`, `pass()`, `fail()` helper functions
-- Subshell execution `(cd "$DIR" && command)` to isolate directory changes
-- `ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"` for reliable path resolution
-- Summary section with elapsed time and failure list
-- Exit 0 on success, exit 1 on any failure
-
-Make the script executable: `chmod +x scripts/run-b4push.sh`
-
-### 4. Add package.json script
-
-Add to `package.json`:
-
-```json
-{
-  "scripts": {
-    "b4push": "./scripts/run-b4push.sh"
-  }
-}
-```
-
-### 5. Create project-level b4push skill
-
-Create `.claude/skills/b4push/skill.md` based on `assets/b4push-skill-template.md`.
-
-Customize:
-
-- Step list with project-specific descriptions
-- Estimated duration
-- Fix commands specific to the project (e.g., `pnpm check:fix`, `cd doc && pnpm check:fix`)
-
-The skill should have `user-invocable: true` and `allowed-tools: [Bash]`. The description must include triggers for automatic invocation on big changes, PR completion, etc.
-
-### 6. Test
-
-Run `pnpm b4push` to verify all steps execute correctly. Fix any issues found.
-
-## Reference projects
-
-These projects have working b4push setups:
-
-- **mdx-formatter**: 6 steps (quality, build, test, doc data, doc quality, doc build), ~40s
-- **zmod**: 9 steps including e2e with production server, ~3-4 min
-- **zpanels**: Dual-track (quick 3 steps ~3-5 min, full 6+ steps with e2e ~10-15 min)
+For the optional GitHub Actions CI workflow and the reference-project list, see `/b4push-wisdom`.

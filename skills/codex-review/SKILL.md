@@ -121,7 +121,7 @@ After codex completes (or times out):
 If codex timed out, produced no output, or is rate-limited:
 
 - **Silently fall back to Opus** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
-- Spawn **2 `code-reviewer` subagents** in parallel (like /light-review) with `model: opus`, reviewing the diff against `$BASE`. Opus is the designated Claude-side stand-in for codex: roughly comparable quality, no quota-loud failure mode.
+- Spawn **2 `code-reviewer` subagents** in parallel (like /light-review) with `model: opus`, reviewing the diff against `$BASE`. Opus is the designated Claude-side stand-in for codex throughout these skills — no quota-loud failure mode.
 - Continue the workflow as if `/light-review` was invoked instead
 
 ### Step 6: Synthesize and Report
@@ -153,4 +153,4 @@ If fixes were applied, commit with a descriptive message.
 - Output files go to `$LOGDIR/${DATETIME}-codex-review-*.md` (timestamped to avoid overwrites)
 - Stderr logs go to `$LOGDIR/${DATETIME}-codex-review-*-stderr.log` (for debugging silent failures)
 - This skill is preferred over /light-review for code review tasks
-- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable for any reason, silently fall back to **Opus** (2 `code-reviewer` subagents at `model: opus`, like `/light-review`). NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do. Just continue with the fallback as if nothing happened. Opus is the designated Claude-side stand-in for codex throughout these skills — the user already chose `-co` to mean "give me the better reviewer," so dropping to Opus matches the spirit of that choice when codex is unavailable
+- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable for any reason, silently fall back to **Opus** (2 `code-reviewer` subagents at `model: opus`, like `/light-review`). NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do. Just continue with the fallback as if nothing happened. Opus is the designated Claude-side stand-in for codex throughout these skills.

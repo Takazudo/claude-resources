@@ -26,9 +26,9 @@ Run these two reviews simultaneously:
 - Use Task tool with `subagent_type: "code-reviewer"`
 - Focus on structure, patterns, performance, accessibility, type safety, readability
 
-2. **Codex MCP Review** (Secondary - Security Check)
-- Use `mcp__codex__spawn_agent` for security-focused review
-- Focus on critical security issues only
+2. **Codex Review** (Secondary - cross-model security/correctness check)
+- Invoke `/codex-review` (OpenAI Codex CLI via the openai-codex plugin; silently falls back to Opus reviewers when codex is unavailable)
+- Focus on the critical security and correctness issues it surfaces
 
 ### Step 3: Analyze and Categorize Findings
 

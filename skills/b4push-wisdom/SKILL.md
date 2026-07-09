@@ -118,7 +118,7 @@ Make executable: `chmod +x scripts/run-b4push.sh`
 
 ## Step 5: Create project-specific b4push skill
 
-Create `.claude/skills/b4push/skill.md`:
+Create `.claude/skills/b4push/SKILL.md` (uppercase — the canonical name; lowercase `skill.md` causes git dual-tracking / clone collisions on case-insensitive filesystems):
 
 ```markdown
 ---
@@ -184,7 +184,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
 
@@ -198,7 +197,7 @@ The CI workflow should mirror the b4push steps so local and CI validation are co
 Key CI patterns:
 
 - Cancel previous runs for same PR (`concurrency` group)
-- Use `pnpm/action-setup@v4` + `actions/setup-node@v4` with cache
+- Use `pnpm/action-setup@v4` + `actions/setup-node@v4` with no `cache:` (fresh install from the npm CDN beats cache restore — see gh-actions-wisdom rule 5)
 - `pnpm install --frozen-lockfile` for reproducible installs
 - Each step as a separate `run` for clear failure identification
 

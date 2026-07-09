@@ -18,7 +18,7 @@ Check `$ARGUMENTS` for these flags (case-insensitive, hyphens optional):
 
 ## Execution Strategy (Token Cost Optimization)
 
-Offload the commit workflow to a Haiku subagent so the expensive main Opus context only sees a summary — not the full git diff, file-selection reasoning, or commit-message drafting.
+Offload the commit workflow to a Haiku subagent so the expensive main session context (the session model — currently Fable 5) only sees a summary — not the full git diff, file-selection reasoning, or commit-message drafting.
 
 ### Step 0: Pre-check (skip subagent when nothing to do)
 
@@ -39,7 +39,7 @@ Based on the results:
 
 ### Attempt 1: Haiku subagent
 
-Spawn a **Haiku subagent** using the Agent tool with `model: "haiku"`. Give it the full Instructions section below as its prompt, plus the current repo path and whether `push` is requested. The subagent runs in its own isolated context — the main Opus context only sees the final report, not the intermediate git diff/status output.
+Spawn a **Haiku subagent** using the Agent tool with `model: "haiku"`. Give it the full Instructions section below as its prompt, plus the current repo path and whether `push` is requested. The subagent runs in its own isolated context — the main session context (the session model — currently Fable 5) only sees the final report, not the intermediate git diff/status output.
 
 If the subagent reports success: **stop here**. Done.
 

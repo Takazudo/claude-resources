@@ -26,6 +26,8 @@ IFTTT notifications (especially mobile push) typically only show `value1` promin
 
 **Do NOT split project name and status across value1/value2** — the user should see the full picture from the notification title alone.
 
+This is the canonical IFTTT payload contract (convention C2) shared by every skill that posts to `IFTTT_PROD_NOTIFY`. `/dev-gha-ifttt-notify` follows this same layout.
+
 ## Workflow
 
 ### 1. Identify the Workflow

@@ -143,7 +143,6 @@ After the first deploy, before pointing real traffic:
 npm test                   # unit tests, mocks fetch
 npm run test:integration   # hits real siteverify with test secrets
 npm run typecheck
-npm run openapi:lint
 ```
 
 Cloudflare's documented test secrets:
@@ -170,7 +169,6 @@ test/
 └── validation.test.ts    # Validation surface (health, hostname, structured errors)
 public/
 └── post-deploy.html  # Post-deploy form for the Deploy button path
-openapi.yaml          # OpenAPI 3.1 spec
 wrangler.toml         # Worker config
 ```
 

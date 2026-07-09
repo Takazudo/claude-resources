@@ -213,7 +213,7 @@ After creation, capture `ISSUE_NUMBER` from the URL.
 No tracking issue is created; the spec + progress ledger live in a **cclogs coordination directory** instead. Read the shared spec **[`references/local-mode.md`](references/local-mode.md)** for the full layout, then:
 
 - Resolve `LOCAL_DIR` (`$LOGDIR/local-workflow/{datetime}-{slug}`) and write `plan.md` (the Summary + Topics + wave/mode/model that the tracking issue would hold) and `progress.md` (the TODO checklist + Progress Log). These are the file equivalents of the tracking issue — set `ISSUE_NUMBER` unset/empty so the `gh issue *` calls below are replaced by their `LOCAL_DIR` counterparts.
-- **If the argument is a plan path** (a directory or `sub-*.md` file under `local-workflow/`, handed off by `/big-plan --local`): reuse it as `LOCAL_DIR` — read the topics, base branch, and per-topic `**Execution mode:**` / `**Model:**` / `**Depends on:**` markers from its `plan.md` + `sub-NN.md` files exactly as epic mode (1a) reads them from `[Sub]` issue bodies. Do NOT re-plan.
+- **If the argument is a plan path** (a directory or `sub-*.md` file under `local-workflow/`, handed off by `/big-plan --local`): reuse it as `LOCAL_DIR` — read the topics, base branch, and per-topic `**Execution mode:**` / `**Model:**` / `**Depends on:**` markers from its `plan.md` + `sub-NN.md` files. This mirrors how epic mode (1a) reads `**Execution mode:**` and `**Model:**` from `[Sub]` issue bodies, but dependency ordering differs in form: issue mode reads a plain `Depends on: #N1, #N2` note (not a bolded marker — see `references/github-text-conventions.md`), while local mode reads the bolded `**Depends on:**` marker line (sibling sub filenames, or `none`) per `references/local-mode.md`. Do NOT re-plan.
 - **If a `#issue` / URL is ALSO passed** (implementing a tracked issue while keeping *this run's* bookkeeping local): read that issue as input (1a) but do NOT post a claim comment or per-step progress comments on it — those go to `progress.md`.
 
 `--local` differs from bare `--no-issue` history: it keeps the `progress.md` ledger so the re-read-after-each-step anti-drift mechanism still works. `--no-issue` is retained as an alias and now behaves identically.
@@ -729,7 +729,7 @@ The merge has 5 sub-steps: re-confirm CI green, `gh pr merge --merge --delete-br
 
 > **Limited env (web) — Mac handoff.** This mandatory merge runs even though `-m` is ignored in Super-Epic mode, so if `DEFER_MAC` was set at Step 10 it merged without the local visual/Mac check. After the epic-PR merges, raise the `mac`-labeled issue per [`web/mac-handoff.md`](../../web/mac-handoff.md) §6-A (linking the merged epic-PR + tracking issue), `role: mac-deferred`. Do not change the mandatory merge itself — only add the post-merge signal.
 
-After this step, proceed to Close Tracking Issue → Auto-Suggest Next Command (Super-Epic variant) → STOP.
+After this step, proceed to Step 15.5 → Step 16 (`/cleanup-resources` audit) → Auto-Suggest Next Command (Super-Epic variant) → STOP.
 
 ---
 

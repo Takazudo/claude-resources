@@ -299,7 +299,7 @@ Before finalizing, verify:
 - [ ] All components properly connected (no floating components)
 - [ ] Parallel components shown as vertical drops to GND
 - [ ] Diode polarity correct (cathode/anode orientation)
-- [ ] **ASCII-only characters used** (no Unicode box-drawing or arrows)
+- [ ] **Unicode box-drawing characters used** (`┌ ┐ └ ┘ ├ ┤ ┬ ┴ ─ │` and `→ ←` arrows, no ambiguous ASCII `+` junctions)
 - [ ] **No flying/disconnected lines** (vertical lines maintain column alignment)
 - [ ] Consistent column alignment (no sliding vertical bars)
 - [ ] Label notation used for distant connections
@@ -319,7 +319,7 @@ Use this skill when:
 
 ## Tool Integration
 
-**Preview tool**: Uses headless-browser skill to render diagrams in monospace font and capture screenshots for validation. This is **critical** for catching issues before finalizing.
+**Preview tool**: Uses the `headless-browser` skill (external dependency — installed from Takazudo/zudo-test-wisdom, not part of this repo) to render diagrams in monospace font and capture screenshots for validation. This is **critical** for catching issues before finalizing. `scripts/preview_diagram.sh` still writes the HTML preview and degrades with a warning instead of failing if `headless-browser` isn't installed.
 
 **References**:
 

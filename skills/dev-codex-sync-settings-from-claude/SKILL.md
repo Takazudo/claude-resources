@@ -27,7 +27,7 @@ Everything else in `$HOME/.codex` is machine-local runtime state (sqlite DBs, `a
 The user's Codex workflow centers on `/big-plan`, `/x-wt-teams`, `/x-as-pr`. Keep these plus everything they reference in sync:
 
 - **Entry points:** `big-plan`, `x`, `x-as-pr`, `x-wt-teams` (canonical) + `x-wt-team` (thin alias → x-wt-teams)
-- **Support:** `cleanup-resources`, `review-loop`, `deep-review` (alias → codex-review), `verify-ui`, `watch-ci`, `pr-revise`, `gh-fetch-issue`
+- **Support:** `cleanup-resources`, `review-loop`, `deep-review` (alias → codex-review), `verify-ui` (external — sourced from `Takazudo/zudo-test-wisdom`, NOT `$HOME/.claude/skills`; only sync/keep it on machines where that repo's setup installed it), `watch-ci`, `pr-revise`, `gh-fetch-issue`
 - **Codex-native helpers:** `codex-2nd`, `codex-review`, `codex-research`, `codex-writer`
 
 Rule of thumb: the set = the workflow trio + every skill named in their "Related Skills" sections. If a Claude workflow starts referencing a new helper, add its Codex port too.

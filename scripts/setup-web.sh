@@ -36,11 +36,6 @@ for dir in skills agents commands scripts hooks web; do
 done
 [ -f "$REPO/CLAUDE.md" ] && cp -a "$REPO/CLAUDE.md" "$DEST/CLAUDE.md"
 
-# Clone public wisdom repos and symlink their skills into ~/.claude/skills/.
-# Runs AFTER the cp -a mirror so wisdom skill names (which are gitignored on Mac
-# and therefore absent from the public mirror) cannot collide with mirrored skills.
-bash "$REPO/scripts/setup-web-wisdom.sh"
-
 # Overlay the web-safe settings: no IFTTT/statusline/plugins, no Mac-absolute
 # paths. deny-check.sh reads this file, so it must land before the next session.
 cp -a "$REPO/web/settings.web.json" "$DEST/settings.json"
@@ -64,5 +59,12 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
     echo "export DROPBOX_SCREENSHOTS_DIR=/tmp/screenshots"
   } >> "$CLAUDE_ENV_FILE"
 fi
+
+# Wisdom repos LAST: this is the slow, networked step (five clones + npm), so
+# everything session-critical above (settings overlay, git identity, env stubs)
+# is already in place if it times out or the container kills the setup.
+# Runs AFTER the cp -a mirror so wisdom skill names (which are gitignored on Mac
+# and therefore absent from the public mirror) cannot collide with mirrored skills.
+bash "$REPO/scripts/setup-web-wisdom.sh"
 
 echo "web profile installed into $DEST"

@@ -112,9 +112,24 @@ project's proprietary code.
 
 Filing on the upstream repo means opening an issue on a **different** repo than
 the working directory. Restricted environments — notably Claude Code on the web
-— may not have permission for that. If `gh issue create -R <upstream>` fails
-with an auth/permission error, file the issue on the **working repo** instead so
-the finding still survives the session; never silently drop it.
+— may not have permission for that.
+
+**On the web/remote container, `gh` does not exist at all** (see
+[`web-mode.md`](../../web/web-mode.md) §1), so this step is never "run `gh
+issue create -R <upstream>` and catch the auth error" — translate straight to
+the GitHub MCP per [`github-ops.md`](../../web/github-ops.md): `gh issue
+create` → `issue_write` (action: create). The upstream repo is normally
+**out of the session's MCP scope**, so first add it via the platform's
+`add_repo` tool (`mcp__Claude_Code_Remote__add_repo` in this container —
+`github-ops.md`'s "Repo scope" note: "For cross-repo work, add the target repo
+via the platform's `add_repo`"), then file with `issue_write` against it. Only
+fall back to the working-repo placeholder below when `add_repo` itself is
+denied or unavailable — don't skip straight to the placeholder just because
+`gh` is missing.
+
+On a terminal session, if `gh issue create -R <upstream>` fails with an
+auth/permission error, file the issue on the **working repo** instead so the
+finding still survives the session; never silently drop it.
 
 When falling back:
 

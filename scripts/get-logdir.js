@@ -5,7 +5,7 @@
  *
  * Usage:
  *   - As module: import { getLogDir } from './get-logdir.js';
- *   - As CLI:    node ~/.claude/scripts/get-logdir.js  (prints path to stdout)
+ *   - As CLI:    node $HOME/.claude/scripts/get-logdir.js  (prints path to stdout)
  *   - In agents: {logdir} placeholder in save-file.js resolves via this module
  *
  * Base dir is the Dropbox-synced cclogs dir (shared across Mac + WSL):

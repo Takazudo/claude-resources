@@ -159,7 +159,6 @@ When using one OG image site-wide:
 After adding tags, validate with:
 
 - [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/)
-- [Twitter Card Validator](https://cards-dev.twitter.com/validator)
 - [LinkedIn Post Inspector](https://www.linkedin.com/post-inspector/)
 - [opengraph.xyz](https://www.opengraph.xyz/) — preview across platforms
 

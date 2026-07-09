@@ -104,7 +104,7 @@ export default function SignupPage() {
 
 ## Substitutions
 
-| Placeholder        | Replace with                                |
-| ------------------ | ------------------------------------------- |
-| `YOUR_WORKER_URL`  | Deployed Worker URL from Step 5             |
-| `YOUR_SITEKEY`     | Widget site key from Step 4                 |
+| Placeholder        | Replace with                                                    |
+| ------------------ | ---------------------------------------------------------------- |
+| `YOUR_WORKER_URL`  | Deployed Worker URL from the Worker deploy step (Step 9)          |
+| `YOUR_SITEKEY`     | Widget site key from the Widget creation step (Step 8)            |

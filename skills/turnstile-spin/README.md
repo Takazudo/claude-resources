@@ -28,11 +28,11 @@ mkdir -p .claude/skills/turnstile-spin && \
   -o .claude/skills/turnstile-spin/SKILL.md
 
 # Or, install the whole skills bundle into a global location
-git clone https://github.com/cloudflare/skills ~/.config/cloudflare-skills
-ln -s ~/.config/cloudflare-skills/turnstile-spin ~/.claude/skills/turnstile-spin
+git clone https://github.com/cloudflare/skills $HOME/.config/cloudflare-skills
+ln -s $HOME/.config/cloudflare-skills/turnstile-spin $HOME/.claude/skills/turnstile-spin
 ```
 
-For other agents, see the table in [`SKILL.md`](./SKILL.md#step-8--persist-the-skill).
+For other agents, the destination path varies by tool (e.g. `.cursor/rules/`, `.codex/skills/`, `.opencode/skills/`); see the **Persist skill** step (Step 12) in [`SKILL.md`](./SKILL.md) for how the skill saves itself, and `scripts/persist-skill.sh` for the bundle it fetches.
 
 ## Sync with the docs page
 

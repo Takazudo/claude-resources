@@ -131,7 +131,7 @@ After the subagent completes, report:
 
 - The file path of the created draft article
 - A brief summary of what was written
-- Remind the user to run `/convert-to-article` when ready to publish to the blog
+- Remind the user to run `/convert-to-article` when ready to publish to the blog (that skill is project-scoped to the zpaper repo's own `.claude/skills` — it is not in this settings repo)
 
 ## Important Notes
 
@@ -141,4 +141,4 @@ After the subagent completes, report:
 - **Images must be copied BEFORE delegating** - the subagent cannot see conversation images
 - Include the full markdown image reference paths in the brief so the subagent can embed them
 - $ARGUMENTS can provide additional guidance on focus or angle
-- The subagent writes a **draft** in the doc site — the conversion to blog MDX is a separate step via `/convert-to-article`
+- The subagent writes a **draft** in the doc site — the conversion to blog MDX is a separate step via `/convert-to-article` (a project-scoped skill in the zpaper repo's own `.claude/skills`, not in this settings repo)

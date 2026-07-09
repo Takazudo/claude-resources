@@ -127,6 +127,15 @@ corepack enable
 
 After this, running `pnpm install` / `pnpm dev` / etc. just works — corepack intercepts the `pnpm` command and uses the pinned version automatically. No global pnpm install needed.
 
+**Node ≥25:** Corepack was removed from the default Node.js distribution starting with Node 25 (Oct 2025), so `corepack enable` fails with "command not found" out of the box. Install it first:
+
+```bash
+npm install -g corepack
+corepack enable
+```
+
+Alternatively, skip corepack and use pnpm's own standalone installer (`curl -fsSL https://get.pnpm.io/install.sh | sh -`) — recent pnpm versions read the `packageManager` field themselves and self-manage the pinned version without corepack. On Node <25, the plain `corepack enable` step above still applies unchanged.
+
 ### Key Rules
 
 - **Never run `pnpm self-update`** — it errors when pnpm is managed by corepack

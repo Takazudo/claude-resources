@@ -52,9 +52,9 @@ Every skill consists of a required SKILL.md file and optional bundled resources:
 ```
 skill-name/
 ├── SKILL.md (required)
-│   ├── YAML frontmatter metadata (required)
-│   │   ├── name: (required)
-│   │   └── description: (required)
+│   ├── YAML frontmatter metadata
+│   │   ├── name: (optional — defaults to the directory name)
+│   │   └── description: (recommended)
 │   └── Markdown instructions (required)
 └── Bundled Resources (optional)
     ├── scripts/          - Executable code (Python/Bash/etc.)
@@ -66,7 +66,7 @@ skill-name/
 
 Every SKILL.md consists of:
 
-- **Frontmatter** (YAML): Contains `name` and `description` fields. These are the only fields that Claude reads to determine when the skill gets used, thus it is very important to be clear and comprehensive in describing what the skill is, and when it should be used.
+- **Frontmatter** (YAML): `description` is the field Claude reads to decide when to use the skill, so it is very important to be clear and comprehensive in describing what the skill is and when it should be used. `name` sets the display label shown in skill listings and defaults to the directory name if omitted.
 - **Body** (Markdown): Instructions and guidance for using the skill. Only loaded AFTER the skill triggers (if at all).
 
 **Case-sensitivity warning (macOS):** The canonical file name is `SKILL.md` (uppercase). On case-insensitive filesystems (macOS), if a skill directory already contains `skill.md` (lowercase), creating `SKILL.md` will overwrite it on disk but git will track both as separate index entries, causing clone-time collision warnings. Before creating or renaming: check for existing variants with `git ls-files '<skill-dir>/'` and remove any lowercase duplicate with `git rm --cached '<path>/skill.md'`.
@@ -321,7 +321,7 @@ Any example files and directories not needed for the skill should be deleted. Th
 
 ##### Frontmatter
 
-Write the YAML frontmatter with `name` and `description` (required). See [frontmatter.md](references/frontmatter.md) for all available fields including:
+Write the YAML frontmatter. `description` is recommended so Claude knows when to trigger the skill; `name` is optional and defaults to the directory name if omitted. See [frontmatter.md](references/frontmatter.md) for all available fields including:
 
 - **Invocation control**: `disable-model-invocation`, `user-invocable`, `argument-hint`
 - **Execution control**: `allowed-tools`, `model`, `context`, `agent`, `hooks`

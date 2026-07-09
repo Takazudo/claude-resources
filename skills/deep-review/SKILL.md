@@ -31,7 +31,7 @@ Perform a practical code quality review with priorities:
 
 - `-haiku` / `--haiku` — Claude Haiku
 - `-so` / `--sonnet` — Claude Sonnet
-- `-op` / `--opus` — Claude Opus 4.8 (Anthropic's top model; runs with a 1M-token context window)
+- `-op` / `--opus` — Opus 4.8 (the Opus tier — above Sonnet; 1M-token context)
 
 Passing any model flag opts in to the full Claude reviewer workflow (3 reviewers on a PR diff, 6 reviewers on a full project scan) and sets the `model:` field for every `code-reviewer` subagent spawned in Steps A-2 / B-2.
 
@@ -600,7 +600,7 @@ Then proceed to Steps 6–8 below.
 
 After applying fixes inline:
 
-1. Run type check: `npm run typeCheck`
+1. Run the project's type-check script via its package manager (check `CLAUDE.md` / `package.json` for the exact script name and whether the project uses pnpm/npm/yarn)
 2. Create a descriptive commit message listing all fixes
 3. Use the standard commit format with footer
 

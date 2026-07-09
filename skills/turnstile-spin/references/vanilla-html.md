@@ -35,10 +35,10 @@ When the form is submitted, the browser includes `cf-turnstile-response` automat
 
 ## Substitutions
 
-| Placeholder        | Replace with                                            |
-| ------------------ | ------------------------------------------------------- |
-| `YOUR_WORKER_URL`  | The deployed Worker URL from Step 5                     |
-| `YOUR_SITEKEY`     | The widget site key from Step 4                         |
+| Placeholder        | Replace with                                                        |
+| ------------------ | --------------------------------------------------------------------- |
+| `YOUR_WORKER_URL`  | The deployed Worker URL from the Worker deploy step (Step 9)          |
+| `YOUR_SITEKEY`     | The widget site key from the Widget creation step (Step 8)            |
 
 ## Variant: AJAX submit instead of form action
 

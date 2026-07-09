@@ -58,7 +58,6 @@ runs:
     - uses: actions/setup-node@v4
       with:
         node-version-file: .node-version
-        cache: pnpm
     - run: pnpm install --frozen-lockfile
       shell: bash
 ```
@@ -93,7 +92,6 @@ Don't split when:
 ├── pr-checks.yml          # Lint, typecheck, test on PRs
 ├── main-deploy.yml        # Build and deploy on push to main
 ├── preview-deploy.yml     # Deploy PR previews
-├── detect-runner.yml      # Self-hosted runner detection (reusable)
 └── security.yml           # Scheduled security audits (weekly)
 ```
 

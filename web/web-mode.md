@@ -37,9 +37,12 @@ teammates) is not used on web.
 
 ## 4. No Dropbox — persist to git or GitHub
 
-Dropbox is not reachable (no MCP, network blocked). `setup-web.sh` stubs
-`$DROPBOX_CCLOGS_DIR` / `$DROPBOX_SCREENSHOTS_DIR` to `/tmp`, which is
-**ephemeral** — the container is reclaimed after the session.
+Dropbox is not reachable (no MCP, network blocked). `$DROPBOX_CCLOGS_DIR` /
+`$DROPBOX_SCREENSHOTS_DIR` are stubbed to `/tmp` — by the environment's
+env-vars field under the pre-launch loader (`web/env-setup-script.sh`), or by
+`setup-web.sh` via `$CLAUDE_ENV_FILE` when it runs as a SessionStart hook.
+Either way `/tmp` is **ephemeral** — the container is reclaimed after the
+session.
 
 For anything that must survive the session:
 
@@ -262,10 +265,16 @@ Also bind the dev server to `127.0.0.1`. Subdomain hostnames like
 on them will time out; use `http://127.0.0.1:<port>` directly.
 
 - These rules apply only when `$CLAUDE_CODE_REMOTE=true`.
-- `/verify-ui` and `/headless-browser` (the "seeing-eye" fallback) already
-  implement this contract on web.
-- Both skills are present in the container via `scripts/setup-web-wisdom.sh`
-  (this epic).
+- `/verify-ui` and `/headless-browser` (the "seeing-eye" fallback) are **not**
+  auto-installed on web — `scripts/setup-web-wisdom.sh` only bakes one
+  doc-lookup skill per wisdom repo (`test-wisdom` for `zudo-test-wisdom`); the
+  browser-helper skills stay uninstalled under
+  `$HOME/.claude-wisdom/zudo-test-wisdom/.claude/skills/`.
+- The working path on web is this section's own inline Playwright recipe
+  above — locate the pre-installed Chromium and launch it directly, no extra
+  skill install needed. A session that wants the `/verify-ui` /
+  `/headless-browser` slash commands themselves can symlink them manually from
+  the `zudo-test-wisdom` clone into `~/.claude/skills/`.
 
 ## 8. The `-m` merge runs in-turn on web — never punt CI to the background
 
@@ -298,12 +307,14 @@ So on web, treat **"watch CI then merge" as one blocking, in-turn step**:
    failed.
 4. **Bounded, with a self-continue fallback — never a user handoff.** Poll
    in-turn for up to ~30 min. If CI is genuinely still pending past that, do
-   **not** stop and wait for the user — self-schedule a continuation
-   (`mcp__claude_ai_Claude_Code_Remote__send_later`, a few minutes out) whose
-   prompt is "re-poll PR #N and merge when green, per `-m`," so the chain resumes
-   itself. The only legitimate hard stops are CI **failure** (after the fix cap)
-   and a real blocker (expired MCP token, branch-protection refusal) — and a
-   blocker stop must name the exact action you need from the user.
+   **not** stop and wait for the user — self-schedule a continuation via the
+   Claude Code Remote `send_later` MCP tool (verified in this container as
+   `mcp__Claude_Code_Remote__send_later`; the `mcp__` prefix may vary by
+   surface), a few minutes out, whose prompt is "re-poll PR #N and merge when
+   green, per `-m`," so the chain resumes itself. The only legitimate hard
+   stops are CI **failure** (after the fix cap) and a real blocker (expired MCP
+   token, branch-protection refusal) — and a blocker stop must name the exact
+   action you need from the user.
 
 This applies wherever a web skill would "watch CI in the background and merge when
 green": `/pr-complete -c -w`, `/watch-ci`, and the Merge Mode of `/x-as-pr` and

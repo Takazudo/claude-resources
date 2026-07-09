@@ -116,7 +116,7 @@ This is **advisory, not blocking**. Don't pause for confirmation when no drift s
      prompt: <the canonical prompt body (items a–j) from SKILL.md Step 5, with these adjustments:
               - tell the agent its working directory is the absolute path of worktrees/<topic>/
               - tell it to commit locally only (no push)
-              - tell it to run /light-review and apply useful findings (forwarding any reviewer flag — -op/-so/-haiku/-fa/-co)
+              - tell it to run /light-review and apply useful findings (forwarding any reviewer flag — -op/-so/-haiku/-co)
               - tell it to NOT use SendMessage (no team in this session)
               - tell it to return a brief plain-text summary: status, log file path
               - all other rules (no browser tools, no heavy/port-based tests, rebuild touched workspace packages) apply unchanged>

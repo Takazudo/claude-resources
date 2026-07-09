@@ -71,7 +71,7 @@ If any flags ARE passed explicitly, use those as-is — do NOT add the `-v` defa
 
 `-op` / `-so` / `-haiku` and `-co` are **reviewer flags** — they change which reviewer(s) run, not subagents or team members. Forward them all to the chosen skill.
 
-- `-op` / `-so` / `-haiku` — Claude reviewer model for `/deep-review` / `/review-loop`; `-op` / `--opus` = Opus 4.8 (Anthropic's top model; runs with a 1M-token context window). Pick at most one.
+- `-op` / `-so` / `-haiku` — Claude reviewer model for `/deep-review` / `/review-loop`; `-op` / `--opus` = Opus 4.8 (the Opus tier — above Sonnet; 1M-token context). Pick at most one.
 - `-co` / `--codex` — add codex reviewer (`/codex-review`) plus codex writer / research.
 
 All reviewer flags **combine** — passing multiple means run every selected reviewer. **Default when no reviewer flag is passed at all**: `-co` — codex review (`/codex-review`); codex is the house default 2nd agent. See the target skill for substitution tables.

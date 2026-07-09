@@ -14,7 +14,7 @@ Expected exit code: 0.
 
 ## Test 2 — Dummy siteverify returns a structured error
 
-The wizard's Step 7b sends a deliberately-invalid token. The Worker must return `success: false`, a non-empty `error-codes` array, and a `_worker` block — not a bare 500.
+The wizard's **Validation** step sends a deliberately-invalid token. The Worker must return `success: false`, a non-empty `error-codes` array, and a `_worker` block — not a bare 500.
 
 ```sh
 curl -s -X POST "${WORKER_URL}/" \
@@ -42,11 +42,11 @@ After the wizard completes, grep the written files:
 rg -l 'data-action="turnstile-spin-v1"' <(echo "$WRITTEN_FILES")
 ```
 
-Expected: every written file matches. If a snippet was written without the marker, the wizard skipped Step 6 (or the agent edited the template). Re-run.
+Expected: every written file matches. If a snippet was written without the marker, the wizard skipped the **Frontend edits** step (or the agent edited the template). Re-run.
 
 ## Test 5 — Skill persists to the right location
 
-After Step 8:
+After the **Persist skill** step:
 
 ```sh
 test -f .claude/skills/turnstile-spin/SKILL.md \

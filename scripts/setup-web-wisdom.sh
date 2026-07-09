@@ -34,7 +34,7 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
 fi
 
 # ── Manifest ──────────────────────────────────────────────────────────────────
-# Cheap repos first (priority: test-wisdom / browser skills appear soonest).
+# Cheap repos first (priority: test-wisdom appears soonest).
 # css-wisdom is last (heavier setup: it runs a generate step before symlinking)
 # and allowed to fail gracefully. All repos live under github.com/Takazudo now
 # (css-wisdom was transferred from zudolab/ — the old URL only 301-redirects).
@@ -98,10 +98,12 @@ for repo_url in "${WISDOM_REPOS[@]}"; do
   # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 prevents headless-browser's postinstall
   # from hitting the CDN (which is blocked in web containers).
   #
-  # Note: setup-doc-skill.sh creates the global skill symlinks (ln -s into
-  # ~/.claude/skills/) BEFORE its internal npm install loop, so test-wisdom /
-  # verify-ui / headless-browser / verify-ui-ai symlinks are available even if
-  # playwright install subsequently fails.
+  # Note: each repo's setup-doc-skill.sh generates and symlinks exactly ONE
+  # doc-lookup skill into ~/.claude/skills/ (test-wisdom, cloudflare-wisdom,
+  # tauri-wisdom, codemirror-wisdom, css-wisdom — one per WISDOM_REPOS entry
+  # above). It does not install or symlink verify-ui / headless-browser /
+  # verify-ui-ai — those stay uninstalled under each repo's own
+  # $HOME/.claude-wisdom/<repo-name>/.claude/skills/.
   set +e
   (
     cd "$repo_dir" || exit 1

@@ -89,8 +89,8 @@ If the user gives a symptom, ask: "What was the actual structural reason that ma
 
 Briefly tell the user:
 
-1. The lessons file is at `.claude/skills/l-lessons-{area}/SKILL.md` and will be picked up by future `/big-plan` runs (assuming `/big-plan` is wired to read `l-lessons-*` skills — that's a separate tweak via `/skill-creator`).
-2. Suggest a periodic `lessons-refactor` pass (manual for now) every few months: merge overlapping notes, delete advice for code that no longer exists, promote repeated lessons into broader wisdom.
+1. The lessons file is at `.claude/skills/l-lessons-{area}/SKILL.md`. `/big-plan` auto-reads matching `l-lessons-*` skills in its Step 1c before planning, so future planning runs in this area pick it up automatically.
+2. Suggest a periodic `/retro-notes-refactor` pass (e.g. once the lessons file accumulates 5+ entries): merge overlapping notes, delete advice for code that no longer exists, promote repeated lessons into broader wisdom.
 3. If the retro produced "nothing surprising, plan matched reality," that's signal too — the area is now well-mapped, future planning in this area can be lighter.
 
 ## When NOT to invoke this skill

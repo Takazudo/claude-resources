@@ -51,7 +51,7 @@ Each image costs roughly **90k–100k tokens** of ChatGPT/Codex usage (image tur
 
 ## Requirements & caveats
 
-- **Works on macOS and Linux/WSL.** Pure-portable except `--size`, which prefers `sips` (macOS) then ImageMagick (`magick`/`convert`) then Pillow (`python3 -m PIL`) — generation itself needs none of these. `get-logdir.js` already resolves the WSL Dropbox cclogs path. The real per-machine requirement is Codex auth: `~/.codex/auth.json` is **not shared** across machines, so run `codex login` (ChatGPT) once on each (Mac and WSL).
+- **Works on macOS and Linux/WSL.** Pure-portable except `--size`, which prefers `sips` (macOS) then ImageMagick (`magick`/`convert`) then Pillow (`python3 -m PIL`) — generation itself needs none of these. `get-logdir.js` already resolves the WSL Dropbox cclogs path. The real per-machine requirement is Codex auth: `$HOME/.codex/auth.json` is **not shared** across machines, so run `codex login` (ChatGPT) once on each (Mac and WSL).
 - **Codex must be logged in with ChatGPT** (`codex login status` → "Logged in using ChatGPT"). The script warns if not. If only API-key auth is available, this skill's billing premise doesn't hold — say so rather than silently spending API credits.
 - **The env var `OPENAI_API_KEY` would flip Codex to API billing**; the script unsets it per-call to stay on ChatGPT usage. That's the whole point — don't remove that.
 - **Never trust exact text/numbers in the output.** Image models regenerate (not pixel-copy) and drift on dense small text — price lists, tables, microcopy are the worst case. Treat a redesign PNG as **visual direction only**; re-key real data from the source and verify before any of it informs production code.

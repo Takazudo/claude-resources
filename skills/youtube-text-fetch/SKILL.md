@@ -1,17 +1,18 @@
 ---
 name: youtube-text-fetch
-description: "Fetch transcript/caption text from YouTube videos using youtube-transcript-api. Use when: (1) User wants text from a YouTube video, (2) User provides YouTube URLs and needs transcripts, (3) User says 'fetch youtube text', 'get captions', 'youtube transcript'. Outputs plain text saved to $HOME/cclogs/{slug}/."
-user_invocable: true
-argument_description: "YouTube URL(s) — space-separated if multiple. Optional flags: --timestamps (include timestamps in output)"
+description: "Fetch transcript/caption text from YouTube videos using youtube-transcript-api. Use when: (1) User wants text from a YouTube video, (2) User provides YouTube URLs and needs transcripts, (3) User says 'fetch youtube text', 'get captions', 'youtube transcript'. Outputs plain text saved to the repo-scoped cclogs dir (resolved via get-logdir.js) as youtube-{VIDEO_ID}.txt."
+user-invocable: true
+argument-hint: "YouTube URL(s) — space-separated if multiple. Optional flags: --timestamps (include timestamps in output)"
 ---
 
 # YouTube Text Fetch
 
 Fetch transcript/caption text from YouTube videos.
 
-**Note**: For full video processing (download, frame capture, transcript, and article
-writing), use the `/youtube-guide-writer` skill instead. This skill is for quick
-transcript-only extraction.
+**Note**: For visual analysis of a YouTube video (extracting frames and reading them
+chronologically with vision to produce a timestamped narrative, e.g. debugging a
+recording or answering "what happens in this video"), use the `/video-reader` skill
+instead. This skill is for quick transcript-only extraction.
 
 ## Prerequisites
 

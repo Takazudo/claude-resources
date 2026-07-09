@@ -27,7 +27,7 @@ Also read 2-3 recent articles from `$HOME/repos/w/zpaper/blog/src/articles/` to 
 zpaper uses a two-step publishing flow:
 
 1. **Draft** in `doc/src/content/docs/articles/` as zudo-doc `.md` files (this is what you write)
-2. **Convert** to blog MDX via `/convert-to-article` skill (done separately by the user)
+2. **Convert** to blog MDX via `/convert-to-article` skill (done separately by the user; that skill is project-scoped to the zpaper repo's own `.claude/skills` — not in this settings repo)
 
 You only handle step 1 — writing the draft.
 
@@ -125,4 +125,4 @@ Place images at contextually appropriate points in the article. Add descriptive 
 1. Save the draft article to `$HOME/repos/w/zpaper/doc/src/content/docs/articles/`
 2. Run formatting: `cd $HOME/repos/w/zpaper && pnpm doc:check:fix`
 3. Report the file path and a brief summary of what was written
-4. Remind the user to run `/convert-to-article` when ready to publish to the blog
+4. Remind the user to run `/convert-to-article` when ready to publish to the blog (a project-scoped skill in the zpaper repo's own `.claude/skills`, not in this settings repo)

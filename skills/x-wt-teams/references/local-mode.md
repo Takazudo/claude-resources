@@ -55,15 +55,15 @@ Plan: ./plan.md
 
 ---
 **Wave:** 1
-**Execution mode:** subagents
-**Model:** opus
+**Execution mode:** subagents — independent, no inter-topic communication
+**Model:** opus — UI work, polished output benefits from the strongest child-model tier (opus)
 **Depends on:** none
 ---
 
 <full task spec — what to build, acceptance criteria, files involved>
 ```
 
-`**Execution mode:**` is `subagents` or `teams`; `**Model:**` is `opus` / `sonnet` / `haiku`; `**Depends on:**` lists sibling sub filenames (e.g. `sub-02, sub-03`) or `none`. These drive the same spawn-path / model / wave-ordering decisions as in issue mode.
+`**Execution mode:**` is `subagents` or `teams`, each followed by a `— {one-line reason}`; `**Model:**` is `opus` / `sonnet` / `haiku`, likewise followed by a `— {one-line reason}`; `**Depends on:**` lists sibling sub filenames (e.g. `sub-02, sub-03`) or `none`. A blank reason on `**Execution mode:**` or `**Model:**` parses as a **missing** marker (falls back to teams / default `opus` respectively) exactly as in issue mode — see `references/execution-modes.md` and `references/per-topic-models.md`. These drive the same spawn-path / model / wave-ordering decisions as in issue mode.
 
 ### `progress.md` shape
 

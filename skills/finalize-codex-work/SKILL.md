@@ -32,13 +32,13 @@ Turn the spec into a concrete checklist and check each item against the code.
 - Build an acceptance checklist from the epic/sub-issue acceptance criteria (plus any WIP instructions).
 - Read the branch diff against its base: `git diff <base>...HEAD` (three-dot, so you see only this branch's changes). Use `--stat` first to scope, then read the substantive files.
 - For each checklist item, confirm it is **actually implemented** — not just claimed in a commit message. Codex sometimes reports a step done while leaving a TODO, a stub, or a half-wired integration.
-- Watch for integration points the spec implies but the diff might skip. A project's feature checklist is a common source of "implemented but not wired" gaps — e.g. this repo's `CLAUDE.md` requires a command-palette entry + keyboard shortcut + settings wiring for a new UI feature.
+- Watch for integration points the spec implies but the diff might skip. A project's feature checklist is a common source of "implemented but not wired" gaps — check the target repo's `CLAUDE.md` for its feature-wiring checklist (as an example, one project requires a command-palette entry + keyboard shortcut + settings wiring for every new UI feature).
 
 ## Step 3 — Verify it actually works
 
 A green self-report is not verification. Run the project's own gate.
 
-- Run the repo's pre-push / test lane — check `CLAUDE.md` for the command (in this repo: `pnpm b4push`, plus `pnpm exam` when the change touches a module in `e2e/README.md`'s mapping table).
+- Run the repo's pre-push / test lane — check the target repo's `CLAUDE.md` for the command (as an example, one project uses `pnpm b4push`, plus `pnpm exam` when the change touches a module listed in that repo's `e2e/README.md` mapping table).
 - For UI / CSS / layout changes, tests don't prove visual correctness — verify real behavior (`/verify-ui`, `/headless-browser`) per the repo's testing guidance.
 - Report failures honestly, with the output. If a check fails, the work is not done — fix it (Step 4) before finalizing.
 

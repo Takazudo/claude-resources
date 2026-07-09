@@ -209,21 +209,21 @@ The `pnpm/action-setup` step crashes because Workflow A's cleanup step (`rm -rf 
 ```yaml
 # deploy-sync-server.yml
 - name: Clean stale pnpm setup (self-hosted runner)
-  run: rm -rf ~/setup-pnpm ~/setup-pnpm-deploy || true
+  run: rm -rf $HOME/setup-pnpm $HOME/setup-pnpm-deploy || true
 - uses: pnpm/action-setup@...
   with:
     dest: ~/setup-pnpm-deploy
 
 # deploy-publish-server.yml — DIFFERENT directory
 - name: Clean stale pnpm setup (self-hosted runner)
-  run: rm -rf ~/setup-pnpm ~/setup-pnpm-publish || true
+  run: rm -rf $HOME/setup-pnpm $HOME/setup-pnpm-publish || true
 - uses: pnpm/action-setup@...
   with:
     dest: ~/setup-pnpm-publish
 
 # deploy-another-server.yml — yet another directory
 - name: Clean stale pnpm setup (self-hosted runner)
-  run: rm -rf ~/setup-pnpm ~/setup-pnpm-another || true
+  run: rm -rf $HOME/setup-pnpm $HOME/setup-pnpm-another || true
 - uses: pnpm/action-setup@...
   with:
     dest: ~/setup-pnpm-another
@@ -234,7 +234,7 @@ The `pnpm/action-setup` step crashes because Workflow A's cleanup step (`rm -rf 
 ```yaml
 # e2e-tests with 4 parallel shards
 - name: Clean stale pnpm setup (self-hosted runner)
-  run: rm -rf ~/setup-pnpm ~/setup-pnpm-e2e-${{ matrix.shard }} || true
+  run: rm -rf $HOME/setup-pnpm $HOME/setup-pnpm-e2e-${{ matrix.shard }} || true
 - uses: pnpm/action-setup@...
   with:
     dest: ~/setup-pnpm-e2e-${{ matrix.shard }}
@@ -257,7 +257,7 @@ rm: cannot remove '/home/runner/setup-pnpm/node_modules/.bin/store/v10/files/cb'
 
 ```yaml
 - name: Clean pnpm setup cache
-  run: rm -rf ~/setup-pnpm || true
+  run: rm -rf $HOME/setup-pnpm || true
 ```
 
 **Why this happens:** `pnpm/action-setup` stores its installation at `~/setup-pnpm` (default `dest`). On persistent self-hosted runners, this directory survives between runs. The action's built-in cleanup uses Node.js `rmdir` which also fails with `ENOTEMPTY` on the same stale files. Adding a pre-cleanup step with `|| true` removes most of the stale content, allowing the action's setup to succeed even if a few locked files remain.

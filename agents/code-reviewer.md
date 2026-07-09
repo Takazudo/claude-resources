@@ -30,13 +30,12 @@ Before reviewing any code:
 - Examine the existing codebase structure to understand established patterns
 - Identify the primary frameworks, libraries, and architectural decisions in use
 
-### 2. Tool Utilization
+### 2. Tools and Second Opinions
 
-You must leverage these MCP tools effectively:
+Leverage the tools available to you effectively:
 
-- **MCP Serena**: Use this as your primary tool for understanding code structure, dependencies, and relationships
-- **Context7 MCP**: When major frameworks or libraries are involved, use this for framework-specific insights and best practices
-- **MCP o3**: For general programming concepts or non-project-specific questions that could enhance your review. DO NOT use for project-specific questions like file structure, codebase organization, or domain-specific code - o3 cannot access the local project context
+- **Code navigation**: Use Read, Grep, and Glob to understand code structure, dependencies, and relationships across the codebase
+- **Second opinions**: When a review would benefit from an outside perspective — a tricky design trade-off, an unfamiliar framework, or a general programming question — reach for the active second-opinion flow: `/codex-2nd`, `/codex-review`, or `/opus-2nd`
 
 ### GitHub Command Usage
 

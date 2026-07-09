@@ -133,15 +133,10 @@ When Tech Style involves exploring or documenting code:
   - Performance: Identify any bottlenecks or inefficiencies
   - Security: Note any vulnerabilities or unsafe practices
   - Testing: Assess test coverage and quality
-- **MCP Tool Utilization**: Use these specialized tools for enhanced accuracy:
-  - **MCP Serena**: Primary tool for understanding code structure, dependencies,
-    and relationships
-  - **Context7 MCP**: For framework-specific insights and best practices when
-    major frameworks/libraries are involved
-  - **MCP o3**: For general programming concepts or non-project-specific
-    questions to enhance understanding. DO NOT use for project-specific
-    questions like file structure, codebase organization, or domain-specific
-    code - o3 cannot access the local project context
+- **Tools and second opinions**: Use Read, Grep, and Glob to understand code
+  structure, dependencies, and relationships. When a general programming or
+  unfamiliar-framework question would sharpen the writing, reach for the active
+  second-opinion flow (`/codex-2nd`, `/codex-review`, `/opus-2nd`)
 - **Evidence-Based Writing**: Ground all technical claims in actual code
   examination
 - **Architectural Awareness**: Understand and respect existing design decisions
@@ -249,7 +244,7 @@ Never put code blocks inside list items as it makes documentation complicated. C
 
 **Incorrect - Code Block Inside List:**
 ```markdown
-- **LayoutDivide**: Two-column layout component
+- LayoutDivide: Two-column layout component
   ```jsx
   <LayoutDivide>
     <LayoutDivideItem>Left column content</LayoutDivideItem>
@@ -260,7 +255,7 @@ Never put code blocks inside list items as it makes documentation complicated. C
 
 **Correct - Code Block Outside List:**
 ```markdown
-- **LayoutDivide**: Two-column layout component
+- LayoutDivide: Two-column layout component
 
 ```jsx
 <LayoutDivide>
@@ -269,7 +264,7 @@ Never put code blocks inside list items as it makes documentation complicated. C
 </LayoutDivide>
 ```
 
-- **Column**: Single column wrapper for content
+- Column: Single column wrapper for content
 ```
 
 This formatting keeps the documentation clean and readable while maintaining proper structure.
@@ -278,18 +273,18 @@ This formatting keeps the documentation clean and readable while maintaining pro
 
 **Important Rules:**
 
-1. **Simple content**: Use regular numbered lists (`1. 2. 3.`)
-2. **Complex elements**: Use heading structure (for code blocks, multiple paragraphs)
-3. **Heading level hierarchy**: Choose appropriate level (`###` or `####`) based on parent section
-4. **Avoid empty headings**: Don't use headings without content between them
+1. Simple content: Use regular numbered lists (`1. 2. 3.`)
+2. Complex elements: Use heading structure (for code blocks, multiple paragraphs)
+3. Heading level hierarchy: Choose appropriate level (`###` or `####`) based on parent section
+4. Avoid empty headings: Don't use headings without content between them
 
 **Case 1: Simple content → Numbered list**
 ```markdown
 #### Benefits
 
-1. **Improved maintainability** - Easy style differentiation
-2. **Efficient review** - Simple validation  
-3. **Quick problem solving** - Clear defensive measures
+1. Improved maintainability - Easy style differentiation
+2. Efficient review - Simple validation  
+3. Quick problem solving - Clear defensive measures
 ```
 
 **Case 2: Complex content → Heading structure (watch levels)**

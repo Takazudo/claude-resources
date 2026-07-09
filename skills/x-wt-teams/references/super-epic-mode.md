@@ -108,7 +108,7 @@ It stays open until all sibling epic-PRs are merged.
 
 ### Step 5: Switch to super-epic base, delete dead local epic base (MANDATORY)
 
-After the merge, the local epic base is a dead pointer — its remote was just deleted by `--delete-branch`, and its commits already live in the super-epic base. This is an instance of the **Dead Branch Cleanup Principle** (Important Rule 23):
+After the merge, the local epic base is a dead pointer — its remote was just deleted by `--delete-branch`, and its commits already live in the super-epic base. This is an instance of the **Dead Branch Cleanup Principle** (Important Rule 26):
 
 ```bash
 DEAD_EPIC_BASE=$(git branch --show-current)
@@ -125,11 +125,11 @@ If `git branch -d` fails, do NOT use `-D`. Stop and investigate — the merge ma
 
 This step OVERRIDES Important Rule 1's general "stay on `base/<project-name>`" default. Justified: the epic base no longer exists meaningfully — it's been folded into the super-epic base.
 
-After this step, proceed to Close Tracking Issue → Auto-Suggest Next Command (Super-Epic variant) → STOP. The user is now on the up-to-date super-epic base, ready for the next sibling epic or the final `/deep-review -t`.
+After this step, proceed to Step 15.5 (auto-fix) → Step 16 (`/cleanup-resources` audit) → Auto-Suggest Next Command (Super-Epic variant) → STOP. The user is now on the up-to-date super-epic base, ready for the next sibling epic or the final `/deep-review -t`.
 
 ## Auto-Suggest Next Command — Super-Epic variant
 
-Runs after Close Tracking Issue, before STOP. Helps the user pick up the next epic without manually looking up URLs.
+Runs after Step 16 (`/cleanup-resources` audit), before STOP. Helps the user pick up the next epic without manually looking up URLs.
 
 ### Step 1: List sibling open epics under this super-epic
 
