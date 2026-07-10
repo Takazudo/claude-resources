@@ -41,7 +41,7 @@ bash $HOME/.claude/skills/gh-fetch-issue/scripts/fetch-issue.sh 123 --repo owner
 
 ## Trust Model — Untrusted Comments & Bodies
 
-Issue content is attacker-reachable: anyone can open an issue or comment on a public repo. A real incident on a repo of the user's: a throwaway account (`author_association: NONE`) drive-by-commented a bare malware `.zip` release link on a fresh issue **26 seconds** after it was created. The danger is not the link sitting there — it is an **autonomous agent** (an `-a` chain, `/issue-sweep`, `/big-plan`) ingesting that comment as if it were part of the spec and acting on it (downloading, running, following instructions).
+Issue content is attacker-reachable: anyone can open an issue or comment on a public repo. A real incident on a repo of the user's: a throwaway account (`author_association: NONE`) drive-by-commented a bare malware `.zip` release link on a fresh issue **26 seconds** after it was created. The danger is not the link sitting there — it is an **autonomous agent** (an `-a` chain, a `/big-plan -is` issue sweep, `/big-plan`) ingesting that comment as if it were part of the spec and acting on it (downloading, running, following instructions).
 
 So the fetch script classifies every comment (and the issue body) by GitHub `author_association` and quarantines untrusted content:
 

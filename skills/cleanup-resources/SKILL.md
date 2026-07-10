@@ -1,12 +1,14 @@
 ---
 name: cleanup-resources
-description: "End-of-workflow audit of touched GitHub issues, PRs, and branches via a Sonnet subagent. Use when: (1) /big-plan, /x-as-pr, or /x-wt-teams finishes its main work and needs to verify every touched resource is in the right state (closed when done, kept when ongoing, deleted when dead), (2) User says 'cleanup resources', 'audit cleanup', or 'check what should be closed', (3) A long workflow ends and the manager wants a structured paper trail of what it closed/kept/deleted. Auto-execute by default — the Sonnet agent proposes, the manager (you) executes safe actions and prints a final report."
+description: "End-of-workflow audit of touched GitHub issues, PRs, and branches via a Sonnet subagent, plus a deterministic sweep of stale build-tool temp artifacts (e.g. zfb-shadow-session-*) to reclaim disk. Use when: (1) /big-plan, /x-as-pr, or /x-wt-teams finishes its main work and needs to verify every touched resource is in the right state (closed when done, kept when ongoing, deleted when dead), (2) User says 'cleanup resources', 'audit cleanup', 'check what should be closed', or 'clean disk / clear stale temp files', (3) A long workflow ends and the manager wants a structured paper trail of what it closed/kept/deleted. Auto-execute by default — the Sonnet agent proposes GitHub actions, the manager (you) executes the safe ones, sweeps stale temp dirs (allowlist + age gated), and prints a final report."
 argument-hint: "[workflow:big-plan|x-as-pr|x-wt-teams] [-a|--auto-merged] [extra context]"
 ---
 
 # Cleanup Resources
 
 End-of-workflow audit for GitHub issues, PRs, and branches the calling workflow touched. Long workflows (big-plan, x-as-pr, x-wt-teams) tend to drop the trailing "close the source issue" / "delete the dead local branch" steps because context drifts. This skill forces an explicit checkpoint: gather a manifest of every touched resource, hand it to a fresh Sonnet agent for audit, then execute the safe actions and report.
+
+It also runs a second, **independent** job at the same checkpoint: a deterministic sweep of stale build-tool temp dirs (Step 4). Build tools like zudo-front-builder leak large ephemeral session dirs (`zfb-shadow-session-*`, 5–8G each) into `$TMPDIR` and don't always clean up on exit; a few dev sessions silently fill the disk. Folding an allowlist-gated sweep into every workflow's cleanup checkpoint keeps that from accumulating. This part needs no agent — it's a bundled script.
 
 > **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Gather the manifest and execute closes / merges / branch deletes via the GitHub MCP (`issue_read` / `issue_write`, `pull_request_read`, `list_pull_requests`, `merge_pull_request`), not `gh`. Spawn the audit step as a Claude subagent (no agent teams).
 
@@ -189,7 +191,25 @@ fi
 
 **Never use `-D` (force delete).** If `-d` refuses, that's the safety net working — surface the warning, do not retry with `-D`.
 
-### Step 4 — Print final report
+### Step 4 — Sweep stale temp artifacts
+
+Independent of the audit agent and fully deterministic — no Sonnet needed. Build tools leak large ephemeral session dirs into `$TMPDIR` that don't get cleaned up on exit; the bundled script reclaims them.
+
+```bash
+$HOME/.claude/skills/cleanup-resources/scripts/sweep-tmp.sh            # dry-run: shows what WOULD be reclaimed
+$HOME/.claude/skills/cleanup-resources/scripts/sweep-tmp.sh --apply    # delete the stale matches
+```
+
+Run the dry-run first, then `--apply`; fold the reclaimed figure into the Step 5 report. It is safe to run unattended because it is **allowlist + age gated**, not a blanket temp wipe:
+
+- **Allowlist only.** It deletes only top-level entries whose name matches an entry in `STALE_PATTERNS` (seeded with `zfb-shadow-session-*`). Unrelated temp files never match — a general "delete old files in tmp" is exactly what the global `rm -rf` safety rule forbids, so this stays a tight allowlist.
+- **Age gated.** It skips anything modified in the last 60 minutes (override: `--min-age-min N`), so an in-progress build's live session dir is never touched.
+
+**Extending it:** when another tool is found leaking big session/cache dirs into a temp dir, add its glob to `STALE_PATTERNS` at the top of `scripts/sweep-tmp.sh`. Keep each pattern a specific top-level name with no slashes — the whole point is that only known-ephemeral artifacts are ever in scope.
+
+On Claude Code on the web there are no local build sessions, so this step is a fast no-op (`nothing to sweep`).
+
+### Step 5 — Print final report
 
 Print a concise human-readable summary to the chat. Format:
 
@@ -204,6 +224,9 @@ Print a concise human-readable summary to the chat. Format:
 - <branch-name> (local + remote) — <reason>
 - ...
 
+### Reclaimed disk
+- <N> stale temp dir(s) swept — ~<size> freed (from `sweep-tmp.sh`), or "none" if nothing matched
+
 ### Kept
 - #<n> — <title> — <reason>
 - ...
@@ -217,7 +240,7 @@ Print a concise human-readable summary to the chat. Format:
 - ...
 ```
 
-If there are **no actions** (everything was already in the right state), print just: `Cleanup audit: all resources in expected state — nothing to do.`
+If there are **no actions** (GitHub resources already in the right state AND the temp sweep matched nothing), print just: `Cleanup audit: all resources in expected state, no stale temp dirs — nothing to do.` If only the sweep did work, still report the reclaimed figure.
 
 If the **Ambiguous** section is non-empty, do NOT auto-resolve. Surface to the user and let them decide. The agent's job was to filter the obvious cases; the manager's job is to act on those AND show the unclear ones.
 
@@ -228,10 +251,11 @@ If the **Ambiguous** section is non-empty, do NOT auto-resolve. Surface to the u
 - **Unrelated-findings issues are ALWAYS KEPT unless closed by `-fix`.** They are explicitly opt-in follow-up work, so the audit never closes an open one. The exception is the `-fix` / `--auto-fix` auto-fix step in `/x-as-pr` / `/x-wt-teams`: it closes the `agent-found` issues it actually fixed (linking the fix PR) before cleanup runs. The audit leaves those already-closed and keeps every still-open one. The agent's prompt enforces this; the manager doesn't second-guess.
 - **On web (web-mode.md §5), the session branch is platform-owned and protected by exact name.** Callers pass it as `role: session-web` with `protected-session-branch: <name>`. The audit ALWAYS keeps it (even pr-merged=true), and the manager never checks out off it to delete it. Protect by name, not by the `claude/*` prefix — dead `claude/agent-fix-*` branches must still be deleted.
 - **The caller's `-m` / `--merge` flag (passed here as `-a` / `--auto-merged`) is the signal for aggressive cleanup.** Without it, prefer keeping branches around — the user may want to inspect locally before deleting. With it and root-PR-merged, the user opted in to full cleanup including local dead branches (this is the specific bug the skill fixes: `--delete-branch` removes remote, the old workflow left local behind).
+- **The temp sweep (Step 4) is allowlist + age gated, never a blanket wipe.** `sweep-tmp.sh` only removes top-level dirs matching `STALE_PATTERNS` (seeded with `zfb-shadow-session-*`) that are older than the age threshold, so live builds and unrelated temp files are always out of scope. This narrowness is deliberate: the global `rm -rf` rule forbids freehand deletes under absolute temp paths, so grow the allowlist rather than loosening the match.
 
 ## When to skip this skill
 
-- The workflow created no GitHub resources (e.g. `/x-as-pr` with `--no-issue` and no merged PR) — the manifest would be empty.
+- The workflow created no GitHub resources (e.g. `/x-as-pr` with `--no-issue` and no merged PR) — the manifest is empty, so skip the GitHub audit (Steps 1–3). Step 4 (temp sweep) can still run on its own; a bare "clean disk / clear stale temp files" request runs only Step 4.
 - Mid-workflow halts where resources are intentionally left open for the user to inspect.
 - The parent skill is in an error state and shutting down — clean up next session.
 
