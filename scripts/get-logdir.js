@@ -15,7 +15,9 @@
  *      WSL2/Linux -> /mnt/c/Users/takaz/Dropbox/cclogs
  *   3. ~/cclogs as a last-resort fallback (on macOS this is a symlink to #2)
  *
- * Returns: <base>/{repo-basename}/ (worktrees resolve to main repo)
+ * Returns: <base>/{repo-basename}/ (worktrees resolve to main repo; a trailing
+ *   number on the folder name is folded off, so sibling copies like zzmod and
+ *   zzmod2 share one cclogs dir — the same way worktrees do)
  * Fallback: <base>/_misc/ (when not in a git repository)
  */
 
@@ -44,6 +46,15 @@ function sanitizeSlug(raw) {
   return cleaned;
 }
 
+// Fold worktree-style sibling copies onto their base name: a repo cloned/copied
+// as zzmod, zzmod2, zzmod3 (an optional -/_/. separator + trailing digits) all
+// resolve to the same cclogs dir (zzmod), mirroring how real git worktrees share
+// one. All-digit names (e.g. 2024) are left intact so nothing collapses to empty.
+function foldNumberedSibling(slug) {
+  const folded = slug.replace(/[-_.]?\d+$/, '');
+  return folded === '' ? slug : folded;
+}
+
 export function getLogDir() {
   const base = cclogsBase();
   try {
@@ -63,7 +74,7 @@ export function getLogDir() {
     } else {
       slug = path.basename(toplevel);
     }
-    return path.join(base, sanitizeSlug(slug));
+    return path.join(base, foldNumberedSibling(sanitizeSlug(slug)));
   } catch {
     return path.join(base, '_misc');
   }

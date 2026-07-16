@@ -29,7 +29,7 @@ Default is `subagents` because most fan-out/return work doesn't need comms. Team
 
 The marker spelling is exact — grep for these strings:
 
-**Non-Super-Epic mode** (each topic is its own `[Sub]` issue):
+**Standard shape** (each topic is its own `[Sub]` issue — this includes Super-Epic child epics produced by a `/big-plan -is` sweep):
 
 ```
 gh issue view <sub-issue-number> | grep -E '^\*\*Execution mode:\*\* '
@@ -47,7 +47,7 @@ or
 **Execution mode:** teams — depends on topicA's schema output mid-flight
 ```
 
-**Super-Epic child mode** (sub-tasks are inline bullets in the epic body):
+**Legacy inline shape** (a Super-Epic child epic with NO `[Sub]` issues — sub-tasks are inline bullets in the epic body; produced by the retired standalone Super-Epic producer):
 
 The marker appears as a sub-bullet under each sub-task entry:
 
@@ -103,7 +103,7 @@ This is **advisory, not blocking**. Don't pause for confirmation when no drift s
 
 ## Subagents path — the inline Step 5 default (Agent-call shape)
 
-`spawn_path == "subagents"` is the inline default in `SKILL.md` Step 5. This is the exact Agent-call shape for each topic (the canonical prompt body items a–j are in `SKILL.md` Step 5):
+`spawn_path == "subagents"` is the inline default in `SKILL.md` Step 5. This is the exact Agent-call shape for each topic (the canonical prompt body items a–k are in `SKILL.md` Step 5):
 
 1. **No TeamCreate. No TaskCreate.** Skip both.
 2. For each topic, issue an Agent tool call in the **same message** (parallel) — capped at 6 concurrent (same rule as the teams path; **on web: uncapped, fan out all topics at once — web-mode.md §6**):
@@ -113,12 +113,17 @@ This is **advisory, not blocking**. Don't pause for confirmation when no drift s
      description: "Implement <topic-name>",
      subagent_type: "frontend-worktree-child",   // or "general-purpose" for non-frontend
      model: <resolved per-topic team-member model (see references/per-topic-models.md), default opus>,
-     prompt: <the canonical prompt body (items a–j) from SKILL.md Step 5, with these adjustments:
+     prompt: <the canonical prompt body (items a–k) from SKILL.md Step 5, with these adjustments:
               - tell the agent its working directory is the absolute path of worktrees/<topic>/
               - tell it to commit locally only (no push)
-              - tell it to run /light-review and apply useful findings (forwarding any reviewer flag — -op/-so/-haiku/-co)
+              - tell it to run /light-review IN THE FOREGROUND and apply useful findings (forwarding any
+                reviewer flag — -op/-so/-haiku/-co) — do NOT start a background review and then wait for
+                a completion notification; that notification is delivered to the manager, not the child.
+                Apply findings, COMMIT, then report (item k)
               - tell it to NOT use SendMessage (no team in this session)
-              - tell it to return a brief plain-text summary: status, log file path
+              - tell it to return the schema-conforming completion report (item i): foreground
+                self-review confirmation + findings applied, final commit SHA, clean working tree
+                confirmation, log file path
               - all other rules (no browser tools, no heavy/port-based tests, rebuild touched workspace packages) apply unchanged>
    })
    ```
@@ -142,9 +147,11 @@ The rest of the workflow (Step 6 merge, Step 8 sync, Step 9 review, Step 10 veri
 
 ## What about /light-review inside subagents?
 
-Works the same way as in the teams path. `/light-review`'s default route (`/codex-review`) shells out to the OpenAI Codex CLI via Bash — it does not spawn nested Agent calls. Subagents have Skill and Bash access (the `frontend-worktree-child` agent has "All tools"), so the call succeeds inside a subagent.
+**The trap: backgrounding the review and waiting.** `/light-review`'s default route (`/codex-review`) shells out to the OpenAI Codex CLI via Bash. Subagents have Skill and Bash access (the `frontend-worktree-child` agent has "All tools"), so the `/light-review` call itself is reachable from inside a subagent — that part is not the problem. The problem is what happens if that shell-out is launched as a *background* task and the child then waits for a completion notification: the notification is delivered to the **manager**, not to the child that started it. The child parks indefinitely — often with real work already committed but never reported — because the signal it's waiting on will never reach it. This is the documented cause behind two linked defects in issue #114: parked children, and a manager that (lacking any report) fell back to merging on worktree inspection alone.
 
-If `/light-review` escalates to a Claude-based path that spawns nested subagents, those nested calls also work because the parent subagent has Agent in its toolset. There is no two-level nesting limit.
+The fix is `SKILL.md` Step 5 item (k) (mirrored above in this file's Agent-call shape): **run the self-review in the foreground**, apply findings, COMMIT, then report. Item (k) is a prompt-level override — the child follows the explicit orchestrator instruction over whatever the invoked review skill's own default flow would otherwise do, which is why it un-parks children even before the invoked skill changes. Sub-issue #113 is separately making `codex-review` itself subagent-context-aware (so it stops defaulting to a background launch when it detects it's running inside a subagent) — treat that as belt-and-suspenders hardening, not a prerequisite for item (k) to work.
+
+The nested-Agent-call path remains safe and is the reason `/light-review` still works from a child at all: if `/light-review` escalates to a Claude-based path that spawns **nested Agent calls**, those calls block and return synchronously to the caller that spawned them — no manager-routed notification, no parking. There is no two-level nesting limit. The rule is specifically about *backgrounded* work with an out-of-band completion signal, not about nested Agent calls in general.
 
 ## Mixed-mode degradation rationale
 

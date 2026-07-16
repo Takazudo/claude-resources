@@ -88,6 +88,15 @@ Use `$DATETIME` in all output filenames below to avoid overwriting previous runs
 
 ### Step 3: Run Codex Review
 
+**First, determine which context you're running in — this changes how Step 3 executes:**
+
+- **Interactive / main-session (manager) context**: you are the top-level session the user is talking to directly (not a worktree child, not a team member spawned by `/x-wt-teams` or similar). Background-task completion notifications are delivered here, so backgrounding is safe.
+- **Subagent / child-agent context**: you were spawned as a worktree child, a team member, or were otherwise instructed to run reviews in the foreground. Do not background this call: a subagent that ends its turn waiting for a background completion notification is never re-invoked; in practice the signal surfaces to the manager session and the child **parks** (observed field behavior). Use the foreground procedure below instead.
+
+If you are unsure which context you're in, treat it as a subagent context — the foreground path is always safe to use, it just trades a 25-minute budget for a 10-minute one (absorbed by the fallback).
+
+#### Interactive / main-session (manager) context only
+
 Run the companion script's review command with `--base` and `--wait`:
 
 ```bash
@@ -97,6 +106,30 @@ ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" review
 ```
 
 Launch as a **background Bash task** with a **25-minute timeout**.
+
+#### Subagent / child-agent context (MANDATORY)
+
+The Bash tool's foreground timeout caps at 10 minutes (600000 ms) — below codex's normal 25-minute budget — but a subagent must not background this call under any circumstance (see the context-split intro above). Run it as a **single foreground Bash call** instead, with the tool timeout set to its maximum (600000 ms):
+
+```bash
+if [ -z "$TIMEOUT_CMD" ]; then
+  # Neither timeout nor gtimeout is available — do not run codex uncontrolled in a
+  # child context (the Bash tool would kill the call and the agent couldn't recover
+  # cleanly). Skip straight to the Fallback step.
+  echo "SKIP_CODEX_NO_TIMEOUT_BINARY"
+  CODEX_EXIT=1
+else
+  "$TIMEOUT_CMD" -k 15 570 node "$CODEX_COMPANION" review --base "$BASE" --wait \
+    > "$LOGDIR/${DATETIME}-codex-review.md" \
+    2>"$LOGDIR/${DATETIME}-codex-review-stderr.log"
+  CODEX_EXIT=$?
+fi
+```
+
+- **Do not use `run_in_background` for this call.** It must be a single blocking foreground invocation with the Bash tool timeout parameter set to 600000 ms.
+- `-k 15 570`: run for up to 570s, send TERM, then SIGKILL 15s later if the process ignores TERM. This grace period stops a TERM-ignoring codex process from consuming the entire 600000 ms tool budget and getting hard-killed by the harness mid-write.
+- **Capture `CODEX_EXIT` (the command's exit status). ANY nonzero exit — including `timeout`'s `124` — triggers the Fallback step (Step 5), even if the output file has partial content.**
+- If neither `timeout` nor `gtimeout` is available (`$TIMEOUT_CMD` is empty), **skip codex entirely and go straight to Fallback** — do not attempt to run codex without a timeout wrapper in a child context.
 
 ### Step 4: Collect Results and Check for Rate Limiting
 
@@ -118,11 +151,13 @@ After codex completes (or times out):
 
 ### Step 5: Fallback — Opus
 
-If codex timed out, produced no output, or is rate-limited:
+If codex timed out, produced no output, is rate-limited, or (subagent/child-agent context) exited with **any nonzero status** — including the no-timeout-binary skip case:
 
 - **Silently fall back to Opus** — do NOT report the rate limit or timeout to the user. Do NOT pause the workflow.
-- Spawn **2 `code-reviewer` subagents** in parallel (like /light-review) with `model: opus`, reviewing the diff against `$BASE`. Opus is the designated Claude-side stand-in for codex throughout these skills — no quota-loud failure mode.
-- Continue the workflow as if `/light-review` was invoked instead
+- **Interactive / main-session (manager) context**: spawn **2** `code-reviewer` subagents in parallel (like /light-review) with `model: opus`, reviewing the diff against `$BASE`.
+- **Subagent / child-agent context**: spawn only **1** `code-reviewer` subagent with `model: opus`, reviewing the diff against `$BASE`. With up to 6 children live at once under `/x-wt-teams`, a 2-per-child fallback would blow the manager's 6-concurrent CPU budget — 1 keeps the fallback affordable at scale. Because a nested `Agent` call from a subagent blocks and returns synchronously, there is no notification dependency here — this stays structurally park-proof regardless of context.
+- Opus is the designated Claude-side stand-in for codex throughout these skills — no quota-loud failure mode.
+- Continue the workflow as if `/light-review` was invoked instead (adjusted for reviewer count per context, as above)
 
 ### Step 6: Synthesize and Report
 
@@ -143,8 +178,9 @@ If fixes were applied, commit with a descriptive message.
 
 ## Timeout Policy
 
-- **Timeout**: 25 minutes (1500s via `gtimeout`/`timeout` command, auto-detected)
-- **If codex times out**: Silently fall back to Opus (2 `code-reviewer` subagents with `model: opus`)
+- **Interactive / main-session (manager) context**: 25 minutes (1500s via `gtimeout`/`timeout` command, auto-detected), run as a background Bash task.
+- **Subagent / child-agent context**: 570s (9.5 min) foreground Bash call via `$TIMEOUT_CMD -k 15 570`, capped by the Bash tool's 600000 ms foreground maximum. **Never** background this in a child context (see Step 3's context-split intro for why).
+- **If codex times out, exits nonzero, or (child context) no timeout binary is available**: Silently fall back to Opus — **2** `code-reviewer` subagents (`model: opus`) in the interactive/manager context, **1** in a subagent/child-agent context.
 
 ## Important Notes
 
@@ -153,4 +189,5 @@ If fixes were applied, commit with a descriptive message.
 - Output files go to `$LOGDIR/${DATETIME}-codex-review-*.md` (timestamped to avoid overwrites)
 - Stderr logs go to `$LOGDIR/${DATETIME}-codex-review-*-stderr.log` (for debugging silent failures)
 - This skill is preferred over /light-review for code review tasks
-- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable for any reason, silently fall back to **Opus** (2 `code-reviewer` subagents at `model: opus`, like `/light-review`). NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do. Just continue with the fallback as if nothing happened. Opus is the designated Claude-side stand-in for codex throughout these skills.
+- **Never background this call from a subagent.** `run_in_background` / background Bash tasks are only safe in the interactive/main-session (manager) context; in a subagent or child-agent context, Step 3 MUST run as a single foreground call — see "Subagent / child-agent context (MANDATORY)" above.
+- **Silent fallback policy**: If codex is rate-limited, timed out, exits nonzero (child context), or is otherwise unavailable, silently fall back to **Opus** — 2 `code-reviewer` subagents at `model: opus` in the interactive/manager context (like `/light-review`), or 1 in a subagent/child-agent context. NEVER pause the workflow, NEVER report the rate limit to the user, NEVER ask what to do. Just continue with the fallback as if nothing happened. Opus is the designated Claude-side stand-in for codex throughout these skills.

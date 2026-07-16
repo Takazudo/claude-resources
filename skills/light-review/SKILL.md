@@ -10,6 +10,11 @@ Lightweight code review. Runs whichever reviewers are specified by flags; falls 
 
 > **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). This is **Claude-only** — the default `/codex-review` backend is unavailable, so **default to a Claude reviewer** and ignore `-co`. Read the PR diff and raise any `agent-found` issues via the GitHub MCP, not `gh`.
 
+> **Subagent safety**: when this skill runs inside a subagent (a worktree child, a team member, or any agent instructed to review in the foreground), **every backend must execute in blocking/foreground form** — a subagent that backgrounds a review and then waits for a completion notification parks forever, because that notification is only delivered to the parent/manager session.
+>
+> - **`-co` backend**: safe automatically. `Skill(skill="codex-review")` executes on the *same invoking agent* — so it inherits that agent's context, and codex-review's own "Subagent / child-agent context (MANDATORY)" rule takes over, running codex as a single foreground Bash call instead of a background task. Nothing extra to do here.
+> - **Claude branch** (`-haiku` / `-so` / `-op`, `code-reviewer` subagents): already park-safe — `Agent` calls block and return synchronously to the caller, so there's no background task and no notification to await, in a subagent or anywhere else. **Reviewer count is context-scoped**, though: the manager/interactive context spawns **2** `code-reviewer` subagents, but when this skill itself runs inside a subagent/child agent it spawns only **ONE** (not 2) — same 6-concurrent CPU-budget rationale as codex-review's child-context fallback (up to 6 children × 2 nested reviewers would blow the manager's 6-concurrent budget). Blocking/synchronous behavior is unchanged either way.
+
 ## Review Focus
 
 - Silly mistakes, bugs, and logic errors
@@ -27,7 +32,7 @@ Lightweight code review. Runs whichever reviewers are specified by flags; falls 
 
 If none passed and no backend flag is passed either, the skill falls to the **backend default** (`-co`) — no Claude reviewers run.
 
-If a model flag IS passed, it turns on the Claude-reviewers branch (2 `code-reviewer` subagents at that model).
+If a model flag IS passed, it turns on the Claude-reviewers branch (2 `code-reviewer` subagents at that model in the manager/interactive context; 1 in a subagent/child-agent context — see Step 2).
 
 If multiple model flags are passed, the last one wins.
 
@@ -44,7 +49,7 @@ Multiple backend flags may be combined — each specified backend runs in parall
 | Flags passed | What runs |
 |---|---|
 | (none) | `/codex-review` only |
-| `-op` (or `-so`, `-haiku`) | 2 Claude reviewers at that model |
+| `-op` (or `-so`, `-haiku`) | 2 Claude reviewers at that model (1 in a subagent/child-agent context) |
 | `-co` | `/codex-review` only |
 
 ## Process
@@ -72,7 +77,12 @@ Based on the flags, launch every selected reviewer in the **same message** (para
 
 #### Claude branch (only when a model flag is passed)
 
-Launch 2 `code-reviewer` subagents with `model` set to `haiku` / `sonnet` / `opus` per the model flag.
+**Reviewer count is context-scoped** (see the "Subagent safety" note at the top of this file):
+
+- **Manager / interactive context**: launch **2** `code-reviewer` subagents (Reviewer 1 + Reviewer 2 below) with `model` set to `haiku` / `sonnet` / `opus` per the model flag.
+- **Subagent / child-agent context** (a worktree child, a team member, or any agent told to review in the foreground): launch **only ONE** `code-reviewer` subagent at that model, and give it **both** focus lists below (Bugs & Logic + Quality & Structure) so a single reviewer covers the full scope. 6 concurrent children × 2 nested reviewers would blow the manager's 6-concurrent budget — 1 per child keeps it affordable.
+
+Either way the `Agent` calls block and return synchronously, so there is no background task and no parking risk.
 
 **Reviewer 1: Bugs & Logic**
 

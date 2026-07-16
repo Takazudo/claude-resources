@@ -171,9 +171,11 @@ gh issue view <number> --json title -q '.title'
 # or for a URL: gh issue view <url> --json title -q '.title'
 ```
 
-If the title contains `[Epic]` → route to `/x-wt-teams`.
+If the title contains `[Epic]` **or `[Super-Epic]`** → route to `/x-wt-teams`.
 
 Epic issues are created by `/big-plan` and contain multiple sub-issues meant for parallel agent teams — `/x-as-pr` cannot handle them correctly.
+
+**Match `[Super-Epic]` explicitly** — it does NOT contain the substring `[Epic]`, so a naive check falls through to `/x-as-pr`. A `[Super-Epic]` issue is a `/big-plan -is` sweep bundle dashboard (label `super-epic`): `/x-wt-teams` recognizes it, prints the first open child epic's command, and stops. The same applies to an `[Epic]` whose body carries `**Super-epic:** #N` (a super-epic child) — always `/x-wt-teams`, never `/x-as-pr`, even when it has a single sub-issue, because its epic-PR must merge into the super base.
 
 ### Decision Examples
 

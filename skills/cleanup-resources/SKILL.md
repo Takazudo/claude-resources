@@ -61,9 +61,9 @@ Structure the manifest as a single markdown block. Use this exact shape so the a
 
 **Roles to use** (consistent vocabulary helps the agent):
 
-- Issue roles: `source` (existed before; the workflow superseded it), `tracking` (created by the workflow as a spec/log), `epic`, `sub` (under an epic), `fix` (review-fix issue), `unrelated-finding` (side-effect issue raised mid-workflow), `claimed-existing` (user-supplied, not created here).
-- PR roles: `root` (the main PR for the workflow), `topic` (sub-PR merged into a base branch), `fix` (delegated fix PR).
-- Branch roles: `base` (the base branch of an x-wt-teams session), `topic` (child branch under a base), `working` (the single x-as-pr working branch), `fix` (an `agent-fix/<slug>` branch from the `-fix` auto-fix step), `parent` (the branch the parent workflow targeted).
+- Issue roles: `source` (existed before; the workflow superseded it), `tracking` (created by the workflow as a spec/log), `epic`, `sub` (under an epic), `super-epic` (a `/big-plan -is` sweep bundle tracking several child epics — KEEP while any child epic is open; only the terminal `/x-wt-teams` sibling that merged the super-PR closes it), `fix` (review-fix issue), `unrelated-finding` (side-effect issue raised mid-workflow), `claimed-existing` (user-supplied, not created here).
+- PR roles: `root` (the main PR for the workflow), `super-pr` (a sweep bundle's `base/{sweep-slug}` → parent PR — KEEP until the last child epic has merged into the super base), `topic` (sub-PR merged into a base branch), `fix` (delegated fix PR).
+- Branch roles: `base` (the base branch of an x-wt-teams session), `super-base` (a sweep bundle's `base/{sweep-slug}` — KEEP while its super-PR is open; dead only once that PR merged), `topic` (child branch under a base), `working` (the single x-as-pr working branch), `fix` (an `agent-fix/<slug>` branch from the `-fix` auto-fix step), `parent` (the branch the parent workflow targeted).
 
 If a resource doesn't fit, invent a short role label and explain in **Notes for the agent**.
 
@@ -90,6 +90,7 @@ Audit procedure:
    - Is it a `tracking` issue whose root PR is now merged (or the workflow ended cleanly)? → action: close.
    - Is it a `sub` issue whose corresponding PR is merged into the base? → action: close.
    - Is it an `epic` whose root PR is merged AND all sub-issues are closed? → action: close. Otherwise → keep.
+   - Is it a `super-epic` (a `/big-plan -is` sweep bundle)? → action: **keep, ALWAYS**. Its lifecycle belongs to the terminal `/x-wt-teams` sibling, whose merge-and-close sequence runs *after* this audit — so at audit time it is always still legitimately open, even in the session that is about to close it.
 
 2. For every PR in the manifest, run `gh pr view <url>` to read its state. PRs that are still open and intentional → keep. PRs already merged → keep (no action; they're done). PRs closed without merge (`state: CLOSED`, `merged: false`) → also keep, but add reason "manually closed without merge — investigate if the workflow expected it to merge". Do NOT propose closing open PRs unless the manifest's "Notes for the agent" explicitly asks for it.
 
@@ -101,6 +102,7 @@ Audit procedure:
    - If the remote has already been deleted (e.g. by `gh pr merge --delete-branch`) but the local still exists → action: delete-local-only.
    - If pr-merged=false → action: keep.
    - NEVER propose deleting `parent` branches — those belong to other work.
+   - **NEVER propose deleting a `super-base` branch (local OR remote), and never propose closing a `super-pr`** — regardless of what the manifest says about them. A sweep's super base is the **head branch of an open super-PR**: `git push origin --delete` on it makes GitHub auto-close that PR **unmerged**, orphaning every epic in the batch. Their cleanup is owned by the caller's own terminal merge sequence (`gh pr merge --delete-branch` on the super-PR, then `git branch -d`), which runs after this audit — so at audit time they are always still live by design. Keep them and say so.
 
 4. When the workflow's `auto-flag` is true (the caller auto-merged via its `-m` / `--merge` flag, passed to this skill as `-a` / `--auto-merged`) AND root-PR-merged is true, be more aggressive about deleting working/base/topic branches. The user explicitly opted into full auto-cleanup.
 

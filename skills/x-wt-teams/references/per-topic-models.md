@@ -9,16 +9,16 @@ The reviewer model flags (`-op` / `-so` / `-haiku`) are a separate concern — t
 For each topic, the model is resolved in this strict order. The first rule that applies wins:
 
 1. **Manual team-member flag override** — if the invocation contains `-t-op` (or `--team-opus`) or `-t-so` (or `--team-sonnet`), apply that model to **every** topic in the session. The flag is a deliberate session-wide override; per-topic `Model:` markers are ignored.
-2. **Per-topic annotation** — otherwise, use the topic's `**Model:**` marker extracted in Step 1a (from the `[Sub]` issue body, or the inline sub-task in Super-Epic mode).
+2. **Per-topic annotation** — otherwise, use the topic's `**Model:**` marker extracted in Step 1a (from the `[Sub]` issue body — including Super-Epic child epics, which carry real `[Sub]` issues — or from the inline sub-task in a legacy inline-format epic).
 3. **Default** — if a topic has no marker AND no flag is present, default to `opus`.
 
-Model values from annotations: `opus`, `sonnet`, `haiku` (case-sensitive lowercase). Note that the CLI override only covers `opus` and `sonnet` — `haiku` is rare enough that it stays opt-in via per-topic markers only. A `**Model:** haiku` annotation is still honored when no team-member flag is passed.
+Model values from annotations: `opus`, `sonnet`, `haiku`, `fable` (case-sensitive lowercase). `fable` = Claude Fable 5 (the Mythos-class tier above Opus); reserve it for the highest-value creative/design deliverables that `/big-plan` explicitly annotated. Note that the CLI override only covers `opus` and `sonnet` — `haiku` and `fable` are opt-in via per-topic markers only. A `**Model:** haiku` or `**Model:** fable` annotation is still honored when no team-member flag is passed.
 
 ## Marker format
 
 Markers are written by `/big-plan`. Same parsing approach as the execution-mode marker.
 
-**Non-Super-Epic mode** (each topic is its own `[Sub]` issue) — body line, immediately after the `---` divider:
+**Standard shape** (each topic is its own `[Sub]` issue — including Super-Epic child epics from a `/big-plan -is` sweep) — body line, immediately after the `---` divider:
 
 ```
 **Model:** opus — UI work, polished output benefits from the strongest child-model tier (opus)
@@ -36,13 +36,19 @@ or
 **Model:** haiku — trivial config tweak
 ```
 
+or
+
+```
+**Model:** fable — Fable 5; flagship creative design work (e.g. designing a theme lineup)
+```
+
 Grep with the same exact-spelling rule as the execution-mode marker:
 
 ```
 gh issue view <sub-issue-number> | grep -E '^\*\*Model:\*\* '
 ```
 
-**Super-Epic child mode** (sub-tasks are inline bullets in the epic body) — sub-bullet under each entry, alongside the execution-mode sub-bullet:
+**Legacy inline shape** (a Super-Epic child epic with no `[Sub]` issues — sub-tasks are inline bullets in the epic body) — sub-bullet under each entry, alongside the execution-mode sub-bullet:
 
 ```markdown
 - **Header nav component** — adds the top nav with auth dropdown
@@ -53,7 +59,7 @@ gh issue view <sub-issue-number> | grep -E '^\*\*Model:\*\* '
   - **Model:** sonnet — mechanical migration, no judgment needed
 ```
 
-Treat any other value (`opus-pro`, `sonnet4`, blank reason, missing line) as **missing** — fall through to default `opus` (when no flag is also present).
+Treat any other value (`opus-pro`, `sonnet4`, `fable5`, blank reason, missing line) as **missing** — fall through to default `opus` (when no flag is also present). The fable spelling is exactly `fable` — `fable5` / `Fable 5` in the marker value are NOT recognized.
 
 ## Spawn-time application
 
@@ -65,7 +71,7 @@ When spawning each child (either Step 5 path), set the `model` parameter to that
 
 There is no per-team model setting that applies to all teammates; the model is per-spawn.
 
-Resolved values map directly to the Agent tool's `model` parameter — it accepts `opus` / `sonnet` / `haiku`. A `**Model:** opus` marker or a session-wide `-t-op` override both spawn children with `model: "opus"`.
+Resolved values map directly to the Agent tool's `model` parameter — it accepts `opus` / `sonnet` / `haiku` / `fable`. A `**Model:** opus` marker or a session-wide `-t-op` override both spawn children with `model: "opus"`; a `**Model:** fable` marker spawns that child with `model: "fable"`.
 
 ## What to tell the user
 

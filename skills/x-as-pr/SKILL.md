@@ -83,6 +83,13 @@ Parse `$ARGUMENTS` to extract:
 
 **When a GitHub issue URL or number is provided, treat it as an implementation request** — read the issue and implement what it describes. The issue title/body ARE the implementation instructions.
 
+**Super-epic guard — redirect, do not implement.** `/x-as-pr` has no super-epic support (no epic-PR stacking, no sibling chaining, no super-base targeting). If the passed issue is part of a super-epic bundle, STOP and tell the user to run `/x-wt-teams` instead. Two shapes to detect:
+
+- The issue is an `[Epic]` whose body carries `**Super-epic:** #N` (a Super-Epic child epic — even a single-sub one) → `/x-wt-teams {epic-url}` (its epic-PR must merge into the super base; `/x-as-pr` would target the wrong branch and strand the epic).
+- The issue is the super-epic itself (`[Super-Epic]` title / `super-epic` label) → it is a bundle dashboard, not work; point at the first open child epic in its `## Implementation order` section.
+
+(A `[Sub]` issue under such an epic is likewise off-limits — its topic branch belongs to the epic's `/x-wt-teams` session. `/big-plan` never routes a super-epic child to `/x-as-pr`; this guard catches a hand-typed invocation.)
+
 If ambiguous, ask the user to clarify.
 
 ## Local Mode (`-lo` / `--local`)

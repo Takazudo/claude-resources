@@ -168,6 +168,15 @@ is merged. Protect it by **name**, not by the `claude/*` prefix — dead
   tell the user to run super-epics from the terminal. The single-base model does
   **not** collapse the two-base super-epic topology — do not pretend it converges.
 
+  **Producer side — degrade, don't refuse.** `/big-plan -is` (issue sweep)
+  normally bundles a 2+-epic batch under a super-epic. On web it must **not**
+  create one: plan every handled issue as a standalone epic and print the
+  per-epic hand-off with a loud note that the epics must be implemented from a
+  terminal session. Refusing after triage + planning would throw the whole sweep
+  away; the plans themselves are portable and terminal-implementable. Refuse-early
+  applies only to the **consumer** (`/x-wt-teams` handed an epic that already
+  carries super-epic markers).
+
 The terminal's `--stay`, the "Use this PR as base" resource-handoff reuse, and a
 single-base epic all **converge** to this model on web. The two-base super-epic
 does not — it is out of scope on web.

@@ -66,3 +66,4 @@ Display the full file content using the Read tool.
 - If `$LOGDIR` doesn't exist or is empty, inform the user that no logs have been saved yet for this project
 - The log directory is project-specific: detected from the git repository root basename
 - Worktrees share the same log directory as their main repository
+- Numbered sibling copies of a repo share one log directory: a trailing number on the folder name is folded off, so `zzmod` and `zzmod2` both resolve to `cclogs/zzmod/`

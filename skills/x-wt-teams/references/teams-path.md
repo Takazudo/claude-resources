@@ -6,9 +6,14 @@ This is the one capability with no Workflow-tool / one-shot-subagent equivalent 
 
 ## Step 5 — Teams-path spawn
 
-This replaces the inline subagents-path spawn in `SKILL.md` Step 5. The **prompt body (items a–j)** is identical to the canonical one inlined in `SKILL.md` Step 5 — reuse it verbatim, with these team-specific differences:
+This replaces the inline subagents-path spawn in `SKILL.md` Step 5. The **prompt body (items a–k)** is identical to the canonical one inlined in `SKILL.md` Step 5 — reuse it verbatim, with these team-specific differences:
 
-- Item (i) becomes: report via SendMessage when done instead of returning a plain-text summary.
+- Item (i) becomes: report the schema-conforming completion report via SendMessage when done, instead
+  of returning a plain-text report. The schema itself (foreground self-review confirmation + findings
+  applied, final commit SHA, clean working tree confirmation, log file path) is unchanged — see
+  `SKILL.md` Step 6's merge gate.
+- Item (k) (foreground self-review — never background the review and wait on a notification) applies
+  unchanged; it is what item (i)'s report certifies actually happened.
 - The agent IS part of a team — it may SendMessage peers and the manager (the subagents path tells children NOT to use SendMessage; the teams path enables it).
 
 Use TeamCreate to create a team, then the Task tool to spawn child agents — one per topic. Each agent works in its own worktree directory.
@@ -26,7 +31,7 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
      Edit/Write/NotebookEdit when either the session cwd or the target file path sits under a
      worktrees/<topic>/ segment. Confirm the hook is registered in settings.json before first use.)
    - model: the per-topic resolved model — see "Resolve model per topic" in SKILL.md Step 5. Always set explicitly per child; different children in the same session may run different models.
-   - prompt: the canonical prompt body (items a–j) from SKILL.md Step 5, with the team-specific
+   - prompt: the canonical prompt body (items a–k) from SKILL.md Step 5, with the team-specific
      differences noted above (item (i) becomes report-via-SendMessage; the child IS on a team and
      may message peers / the manager).
 ```
@@ -36,10 +41,15 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
-4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`).
+4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`). **Run this in the foreground.** Do NOT start a background review and then wait for a completion notification — background-task notifications go to the manager, not to the child. Apply findings, COMMIT, then report (item k).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note
-7. **Report back with brief message only**: status (1-2 sentences), PR URL if created, log file path.
+7. **Report back via SendMessage using the completion-report schema** (see `SKILL.md` Step 6's merge
+   gate) — not a brief status line. The report must contain: (1) confirmation self-review ran in the
+   foreground and findings were applied (or "none found"), (2) final commit SHA, (3) confirmation the
+   working tree is clean, (4) log file path — plus a PR URL if created. A report missing any of these,
+   or one that says the agent is waiting/parked, is not a completion report; the manager will not merge
+   or prune that topic's worktree on it — see `SKILL.md` Step 6's "Parked-child protocol."
 
 The Step 5 concurrency cap (max 6 child agents at once) applies identically to the teams path — see `SKILL.md` Step 5 "Concurrency Limit".
 
