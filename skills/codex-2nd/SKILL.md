@@ -2,6 +2,7 @@
 name: codex-2nd
 description: "Get a second opinion from OpenAI Codex CLI on a plan or approach. Use when: (1) During planning phase of /x-as-pr or /x-wt-teams to validate the approach, (2) User says 'codex 2nd', 'second opinion', or 'codex opinion', (3) Wanting an alternative perspective before committing to a plan. Sends context and plan to codex, returns feedback. Called automatically by /x-as-pr and /x-wt-teams during planning."
 allowed-tools:
+  - Bash(bash $HOME/.claude/scripts/codex-guard.sh *)
   - Bash(node *)
   - Bash(timeout *)
   - Bash(gtimeout *)
@@ -90,7 +91,8 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
+bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
   "<prompt>" \
   > "$LOGDIR/${DATETIME}-codex-2nd.md" \
   2>"$LOGDIR/${DATETIME}-codex-2nd-stderr.log"

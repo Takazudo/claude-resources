@@ -60,11 +60,24 @@ Assess testability and choose pragmatically:
 2. Explore the codebase in your worktree to understand existing patterns
 3. Implement the feature with appropriate testing (see Testing Strategy)
 4. Commit with clear messages
-5. **Self-review**: Invoke `/light-review` to catch bugs and quality issues. Fix anything clearly useful, commit the fixes
+5. **Self-review (foreground — never park)**: Invoke `/light-review` to catch bugs and quality issues, fix anything clearly useful, and commit. Run it as a blocking foreground step — see "Self-Review Must Not Park" below. Then reap this workspace's leaked codex broker (a child session never fires the plugin's SessionEnd hook, so its broker + app-server pair would otherwise orphan to PPID 1): `node $HOME/.claude/scripts/codex-sweep.js --workspace "<your-worktree-abs-path>"` — pass your **assigned worktree's absolute path** (not `$PWD`, whose value can be the lead's cwd in a team-child session); a quiet no-op when none exists, safe because the plugin's `ensureBrokerSession` self-heals if codex is needed again.
 6. **Rebuild touched workspace packages** (see "Workspace Package Rebuild" below) — only when the project has a workspace/monorepo layout and your edits hit a package's source
 7. Push to remote
 8. Create PR targeting the base branch
 9. Report back to the manager
+
+## Self-Review Must Not Park (foreground only)
+
+**Observed field failure (recurs constantly if unguarded):** `/light-review` and its `/codex-review` backend are meant to run as a single **blocking foreground** call in a child/subagent context. But when codex times out (exit 143 after ~570s) or is rate-limited, the documented fallback spawns an Opus `code-reviewer` **via the Agent tool** — and in this harness that Agent call returns as a **background task**, not a blocking one. Background-task completion notifications route to the **manager**, not to you. So if you end your turn "waiting for the review to finish," you **park forever**: your self-review never completes, you never send a completion report, and the manager's merge gate stays shut until it manually nudges you. This wasted many round-trips across a real session.
+
+This is one instance of a general rule — **a subagent must never end its turn waiting on anything it did not itself synchronously complete**, because every completion notification in this harness routes to the manager. Canonical statement: `$HOME/.claude/skills/x-wt-teams/references/execution-modes.md` → "Invariant". `/light-review` and `/codex-review` now spawn **no** reviewer subagent at all when they detect a child context, so their documented fallback no longer walks you into this trap — but the rules below still apply to anything else you might start.
+
+Rules — follow all of them:
+
+- **Run the self-review as a blocking foreground step.** Never start a review (or let its fallback start) in the background and then end your turn waiting for a notification.
+- **If a review/fallback call does return as a background task, collect its result IN-TURN** with the `TaskOutput` tool (`block: true`, generous timeout) using the task/agent id it returned — repeat until it reports complete. Do not wait passively for a notification.
+- **If you cannot collect it in-turn, do the review yourself synchronously instead:** read `git diff <base-branch>...HEAD`, do one bugs/logic pass and one quality pass over the changed files, apply clearly-useful fixes, and commit. A self-done synchronous review is strictly better than a parked turn.
+- **Only report back after the review has actually completed** (findings applied, or "none found"). A message that says "review still running / waiting on a notification / I'll report when it lands" is a **parked report, not a completion report** — the merge gate does not open on it, and the manager must nudge you. Your completion report must state: self-review ran in the foreground and findings were applied (or none found), the final commit SHA, that the working tree is clean, and the log file path.
 
 ## Workspace Package Rebuild (before declaring done)
 

@@ -118,7 +118,7 @@ Apply these on top of the normal epic shortcut handling:
       - **No open epic-PR** (the base exists but the PR was never created): create it now, `--base "$SUPER_EPIC_BASE"` — do not skip Step 2's PR creation just because the branch is there.
       - **An open epic-PR exists**: adopt it as the root PR (do NOT `gh pr create` — it fails on a duplicate).
 
-      Then clear the dead session's worktrees — `git worktree prune`, and `git worktree remove` any leftover the prune keeps. A stale worktree holds its topic branch "checked out", which blocks re-creating or re-merging that topic.
+      Then clear the dead session's worktrees — `git worktree prune`, and `git worktree remove` any leftover the prune keeps. A stale worktree holds its topic branch "checked out", which blocks re-creating or re-merging that topic. **Before removing any leftover, apply `SKILL.md` Step 1.5b's classification** (`git -C <wt> status --short`): a dead child may have left uncommitted work there. Adopt it via Step 1.5c — validate, commit, then spawn a replacement child to self-review and file the completion report Step 6's gate requires. `git worktree remove` refusing without `--force` is the signal to do that; never `--force` past the refusal.
 
       Now decide **per topic from the epic base's own merge history — never from `[Sub]` issue state**: sub-issues are closed by the Step 16 cleanup audit, which runs *after* the epic-PR merge, so in this window (epic-PR still open) **no sub has ever been closed** and a "skip the closed ones" rule would skip nothing and re-run every finished topic.
 

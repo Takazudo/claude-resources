@@ -9,7 +9,7 @@ Anthropic models are vision-in / text-out — they cannot emit raster pixels. Th
 
 ## Use the script
 
-`scripts/codex-imagegen.sh` runs the whole flow (ChatGPT-auth preflight → headless `codex exec` → save to disk → optional exact resize) and prints the saved path:
+`scripts/codex-imagegen.sh` runs the whole flow (ChatGPT-auth preflight → concurrency-guarded headless `codex exec` → save to disk → optional exact resize) and prints the saved path:
 
 ```bash
 "$HOME/.claude/skills/codex-imagegen/scripts/codex-imagegen.sh" \

@@ -2,6 +2,7 @@
 name: codex-research
 description: "Web research using OpenAI Codex CLI (codex exec). PREFERRED over general web research. Use when: (1) User says 'research', 'codex research', 'look up', or 'investigate', (2) Researching libraries, APIs, best practices, or technical topics, (3) Gathering information from the web. Codex performs research, Claude Code synthesizes. Falls back to Claude Code researcher subagent if codex unresponsive."
 allowed-tools:
+  - Bash(bash $HOME/.claude/scripts/codex-guard.sh *)
   - Bash(node *)
   - Bash(timeout *)
   - Bash(gtimeout *)
@@ -93,7 +94,8 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
+bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
   "<research prompt>" \
   > "$LOGDIR/${DATETIME}-codex-research-{topic-slug}.md" \
   2>"$LOGDIR/${DATETIME}-codex-research-{topic-slug}-stderr.log"

@@ -223,7 +223,8 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" review --base "$BASE" --wait \
+bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" review --base "$BASE" --wait \
   > "$LOGDIR/${DATETIME}-codex-review-local.md" \
   2>"$LOGDIR/${DATETIME}-codex-review-local-stderr.log"
 ```
@@ -258,7 +259,8 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" adversarial-review --base "$BASE" --wait \
+bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" adversarial-review --base "$BASE" --wait \
   > "$LOGDIR/${DATETIME}-codex-adversarial-review-local.md" \
   2>"$LOGDIR/${DATETIME}-codex-adversarial-review-local-stderr.log"
 ```
@@ -463,7 +465,8 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
+bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
   "Review the entire codebase for bugs, logic errors, structural issues, and quality. Be concise." \
   > "$LOGDIR/${DATETIME}-codex-review-local-full.md" \
   2>"$LOGDIR/${DATETIME}-codex-review-local-full-stderr.log"
@@ -499,7 +502,8 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" adversarial-review --wait \
+bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" adversarial-review --wait \
   > "$LOGDIR/${DATETIME}-codex-adversarial-review-local-full.md" \
   2>"$LOGDIR/${DATETIME}-codex-adversarial-review-local-full-stderr.log"
 ```
@@ -626,6 +630,18 @@ Findings presented in Step 4 but not fixed — deferred needs-consideration item
 4. List the created issue URLs in the final report.
 
 Fixed findings never get issues — the commit is the record.
+
+### Step 9: Reap this workspace's codex broker (ONCE, at the very end)
+
+After **all** of this session's same-workspace codex reviews have been collected and the flow is otherwise done — success, fallback, team-fix, or inline — reap this workspace's broker exactly once:
+
+```bash
+node $HOME/.claude/scripts/codex-sweep.js --workspace "$PWD"
+```
+
+`$PWD` is correct when `/deep-review` runs in its own workspace (the usual manager/interactive case). If instead it runs where the shell cwd may not be the reviewed workspace, pass that workspace's **absolute path** here instead.
+
+**Run this ONCE, here at the end — never per-review.** `/deep-review` fires multiple concurrent codex reviews (Steps A-2b/A-2c or B-2b/B-2c) against the **same** workspace, so they share one broker; reaping between or during them would kill a sibling review's broker mid-flight. It is a quiet no-op when no broker exists, and the plugin's `ensureBrokerSession` self-heals if codex is needed again.
 
 ## Important Notes
 

@@ -2,6 +2,7 @@
 name: codex-translator
 description: "Translation using OpenAI Codex CLI (codex exec). PREFERRED for translation. Use when: (1) User says 'translate', 'codex translate', 'translation', or 'codex translator', (2) Translating between languages (Japanese, English, etc.), (3) Translating documentation, comments, or UI strings. Codex drafts, Claude Code reviews and writes. Falls back to Claude Code if codex unresponsive."
 allowed-tools:
+  - Bash(bash $HOME/.claude/scripts/codex-guard.sh *)
   - Bash(node *)
   - Bash(timeout *)
   - Bash(gtimeout *)
@@ -93,7 +94,8 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
+bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
   "<translation prompt>" \
   > "$LOGDIR/${DATETIME}-codex-translation-draft.md" \
   2>"$LOGDIR/${DATETIME}-codex-translation-draft-stderr.log"

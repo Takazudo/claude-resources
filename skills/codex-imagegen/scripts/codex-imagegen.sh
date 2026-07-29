@@ -116,8 +116,15 @@ LOG="${WORKDIR}/.codex-imagegen.log"
 echo "→ generating via codex \$imagegen (ChatGPT usage)…" >&2
 
 # unset OPENAI_API_KEY: keep this on the ChatGPT-included billing path.
+# Wrap in codex-guard.sh (machine-wide flock semaphore, default 2 slots) so this
+# imagegen run counts against the same concurrency ceiling as reviews/research and
+# can't START inside codex-sweep's all-slots-held log-rotation delete window — which
+# would let the SQLite log family be unlinked beneath a live codex. Guard sits
+# OUTSIDE the codex call; no per-caller --slots (all callers share the default). If
+# flock is absent the guard fails open and runs codex unguarded, as before.
 set +e
-env -u OPENAI_API_KEY codex "${ARGS[@]}" >"$LOG" 2>&1
+bash "$HOME/.claude/scripts/codex-guard.sh" --wait 300 -- \
+  env -u OPENAI_API_KEY codex "${ARGS[@]}" >"$LOG" 2>&1
 rc=$?
 set -e
 

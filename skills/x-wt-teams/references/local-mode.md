@@ -6,7 +6,7 @@ Shared spec for `--local` across `/big-plan`, `/x-wt-teams`, and `/x-as-pr`. Eac
 
 These workflows normally create GitHub issues (an epic + sub-issues, a tracking issue, a `--make-issue` spec) to hold the plan, spec, and step-by-step progress. On a personal / leading repo that paper trail is welcome. On a **public or team repo** those bookkeeping issues read as spam. `--local` keeps the exact same information but writes it to a **cclogs coordination directory** instead of the issue tracker.
 
-Manager↔child coordination does not depend on issues — children hand work back through git merges and Agent-tool return values / SendMessage, and issue comments were only ever an additive human-visible log. So suppressing the issues loses nothing operationally; the cclogs directory restores the durable progress ledger that anti-drift re-reads depend on.
+Manager↔child coordination does not depend on issues — children hand work back through git merges plus a SendMessage completion report (the only channel that reaches the manager; a plain-text return does not — see `SKILL.md` Step 5 item (i)), and issue comments were only ever an additive human-visible log. So suppressing the issues loses nothing operationally; the cclogs directory restores the durable progress ledger that anti-drift re-reads depend on.
 
 `--no-issue` (an older `/x-wt-teams` flag) is an **alias** of `--local`. Prefer `--local`: bare `--no-issue` drops the progress ledger entirely, whereas `--local` relocates it to `progress.md` so the re-read-after-each-step mechanism still works.
 

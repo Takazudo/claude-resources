@@ -11,7 +11,7 @@ Two axes that are easy to conflate — keep them separate:
 
 Concretely:
 
-- **All topics marked `subagents` = subagents path (inline default).** No team is created. Each topic runs as a one-shot Agent call with `subagent_type: "frontend-worktree-child"` (or `general-purpose` for non-frontend), pointing at the pre-created worktree. No TeamCreate, no shutdown ceremony, no SendMessage. This is exactly the inline `SKILL.md` Step 5 / Step 7 flow.
+- **All topics marked `subagents` = subagents path (inline default).** No team is created. Each topic runs as a one-shot Agent call with `subagent_type: "frontend-worktree-child"` (or `general-purpose` for non-frontend), pointing at the pre-created worktree. No TeamCreate, no shutdown ceremony, no peer-to-peer messaging. Children DO still report to the manager via SendMessage — that is the only channel a completion report reaches him on (see `SKILL.md` Step 5 item (i)). This is exactly the inline `SKILL.md` Step 5 / Step 7 flow.
 - **Any topic marked `teams`, OR any topic missing the marker = teams path for the whole session.** Read `references/teams-path.md` and run the full team workflow there. Simpler than mixing the two spawn mechanisms and matches how peers expect to message each other. The subagent-marked topics still benefit from the team's shared task list, just without subagent savings. The missing-marker fallback being teams preserves pre-annotation behavior.
 
 ## Why two paths exist
@@ -120,10 +120,15 @@ This is **advisory, not blocking**. Don't pause for confirmation when no drift s
                 reviewer flag — -op/-so/-haiku/-co) — do NOT start a background review and then wait for
                 a completion notification; that notification is delivered to the manager, not the child.
                 Apply findings, COMMIT, then report (item k)
-              - tell it to NOT use SendMessage (no team in this session)
-              - tell it to return the schema-conforming completion report (item i): foreground
-                self-review confirmation + findings applied, final commit SHA, clean working tree
-                confirmation, log file path
+              - tell it to send the schema-conforming completion report (item i) VIA SendMessage to
+                the manager: foreground self-review confirmation + findings applied, final commit SHA,
+                clean working tree confirmation, log file path. Say the channel out loud — "return it
+                via SendMessage; a plain-text return does not reach me; an issue comment is not a
+                substitute". A returned plain-text final message never reaches the manager, and a
+                child that ends its turn that way is indistinguishable from a parked one (field
+                evidence in SKILL.md Step 5 item (i): six-for-six children parked this way in one run)
+              - there is still no team here: no shutdown_request ceremony and no peers to message —
+                SendMessage is for the manager-facing report and for raising blockers, nothing else
               - all other rules (no browser tools, no heavy/port-based tests, rebuild touched workspace packages) apply unchanged>
    })
    ```
@@ -151,7 +156,19 @@ The rest of the workflow (Step 6 merge, Step 8 sync, Step 9 review, Step 10 veri
 
 The fix is `SKILL.md` Step 5 item (k) (mirrored above in this file's Agent-call shape): **run the self-review in the foreground**, apply findings, COMMIT, then report. Item (k) is a prompt-level override — the child follows the explicit orchestrator instruction over whatever the invoked review skill's own default flow would otherwise do, which is why it un-parks children even before the invoked skill changes. Sub-issue #113 is separately making `codex-review` itself subagent-context-aware (so it stops defaulting to a background launch when it detects it's running inside a subagent) — treat that as belt-and-suspenders hardening, not a prerequisite for item (k) to work.
 
-The nested-Agent-call path remains safe and is the reason `/light-review` still works from a child at all: if `/light-review` escalates to a Claude-based path that spawns **nested Agent calls**, those calls block and return synchronously to the caller that spawned them — no manager-routed notification, no parking. There is no two-level nesting limit. The rule is specifically about *backgrounded* work with an out-of-band completion signal, not about nested Agent calls in general.
+**A nested `Agent` call is NOT an escape hatch.** This file previously claimed that when `/light-review` escalates to a Claude-based path spawning **nested Agent calls**, those calls "block and return synchronously to the caller" and therefore carry no parking risk. That claim is false, and believing it is precisely how a child parks: a nested `Agent` call returns an **async handle even with `run_in_background: false`**, and its completion notification routes to the **manager**, not to the child that spawned it. Dispatching a nested reviewer and then ending the turn parks exactly as hard as backgrounding a Bash call. The rule is therefore *not* "avoid backgrounded shell-outs" — it is the broader invariant below.
+
+## Invariant: a subagent must never end its turn waiting on anything it did not itself synchronously complete
+
+**Every completion notification in this harness routes to the manager**, never to the child that started the work. So a child that ends its turn waiting is waiting on a signal that will never arrive. This covers *all* out-of-band work a child can start — `run_in_background` Bash tasks, background task handles, and nested `Agent` calls alike.
+
+For a child, in priority order:
+
+1. **Do the work in the foreground yourself.** For a review that means: read `git diff <base-branch>...HEAD`, make one bugs/logic pass and one quality/structure pass over the changed files, apply clearly-useful fixes, and commit. No `Agent` call, nothing to await.
+2. **If something you called nevertheless returned an async handle, collect it IN-TURN** with `TaskOutput` (`block: true`, generous timeout), repeating until it reports complete. Never wait passively for a notification.
+3. **If you cannot collect it in-turn, abandon it and do the work yourself** (step 1). A self-done foreground pass is strictly better than a parked turn.
+
+A message like "review still running / waiting on a notification / I'll report when it lands" is a **parked report, not a completion report** — the Step 6 merge gate does not open on it and the manager must nudge you. This invariant is the canonical statement referenced by `skills/codex-review/SKILL.md` (Step 5 fallback), `skills/light-review/SKILL.md` (subagent safety), and `agents/frontend-worktree-child.md` ("Self-Review Must Not Park").
 
 ## Mixed-mode degradation rationale
 

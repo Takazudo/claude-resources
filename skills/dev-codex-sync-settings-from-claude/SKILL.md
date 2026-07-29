@@ -15,12 +15,41 @@ Before writing or refreshing any port, read [references/codex-port-contract.md](
 
 ## What the Codex repo tracks
 
-`$HOME/.codex/` is a git repo that intentionally tracks only:
+`$HOME/.codex/` is a git repo that intentionally tracks:
 
+- `.gitattributes` — wires the `config.toml` clean filter (see below)
 - `.gitignore`
+- `agents/` — per-model agent profiles (e.g. `sol.toml`, `terra.toml`)
+- `config.toml` — Codex's own config, shared across machines and normalized at staging time (see below)
+- `hooks/`
+- `scripts/` — includes `normalize-config-toml.js`, the clean filter's implementation
 - `skills/` — the ported workflow skills plus separately-installed reference skills
 
-Everything else in `$HOME/.codex` is machine-local runtime state (sqlite DBs, `auth.json`, `config.toml`, sessions, caches) and stays gitignored.
+Everything else in `$HOME/.codex` is machine-local runtime state (sqlite DBs, `auth.json`, sessions, caches) and stays gitignored.
+
+### config.toml clean filter (per-clone activation)
+
+`config.toml` is tracked and shared across machines, but Codex rewrites a handful of ephemeral/per-machine
+fields (`model`, `model_reasoning_effort`, the `[tui.model_availability_nux]` counters) on nearly every
+session. A git clean filter (`scripts/normalize-config-toml.js`, wired via `.gitattributes`) pins those
+volatile fields to fixed canonical values at staging time, so committed diffs stay clean instead of
+producing `git stash pop` conflicts every time two machines sync.
+
+The `.gitattributes` half ships with the repo, but the filter's git-config half is **per-clone, not
+shared** — run this once on every machine/clone of `codex-settings`, or config.toml commits will
+silently carry volatile model/effort/NUX values:
+
+```bash
+git -C "$HOME/.codex" config filter.normalize-config-toml.clean "node $HOME/.codex/scripts/normalize-config-toml.js"
+git -C "$HOME/.codex" config filter.normalize-config-toml.smudge cat
+git -C "$HOME/.codex" add --renormalize config.toml
+```
+
+This skill runs from Claude Code, whose current directory may not be `$HOME/.codex` — use `-C
+"$HOME/.codex"` (not a bare `git config`) so the filter is configured on the Codex repo regardless of
+invocation context. Without this local config the filter is simply inactive (never an error) — verify
+it's active before committing config.toml changes: `git -C "$HOME/.codex" config --get
+filter.normalize-config-toml.clean` should print the command above.
 
 ## Canonical skill set to keep synced
 
@@ -60,4 +89,4 @@ Group into separate commits so history stays legible:
 2. the workflow-skill sync — `feat(skills): sync Codex-native workflow skills from ~/.claude`
 3. any newly-installed reference skills, as-is — `chore(skills): add <pack> reference skills`
 
-Then push. Prefer `/commits push` — it offloads the git work to a subagent and handles the grouping. Never stage machine-local state; after committing, `git ls-files | grep -E '\.sqlite|auth\.json|config\.toml'` must return nothing.
+Then push. Prefer `/commits push` — it offloads the git work to a subagent and handles the grouping. Never stage machine-local state; after committing, `git ls-files | grep -E '\.sqlite|auth\.json'` must return nothing. `config.toml` IS intentionally tracked, so it's excluded from this check — instead confirm the clean filter is active (see "config.toml clean filter" above) before it's staged.

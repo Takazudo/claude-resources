@@ -13,7 +13,11 @@ Lightweight code review. Runs whichever reviewers are specified by flags; falls 
 > **Subagent safety**: when this skill runs inside a subagent (a worktree child, a team member, or any agent instructed to review in the foreground), **every backend must execute in blocking/foreground form** — a subagent that backgrounds a review and then waits for a completion notification parks forever, because that notification is only delivered to the parent/manager session.
 >
 > - **`-co` backend**: safe automatically. `Skill(skill="codex-review")` executes on the *same invoking agent* — so it inherits that agent's context, and codex-review's own "Subagent / child-agent context (MANDATORY)" rule takes over, running codex as a single foreground Bash call instead of a background task. Nothing extra to do here.
-> - **Claude branch** (`-haiku` / `-so` / `-op`, `code-reviewer` subagents): already park-safe — `Agent` calls block and return synchronously to the caller, so there's no background task and no notification to await, in a subagent or anywhere else. **Reviewer count is context-scoped**, though: the manager/interactive context spawns **2** `code-reviewer` subagents, but when this skill itself runs inside a subagent/child agent it spawns only **ONE** (not 2) — same 6-concurrent CPU-budget rationale as codex-review's child-context fallback (up to 6 children × 2 nested reviewers would blow the manager's 6-concurrent budget). Blocking/synchronous behavior is unchanged either way.
+> - **Claude branch** (`-haiku` / `-so` / `-op`, `code-reviewer` subagents): **NOT automatically park-safe** — this is the trap, not the escape from it. A nested `Agent` call returns an **async handle even with `run_in_background: false`**, and its completion notification routes to the **manager**, not to the subagent that spawned it. So the branch is context-scoped by *mechanism*, not merely by reviewer count:
+>   - **Manager / interactive context**: spawn **2** `code-reviewer` subagents at the flagged model. Notifications land here, so this is safe.
+>   - **Subagent / child-agent context**: spawn **NOTHING**. Review the diff yourself in the foreground (see Step 2). Dispatching even one nested `code-reviewer` and then ending your turn parks you forever. This also sidesteps the CPU budget — up to 6 live children each spawning nested reviewers would blow the manager's 6-concurrent budget.
+>
+>   Canonical rule: **a subagent must never end its turn waiting on anything it did not itself synchronously complete** — see `$HOME/.claude/skills/x-wt-teams/references/execution-modes.md` → "Invariant". (An earlier version of this note claimed `Agent` calls block and return synchronously and were therefore park-proof. That was false and caused real parked children.)
 
 ## Review Focus
 
@@ -32,7 +36,7 @@ Lightweight code review. Runs whichever reviewers are specified by flags; falls 
 
 If none passed and no backend flag is passed either, the skill falls to the **backend default** (`-co`) — no Claude reviewers run.
 
-If a model flag IS passed, it turns on the Claude-reviewers branch (2 `code-reviewer` subagents at that model in the manager/interactive context; 1 in a subagent/child-agent context — see Step 2).
+If a model flag IS passed, it turns on the Claude-reviewers branch (2 `code-reviewer` subagents at that model in the manager/interactive context; a foreground self-review spawning no subagent in a subagent/child-agent context — see Step 2).
 
 If multiple model flags are passed, the last one wins.
 
@@ -49,7 +53,7 @@ Multiple backend flags may be combined — each specified backend runs in parall
 | Flags passed | What runs |
 |---|---|
 | (none) | `/codex-review` only |
-| `-op` (or `-so`, `-haiku`) | 2 Claude reviewers at that model (1 in a subagent/child-agent context) |
+| `-op` (or `-so`, `-haiku`) | 2 Claude reviewers at that model (in a subagent/child-agent context: foreground self-review, no subagent) |
 | `-co` | `/codex-review` only |
 
 ## Process
@@ -77,12 +81,14 @@ Based on the flags, launch every selected reviewer in the **same message** (para
 
 #### Claude branch (only when a model flag is passed)
 
-**Reviewer count is context-scoped** (see the "Subagent safety" note at the top of this file):
+**This branch is context-scoped by mechanism, not just by reviewer count** (see the "Subagent safety" note at the top of this file):
 
-- **Manager / interactive context**: launch **2** `code-reviewer` subagents (Reviewer 1 + Reviewer 2 below) with `model` set to `haiku` / `sonnet` / `opus` per the model flag.
-- **Subagent / child-agent context** (a worktree child, a team member, or any agent told to review in the foreground): launch **only ONE** `code-reviewer` subagent at that model, and give it **both** focus lists below (Bugs & Logic + Quality & Structure) so a single reviewer covers the full scope. 6 concurrent children × 2 nested reviewers would blow the manager's 6-concurrent budget — 1 per child keeps it affordable.
+- **Manager / interactive context**: launch **2** `code-reviewer` subagents (Reviewer 1 + Reviewer 2 below) with `model` set to `haiku` / `sonnet` / `opus` per the model flag. Launch both in parallel and collect their results in this turn before synthesis.
+- **Subagent / child-agent context** (a worktree child, a team member, or any agent told to review in the foreground): launch **NO subagent at all**. Read `git diff "$BASE"...HEAD` and do both passes yourself, in the foreground — one Bugs & Logic pass, one Quality & Structure pass over the changed files — then apply clearly-useful fixes and commit.
 
-Either way the `Agent` calls block and return synchronously, so there is no background task and no parking risk.
+  Use only the **numbered focus lists** from the two prompt blocks below as your checklists. **Ignore their `REPORTING:` sections** — "return to the caller" and "the log file path" describe a subagent handing results back, which does not apply when you are the reviewer. Your findings go straight into your own fixes, and your completion report to the manager states that the self-review ran in the foreground and findings were applied (or none found).
+
+  Why no subagent: a nested `Agent` call returns an async handle even with `run_in_background: false`, and its completion notification routes to the **manager**, so a child that spawns one and ends its turn parks with work committed but never reported (`$HOME/.claude/skills/x-wt-teams/references/execution-modes.md` → "Invariant"). It also keeps the CPU budget sane — 6 concurrent children each spawning nested reviewers would blow the manager's 6-concurrent budget.
 
 **Reviewer 1: Bugs & Logic**
 
@@ -125,19 +131,19 @@ Do NOT return the full analysis — it is in the log file.
 
 For each specified backend, invoke the matching skill in parallel (single message, multiple tool calls):
 
-- `-co` → `Skill(skill="codex-review")` — silently falls back to **Opus** (2 `code-reviewer` subagents at `model: opus`) if codex is rate-limited
+- `-co` → `Skill(skill="codex-review")` — falls back silently if codex is rate-limited: to **Opus** (2 `code-reviewer` subagents at `model: opus`) in the manager context, or to a **foreground self-review spawning nothing** in a subagent/child-agent context
 
-Each backend skill already handles its own rate-limit / fallback behavior silently. For `-co`, that fallback is Opus — the user picked `-co` to mean "the better reviewer," and Opus is the Claude-side stand-in when codex is down.
+Each backend skill already handles its own rate-limit / fallback behavior silently, including the context split above. For `-co` in the manager context that fallback is Opus — the user picked `-co` to mean "the better reviewer," and Opus is the Claude-side stand-in when codex is down.
 
 #### Default (no flags)
 
 Equivalent to `-co`. Invoke `/codex-review` only.
 
-**CRITICAL: Launch all reviewers (Claude + backend) in parallel in a single message.**
+**CRITICAL: Launch all reviewers (Claude + backend) in parallel in a single message.** In a subagent/child-agent context there are no Claude reviewers to launch — you do that branch yourself in the foreground — so this applies only to the backend invocation.
 
 ### Step 3: Synthesize and Apply
 
-After all reviewers complete (each returns high-priority items + log path):
+After all reviewers complete (each returns high-priority items + log path; in a child context, "reviewers" means your own foreground passes):
 
 1. Merge and deduplicate findings across all reviewers (Claude + backends)
 2. Categorize by priority (high / medium / low)

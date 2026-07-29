@@ -2,6 +2,7 @@
 name: codex-writer
 description: "Document writing using OpenAI Codex CLI (codex exec). PREFERRED over general writing tasks. Use when: (1) User says 'write document', 'write docs', 'codex write', or 'codex writer', (2) Writing README, documentation, or technical content, (3) Drafting text content. Codex drafts, Claude Code reviews and writes. Falls back to Claude Code if codex unresponsive."
 allowed-tools:
+  - Bash(bash $HOME/.claude/scripts/codex-guard.sh *)
   - Bash(node *)
   - Bash(timeout *)
   - Bash(gtimeout *)
@@ -81,7 +82,8 @@ else
   echo "WARNING: neither gtimeout nor timeout found. Running without timeout."
 fi
 
-${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
+bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
   "<detailed prompt here>" \
   > "$LOGDIR/${DATETIME}-codex-writer-draft.md" \
   2>"$LOGDIR/${DATETIME}-codex-writer-draft-stderr.log"

@@ -143,6 +143,9 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 **IMPORTANT**: You are the manager. You handle ALL steps automatically:
 
 1. Resolve GitHub tracking issue (read existing, create new, or skip)
+
+1.5. **Resume check** — adopt an existing base branch / root PR left by a dead manager session instead of re-creating them, then classify surviving `worktrees/*` (dirty state + base merge history) and adopt uncommitted child work rather than re-spawning or discarding it. A half-done epic is a NORMAL state
+
 2. Create base branch + root PR
 3. Create worktrees for each topic
 4. Set up environment in worktrees
@@ -251,7 +254,89 @@ Two orthogonal flag families:
 - **Reviewer flags** — `-op` / `-so` / `-haiku` choose the Claude reviewer model; `-co` adds the codex reviewer backend. All combine — multiple flags means run every selected reviewer. See `references/reviewer-modes.md` for substitution tables and Combined Reviewer Mode rules.
 - **Team-member flags** — `-t-op` / `-t-so` override the model for child worktree agents and fix-delegation agents session-wide, replacing any per-topic `Model:` annotations from `/big-plan`. Without a flag, each child's model resolves per-topic from the annotation (default `opus`). See `references/per-topic-models.md` for resolution order and `references/arguments.md` for the canonical flag table.
 
+### Step 1.5: Resuming an interrupted run (MANDATORY check before Step 2 creates anything)
+
+**A half-done epic is a NORMAL state, not an error.** The manager session itself can die mid-wave — a crash, a closed terminal, a context that ran out. When that happens the children's worktrees survive on disk, and some may hold **real, uncommitted work** that was never committed and never reported. Re-spawning such a topic as if it were unstarted, or force-removing its worktree during cleanup, **silently destroys that work**.
+
+This is distinct from the parked-agent machinery elsewhere in this skill (Step 5's watchdog, Step 6's parked-child protocol, Rule 28) — those recover agents that are *still alive* in the current session. This check recovers state *across* sessions, after the manager is gone. The super-epic path has its own richer version of this check (`references/super-epic-mode.md` step 6); this is the path-agnostic minimum that the plain subagents/teams path also needs.
+
+#### 1.5a: Adopt the base branch and root PR if a previous attempt created them
+
+A run that got as far as spawning children **already completed Step 2**, so `base/<project-name>` and its root PR exist. Falling through to Step 2's default flow would run `git checkout -b base/<project-name>` against an existing branch (fails) and `gh pr create` against an existing PR (fails). Probe first, and **reuse what exists, create only what is missing** — the same discipline `references/super-epic-mode.md` applies to the epic base:
+
+```bash
+git fetch origin --prune                # a crashed merge can leave stale remote refs
+
+BASE_BRANCH="base/<project-name>"       # the base THIS run would create (see note below)
+git show-ref --verify --quiet "refs/heads/$BASE_BRANCH"          && echo "base exists locally"
+git show-ref --verify --quiet "refs/remotes/origin/$BASE_BRANCH" && echo "base exists on origin"
+gh pr list --head "$BASE_BRANCH" --state open --json number,url
+```
+
+- **Local base only** (crashed before the first push): `git checkout "$BASE_BRANCH"`, then `git push -u origin "$BASE_BRANCH"`.
+- **Remote base** (with or without a local copy): `git checkout "$BASE_BRANCH" 2>/dev/null || git checkout -b "$BASE_BRANCH" "origin/$BASE_BRANCH"`, then `git pull origin "$BASE_BRANCH"`.
+- **No open root PR** but the base exists: create it now — do not skip Step 2's PR creation just because the branch is there.
+- **An open root PR exists**: adopt it as this run's root PR; do NOT `gh pr create` (it fails on a duplicate).
+
+When any of these adoptions fire, **skip Step 2's creation flow** and go to 1.5b, then Step 3.
+
+**`BASE_BRANCH` is mode-specific — do not hard-code `base/<project-name>`.** Resolve it from the base this run actually uses, as already determined by Step 1 / the flags: `$EPIC_BASE` in Super-Epic child mode, the pre-made handoff branch in the resource-handoff case, the current branch under `-s` / `--stay`, `$WEB_BASE` on web (web-mode.md §5), and `base/<project-name>` in the plain default flow. Using the wrong name here silently misclassifies every worktree below.
+
+#### 1.5b: Classify each surviving worktree
+
+```bash
+git worktree list                       # what actually survived
+PROJECT_NAME="${BASE_BRANCH#base/}"     # topic branches are <project-name>/<topic>
+
+for wt in worktrees/*/; do
+  [ -d "$wt" ] || continue              # no worktrees/ at all → glob stays literal
+  topic=$(basename "$wt")
+  TB="$PROJECT_NAME/$topic"
+  echo "=== $topic ($TB) ==="
+  git -C "$wt" status --short           # (1) uncommitted work?
+  git log --merges --oneline "$BASE_BRANCH" --grep "'$TB'" -F   # (2) already merged into base?
+  git log --oneline "$BASE_BRANCH..$TB" 2>/dev/null             # (3) unmerged commits?
+done
+```
+
+Probe (2) uses the same exact-match form as `super-epic-mode.md`: git's default merge message is `Merge branch '<TB>' into <base>`, so `--grep "'$TB'" -F` is a delimited literal match. A bare `--grep "$TB"` is an unanchored regex — topic `auth` would match `auth-fix`'s merge commit and wrongly mark it merged.
+
+Classify on the **first** match, top to bottom:
+
+| `status --short` (1) | merged (2) | `base..TB` (3) | Meaning | Action |
+|---|---|---|---|---|
+| **non-empty** | either | either | **Work in progress the manager never saw** | **ADOPT** (1.5c) — never re-spawn, never discard |
+| empty | yes | — | Topic already merged; manager died before cleanup | **SKIP** — remove the worktree, do not re-run |
+| empty | no | commits | Finished-or-partial child, never merged | **INSPECT** (1.5c) |
+| empty | no | empty | Genuinely unstarted | **RUN** — remove worktree *and* its topic branch (below) |
+
+**Before re-running a RUN topic, delete the leftover topic branch.** Removing the worktree leaves `refs/heads/<project-name>/<topic>` behind, and Step 3's `git worktree add -b <branch>` fails on an existing branch:
+
+```bash
+git worktree remove "worktrees/$topic"
+git branch -D "$TB" 2>/dev/null || true   # -D is safe here: probes (1)(3) proved it holds nothing
+```
+
+`-D` (not `-d`) is correct **only** in this branch of the table, where the worktree was clean and `base..TB` was empty — there is provably nothing to lose. Never reach for `-D` in the other rows.
+
+#### 1.5c: Adopting recovered work
+
+For an **ADOPT** (dirty) or **INSPECT** (unmerged commits) worktree:
+
+1. Read the change — `git -C "$wt" diff`, `git -C "$wt" diff --cached`, untracked files from `status --short`, and `git log -p "$BASE_BRANCH..$TB"` — against the topic's `[Sub]` issue acceptance criteria. A dead child's edits are often cross-topic (an extracted helper, lint annotations, new test files), so review the whole change, not just the topic's expected files.
+2. **Validate before trusting it**: build, typecheck, and run the affected tests in that worktree. A dead child may have stopped mid-edit.
+3. If the work is empty or clearly partial/broken, you may discard it and treat the topic as **RUN** — but record that decision in the run's progress log first. **Never discard silently.**
+4. Otherwise commit it in the worktree, then **spawn a replacement child against that same worktree** carrying the Step 5 item-(k) instruction (foreground self-review, apply findings, COMMIT, then report). Its completion report is what opens Step 6's merge gate.
+
+**Why a replacement child rather than merging what you validated:** Step 6 is explicit that *worktree inspection is NEVER a merge signal* and that a schema-conforming completion report is the only thing authorizing a merge. The original child is gone and can never file one, so manager validation alone would leave an adopted branch permanently unmergeable — or, worse, tempt a merge that quietly bypasses the gate. Spawning a replacement child (the same move the "Parked-child protocol" already prescribes for an unresumable agent) produces a real report through the normal path, so **no exception to the merge gate is needed**. Your validation in step 2 is what makes it safe to hand the work to that child, not a substitute for its report.
+
+**Never `git worktree remove --force` a worktree with uncommitted changes** during resume or cleanup without first adopting or explicitly discarding the work. Plain `git worktree remove` (no `--force`) already refuses when the worktree is dirty — that refusal is a **signal to inspect, not an obstacle to override**. This applies to Step 7's removal loop and to any cleanup a resuming session performs.
+
+When in doubt on a *clean* worktree, prefer re-running — a fresh child redoes clean work cheaply. When the worktree is *dirty*, always prefer adopting: the work is unrecoverable once removed.
+
 ### Step 2: Create Base Branch and Root PR
+
+**If Step 1.5a adopted an existing base branch and/or root PR, skip the corresponding creation below** — create only what 1.5a found missing. Running `git checkout -b` on an existing base, or `gh pr create` on an existing open root PR, fails outright.
 
 **CRITICAL: `-s` / `--stay` is STRICTLY opt-in.** Only use the `--stay` flow if the user explicitly passed `-s` or `--stay`. Do NOT auto-detect. Default ALWAYS creates a new branch — even if the current branch has an existing PR. See `references/arguments.md` for the full `--stay` mechanism. **On web this default does NOT hold (web-mode.md §5):** web always behaves as the adopt-current-branch case — `$WEB_BASE` (the `claude/*` session branch) is the base regardless of flags; no new base branch is created. The parent is `$WEB_PARENT` (the fork-from / default branch) **unconditionally — do NOT run the `gh pr view --json baseRefName` preference step**, even if the session branch already has a PR.
 
@@ -341,6 +426,8 @@ If `EXISTING_PR` exists: reuse it. If not: create a new draft PR targeting `PARE
 
 ### Step 3: Create Worktrees
 
+If a worktree for a topic already exists on disk, **Step 1.5b has already classified it** — do not blindly re-create or remove it here. Create worktrees only for topics 1.5b marked **RUN**, and only after 1.5b deleted their leftover topic branches (`git worktree add -b` fails when the branch already exists). Topics marked SKIP, ADOPT, or INSPECT are handled by 1.5c and must not be re-created here.
+
 For each topic:
 
 ```bash
@@ -405,7 +492,9 @@ Note: reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children. Only `-t
 
 #### Subagents path (default)
 
-This is the common, steady-state default. **Skip TeamCreate and TaskCreate entirely** — spawn each topic as a one-shot Agent tool call pointing at its pre-created worktree. No team, no shutdown ceremony, no SendMessage. The full subagents-path routing and the Step 7 simplification live in `references/execution-modes.md`.
+This is the common, steady-state default. **Skip TeamCreate and TaskCreate entirely** — spawn each topic as a one-shot Agent tool call pointing at its pre-created worktree. No team, no shutdown ceremony, no peer-to-peer messaging. The full subagents-path routing and the Step 7 simplification live in `references/execution-modes.md`.
+
+**Children still report via SendMessage on this path** (item (i) below). Skipping the team ceremony does not mean skipping the channel: a returned plain-text final message never reaches the manager, so SendMessage is the only way a completion report arrives.
 
 ```
 For each topic, issue an Agent tool call (parallel, capped at 6 concurrent — **on web: uncapped, fan out all topics at once; web-mode.md §6**):
@@ -439,14 +528,27 @@ For each topic, issue an Agent tool call (parallel, capped at 6 concurrent — *
         (In local mode there is no ISSUE_NUMBER — omit this. Do NOT have the child write the
          cclogs progress.md itself; concurrent children would race on it. The child just returns
          its summary per (i), and the manager records topic completion in progress.md.)
-     i. DO NOT use SendMessage — there is no team in this session. Return a plain-text completion
-        report when done, and make it the schema-conforming completion report Step 6's merge gate
+     i. REPORT VIA SendMessage TO THE MANAGER — a returned plain-text final message does NOT reach
+        the manager on this path. Send the schema-conforming completion report Step 6's merge gate
         requires: (1) confirmation self-review ran in the foreground and findings were applied (or
         "none found"), (2) final commit SHA, (3) confirmation the working tree is clean, (4) log file
         path. A report that only says the review is still running, or that the agent is waiting on a
         notification, is a parked report, not a completion report — see Step 6's "Parked-child
-        protocol". (On the teams path this item becomes: report via SendMessage instead — see
-        references/teams-path.md.)
+        protocol".
+        Spell the channel out in the prompt, e.g.: "Return your completion report via SendMessage to
+        the manager. Returning it as plain text does not reach me. Posting an issue comment is not a
+        substitute — the SendMessage report is what unblocks the merge."
+        SendMessage is for THIS report (and any blocker you need to raise). The rest of the team
+        ceremony still does not apply on this path: no TeamCreate, no shutdown_request, no peer-to-
+        peer messaging — there are no peers to reach.
+        FIELD EVIDENCE (do not "simplify" this back): this item previously read "DO NOT use
+        SendMessage — return a plain-text completion report." In one epic run, ALL SIX subagent-path
+        children finished their work and went idle without the manager ever receiving a report. Each
+        had to be chased individually; two had to be taken over; one had gone idle mid-implementation
+        and lost 463 uncommitted lines that the manager had to commit protectively. A child that
+        eventually diagnosed it reported: "My earlier final message was plain text, which apparently
+        never reaches you." Every agent subsequently told to use SendMessage reported successfully on
+        the first attempt.
      j. REBUILD TOUCHED WORKSPACE PACKAGES BEFORE REPORTING DONE. If the project has a workspace/
         monorepo layout and commits touched source inside a package whose consumer imports through
         a built artifact (e.g. an `exports` map → ./dist/...), the agent MUST rebuild that package
@@ -463,21 +565,22 @@ For each topic, issue an Agent tool call (parallel, capped at 6 concurrent — *
 
 If any topic is marked `teams` (see `references/execution-modes.md` for the marker), or any topic is missing the `Execution mode:` marker, the session uses the teams path instead. **Read `references/teams-path.md` for the full team workflow** — TeamCreate + named teammates, idle/wake, the shutdown_request teardown, and TeamDelete. It reuses the canonical prompt body (items a–k) above with its team-specific deltas.
 
-**Spawn child agents in parallel — capped at 6 concurrent (on web: uncapped — one batch, web-mode.md §6).** Use multiple Agent tool calls in a single message for the first batch (Task tool calls on the teams path). Each agent should:
+**Spawn child agents in parallel — capped at 6 concurrent (on web: uncapped — one batch, web-mode.md §6).** Use multiple Agent tool calls in a single message for the first batch (Task tool calls on the teams path). This is the **CANONICAL** post-spawn checklist — `references/teams-path.md` reuses items 1–7 verbatim, layering only its team-specific deltas (Task-tool spawn, SendMessage report). Each agent should:
 
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
-4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`). **Run this in the foreground.** Do NOT start a background review and then wait for a completion notification — background-task notifications go to the manager, not to the child. Apply findings, COMMIT, then report (item k).
+4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`). **Run this in the foreground.** Do NOT start a background review and then wait for a completion notification — background-task notifications go to the manager, not to the child. Apply findings, COMMIT, then report (item k). **Then reap this workspace's leaked codex broker** — a child session never fires the plugin's SessionEnd hook, so its broker + app-server pair would otherwise orphan to PPID 1: run `node $HOME/.claude/scripts/codex-sweep.js --workspace "<your-worktree-abs-path>"` (use your **assigned worktree's absolute path**, not `$PWD` — a team-child's cwd can stay the lead's, and reaping `$PWD` there would kill the lead's broker; a quiet no-op when none exists; safe because the plugin's `ensureBrokerSession` self-heals if codex is needed again).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
-6. (If issue tracking is active) Comment on the tracking issue with a brief completion note. (Local mode: skip — report via the return value / SendMessage per step 7; the manager logs it to `progress.md`.)
-7. **Report back with the completion-report schema** (see Step 6's merge gate) — not a brief status
-   line. The report must contain: (1) confirmation self-review ran in the foreground and findings
-   were applied (or "none found"), (2) final commit SHA, (3) confirmation the working tree is clean,
-   (4) log file path — plus a PR URL if created. (Subagents path: return a plain-text report. Teams
-   path: report via SendMessage — see `references/teams-path.md`.) A report missing any of these, or
-   one that says the agent is waiting/parked, is not a completion report — see Step 6's "Parked-child
-   protocol".
+6. (If issue tracking is active) Comment on the tracking issue with a brief completion note. This is an additive human-visible log, NOT the report — an issue comment does not satisfy the merge gate, and children have repeatedly posted one and then gone idle without reporting. (Local mode: skip the comment — the SendMessage report per step 7 is the whole channel; the manager logs it to `progress.md`.)
+7. **Report back with the completion-report schema, via SendMessage to the manager** (see Step 6's
+   merge gate) — not a brief status line, and not a plain-text return. The report must contain: (1)
+   confirmation self-review ran in the foreground and findings were applied (or "none found"), (2)
+   final commit SHA, (3) confirmation the working tree is clean, (4) log file path — plus a PR URL if
+   created. **Both paths use SendMessage**: on the subagents path a returned plain-text final message
+   never reaches the manager (see item (i)'s field evidence), and on the teams path SendMessage is the
+   team channel anyway. A report missing any of these, or one that says the agent is waiting/parked,
+   is not a completion report — see Step 6's "Parked-child protocol".
 
 #### Concurrency Limit: Max 6 Child Agents at Once
 
@@ -490,13 +593,27 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 
 The active agent count stays at ≤6 at all times.
 
+#### Agent watchdog (session cron — arm right after the first spawn)
+
+Child agents and background reviewers routinely **park** (see Step 6's Parked-child protocol): they go idle waiting on a background-review notification that only ever reaches the manager, and the whole session then sits silent until a human pokes it. Don't rely on idle notifications alone — arm a recurring in-session watchdog as soon as the first long-running agent is spawned (Step 5 children, Step 9 background reviewers, Step 15.5 fix agents alike):
+
+- `CronCreate` with a ~30-minute cadence on an **off-minute** (e.g. `13,43 * * * *` — avoid `:00`/`:30`), `recurring: true`, session-only.
+- The watchdog prompt must instruct the tick to: (1) check real progress signals for every pending agent — `ps aux | grep -E "cargo (test|build|check)|rustc"` (adapt to the project's build tool), worktree `git log`/`git status --short` deltas, and expected issue comments; (2) if an agent looks parked (no process activity, no new commits/comments since the previous tick, no completion report), resume it via `SendMessage` with the item-(k) foreground-completion checklist, or take over its remaining work after repeated parks; (3) if everything is progressing — or the workflow has moved past agents — do nothing beyond a one-line status note; never restart merged work or duplicate a running agent.
+- **Delete the watchdog (`CronDelete`) at STOP** — it is workflow-scoped, not session-scoped. A tick that fires after the workflow ended must find nothing to do; leaving it armed past STOP is noise.
+
+This is the mechanical fix for the observed field failure "manager waits hours on a child that parked 5 minutes in." The 30-minute cadence balances token cost against stall latency; tighten only when the user asks.
+
 ### Step 6: Review and Merge Topic Branches Locally
 
 #### !! MERGE GATE !!
 
 **A topic branch is merged — and its worktree pruned — only after the child's explicit completion
-report.** That means a plain-text return on the subagents path, or a SendMessage report on the teams
-path. Nothing else authorizes a merge.
+report.** That means a **SendMessage report — on BOTH paths**. Nothing else authorizes a merge.
+
+A returned plain-text final message does not reach the manager on the subagents path, so it can never
+satisfy this gate; a child that ends its turn that way looks identical to one that parked. If a topic
+looks finished but no SendMessage report arrived, treat it as PARKED, not done — see the "Parked-child
+protocol" below.
 
 **Completion-report schema.** A valid completion report contains all four of:
 
@@ -528,13 +645,18 @@ mid-review." Do not merge on inspection. Wait for the schema-conforming report.
 - **Detection**: the child's last message says something like "waiting for the review / Monitor /
   codex to finish" — that child has parked. A backgrounded review's completion notification routes to
   the manager, not the child, so its self-review will never complete on its own; it needs a nudge.
+  **Also treat as parked: a child that went idle with no SendMessage report at all**, even when its
+  worktree looks complete (commits present, tree clean, an issue comment posted). That is the
+  commonest park in practice — the work is finished and only the report is missing. Inspecting the
+  worktree cannot tell the two apart, which is why the gate above is the report, not the worktree.
 - **Recovery — teams path**: resume the parked child with `SendMessage` to its teammate name.
 - **Recovery — subagents path**: resume the parked one-shot agent via `SendMessage` using the agent
   name/ID returned by its original `Agent` call; if unresumable, spawn a replacement agent against the
   same worktree carrying the item-(k) foreground-review instruction. (This manager-side continuation is
   distinct from the Mixed-mode note in `references/execution-modes.md` — one teammate reaching a
-  *different*, unrelated subagent it did not spawn — and does not contradict item (i)'s "the child must
-  not use SendMessage" rule, which governs the child's own behavior, not the manager's.)
+  *different*, unrelated subagent it did not spawn.) When resuming, state the channel explicitly:
+  "Return your report via SendMessage — a plain-text return does not reach me." A child that parked
+  for want of the channel will otherwise park again the same way.
 - In every case, the resume/replacement message repeats item (k)'s wording (foreground review, no
   background wait, apply findings, COMMIT, then report). Resuming or replacing a parked child does not
   itself authorize a merge — the manager still waits for a schema-conforming completion report before
@@ -578,9 +700,13 @@ looked clean." Clean up worktrees.
 
    ```bash
    for wt in worktrees/*/; do
+     # No --force. A dirty worktree makes this refuse, which is the point: it means
+     # uncommitted child work is still there. Adopt it per Step 1.5, never override.
      git worktree remove "$wt"
    done
    ```
+
+   **If a removal refuses because the worktree is dirty, stop and adopt that work** (Step 1.5) — never reach for `--force`. The merge gate was satisfied for every topic, so a dirty worktree here means something was written after the child reported, and it is not yet in any branch.
 
 2. **Fix pnpm symlinks** if the project uses pnpm workspaces (worktree removal can break symlinks):
 
@@ -1046,6 +1172,7 @@ A pause is a soft stop — write a one-line "paused: <reason>" note above the ha
 - **Otherwise (non-Super-Epic, non-`-m`)**: **Stay on `base/<project-name>`.** `/cleanup-resources` proposed KEEP for the base branch (PR not merged yet). Do NOT checkout `main`, the parent branch, or any other branch. (on web: stay on `$WEB_BASE`, the session branch — web-mode.md §5)
 - **Do NOT re-run cleanup** — Step 16 already ran. The "Step 17 (deferred)" manual cleanup hook is only for a later session where the user explicitly asks.
 - **Do NOT delete any branches manually** — `/cleanup-resources` is the only step authorized to delete branches in this workflow. If it didn't delete a branch, leave it alone.
+- **Disarm the agent watchdog** — if Step 5's watchdog cron is still armed (`CronList` to check), delete it now (`CronDelete`). It is workflow-scoped; a tick firing after STOP is pure noise. **Exception — `-a` auto-chain:** when Auto-Suggest is about to invoke the next wave/sibling in this same session, keep it armed — the next hop spawns agents too and inherits the same watchdog.
 - **Do NOT do anything else** unless the user asks.
 
 The user will review the PR and may:
@@ -1140,8 +1267,11 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 4. `git branch -d "$DEAD_BRANCH"` — use **`-d` NOT `-D`**. If unmerged commits, `-d` refuses; surface as a loud failure rather than silently destroy work with `-D`.
 
     Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Merge Mode after `/pr-complete` (Rule 1 exception (a)), the Step 17 deferred manual cleanup hook. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged. **As of Rule 27, the actual implementation of this cleanup is delegated to `/cleanup-resources` at Step 16 — hand-rolled `git branch -d` blocks should not be added; let cleanup-resources do it.**
-
 27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless local mode / `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-m` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks. **On web:** there is no `base/<topic>` and the session branch must survive (protected by name in the manifest) — the "(c)" leftover-base framing does not apply. See web-mode.md §5.
+28a. **Children report via SendMessage on BOTH paths — a plain-text return never reaches the manager.** This is the single highest-cost failure mode observed in the field. When a child ends its turn by returning a report as text, the manager receives only an idle notification; the report is lost, and the child is indistinguishable from one that parked mid-review. Say the channel explicitly in every child prompt ("return your report via SendMessage; a plain-text return does not reach me; an issue comment is not a substitute"), and treat a complete-looking worktree with no SendMessage report as PARKED, not done. Full field evidence in Step 5 item (i); the merge gate in Step 6 depends on it. Do NOT "simplify" the subagents path back to plain-text returns on the reasoning that it has no team — skipping the team ceremony is not the same as skipping the channel.
+
+28. **Arm the agent watchdog whenever long-running agents are spawned** — a session `CronCreate` (~30-min cadence, off-minute) that checks each pending agent's real progress signals (build processes, worktree commits, issue comments) and resumes parked ones via SendMessage; disarm it (`CronDelete`) at STOP unless an `-a` auto-chain hop is about to spawn the next wave. Full spec: Step 5 "Agent watchdog". This exists because parked children otherwise stall the whole session until a human pokes it — idle notifications alone are not a reliable progress signal.
+29. **Resume before you create — scan surviving worktrees before treating any topic as unstarted** — a manager session can die mid-wave, leaving a base branch, a root PR, and worktrees that hold uncommitted child work nobody ever saw. Step 1.5 is mandatory before Step 2 creates anything: (a) adopt an existing base branch / root PR rather than re-creating them (`git checkout -b` and `gh pr create` both fail on existing resources), (b) classify each worktree on dirty-state **plus base merge history** — a clean worktree whose topic already merged is SKIP, not RUN, and a genuinely-unstarted one needs its leftover topic branch deleted before Step 3 can re-create it, (c) adopt dirty/unmerged work by validating it and then spawning a **replacement child** to self-review and file a completion report, so Step 6's merge gate is satisfied through the normal path rather than bypassed. Never `git worktree remove --force` a dirty worktree without first adopting or explicitly discarding its contents — the bare `git worktree remove` refusal is a signal to inspect, not an obstacle to override. `BASE_BRANCH` is mode-specific (`$EPIC_BASE`, handoff base, `--stay` branch, `$WEB_BASE`, or `base/<project-name>`) — hard-coding it misclassifies every worktree. This is cross-session recovery, distinct from Rule 28's within-session watchdog; the super-epic path has its own richer version in `references/super-epic-mode.md`.
 
 ## Prerequisites
 
