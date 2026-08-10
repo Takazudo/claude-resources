@@ -27,6 +27,14 @@ matches_deny_pattern() {
   cmd="${cmd#"${cmd%%[![:space:]]*}"}" # 先頭の空白を削除
   cmd="${cmd%"${cmd##*[![:space:]]}"}" # 末尾の空白を削除
 
+  # Claude Code のルール記法をシェル glob に変換する。
+  # `Bash(git push --force:*)` の `:` は前方一致の区切り記号であって
+  # コマンド中の文字ではない。bash の glob では `:` はリテラル扱いなので、
+  # 変換しないとこの種のパターンは永久にマッチしない。
+  if [[ "$pattern" == *:\* ]]; then
+    pattern="${pattern%:\*}*"
+  fi
+
   # glob パターンマッチング（ワイルドカード対応）
   [[ "$cmd" == $pattern ]]
 }
@@ -38,6 +46,9 @@ while IFS= read -r pattern; do
 
   # コマンド全体がパターンにマッチするかチェック
   if matches_deny_pattern "$command" "$pattern"; then
+    jq -nc --arg c "$command" --arg p "$pattern" \
+      '{tool_name:"Bash",tool_input:{command:$c},reason:("deny pattern: "+$p)}' \
+      | /bin/bash "$HOME/.claude/hooks/log-permission-denial.sh" deny-check 2>/dev/null || true
     echo "Error: コマンドが拒否されました: '$command' (パターン: '$pattern')" >&2
     exit 2
   fi
@@ -61,6 +72,9 @@ for cmd_part in $temp_command; do
 
     # このコマンド部分がパターンにマッチするかチェック
     if matches_deny_pattern "$cmd_part" "$pattern"; then
+      jq -nc --arg c "$cmd_part" --arg p "$pattern" \
+        '{tool_name:"Bash",tool_input:{command:$c},reason:("deny pattern: "+$p)}' \
+        | /bin/bash "$HOME/.claude/hooks/log-permission-denial.sh" deny-check 2>/dev/null || true
       echo "Error: コマンドが拒否されました: '$cmd_part' (パターン: '$pattern')" >&2
       exit 2
     fi
