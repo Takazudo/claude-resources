@@ -72,6 +72,17 @@ Be concise and practical. Focus on actionable feedback. If the plan looks solid,
 
 ### Step 2: Run Codex
 
+> **MUST run in the background.** Call the Bash tool with `run_in_background: true`.
+> The Bash tool's foreground timeout is capped at **600000 ms (10 minutes)** — a larger
+> `timeout` argument is silently clamped, so a foreground run is SIGKILLed at 10 minutes
+> no matter what `gtimeout` is set to, leaving a 0-byte output file and an orphaned
+> `codex-companion.mjs` process. Backgrounded commands are not subject to that cap.
+>
+> After launching, wait for the task-completion notification (or poll the output file),
+> then continue at Step 3. If a foreground run was started by mistake and got killed,
+> clean up the orphan before retrying:
+> `pkill -f 'codex-companion.mjs'`
+
 ```bash
 LOGDIR=$(node $HOME/.claude/scripts/get-logdir.js)
 mkdir -p "$LOGDIR"
@@ -92,13 +103,18 @@ else
 fi
 
 bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
-  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1800} node "$CODEX_COMPANION" task \
   "<prompt>" \
   > "$LOGDIR/${DATETIME}-codex-2nd.md" \
   2>"$LOGDIR/${DATETIME}-codex-2nd-stderr.log"
 ```
 
-**Timeout: 25 minutes.**
+Long prompts: write the prompt to a file first and pass it as
+`PROMPT=$(cat <prompt-file>)` … `task "$PROMPT"`, rather than inlining a multi-hundred-line
+heredoc into the command.
+
+**Timeout: 30 minutes (1800s), enforced by `gtimeout`/`timeout` inside a backgrounded
+Bash call.**
 
 ### Step 3: Collect Results
 
@@ -136,7 +152,8 @@ Return the subagent's feedback to the caller exactly as if it came from codex. D
 
 ## Timeout Policy
 
-- **Timeout**: 25 minutes (1500s)
+- **Timeout**: 30 minutes (1800s), via `gtimeout`/`timeout`
+- **MUST be backgrounded** (Bash `run_in_background: true`). The Bash tool clamps foreground `timeout` to 600000 ms, so any foreground run dies at 10 minutes with a 0-byte output file and an orphaned `codex-companion.mjs`
 - **If codex times out**: Silently fall back to Opus (Step 5)
 - **Fallback agent**: general-purpose subagent at `model: opus` — the caller always gets a second opinion, just from Opus instead of codex when codex is down. Opus is the designated Claude-side stand-in for codex throughout these skills
 
