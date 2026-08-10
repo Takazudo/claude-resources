@@ -32,7 +32,7 @@ git rev-list --count @{upstream}..HEAD 2>/dev/null || echo "unknown"
 Based on the results:
 
 - **Nothing to commit + nothing to push** → Report "Nothing to commit or push." and **stop immediately**. Done.
-- **Nothing to commit + commits ahead + `push` argument present** → No subagent needed. Run `git pull --rebase && git push` directly. Report and **stop**. Done.
+- **Nothing to commit + commits ahead + `push` argument present** → No subagent needed. Push per step 6's rules (check behind-count first; do NOT pull unconditionally). Report and **stop**. Done.
 - **Nothing to commit + "unknown" (no upstream) + `push` argument present** → New branch with no remote tracking. Run `git push -u origin $(git branch --show-current)`. Report and **stop**. Done.
 - **Nothing to commit + commits ahead + NO `push` argument** → Report "Nothing to commit. N commit(s) ahead of remote — use `/commits push` to push." and **stop**. Done.
 - **Something to commit** → Continue to Attempt 1 below.
@@ -51,25 +51,27 @@ Only if Attempt 1 failed, execute the Instructions below directly in the current
 
 ---
 
-## Conflict Handling (rebase conflict during push)
+## Conflict Handling (merge conflict during push)
 
-If `git pull --rebase` fails due to a conflict:
+If `git pull --no-rebase` fails due to a conflict:
+
+**First, confirm the branch was genuinely behind.** `git rev-list --count HEAD..@{upstream}` should be non-zero. If it is 0 the pull should never have run — abort it, just `git push`, and treat the "conflict" as an artifact of the pull, not a real divergence.
 
 **If running as a child agent in a team:**
 
 1. Do NOT attempt conflict resolution — you lack the full picture
-2. Abort with `git rebase --abort`
-3. Report to the manager immediately with: branch name, that a rebase conflict occurred, and any conflict details from the output
+2. Abort with `git merge --abort`
+3. Report to the manager immediately with: branch name, that a merge conflict occurred, and any conflict details from the output
 4. The manager will judge complexity and either resolve it directly or spawn an Opus subagent with full implementation context
 
 **If running standalone (no team):**
 
-1. Run `git rebase --abort` to restore the pre-rebase state
+1. Run `git merge --abort` to restore the pre-merge state
 2. Run `git fetch && git log --oneline HEAD..origin/$(git branch --show-current)` to see incoming commits
-3. Run `git pull --rebase` again to see the actual conflicts
+3. Run `git pull --no-rebase` again to see the actual conflicts
 4. Assess complexity:
-- **Simple** (whitespace, non-overlapping, trivial): resolve directly, `git rebase --continue`, then `git push`
-- **Complex** (overlapping logic, multiple files, unclear intent): abort with `git rebase --abort`, then resolve carefully with full awareness of what was implemented before retrying push
+- **Simple** (whitespace, non-overlapping, trivial): resolve directly, `git commit`, then `git push`
+- **Complex** (overlapping logic, multiple files, unclear intent): abort with `git merge --abort`, then resolve carefully with full awareness of what was implemented before retrying push
 
 ---
 
@@ -156,8 +158,16 @@ If `git pull --rebase` fails due to a conflict:
 - Check commits ahead: `git rev-list --count @{upstream}..HEAD 2>/dev/null || echo "unknown"`
 - If 0 commits ahead: nothing to push, skip to Verify
 - If `"unknown"` (no upstream / new branch): run `git push -u origin $(git branch --show-current)`, skip to Verify
-- Otherwise: run `git pull --rebase` then `git push`
-- If `git pull --rebase` fails with a conflict, follow the Conflict Handling section above
+- **Check whether the branch is actually behind before pulling anything:**
+
+  ```bash
+  git fetch
+  git rev-list --count HEAD..@{upstream}    # 0 = not behind
+  ```
+
+- **If 0 (not behind): run `git push` directly. Do NOT pull.** A pull here is a no-op at best; at worst `--rebase` replays every local commit onto the remote tip, which **flattens any merge commit on the branch and re-applies its contents as fresh work** — that manufactures conflicts (typically in lockfiles) on a branch that had nothing to reconcile.
+- If non-zero (genuinely behind): run `git pull --no-rebase` (regular merge — the default strategy per the user's global CLAUDE.md; `--rebase` would rewrite local history) then `git push`
+- If the pull fails with a conflict, follow the Conflict Handling section above
 
 7. **Verify**
 
