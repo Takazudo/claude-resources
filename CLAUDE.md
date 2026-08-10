@@ -1,5 +1,16 @@
 # Global Instructions
 
+## Reporting — headings carry the verdict
+
+- **Headings state the verdict, not the topic.** The reader must be able to stop at the heading and know the outcome.
+  - Good: `## Merged, no errors` / `## CI failed: 2 typecheck legs` / `## Everything went without error`
+  - Bad: `## Merge status` / `## Notes` / `## Two things worth knowing` / `## Observations`
+- Body is 1–2 lines supporting the heading. Never restate the heading in prose.
+- **If an item's heading can't be written as a verdict, it has no content — drop it.** Do not write "nothing notable found"; write nothing.
+- This kills padding structurally: once the heading says the conclusion, the body has nothing left to inflate.
+- Applies to skill final-reports too (`/x-wt-teams`, `/x-as-pr`, `/big-plan`, release flows). A free-text "Notes" slot generates pressure to fill it — a verdict heading refuses to be filled with non-events.
+- Observations that pass the bar go to their real channel (a GitHub issue, a fix, a question). Don't also narrate them in the closing message.
+
 ## Tools & Runtime
 
 - Check the project's package manager (pnpm, npm, etc.) before running install or script commands
@@ -27,6 +38,7 @@
 - `/commits` delegates to a Haiku subagent so the main session context (the session model — currently Fable 5) only sees a summary, not the full git diff / staging reasoning.
 - Direct execution is the last-resort fallback if the subagent fails.
 - The old Copilot CLI (`gcom`/`gpush`) path was removed — too fragile for multi-turn stateful git work (see claude-settings#29).
+- In `~/.claude`, `settings.json` is tracked but its `model` field is pinned on stage by the `normalize-model` clean filter (`.gitattributes` → `scripts/normalize-settings-model.js`). `/model` changes therefore never appear in `git status`/`diff`, and `reset --hard` won't revert them. **This is by design — don't investigate it, don't "fix" it, don't propose re-pinning it.** Every other field in the file diffs normally.
 
 ## CSS Coding
 
@@ -48,6 +60,16 @@ Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (s
 
 - When reading a GitHub issue (URL, issue number, or any reference), always use `/gh-fetch-issue` first. This downloads the issue content and all attached images locally so Claude can read them. Do not use `gh issue view` directly — it cannot access embedded images.
 - When creating a GitHub issue that needs images (screenshots, diagrams, etc.), use `/gh-issue-with-imgs` to upload images as release assets and embed them in the issue body. `gh issue create` cannot attach images natively.
+
+## Blocked Commands — reformulate to comply, never to evade
+
+Default permission mode is `auto`. When a command is blocked, the response depends on **which layer** blocked it. Do not treat these the same.
+
+- **Hard deny** — `scripts/security/deny-check.sh` exits 2, or the command matches `permissions.deny` (force-push, `gh repo delete`, `git config`, `chmod 777`, `brew install`). **Never rewrite the command to get past it.** Splitting it across `&&`, moving it into a script, or wrapping it in `bash -c` is evasion, and the whole point of the guardrail is that it survives a determined agent. Stop that step, continue with the rest of the task, and say plainly in the final report that it was blocked.
+- **Rule compliance is not evasion.** Rewriting `rm -rf /foo/bar` as `cd /foo && rm -rf bar` is *correct* — it satisfies the relative-path rule directly below. The test is intent: reformulating to **satisfy** a stated rule is right; reformulating to **dodge** a matcher that still objects to what you're doing is not. When unsure, you are evading.
+- **Auto-mode soft block** — the classifier judged the action destructive or outward-facing. Try once more with a genuinely safer formulation (narrower scope, reversible form, dry-run first). If it still blocks, skip that step and keep going.
+- **Do not stop the workflow to ask.** Every block is written to `logs/permission-denials.jsonl` by the `PermissionDenied` hook, from subagents and worktree children too. Triage happens at the end, not mid-run.
+- **At the end of `/x-wt-teams`, `/x-as-pr`, or `/big-plan`, run `/permission-review`** if anything was blocked. It groups the ledger and proposes allowlist edits for approval. Any step skipped because of a block must appear in the final report — a blocked step that goes unmentioned reads as a step that succeeded.
 
 ## Safety
 
