@@ -1,0 +1,42 @@
+# Lints workflow files with rhysd/actionlint. Path-filtered, so it stays off the
+# critical path for ordinary PRs. GitHub-hosted ubuntu runners ship shellcheck,
+# so actionlint additionally lints `run:` blocks through it with no extra setup.
+name: actionlint
+
+on:
+  pull_request:
+    branches: [main, "base/**"]
+    paths: [".github/workflows/**"]
+  push:
+    branches: [main, "base/**"]
+    paths: [".github/workflows/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actionlint-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Run actionlint
+        env:
+          # Pinned release + checksum (tamper-evident). Bump both together;
+          # the checksum comes from actionlint_<ver>_checksums.txt on the release.
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          curl --retry 5 --retry-all-errors --retry-delay 5 -fsSL \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            -o actionlint.tar.gz
+          echo "${ACTIONLINT_SHA256}  actionlint.tar.gz" | sha256sum --check
+          tar -xzf actionlint.tar.gz actionlint
+          ./actionlint -color

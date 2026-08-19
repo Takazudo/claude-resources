@@ -29,7 +29,7 @@ Parse `$ARGUMENTS` to extract:
   - **Combinable**: with reviewer flags (`-op`/`-co`, which shape Step 5 only and are never forwarded), with `-m` / `-nf` / `-nori` (which forward downstream alongside `-a`), and with `-nor` (which already skips Step 5/6/9; `-a`'s Step 6 behavior is then moot and the Step 11 auto-invoke remains).
 - **`-m` or `--merge` flag**: Merge flag. `/big-plan` itself never merges anything — planning ends before implementation — so `-m` does two things: (1) it triggers the **same Step 11 auto-invoke** of the implementation skill as `-a` (the merge can only happen if implementation runs in-chain), and (2) it **forwards `-m`** to that skill, which — when the final implementation is done — merges the PR into the base branch, runs the cleanup phase, and watches CI on the base branch (fixing it if it goes red). Unlike `-a`, `-m` alone does **NOT** skip the Step 6 confirmation — autonomy is `-a`'s job; `-m` only adds the merge tail. Pass both (`-a -m`) for full hands-off. Step 11's pause conditions apply to the `-m` chain the same way they apply to `-a`.
 - **`-po` or `--plan-only` flag**: Plan-only autonomy — the planning chain runs autonomously and **ends at issue creation**. Step 6 behaves exactly like `-a` (skip the confirmation wait and auto-create, with the same careful-consideration fallback signals), and the quality gates stay on (Step 5 review, Step 9 verification, Step 10 cleanup audit) — but Step 11 **never auto-invokes** the implementation skill; the session ends with the normal hand-off summary and decisions table. `-po` overrides the Step 11 auto-invoke: alongside `-a` it makes the auto-invoke moot; alongside `-m` there is nothing to merge — drop the merge tail and say so in the Step 11 summary. Combinable with reviewer flags and `-nor` as usual; `-nf` / `-nori` / `-f` are inert (no downstream invocation to forward to). This flag exists for split-model workflows — e.g. a `-is -po` sweep — where triage, decisions, and detailed planning run on a strong reasoning model in one session and each epic is implemented later via `/x-wt-teams` in a fresh session, often on a different model.
-- **`-pc` or `--parent-confirmed` flag**: Declares the detected `$PARENT_BRANCH` intentional even when it looks **foreign** (a working branch rather than a base-like branch — see Branch Context). For orchestrating skills (e.g. `/review-loop`, which invokes `/big-plan -m -a` from its own review branch every round): the foreign-parent concern signal is treated as already confirmed — it no longer triggers the Step 6 ask-and-wait fallback under `-a` nor Step 11's pause condition 2. (A base-like parent never raises the signal in the first place, so `-pc` only matters on a foreign-looking branch.) It suppresses **only** that signal; the design-decision and unresolved-verification pauses still apply. Without `-a` / `-m` the flag is inert (the normal Step 6 proposal already surfaces the parent branch for confirmation).
+- **`-pc` or `--parent-confirmed` flag**: Declares the detected `$PARENT_BRANCH` intentional even when it looks **foreign** (a working branch rather than a base-like branch — see Branch Context). For orchestrating skills (e.g. a skill that invokes `/big-plan -m -a` from its own working branch): the foreign-parent concern signal is treated as already confirmed — it no longer triggers the Step 6 ask-and-wait fallback under `-a` nor Step 11's pause condition 2. (A base-like parent never raises the signal in the first place, so `-pc` only matters on a foreign-looking branch.) It suppresses **only** that signal; the design-decision and unresolved-verification pauses still apply. Without `-a` / `-m` the flag is inert (the normal Step 6 proposal already surfaces the parent branch for confirmation).
 - **`-f` / `-fix` / `--auto-fix` and `-nf` / `--no-fix` flags**: Planning-only skill — `/big-plan` does **not** implement auto-fix itself; the downstream skills (`/x-wt-teams`, `/x-as-pr`) run their auto-fix step **by default**. So `-f` is only the explicit form of the downstream default; the flag that changes behavior is `-nf` / `--no-fix`, which **parses and forwards** in the Step 11 hand-off when the chain runs (i.e., when `-a` or `-m` is also set) to skip the downstream auto-fix. Without `-a` / `-m`, both are inert (there is no in-session implementation to forward to) — note it but take no action. Orthogonal to the reviewer / `-nor` flags. See Step 11.
 - **`-ri` / `--raise-issues` and `-nori` / `--no-raise-issues` flags**: Same parse-and-forward treatment — issue-raising for unrelated/deferred findings is the downstream default (`-ri`), so only `-nori` changes behavior: forward it in the Step 11 hand-off so the implementation session (and its reviewers) keep findings terminal-only. Inert without `-a` / `-m`.
 - **`-is` or `--issue-sweep` flag**: Sweep mode — see [Sweep Mode](#sweep-mode-is---issue-sweep) below. **MANUAL-ONLY**: honor it only when the user actually typed `-is` (or unmistakably asked for a sweep); never add it yourself. Instead of planning one described task, collect open issues, triage handle-vs-skip, plan each handled issue (one epic each), and — when the batch yields 2+ epics — bundle them under one sweep-level **super-epic** whose single chained `/x-wt-teams -a` hand-off implements every child epic in order. Sweep-scoped companions: `-f LABEL`/`--filter LABEL` and `-ex LABEL`/`--exclude LABEL` narrow the candidate set (under `-is`, `-f` is the sweep filter — the auto-fix `-f` is inert in sweep mode since auto-fix is the downstream default anyway), and `-re`/`--refresh-epic` supersedes the human-check central epic with a fresh one. `-po` composes: a `-is -po` sweep plans every handled issue without implementing.
@@ -277,7 +277,7 @@ Identify the dependency order (which must come first, which can run in parallel)
 
 For every sub-task, also pick how the downstream `/x-wt-teams` session should spawn its child:
 
-- **`subagents`** — sub-task is independent of its siblings. The child runs once, does its work, optionally self-reviews via `/light-review`, and reports back. No mid-flight communication with other children. **This is the right answer for most sub-tasks.**
+- **`subagents`** — sub-task is independent of its siblings. The child runs once, does its work, optionally self-reviews by reading its own diff (not by invoking a review skill — those background from a subagent), and reports back. No mid-flight communication with other children. **This is the right answer for most sub-tasks.**
 - **`teams`** — the child genuinely needs mid-flight coordination: depends on another sibling's output produced during the same session, peers another child for partial state, or expects to be re-engaged later with prior memory.
 
 Default to **`subagents`** when in doubt. The criterion is "does this child need to talk to another child mid-task?" — not "is this child doing heavy work?" Heavy work is fine in a subagent.
@@ -288,33 +288,50 @@ Record the choice and a one-line reason per sub-task. Both the plan log (Step 4)
 
 Independently of execution mode, classify which Claude model the downstream child should use.
 
-**Guiding principle:** `/big-plan` already captured the hard decisions — architecture, dependencies, trade-offs, acceptance criteria. Each sub-task is "follow this spec to land this change." For most sub-tasks, that's mechanical implementation work, and **Sonnet handles it correctly, faster, and cheaper**. Opus is reserved for sub-tasks whose deliverable specifically benefits from the strongest child-model tier (opus).
+**Guiding principle:** `/big-plan` already captured the hard decisions — architecture, dependencies, trade-offs, acceptance criteria. Each sub-task is "follow this spec to land this change." For most sub-tasks, that's mechanical implementation work, and **Sonnet handles it correctly, faster, and cheaper**. The tiers above Sonnet are reserved for sub-tasks whose deliverable specifically benefits from them.
+
+Four tiers, cheapest to strongest: `haiku` → `sonnet` → `opus` → `fable`.
 
 - **`sonnet`** (default) — pick for the bulk of implementation work: well-defined refactors, schema/migration changes, route plumbing, hook wiring, dispatcher logic, capability detection, lifecycle integration, test scaffolding, build/CI config, dep bumps, mechanical CLI flags, English technical documentation, follow-the-pattern code. Anything where the spec from `/big-plan` makes the answer clear and the agent is mostly executing.
-- **`opus`** — Opus 4.8 (the Opus tier — above Sonnet; 1M-token context). Pick only when the sub-task's quality bar genuinely benefits from the strongest child-model tier (opus):
+- **`opus`** — Opus 4.8 (above Sonnet; 1M-token context). Pick when the sub-task's quality bar genuinely benefits from a stronger tier, but the work is still *bounded* — the shape of the answer is known and the risk is getting a detail wrong:
   - **High-quality Japanese-language writing** — translation, native-feel prose, nuanced tone (esa / zpaper / CodeGrid articles, Japanese UI copy, marketing copy where reading like a native speaker matters).
-  - **Creative UI work** — original visual design, polished interaction design, layout judgment for a new surface, novel component look-and-feel. Generic "add a button to an existing surface" UI work is sonnet — opus is for when visual taste actually moves the result.
+  - **Polishing or extending existing UI** — refining an established surface, adding a component that follows the existing visual language, interaction detail work. Generic "add a button to an existing surface" UI work is sonnet; opus is for when visual taste moves the result but the design language already exists.
   - **Pattern generation / visual-creative algorithms** — GLSL fragment shaders, generative art, noise/warp/distortion code, anything where "this looks right" depends on aesthetic judgment (e.g., the pgen app's pattern generators).
-  - **Genuinely difficult problem-solving** — subtle correctness questions, intricate algorithm work, complex async / state-machine logic, race-condition-prone code, novel architectural decisions that `/big-plan` couldn't fully spec out. If the sub-task needs real reasoning *beyond* "follow this spec," lean Opus. Rare when `/big-plan` did its job thoroughly, but **err on the side of Opus when difficulty is hard to judge** — paying for one Opus run is cheaper than re-doing a Sonnet run that got the subtle case wrong.
+  - **Difficult but scoped problem-solving** — subtle correctness questions, intricate algorithm work, complex async / state-machine logic, race-condition-prone code. If the sub-task needs real reasoning *beyond* "follow this spec" but stays inside one component, lean Opus. **Err on the side of Opus when difficulty is hard to judge** — paying for one Opus run is cheaper than re-doing a Sonnet run that got the subtle case wrong.
+- **`fable`** — Fable 5 (the Mythos-class tier above Opus). Reserve it for the small number of sub-tasks where the *decision itself* is the deliverable and a wrong call is expensive to unwind. The tell is **branching**: many viable directions, and picking well changes everything downstream. Concretely:
+  - **Quality-branching decisions** — a sub-task whose output is a choice that the rest of the plan is built on: which architecture to adopt, which of several prototypes to carry forward, which direction a redesign takes. This is the dedicated decision sub-task shape in Step 3.6 — those are `fable`.
+  - **Creative UI generation from zero** — designing a new webapp UI, a new surface with no existing visual language to follow, or a difficult UI improvement where the current design isn't working and the answer is a genuinely new direction. Pairs with `/prototype-first-wisdom`: generating many candidate designs and judging between them is exactly this tier's strength, and it is the user's established, working habit.
+  - **Repeated failure / fail-retry loops** — a bug or behavior that has already resisted multiple in-place fix attempts. When the plan is written *because* previous rounds failed, don't send the retry at the same tier that lost; escalate to `fable`.
+  - **Big architectural change** — cross-cutting restructuring, module boundary redraws, migrations that touch the shape of the codebase rather than its details.
+  - **Test-suite reorganization** — restructuring how a project is tested (not writing tests to a defined contract, which is `sonnet`). Deciding the testing strategy and layering is a branching call.
 - **`haiku`** — only for genuinely trivial work: a typo fix, a one-line config tweak, an obvious mechanical edit. Cautious by default — Haiku is a real downgrade on anything ambiguous.
 
-Default to **`sonnet`** when in doubt. Pick `opus` only when there's a clear quality reason from the list above. `haiku` is rare.
+Default to **`sonnet`** when in doubt. Reach past it only for a clear reason from the lists above. `haiku` is rare, and `fable` should be rare too — a plan where most sub-tasks are `fable` is a sign the work wasn't decomposed far enough, since a well-specified sub-task by definition has its branching already resolved.
+
+**Opus vs. Fable — the dividing line:** Opus for *hard*, Fable for *open*. If the sub-task has one right answer that's tricky to reach, that's Opus. If it has many defensible answers and choosing among them is the actual work, that's Fable.
 
 **Concrete examples:**
 
 | Sub-task type                                       | Model  | Why                                           |
 | --------------------------------------------------- | ------ | --------------------------------------------- |
+| Designing a new webapp UI from zero                 | fable  | Creative generation; no existing language     |
+| Redesigning a UI that repeated fixes haven't fixed  | fable  | Needs a new direction, not another patch      |
+| Prototype-first exploration of several designs      | fable  | Generate candidates and judge between them    |
+| Decision sub-task picking among upstream findings   | fable  | The choice IS the deliverable (Step 3.6)      |
+| Retrying a bug that survived 2+ fix attempts        | fable  | Don't retry at the tier that already lost     |
+| Cross-cutting architectural restructuring           | fable  | Big branching call, expensive to unwind       |
+| Reorganizing how a project is tested                | fable  | Testing strategy is a branching decision      |
 | Adding a new GLSL fragment-shader pattern           | opus   | Visual-creative; pattern-generation aesthetic |
 | Adding a new pgen Canvas2D pattern algorithm        | opus   | Same — visual-creative aesthetic judgment     |
 | Writing a Japanese esa/zpaper/CodeGrid article      | opus   | High-quality Japanese writing                 |
-| Designing a new UI surface from scratch             | opus   | Creative UI judgment                          |
+| Adding a component to an established design system  | opus   | Taste matters; visual language already exists |
+| Subtle async / race-prone correctness work          | opus   | Hard but scoped — err Opus when in doubt      |
 | Implementing a dispatcher per a planned spec        | sonnet | Mechanical wiring; spec is in the plan        |
 | Schema migration                                    | sonnet | Mechanical                                    |
 | Adding a CLI flag with documented behavior          | sonnet | Mechanical                                    |
 | Writing tests for a defined contract                | sonnet | Mechanical                                    |
 | English technical documentation page                | sonnet | Mechanical writing                            |
 | Plumbing a hook/lifecycle wiring                    | sonnet | Mechanical                                    |
-| Subtle async / race-prone correctness work          | opus   | Genuinely difficult — err Opus when in doubt  |
 | One-line config bump                                | haiku  | Trivial                                       |
 
 `/x-wt-teams` reads this annotation per topic and spawns each child with the matching model. A manual `-t-op` / `-t-so` flag on the `/x-wt-teams` invocation **overrides every topic's annotation** session-wide (manual override). Without a flag, per-topic annotations are honored — different topics in the same session can run different models. Note: the `-op` / `-so` / `-haiku` flags on `/x-wt-teams` are reviewer flags and do NOT affect child models.
@@ -362,7 +379,7 @@ The success criterion is unambiguous and derivable from the inputs:
 
 Inter-wave human checkpoints **do not help** in this mode — they only delay the work and consume the user's time. The user's time is a real cost; gating on it for goal-clear plans is anti-leverage.
 
-**Rule for goal-clear plans:** wherever the original plan would benefit from "stop here and let the user decide", instead **insert a dedicated decision sub-task with `model: opus`** that consumes the prior wave's output and produces the input the next wave needs. Common shape:
+**Rule for goal-clear plans:** wherever the original plan would benefit from "stop here and let the user decide", instead **insert a dedicated decision sub-task with `model: fable`** that consumes the prior wave's output and produces the input the next wave needs. Fable is the right tier here by definition — this sub-task exists precisely because there are several viable directions and the choice steers everything downstream, which is the branching criterion from Step 3. Common shape:
 
 - Reads the upstream artifact (e.g. a `findings.md`, an audit, a labeled-set result).
 - Picks among the alternatives the upstream sub-task surfaced.
@@ -370,7 +387,7 @@ Inter-wave human checkpoints **do not help** in this mode — they only delay th
 - No production code touched.
 - Wave: usually its own (a one-task wave sandwiched between the diagnosis wave and the implementation wave).
 
-This is the structural replacement for "checkpoint after Wave N — review the findings". Opus does the harder judgment call autonomously; Sonnet implements the downstream task with a now-concrete spec.
+This is the structural replacement for "checkpoint after Wave N — review the findings". Fable makes the branching judgment call autonomously; Sonnet implements the downstream task with a now-concrete spec.
 
 **Concrete tells for goal-clear:**
 
@@ -433,7 +450,7 @@ Write the plan to `$PLAN_FILE` as a markdown document containing:
   - **Wave**: `1`, `2`, ... — which wave this sub-task belongs to (see Step 3.5)
   - Dependencies on other sub-tasks (specific `#N` references, separate from wave grouping)
   - **Execution mode**: `subagents` or `teams` — with one-line reason (see Step 3 for criterion)
-  - **Model**: `opus`, `sonnet`, or `haiku` — with one-line reason (see Step 3 for criterion)
+  - **Model**: `fable`, `opus`, `sonnet`, or `haiku` — with one-line reason (see Step 3 for criterion)
 - **Architectural decisions / rationale**
 - **Original requirements checklist** — bullet list of every concrete requirement from the source (free-text or source issues). Used in Step 9 for verification.
 
@@ -539,6 +556,19 @@ Example: `[Team Feature][Epic] Team management and workspace sharing`
 - **Sub-issues table** listing all child issues (fill in URLs in Step 9 — or note "see comments below")
 - "Close each sub-issue as its implementation is merged."
 
+**Record the orientation pointer** once the epic exists (local mode: pass `--local-dir "$LOCAL_DIR"` instead of `--issue`). Planning sessions are long and research-heavy, so they compact often — and a compacted planner that has forgotten the epic number will happily create a second one. `begin` clears any earlier run in this session. Full spec: [`$HOME/.claude/skills/x-wt-teams/references/orientation-pointer.md`](../x-wt-teams/references/orientation-pointer.md).
+
+```bash
+# Blank values are dropped by the script, so pass every flag unconditionally —
+# do NOT wrap them in ${VAR:+...}, which zsh does not word-split.
+node "$HOME/.claude/scripts/orientation.js" begin \
+  --workflow big-plan \
+  --issue "$EPIC_NUMBER" \
+  --local-dir "$LOCAL_DIR" \
+  --repo "$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)" \
+  --step "Step 7: epic issue created"
+```
+
 ### 8. Create child issues
 
 Create each sub-issue with `gh issue create --label sub`.
@@ -556,7 +586,7 @@ Example: `[Team Feature][Sub] D1 schema migration`
 
 **Wave:** {N}
 **Execution mode:** {subagents|teams} — {one-line reason from Step 3}
-**Model:** {opus|sonnet|haiku} — {one-line reason from Step 3}
+**Model:** {fable|opus|sonnet|haiku} — {one-line reason from Step 3}
 ```
 
 The `Execution mode:` and `Model:` marker lines are **mandatory** and exact-spelling matters — `/x-wt-teams` greps the body for `Execution mode:` to choose the spawn path and for `Model:` to pick each topic's model. The `Wave:` line is informational for the user (it shows the sub-issue's place in the dependency order — and which `--stay` session it would belong to if the user opts into the manual checkpoint flow); `/x-wt-teams` does not parse it. Place all three lines immediately after the `---` divider, on their own lines, in the order shown.
@@ -657,6 +687,15 @@ After `/cleanup-resources` returns its report, surface the closed/kept counts to
 ### 11. End the session
 
 **On web (`$CLAUDE_CODE_REMOTE=true`) — persist the plan log first:** post the final content of `$PLAN_FILE` (including `## Review Notes` and `## Verification Report` when present) as a **comment on the epic issue** before printing the summary. The `/tmp` copy is ephemeral (web-mode.md §4); the epic comment is the durable plan log. This does not violate the "no raw dumps in issues" rule (Cross-machine portability) — the plan log is the *distilled structured doc* that rule allows, not a conversation log. Still, before posting: condense any verbatim reviewer feedback in `## Review Notes` down to what was applied/rejected, and scrub anything sensitive (client names, machine-local paths, verbatim free-text source) — especially on a public repo. On terminal, skip this posting entirely — cclogs is the durable home and pasting the full log would bloat the issue. **After posting the plan log, sweep the session's scratch output** (`$LOGDIR`, `/tmp` scratch) for any other planning artifact with post-session value — exploration maps, findings docs, generated prototype files — and persist each the same way (issue comment for distilled text; `_temp-resource/` commit for files an implementer needs — see the web bullet under Cross-machine portability). The container is reclaimed after the session; anything left only in `/tmp` is gone. If something is deliberately discarded, name it in the summary.
+
+**Hand the orientation pointer over, or close it.** When chaining into an implementation skill under `-a`, leave the pointer active and just note the hand-off — the implementation skill calls `begin` itself and takes ownership. When the session ends here without chaining, mark it finished so a later compaction does not drag a fresh task back into this planning run:
+
+```bash
+# chaining into /x-wt-teams or /x-as-pr:
+node "$HOME/.claude/scripts/orientation.js" set --step "Step 11: handing off to the implementation skill"
+# planning-only session ending here:
+node "$HOME/.claude/scripts/orientation.js" complete
+```
 
 Print a summary. **The decisions table is mandatory** — never omit it. The user reviews this table to confirm or override each sub-task's execution mode, model, and wave before running `/x-wt-teams`.
 
@@ -765,7 +804,7 @@ When `-a` and/or `-m` was passed on this invocation **(and `-po` was not — `-p
 **Evaluate pause conditions in this order. Pause if ANY fires:**
 
 1. **`Plan mode: design-decision`** (from Step 3.6) — design-decision plans may need human judgment mid-flow; auto-running can skip a decision only the user can make. **Does NOT fire if the user already gave an informed confirmation at the Step 6 ask-and-wait gate** (the `-a` fallback or the `-m`-alone normal gate, with the auto-invoke called out in the proposal). Otherwise print: `Paused: the plan is classified as design-decision. Run \`/x-wt-teams {epic-url}\` manually (and checkpoint between waves via the -s flow in Step 11 if you want to review artifacts).` and STOP.
-2. **`$PARENT_BRANCH` looks foreign** (not base-like — see "Base-like vs foreign parent" in Branch Context) — accidental-working-branch case. A base-like parent (`main` / `develop` / `base/*` / `staging` / `release/*`) does **NOT** fire — chaining off it is the intended nested-base pattern, so the autonomous chain proceeds silently. The gate fires only when the user may have invoked `/big-plan` from an unintended working branch (`feature/*`, `fix/*`, `wip/*`, …) and the chain would commit to that nesting silently. **Also does NOT fire if the user already confirmed the parent branch at the Step 6 gate, if `-pc` / `--parent-confirmed` was passed (an orchestrating skill — e.g. `/review-loop` — invoking `/big-plan` from its own working branch and declaring it intentional), or on web (web-mode.md §5: the `claude/*` session branch is the base, not a nested parent — so this pause MUST NOT fire or the `-a`/`-m` chain dead-stops).** Otherwise print: `Paused: parent branch \`$PARENT_BRANCH\` looks like a working branch, not a base branch. Confirm you want implementation to chain off it — re-run /x-wt-teams manually, or restart /big-plan from a base branch if this was unintended.` and STOP.
+2. **`$PARENT_BRANCH` looks foreign** (not base-like — see "Base-like vs foreign parent" in Branch Context) — accidental-working-branch case. A base-like parent (`main` / `develop` / `base/*` / `staging` / `release/*`) does **NOT** fire — chaining off it is the intended nested-base pattern, so the autonomous chain proceeds silently. The gate fires only when the user may have invoked `/big-plan` from an unintended working branch (`feature/*`, `fix/*`, `wip/*`, …) and the chain would commit to that nesting silently. **Also does NOT fire if the user already confirmed the parent branch at the Step 6 gate, if `-pc` / `--parent-confirmed` was passed (an orchestrating skill invoking `/big-plan` from its own working branch and declaring it intentional), or on web (web-mode.md §5: the `claude/*` session branch is the base, not a nested parent — so this pause MUST NOT fire or the `-a`/`-m` chain dead-stops).** Otherwise print: `Paused: parent branch \`$PARENT_BRANCH\` looks like a working branch, not a base branch. Confirm you want implementation to chain off it — re-run /x-wt-teams manually, or restart /big-plan from a base branch if this was unintended.` and STOP.
 3. **Step 9 verification report contained unresolved Missing / Misinterpreted / Ambiguous items.** Always evaluated — this signal cannot be pre-confirmed at Step 6 because verification hasn't run yet there. If Step 9 cleanly resolved everything via `gh issue edit`, this signal does NOT fire. Otherwise print: `Paused: Step 9 verification surfaced items that could not be auto-fixed. Resolve manually, then run /x-wt-teams.` plus the unresolved items verbatim, then STOP. (If Step 9 was skipped because `-nor` was also passed, treat this signal as not firing — the user opted out of verification entirely.)
 
 **If no pause condition fires, auto-invoke the implementation skill via the Skill tool — first route by plan shape** (count the sub-issues created in Step 8):

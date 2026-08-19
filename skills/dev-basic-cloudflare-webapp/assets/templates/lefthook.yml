@@ -1,0 +1,13 @@
+# Installed by the `prepare` script (pnpm install runs it).
+#
+# The pre-push worktree guard is deliberately NOT managed here — it lives in
+# scripts/hooks/pre-push and is installed straight to .git/hooks/ by
+# scripts/install-git-hooks.sh, so `lefthook install --reset-hooks-path`
+# cannot drop it. See CLAUDE.md "Worktree push policy".
+
+pre-commit:
+  parallel: true
+  commands:
+    format-mdx:
+      glob: "*.{md,mdx}"
+      run: pnpm dlx @takazudo/mdx-formatter --write {staged_files} && git add -f {staged_files}

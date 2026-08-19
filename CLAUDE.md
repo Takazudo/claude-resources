@@ -38,7 +38,9 @@
 - `/commits` delegates to a Haiku subagent so the main session context (the session model — currently Fable 5) only sees a summary, not the full git diff / staging reasoning.
 - Direct execution is the last-resort fallback if the subagent fails.
 - The old Copilot CLI (`gcom`/`gpush`) path was removed — too fragile for multi-turn stateful git work (see claude-settings#29).
-- In `~/.claude`, `settings.json` is tracked but its `model` field is pinned on stage by the `normalize-model` clean filter (`.gitattributes` → `scripts/normalize-settings-model.js`). `/model` changes therefore never appear in `git status`/`diff`, and `reset --hard` won't revert them. **This is by design — don't investigate it, don't "fix" it, don't propose re-pinning it.** Every other field in the file diffs normally.
+- In `~/.claude`, `settings.json` is tracked but its `model` field is pinned on stage by the `normalize-model` clean filter (`.gitattributes` → `scripts/normalize-settings-model.js`). `/model` changes therefore never appear in `git diff` or in commits, and `reset --hard` won't revert them. **This is by design — don't investigate it, don't "fix" it, don't propose re-pinning it.** Every other field in the file diffs normally.
+- The pin does NOT hide the change from `git status`: the on-disk file is a few bytes longer than the pinned blob, so git's stat cache can never mark it up-to-date and the path stays ` M` forever (`git update-index --refresh` reports `needs update` and cannot clear it). `git diff` still shows nothing because it compares content after filtering. This split is expected — not a broken filter.
+- Consequence: `git pull`/`merge` uses the cheap stat check, sees a "modified" file, and **aborts any pull that touches `settings.json`**. Fix is `git checkout -- settings.json`, pull, then re-apply the model value; the discarded bytes are only the suffix the filter would have stripped anyway.
 
 ## CSS Coding
 
@@ -55,6 +57,24 @@ Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (s
 - When user says "it's still broken" after you tested, escalate to a deeper testing level -- do not re-run the same test
 - Invoke `/test-wisdom` when unsure which testing approach fits the current situation
 - **NEVER suggest "clear browser cache" or "hard refresh" as a solution.** If the user says it's still broken, the code is still broken. Investigate the actual cause instead of blaming cache.
+
+## Code Review — three tiers, nothing else
+
+| Need | Use |
+| --- | --- |
+| General review | `/code-review` (built-in) |
+| Deep review | `/code-review` + `/codex-review` — i.e. `/deep-review` |
+| Second opinion on a *plan* | `/codex-2nd` (or `/opus-2nd`) |
+
+- **`/code-review` is the default reviewer everywhere.** It runs in its own context window, takes an effort level (`low` … `max`), a target (PR number / branch / path), and `--fix` / `--comment`.
+- **It reviews on the session model.** As a forked subagent it resolves the model in this order: `CLAUDE_CODE_SUBAGENT_MODEL` → per-invocation param → the skill's own frontmatter → the main conversation's model. So change the reviewer's model with `/model` or that env var — a skill-level override is *ignored* for skills and commands, which is why per-skill reviewer-model flags never worked and were removed.
+- **Effort is not a model dial.** It controls adaptive reasoning — how much the model thinks per step — not which model runs. `low`/`medium` report only high-confidence findings; `high`→`max` widen coverage. With no level typed, `/code-review` reuses the last level you typed (persisting across sessions), falling back to the session effort if you never have.
+- **Codex carries the depth; `/code-review` is the light pass.** So the lever for "review this harder" is `-co` (add codex), not a higher effort. Default effort is `medium` throughout — a wide, lower-confidence built-in pass running alongside codex mostly produces duplicate findings and false positives to triage. Not for routine passes, not for child self-review.
+- **A deep review's floor doesn't move with the session model.** The `/code-review` half rides whatever `/model` is set to; the codex half is a different provider and doesn't. That's why depth comes from adding codex rather than from being on the strongest Claude available.
+- **Apply fixes inline.** Delegating them to a worktree + agent session is opt-in (`/deep-review -t`) and only worth it for genuinely large fix work. The old default existed because collecting findings left the session token-heavy — `/code-review` runs in its own context now, so there's no budget to reset.
+- **`ultra` is user-only.** `/code-review ultra` is a paid cloud review that only the user can launch by typing it; no skill may invoke it. If a change warrants one, recommend it and let the user decide.
+- **`--fix` edits land outside session checkpoints** — `/rewind` cannot undo them. Use git.
+- `/simplify` is quality-only (reuse, simplification, efficiency) and does not hunt for bugs; `/security-review` is its own command. Neither is a substitute for the tiers above.
 
 ## GitHub Issues
 

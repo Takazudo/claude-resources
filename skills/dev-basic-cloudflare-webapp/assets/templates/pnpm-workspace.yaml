@@ -1,0 +1,37 @@
+packages:
+  - "packages/*"
+  - "workers/*"
+  - "doc"
+
+# pnpm 11 reads only auth/registry settings from .npmrc; everything else lives
+# here. See https://pnpm.io/settings.
+autoInstallPeers: true
+engineStrict: true
+strictPeerDependencies: false
+preferFrozenLockfile: true
+
+# CI must be deterministic. pnpm 11 defaults minimumReleaseAge to 1440 (24h),
+# which would block `pnpm install --frozen-lockfile` on anything published in
+# the last day.
+minimumReleaseAge: 0
+
+# Non-interactive shells (agents, CI-like local runs) otherwise abort the
+# post-version-bump node_modules relink with
+# ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY. The relink is not
+# security-sensitive, so auto-confirming is safe.
+confirmModulesPurge: false
+
+# Set true only if in-repo consumers should build against local workspace
+# sources. Leave false when a docs site or example must compile against the
+# PUBLISHED artifact; pinned explicitly so a pnpm default flip cannot silently
+# re-link it.
+linkWorkspacePackages: false
+
+# pnpm 11 replaces onlyBuiltDependencies with a per-package map. Each entry is a
+# deliberate decision to run that package's install script. All below are
+# legitimate native-binary builds.
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  sharp: true
+  workerd: true

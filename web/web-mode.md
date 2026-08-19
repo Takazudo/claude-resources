@@ -21,9 +21,10 @@ The Codex CLI (`-co` / `/codex-review`) is not available in the container. The
 `codex-review` skill is disabled in `settings.web.json`.
 
 - **Ignore the `-co` flag.**
-- Any step whose default backend is Codex (e.g. `/light-review` and
-  `/deep-review` default to `/codex-review`) **defaults to a Claude reviewer
-  instead** (Sonnet, or the model set by a `-op`/`-so`/`-haiku` flag).
+- `/deep-review` runs only its `/code-review` half — the built-in reviewer works
+  here, so a deep review degrades to a general one rather than failing.
+- Anywhere else that would reach for codex (`/codex-review`, `/codex-2nd`,
+  `/codex-research`, `/codex-writer`), use the Claude equivalent instead.
 
 ## 3. Subagents-only — no agent teams
 

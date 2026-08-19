@@ -27,7 +27,7 @@ Run these two reviews simultaneously:
 - Focus on structure, patterns, performance, accessibility, type safety, readability
 
 2. **Codex Review** (Secondary - cross-model security/correctness check)
-- Invoke `/codex-review` (OpenAI Codex CLI via the openai-codex plugin; silently falls back to Opus reviewers when codex is unavailable)
+- Invoke `/code-review` (the built-in reviewer; add `-co` → `/deep-review` when a cross-model second pass is wanted)
 - Focus on the critical security and correctness issues it surfaces
 
 ### Step 3: Analyze and Categorize Findings

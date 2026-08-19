@@ -1,7 +1,7 @@
 ---
 name: x
-description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). Review-loop (-l) is opt-in — without -l the downstream skill runs a single /deep-review pass. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m. Pass -lo/--local to keep the run's bookkeeping (plan / tracking / spec) in a cclogs dir instead of creating GitHub issues — for public / team repos where those issues read as spam; agent-found problem issues are still raised (add -nori to suppress those too). Note -lo (local) is distinct from -l (review-loop)."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
+description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). The downstream skill runs /code-review by default; -co/--codex upgrades it to /deep-review. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m. Pass -lo/--local to keep the run's bookkeeping (plan / tracking / spec) in a cclogs dir instead of creating GitHub issues — for public / team repos where those issues read as spam; agent-found problem issues are still raised (add -nori to suppress those too)."
+argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-v|--verify-ui] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
@@ -52,8 +52,8 @@ These rules apply to the facade itself and propagate to the chosen downstream sk
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-l`, `--review-loop`, `-lo`, `--local`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, etc.)
-- **`-lo` and `-l` are different flags** — `-lo` / `--local` is local mode; `-l` / `--review-loop` is the review loop. Match the exact token when parsing so they don't get conflated.
+- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-lo`, `--local`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, etc.)
+- **Effort level** — a bare `low` / `medium` / `high` / `xhigh` / `max` token. Extract it and forward it to the chosen skill; default `medium` when absent. **Match it only as a standalone leading token, never inside the instruction text** — `/x max "fix the thing"` sets max effort, but `/x "raise the max retry count"` does not. Without this rule the token falls through into the instructions and the review silently runs at the default.
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
@@ -63,18 +63,21 @@ If NO flags are passed (just instructions or an issue), apply this default:
 
 - `-v` (verify-ui)
 
-Review-loop (`-l`) is **NOT** added by default — for most tasks a single `/deep-review` pass is enough and the 5-round loop is overkill. The user must pass `-l` explicitly to opt in.
+If any flags ARE passed explicitly, use those as-is — do NOT add the `-v` default either. **A bare effort token does not count as a flag** for this rule: `/x max "…"` still gets the `-v` default, because effort selects review depth and says nothing about whether the change needs visual verification.
 
-If any flags ARE passed explicitly, use those as-is — do NOT add the `-v` default either.
+### Reviewer selection
 
-### Reviewer flags
+Two tiers plus a skip, forwarded to the chosen skill. They change which reviewer runs — not subagents or team members.
 
-`-op` / `-so` / `-haiku` and `-co` are **reviewer flags** — they change which reviewer(s) run, not subagents or team members. Forward them all to the chosen skill.
+| Passed | Reviewer at the downstream review step |
+| --- | --- |
+| nothing | `/code-review <effort> --fix` — **the default**, the built-in reviewer in its own context |
+| `-co` / `--codex` | `/deep-review` — `/code-review` **plus** `/codex-review` for cross-model coverage (also swings research/doc writing to codex) |
+| `-nor` / `--no-review` | none |
 
-- `-op` / `-so` / `-haiku` — Claude reviewer model for `/deep-review` / `/review-loop`; `-op` / `--opus` = Opus 4.8 (the Opus tier — above Sonnet; 1M-token context). Pick at most one.
-- `-co` / `--codex` — add codex reviewer (`/codex-review`) plus codex writer / research.
+An **effort level** (`low` / `medium` / `high` / `xhigh` / `max`, default `medium`) forwards to whichever tier runs. Never forward `ultra` — only the user can launch that, by typing `/code-review ultra` themselves.
 
-All reviewer flags **combine** — passing multiple means run every selected reviewer. **Default when no reviewer flag is passed at all**: `-co` — codex review (`/codex-review`); codex is the house default 2nd agent. See the target skill for substitution tables.
+`-op` / `-so` / `-haiku` are **no longer reviewer flags**. Forward them if present so nothing breaks, but they select nothing: `/code-review` runs on the session model (Claude Code ignores skill-level model overrides), so the model is set by `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`, and effort is the dial that replaced them.
 
 ### Team-member flags (`-t-op` / `-t-so`)
 
@@ -94,7 +97,7 @@ When `-m` or `--merge` is passed, forward it to the chosen skill. When the final
 
 ### No Review Mode (`-nor` / `--no-review`)
 
-When `-nor` or `--no-review` is passed, forward it to the chosen skill. The downstream skill skips the post-implementation review step entirely (no `/deep-review`, no `/review-loop`, no fix-delegation Agent) and goes straight from implementation to push / CI watch / PR revision. Use when the task is throwaway or you've already reviewed the changes yourself.
+When `-nor` or `--no-review` is passed, forward it to the chosen skill. The downstream skill skips the post-implementation review step entirely (no `/code-review`, no `/deep-review`, no fix-delegation Agent) and goes straight from implementation to push / CI watch / PR revision. Use when the task is throwaway or you've already reviewed the changes yourself.
 
 ### Raise-Issues Mode (`-ri` / `--raise-issues`, default — and `-nori` / `--no-raise-issues` to suppress)
 
@@ -111,8 +114,6 @@ Auto-fix is the downstream **default**: after the main work, `/x-as-pr` and `/x-
 ### Local Mode (`-lo` / `--local`)
 
 When `-lo` or `--local` is passed, forward it to the chosen skill (fast paths **and** the `/big-plan -a` escalation). The downstream skill keeps the run's bookkeeping — the plan, tracking issue, spec, and step-by-step progress — in a cclogs coordination directory instead of GitHub issues, so a public / team repo doesn't accumulate workflow-spam issues. `agent-found` problem issues are still raised (they're legitimate bug reports, not spam) unless `-nori` is also passed. `/x` only parses and forwards — all behavior lives downstream (see `$HOME/.claude/skills/x-wt-teams/references/local-mode.md`).
-
-**`-lo` is not `-l`.** `-lo` / `--local` is local mode; `-l` / `--review-loop` is the review loop. They compose (`/x -lo -l "…"` = local mode + review loop) — match exact tokens so one is never read as the other.
 
 ## Strategy Selection
 
@@ -139,7 +140,7 @@ Escalate to planning when the request is research/decomposition-heavy or its sco
 - `/x -a -m "big thing"` → `/big-plan -a -m` (plan + auto-implement + auto-merge + cleanup — full hands-off).
 - `/x -nf "big thing"` → `/big-plan -a -nf` (the no-fix opt-out rides through `/big-plan`'s hand-off into the implementation skill, exactly like `-m`; `-nori` rides the same way).
 - `/x -lo "big thing"` → `/big-plan -a -lo` (local mode rides all the way down: `/big-plan` writes the plan to cclogs instead of an epic/sub issues and hands the plan path — not an issue URL — to the implementation skill).
-- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` / `-lo` ride along. Reviewer flags (`-op` / `-co`) pass through to `/big-plan` and shape its Step 5 plan review. Note that on the escalation path, implementation-only flags (`-v`, `-l`, `-t-op` / `-t-so`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, `-nori`, and `-lo` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
+- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` / `-lo` ride along. Reviewer flags (`-op` / `-co`) pass through to `/big-plan` and shape its Step 5 plan review. Note that on the escalation path, implementation-only flags (`-v`, `-t-op` / `-t-so`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, `-nori`, and `-lo` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
 
 **Guardrail (asymmetric cost — escalation is more expensive than a fast path):**
 

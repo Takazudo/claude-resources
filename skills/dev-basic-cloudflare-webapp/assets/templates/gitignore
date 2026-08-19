@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.zfb/
+.zfb-build/
+.wrangler/
+worktrees/
+test-results/
+playwright-report/
+__inbox/
+_temp-resource/
+.dev.vars
+.env
+.DS_Store
+# zfb temp file stranded on abnormal termination
+zfb-tailwind-entry-*.css

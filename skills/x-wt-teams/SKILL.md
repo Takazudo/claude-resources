@@ -1,7 +1,7 @@
 ---
 name: x-wt-teams
 description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main)."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [--no-issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
+argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [--no-issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -18,13 +18,13 @@ Detail lives in `references/` so this file stays a workflow spine. Open the rele
 
 - **`references/arguments.md`** — every flag (model, backend, `-s` / `-a` / `-m` / `--no-review`, etc.), how they combine, manager-invariant rule.
 - **`references/super-epic-mode.md`** — Super-Epic child mode lifecycle: detection markers, Step 1a / Step 2 overrides, mandatory epic-PR merge, Auto-Suggest variant (`## Implementation order` sibling chaining), and how `-m` defers to chain termination (the terminal sibling merges the super-PR).
-- **`references/reviewer-modes.md`** — `-co` substitution tables and Combined Reviewer Mode (run all selected backends).
+- **`references/reviewer-modes.md`** — the two reviewer tiers (`/code-review` → `/deep-review`), effort levels, and the child self-review constraint.
 - **`references/execution-modes.md`** — subagents vs teams routing: how `/big-plan`'s `Execution mode:` markers are read, default-to-teams fallback, mixed-mode degradation, Step 5 / Step 7 path differences, drift sanity check.
 - **`references/teams-path.md`** — the on-demand teams-path body (read ONLY when a topic is marked `teams` or a marker is missing): TeamCreate + named teammates, idle/wake, the shutdown_request teardown, TeamDelete. The common subagents default is inline in Step 5 / Step 7.
 - **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, manual `-t-op` / `-t-so` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
 - **`references/issue-templates.md`** — tracking issue body, claim comments, unrelated-findings issue, Step 14 session report, Step 15 verification comments, accumulating-epic Auto-Suggest hand-off.
 - **`references/github-text-conventions.md`** — writing GitHub-posted text: never use a bare `#N` for your own plan items (topics/waves/options) — it autolinks to an unrelated issue/PR; reserve `#N` for real existing issues/PRs.
-- **`references/resource-coordination.md`** — Playwright / browser isolation rule and port-binding `flock` rule (full patterns).
+- **`references/resource-coordination.md`** — Playwright / browser isolation rule, the machine-wide cross-session `playwright-guard.sh` queue, and port-binding `flock` rule (full patterns).
 
 ## !! CRITICAL — ROOT PR TARGET BRANCH RULE !!
 
@@ -73,7 +73,7 @@ These rules apply to the manager session and are carried into child agent prompt
 
 ## Resource Coordination — top-level summary
 
-**Playwright / browser tools**: Neither manager nor child agents may invoke `/headless-browser`, `/verify-ui`, or any Playwright / Chrome DevTools-backed tool directly. Every browser check is dispatched to a fresh disposable Opus subagent (one alive at a time, sequential only, killed on return).
+**Playwright / browser tools**: Neither manager nor child agents may invoke `/headless-browser`, `/verify-ui`, or any Playwright / Chrome DevTools-backed tool directly. Every browser check is dispatched to a fresh disposable Opus subagent (one alive at a time, sequential only, killed on return). Across sessions, Playwright work additionally queues on the machine-wide `playwright-guard.sh` semaphore (automatic inside `/headless-browser` and `/verify-ui`; guard timeout exit 75 = another session is running browser work — wait/retry, never bypass).
 
 **Heavy / port-based tests**: Child agents must NOT run full e2e / integration suites, long builds, or hold a dev server (`pnpm dev` etc.) open for verification. Children commit + report back; the manager runs these sequentially on the merged base. Legitimate short port-binding work uses `flock` on `/tmp/x-wt-teams-<repo>-locks/port-<N>.lock`.
 
@@ -153,7 +153,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 6. Monitor child agents, review their PRs, merge into base
 7. Remove worktrees (and, on the teams path, shut the team down — TeamDelete). **On web (web-mode.md §9) this step is skipped** — the container is ephemeral
 8. Sync local base branch
-9. Quality assurance: `/deep-review` (default) or `/review-loop 5` (if `-l`/`--review-loop`)
+9. Quality assurance: `/code-review` (default) or `/deep-review` (if `-co`/`--codex`)
 10. Verify UI: `/verify-ui` (if `-v`/`--verify-ui`)
 11. Push all changes to remote
 12. CI watch: verify CI passes on root PR (invoke `/watch-ci`, fix if red)
@@ -231,6 +231,24 @@ No tracking issue is created; the spec + progress ledger live in a **cclogs coor
 
 Save `ISSUE_NUMBER` (from 1a or 1b) — passed to all child agents and used for progress comments throughout. After every subsequent step: check off the TODO line in the issue body, comment a brief report, then re-read the issue to confirm what's next. Re-reading is **critical** to prevent losing track during long workflows. **In local mode (1c):** substitute `progress.md` for the issue everywhere in that sentence — check off its TODO, append a Progress Log entry, then re-read `progress.md` to confirm what's next (see `references/local-mode.md`).
 
+**Record the orientation pointer now**, so a mid-workflow context compaction can find the tracker again — the re-read above is worthless once the session has forgotten the issue number. Full spec: [`references/orientation-pointer.md`](references/orientation-pointer.md).
+
+```bash
+# Blank values are dropped by the script, so pass every flag unconditionally —
+# do NOT wrap them in ${VAR:+...}, which zsh does not word-split.
+node "$HOME/.claude/scripts/orientation.js" begin \
+  --workflow x-wt-teams \
+  --issue "$ISSUE_NUMBER" \
+  --local-dir "$LOCAL_DIR" \
+  --repo "$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)"
+```
+
+Then, at the same per-step boundary where you check off the TODO, refresh the step breadcrumb — one line, no other bookkeeping:
+
+```bash
+node "$HOME/.claude/scripts/orientation.js" set --step "Step N: <name>"
+```
+
 ### Codex 2nd Opinion (Planning Phase)
 
 **SKIP ENTIRELY if the issue was created by `/big-plan`** (`[Epic]` in title, or Super-Epic child session). `/big-plan` already validated the plan during its workflow — re-running here is wasteful.
@@ -251,7 +269,7 @@ This is advisory. If codex is unresponsive, proceed with the original plan.
 
 Two orthogonal flag families:
 
-- **Reviewer flags** — `-op` / `-so` / `-haiku` choose the Claude reviewer model; `-co` adds the codex reviewer backend. All combine — multiple flags means run every selected reviewer. See `references/reviewer-modes.md` for substitution tables and Combined Reviewer Mode rules.
+- **Reviewer selection** — an effort level (`low` … `max`, default `medium`) sets how hard Step 9 looks — match it only as a standalone leading token, never a word inside the instructions (`/x-wt-teams max "…"` sets it; `"raise the max retry count"` does not); `-co` upgrades it to `/deep-review` (adding the codex cross-model pass). One tier per run. `-op` / `-so` / `-haiku` are no longer reviewer flags. See `references/reviewer-modes.md`.
 - **Team-member flags** — `-t-op` / `-t-so` override the model for child worktree agents and fix-delegation agents session-wide, replacing any per-topic `Model:` annotations from `/big-plan`. Without a flag, each child's model resolves per-topic from the annotation (default `opus`). See `references/per-topic-models.md` for resolution order and `references/arguments.md` for the canonical flag table.
 
 ### Step 1.5: Resuming an interrupted run (MANDATORY check before Step 2 creates anything)
@@ -404,7 +422,12 @@ EOF
 fi
 ```
 
-Save the root PR number — you will update it as topics are merged.
+Save the root PR number — you will update it as topics are merged. Add the base branch and root PR to the orientation pointer too, so a post-compaction session does not try to re-create either ([`references/orientation-pointer.md`](references/orientation-pointer.md)):
+
+```bash
+node "$HOME/.claude/scripts/orientation.js" set \
+  --base-branch "base/<project-name>" --pr "<ROOT_PR_URL>" --step "Step 2: base branch + root PR created"
+```
 
 #### If `-s` / `--stay` is explicitly passed
 
@@ -579,10 +602,11 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
-4. **Run `/light-review`** to self-review — fix clearly useful findings and commit. Forward whichever reviewer flags were on the original invocation (`-op` / `-so` / `-haiku` / `-co`). If no reviewer flag is active, `/light-review` falls to its own default (`-co`). **Run this in the foreground** — as with everything else the child needs (tests, builds): a child must never end its turn waiting on a backgrounded task, because the completion notification routes to the manager, not to the child. Apply findings, COMMIT, then report (item k). **Then reap this workspace's leaked codex broker** — a child session never fires the plugin's SessionEnd hook, so its broker + app-server pair would otherwise orphan to PPID 1: run `node $HOME/.claude/scripts/codex-sweep.js --workspace "<your-worktree-abs-path>"` (use your **assigned worktree's absolute path**, not `$PWD` — a team-child's cwd can stay the lead's, and reaping `$PWD` there would kill the lead's broker; a quiet no-op when none exists; safe because the plugin's `ensureBrokerSession` self-heals if codex is needed again).
+4. **Self-review your own diff by hand** — read `git diff <base>...HEAD`, make one bugs/logic pass and one quality/structure pass over the changed files, fix what's clearly useful, and commit. **Invoke no review skill and spawn no reviewer** — from a subagent `/code-review` returns a background handle rather than findings, `TaskOutput` isn't in your toolset to drain it, and a nested `Agent` call's completion notification routes to the manager; any of those leaves you parked with work committed but never reported. `/deep-review` and `/codex-review` are likewise off-limits regardless of the manager's flags — the cross-model pass is a manager-level Step 9 concern, and running it per-child multiplies codex load by the number of live children for no added coverage. Apply findings, COMMIT, then report (item k). **Then reap this workspace's leaked codex broker** — a child session never fires the plugin's SessionEnd hook, so its broker + app-server pair would otherwise orphan to PPID 1: run `node $HOME/.claude/scripts/codex-sweep.js --workspace "<your-worktree-abs-path>"` (use your **assigned worktree's absolute path**, not `$PWD` — a team-child's cwd can stay the lead's, and reaping `$PWD` there would kill the lead's broker; a quiet no-op when none exists; safe because the plugin's `ensureBrokerSession` self-heals if codex is needed again).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note. This is an additive human-visible log, NOT the report — an issue comment does not satisfy the merge gate, and children have repeatedly posted one and then gone idle without reporting. (Local mode: skip the comment — the SendMessage report per step 7 is the whole channel; the manager logs it to `progress.md`.)
 7. **Report back with the completion-report schema, via SendMessage to the manager** (see Step 6's
+
    merge gate) — not a brief status line, and not a plain-text return. The report must contain: (1)
    confirmation self-review ran in the foreground and findings were applied (or "none found"), (2)
    final commit SHA, (3) confirmation the working tree is clean, (4) log file path — plus a PR URL if
@@ -652,21 +676,26 @@ mid-review." Do not merge on inspection. Wait for the schema-conforming report.
 **Parked-child protocol (per-path recovery).**
 
 - **Detection**: the child's last message says something like "waiting for the review / Monitor /
+
   codex to finish" — that child has parked. A backgrounded review's completion notification routes to
   the manager, not the child, so its self-review will never complete on its own; it needs a nudge.
   **Also treat as parked: a child that went idle with no SendMessage report at all**, even when its
   worktree looks complete (commits present, tree clean, an issue comment posted). That is the
   commonest park in practice — the work is finished and only the report is missing. Inspecting the
   worktree cannot tell the two apart, which is why the gate above is the report, not the worktree.
+
 - **Recovery — teams path**: resume the parked child with `SendMessage` to its teammate name.
 - **Recovery — subagents path**: resume the parked one-shot agent via `SendMessage` using the agent
+
   name/ID returned by its original `Agent` call; if unresumable, spawn a replacement agent against the
   same worktree carrying the item-(k) foreground-review instruction. (This manager-side continuation is
   distinct from the Mixed-mode note in `references/execution-modes.md` — one teammate reaching a
   *different*, unrelated subagent it did not spawn.) When resuming, state the channel explicitly:
   "Return your report via SendMessage — a plain-text return does not reach me." A child that parked
   for want of the channel will otherwise park again the same way.
+
 - In every case, the resume/replacement message repeats item (k)'s wording (foreground review, no
+
   background wait, apply findings, COMMIT, then report). Resuming or replacing a parked child does not
   itself authorize a merge — the manager still waits for a schema-conforming completion report before
   merging that topic.
@@ -762,41 +791,45 @@ If `--no-review` or `-nor` was passed, **skip this step entirely** — do not in
 
 This flag's purpose: when `/deep-review -t` (default team-fix path) spawns a child `/x-wt-teams --no-review --stay` to apply fixes, the child must NOT run `/deep-review` again — that would loop forever. (`/deep-review` also passes `-nf -nori` to that child, so the contained fix session skips the Step 15.5 auto-fix and raises no issues — the outer `/deep-review` owns both.) Manual users almost never pass this. See `references/arguments.md`.
 
-#### Review Loop Mode (`-l` / `--review-loop`)
-
-If `-l` was passed (and `--no-review` was NOT), invoke `/review-loop 5` instead of `/deep-review`. Forward `-nori` if it was passed — `/review-loop` raises GitHub issues (label `agent-found`) for deferred needs-consideration findings by default, matching this skill's own `-ri`/`-nori` semantics:
-
-```
-Skill tool: skill="review-loop", args="5"
-# or, if -nori was passed:
-Skill tool: skill="review-loop", args="5 -nori"
-```
-
 #### Default Mode
 
-If neither flag was passed, invoke `/deep-review`, forwarding `-nori` if it was passed (under the default `-ri`, `/deep-review` raises `agent-found` issues for findings it doesn't fix — those feed Step 15.5's auto-fix):
+If no reviewer flag was passed, invoke the built-in reviewer on the base branch:
 
 ```
-Skill tool: skill="deep-review"
+Skill tool: skill="code-review", args="<resolved effort> --fix"
 ```
 
-With no reviewer flags, `/deep-review` delegates the review to `/codex-review` — codex is the house default reviewer.
+Interpolate the **resolved** effort — the level passed on this invocation, or `medium` when none was. Do not hard-code it: a run invoked as `/x-wt-teams max …` must review at `max`.
 
-`/deep-review` defaults to `-t` team-fix mode — it handles its own fix delegation by spawning a fresh `/x-wt-teams --no-review --stay`, applying fixes, committing, merging back into `base/<project-name>`, pushing, and running `/pr-revise`. By the time `/deep-review` returns, fixes are already committed and pushed. You do NOT need to create a fix issue, spawn an Agent, or call `/pr-revise` from this step.
+It runs in its own context window and applies what it finds, so the manager's context stays light. Findings it reports but does not fix feed Step 15.5's auto-fix — raise them as `agent-found` issues unless `-nori` was passed.
+
+Never pass `ultra` here: it is a paid cloud review only the user can start by typing it. If the change looks big enough to warrant one, recommend it in the final report.
+
+#### Deep Mode (`-co` / `--codex`)
+
+If `-co` was passed, invoke `/deep-review` instead — `/code-review` plus `/codex-review` for cross-model coverage. Forward `-nori` if it was passed (under the default `-ri`, `/deep-review` raises `agent-found` issues for findings it doesn't fix):
+
+```
+Skill tool: skill="deep-review", args="<resolved effort> [-nori if passed]"
+```
+
+Same rule as above — pass the resolved effort, and forward `-nori` when it was passed. Invoking it bare makes it fall back to its own defaults, so `-co max -nori` would silently review at `medium` and raise issues the user opted out of.
+
+`/deep-review` applies fixes inline by default and commits them, so by the time it returns there is normally nothing left to delegate from this step. Pass `-t` only when the fix work is genuinely large — then it spawns a fresh `/x-wt-teams --no-review -nf -nori --stay`, which applies the fixes, commits, merges back into `base/<project-name>`, pushes, and runs `/pr-revise` on its own. Either way, do not create a fix issue or spawn a fix Agent from here.
 
 For the legacy inline-fix flow (manager applies fixes in own context, no nested team), use `/deep-review -nt`.
 
-#### Reviewer-mode substitution
+#### Effort
 
-If `-co` is active, substitute the reviewer skill: `/codex-review`. With multiple flags, run all selected reviewers sequentially and merge findings. Full rules: `references/reviewer-modes.md`.
+Any of `low` / `medium` / `high` / `xhigh` / `max` on the invocation is forwarded to whichever reviewer runs; default `medium`. The old reviewer model flags (`-op` / `-so` / `-haiku`) no longer select a reviewer — they are accepted and ignored here. Full rules: `references/reviewer-modes.md`.
 
 #### Common steps
 
 1. Invoke the review skill as described above.
 2. Wait for it to complete:
+- `/code-review --fix` (default): fixes applied to the working tree — commit them, then continue. Note `--fix` edits land outside session checkpoints, so `/rewind` cannot undo them; use git.
 - `/deep-review -t`: fixes already applied, committed, and pushed by inner `/x-wt-teams --no-review --stay`. Base branch is in its post-fix state.
 - `/deep-review -nt`: fixes applied inline; no inner team session ran.
-- `/review-loop`: ran multiple review-fix cycles internally.
 - No actionable issues: nothing changed; continue.
 3. Confirm base branch state (`git log --oneline -5`, `git status`) so you know whether new commits were added.
 4. Proceed to Step 10 (if `--verify-ui`) or Step 11.
@@ -1048,7 +1081,7 @@ gh label create "needs-decision" \
 For each fix branch (the tiny bundle, or one per non-trivial issue):
 
 1. `git checkout -b agent-fix/<slug> <PARENT_BRANCH>`, implement the fix(es), commit locally.
-2. **Run `/light-review`** before merge — forward active reviewer flags (`-op` / `-so` / `-haiku` / `-co`) so `-op` → opus-backed review. Tiny bundle reviewed as a unit; per-issue fixes individually. Address high-priority findings and commit.
+2. **Run `/code-review low --fix`** before merge. Tiny bundle reviewed as a unit; per-issue fixes individually. Address anything it flagged but did not apply, and commit.
 3. Push and open the fix PR (`gh pr create --base <PARENT_BRANCH> ...`), body linking the `agent-found` issue(s) it closes.
 4. **Verify the fix** (build / tests / the issue's described check). Heavy / port-based verification goes through the manager on the merged branch, never a child — same rule as the rest of the workflow; browser checks go through the isolated Opus subagent (`references/resource-coordination.md`).
 5. **On success: CLOSE the corresponding `agent-found` issue and link the fix PR** (overrides cleanup's "always keep" for FIXED issues only; left-open / unfixed ones stay open and kept):
@@ -1069,7 +1102,7 @@ For each fix branch (the tiny bundle, or one per non-trivial issue):
 
   Do NOT add `needs-decision` here (that label is the deliberate leave-open path); this is a failed-fix marker. Never loop forever.
 
-**`-m` interaction (fix PR auto-merge):** fix PRs follow the **same auto-merge semantics as the root PR** — with `-m`, auto-merge each fix PR after `/light-review` + verification (e.g. `gh pr merge --merge --delete-branch` once green, or `/pr-complete` per fix PR); without `-m`, leave each as a ready (non-draft) PR for the user and still close the linked `agent-found` issue with the link once verified. **In Super-Epic child mode, fix PRs target the super-epic base: when `-m` rode the chain, auto-merge them once green (same semantics as above) — the last sibling's super-PR merge deletes that base, which would auto-close any still-open PR against it UNMERGED, silently destroying the fix. Ordering (this step runs before the all-done branch) is not a guarantee: a fix PR whose CI never went green is still open at that point. The terminal sibling therefore VERIFIES `gh pr list --base "$SUPER_EPIC_BASE" --state open` is empty before merging the super-PR and stops if it is not (`references/super-epic-mode.md`, all-done step 0). Without `-m`, leave them as ready PRs and name them in the hand-off as "merge these before the super-PR". Still close the linked `agent-found` issue once verified.** Track the fix PRs and closed issues in session state — they go into the Step 16 manifest (role: `fix`).
+**`-m` interaction (fix PR auto-merge):** fix PRs follow the **same auto-merge semantics as the root PR** — with `-m`, auto-merge each fix PR after `/code-review` + verification (e.g. `gh pr merge --merge --delete-branch` once green, or `/pr-complete` per fix PR); without `-m`, leave each as a ready (non-draft) PR for the user and still close the linked `agent-found` issue with the link once verified. **In Super-Epic child mode, fix PRs target the super-epic base: when `-m` rode the chain, auto-merge them once green (same semantics as above) — the last sibling's super-PR merge deletes that base, which would auto-close any still-open PR against it UNMERGED, silently destroying the fix. Ordering (this step runs before the all-done branch) is not a guarantee: a fix PR whose CI never went green is still open at that point. The terminal sibling therefore VERIFIES `gh pr list --base "$SUPER_EPIC_BASE" --state open` is empty before merging the super-PR and stops if it is not (`references/super-epic-mode.md`, all-done step 0). Without `-m`, leave them as ready PRs and name them in the hand-off as "merge these before the super-PR". Still close the linked `agent-found` issue once verified.** Track the fix PRs and closed issues in session state — they go into the Step 16 manifest (role: `fix`).
 
 ---
 
@@ -1119,6 +1152,11 @@ After `/cleanup-resources` returns its report:
 1. Print the close/delete/keep summary to the user (e.g. "Closed 4 sub-issues + tracking issue, deleted local base branch, kept 2 unrelated-findings issues").
 2. If the report has an "Ambiguous" section, list those resources verbatim and either resolve them yourself (re-fetch and decide) under `-a` autonomy, or surface to the user otherwise.
 3. If the manager was sitting on a branch the cleanup just deleted, it has already switched to the parent branch as part of execution. Confirm the new `git branch --show-current` matches the expected post-cleanup state per the STOP rules below.
+4. Close out the orientation pointer, so a compaction after this point does not drag a fresh task back into a finished workflow ([`references/orientation-pointer.md`](references/orientation-pointer.md)):
+
+   ```bash
+   node "$HOME/.claude/scripts/orientation.js" complete
+   ```
 
 **Exception**: If the user provided the tracking issue (not created by this workflow), the manifest still lists it as `claimed-existing` and the Sonnet agent will propose KEEP. Do not pass it as `tracking`.
 
@@ -1157,7 +1195,7 @@ When `-a` was passed on this invocation AND Signal A or Signal B matched, do not
 **Pause conditions — do NOT auto-invoke; print the hand-off + a short blocker note and STOP so the user can intervene:**
 
 - CI failed and a single fix attempt did not turn it green, or the failure cause is not clearly addressable by the just-merged changes.
-- `/deep-review` or `/review-loop` reported issues that this session could not auto-fix (e.g., requires user product decision, requires schema/migration approval).
+- `/code-review` or `/deep-review` reported issues that this session could not auto-fix (e.g., requires user product decision, requires schema/migration approval).
 - Step 15 found missing requirements this session cannot satisfy without user input.
 - Any merge conflict on the super-epic base or accumulating-epic base that this session cannot resolve safely.
 - Any condition the manager would normally surface to the user mid-run (denied destructive action, missing credential, etc.).
@@ -1257,7 +1295,7 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 11. **Each child agent works in its worktree** — git ops affect that branch only.
 12. **Quality assurance before pushing** — always run Step 9 after merging all topics. Mandatory, never skip.
 13. **CI watch after pushing** — if the project has CI, invoke `/watch-ci` on the root PR (Step 12). Fix and re-push on red.
-14. **Re-read the issue TODO after every step** — `gh issue view` to check the TODO checklist and confirm what comes next. Prevents forgetting steps during long workflows. **Local mode:** re-read `$LOCAL_DIR/progress.md` instead.
+14. **Re-read the issue TODO after every step** — `gh issue view` to check the TODO checklist and confirm what comes next. Prevents forgetting steps during long workflows. **Local mode:** re-read `$LOCAL_DIR/progress.md` instead. Refresh the orientation pointer at the same boundary (`orientation.js set --step "…"`) — the re-read only works while the session still knows *which* tracker to re-read, and a context compaction is exactly what takes that away. See [`references/orientation-pointer.md`](references/orientation-pointer.md).
 15. **Issue tracking by default** — create a GitHub issue with TODO checklist and comment progress at each step. `--local` / `-lo` (alias `--no-issue`) relocates that ledger to a cclogs coordination dir instead (progress.md), keeping the anti-drift re-read; `agent-found` problem issues are still raised. See Step 1c and `references/local-mode.md`. Closing happens via `/cleanup-resources` at Step 16 (mandatory), not via a bespoke `gh issue close` call buried in the workflow tail. See Rule 27.
 16. **pnpm worktree cleanup breaks symlinks** — Step 7 runs `pnpm install --ignore-scripts` to fix. **On web this whole cleanup is skipped (web-mode.md §9)** — worktrees are left in place, so there is nothing to re-fix.
 17. **NEVER auto-detect `-s` / `--stay`** — always create a new base branch unless explicitly passed. Do not infer from branch state, existing PRs, or context.
@@ -1276,7 +1314,9 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 4. `git branch -d "$DEAD_BRANCH"` — use **`-d` NOT `-D`**. If unmerged commits, `-d` refuses; surface as a loud failure rather than silently destroy work with `-D`.
 
     Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Merge Mode after `/pr-complete` (Rule 1 exception (a)), the Step 17 deferred manual cleanup hook. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged. **As of Rule 27, the actual implementation of this cleanup is delegated to `/cleanup-resources` at Step 16 — hand-rolled `git branch -d` blocks should not be added; let cleanup-resources do it.**
+
 27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless local mode / `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-m` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks. **On web:** there is no `base/<topic>` and the session branch must survive (protected by name in the manifest) — the "(c)" leftover-base framing does not apply. See web-mode.md §5.
+
 28a. **Children report via SendMessage on BOTH paths — a plain-text return never reaches the manager.** This is the single highest-cost failure mode observed in the field. When a child ends its turn by returning a report as text, the manager receives only an idle notification; the report is lost, and the child is indistinguishable from one that parked mid-review. Say the channel explicitly in every child prompt ("return your report via SendMessage; a plain-text return does not reach me; an issue comment is not a substitute"), and treat a complete-looking worktree with no SendMessage report as PARKED, not done. Full field evidence in Step 5 item (i); the merge gate in Step 6 depends on it. Do NOT "simplify" the subagents path back to plain-text returns on the reasoning that it has no team — skipping the team ceremony is not the same as skipping the channel.
 
 28b. **A child must never end its turn waiting on ANY backgrounded task — not just a review.** Completion notifications route to the manager, so a child that backgrounds anything and waits is never woken, and whatever it had not committed sits stranded in its worktree. The rule is about backgrounding, not about reviews: in the field a child backgrounded a `pnpm test:unit` sanity pass — outside the old review-only wording — and parked with 434 uncommitted lines that a routine worktree removal during cleanup would have destroyed. Put the GENERAL form in every child prompt (Step 5 item (k)), never the review-only form. Corollary for the manager: a parked child is indistinguishable from a finished one by worktree inspection, which is why Step 6's merge gate is the SendMessage report and never the worktree (see 28a), and why Step 7's removal loop must never `--force` (see Rule 29).

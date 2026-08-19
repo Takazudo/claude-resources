@@ -35,7 +35,7 @@ Before reviewing any code:
 Leverage the tools available to you effectively:
 
 - **Code navigation**: Use Read, Grep, and Glob to understand code structure, dependencies, and relationships across the codebase
-- **Second opinions**: When a review would benefit from an outside perspective — a tricky design trade-off, an unfamiliar framework, or a general programming question — reach for the active second-opinion flow: `/codex-2nd`, `/codex-review`, or `/opus-2nd`
+- **Second opinions**: When a review would benefit from an outside perspective — a tricky design trade-off, an unfamiliar framework, or a general programming question — reach for `/codex-2nd` or `/opus-2nd`. For a cross-model read of the *diff* specifically, `/codex-review` is the one to use
 
 ### GitHub Command Usage
 

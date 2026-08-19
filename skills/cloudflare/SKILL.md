@@ -69,6 +69,8 @@ Need storage?
 ├─ Strongly-consistent per-entity state → durable-objects/ (DO storage)
 ├─ Secrets management → secrets-store/
 ├─ Streaming ETL to R2 → pipelines/
+├─ Managed Apache Iceberg catalog on R2 → r2-data-catalog/
+├─ Serverless SQL analytics over Iceberg tables → r2-sql/
 └─ Persistent cache (long-term retention) → cache-reserve/
 ```
 
@@ -126,6 +128,7 @@ Need analytics?
 ├─ Custom high-cardinality metrics from Workers → analytics-engine/
 ├─ Client-side (RUM) performance data → web-analytics/
 ├─ Workers Logs and real-time debugging → observability/
+├─ SQL over Iceberg data lake (logs, events) → r2-sql/ (+ pipelines/, r2-data-catalog/)
 └─ Raw logs (Logpush to external tools) → Cloudflare docs
 ```
 
@@ -138,11 +141,13 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 ## Product Index
 
 ### Feature Flags
+
 | Product | Reference |
 |---------|-----------|
 | Flagship | `references/flagship/` |
 
 ### Compute & Runtime
+
 | Product | Reference |
 |---------|-----------|
 | Workers | `references/workers/` |
@@ -158,6 +163,7 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 | Smart Placement | `references/smart-placement/` |
 
 ### Storage & Data
+
 | Product | Reference |
 |---------|-----------|
 | KV | `references/kv/` |
@@ -173,6 +179,7 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 | R2 SQL | `references/r2-sql/` |
 
 ### AI & Machine Learning
+
 | Product | Reference |
 |---------|-----------|
 | Workers AI | `references/workers-ai/` |
@@ -182,6 +189,7 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 | AI Search | `references/ai-search/` |
 
 ### Networking & Connectivity
+
 | Product | Reference |
 |---------|-----------|
 | Tunnel | `references/tunnel/` |
@@ -192,6 +200,7 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 | Workers VPC | `references/workers-vpc/` |
 
 ### Security
+
 | Product | Reference |
 |---------|-----------|
 | WAF | `references/waf/` |
@@ -201,6 +210,7 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 | Turnstile | `references/turnstile/` |
 
 ### Media & Content
+
 | Product | Reference |
 |---------|-----------|
 | Images | `references/images/` |
@@ -209,12 +219,14 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 | Zaraz | `references/zaraz/` |
 
 ### Real-Time Communication
+
 | Product | Reference |
 |---------|-----------|
 | RealtimeKit | `references/realtimekit/` |
 | Realtime SFU | `references/realtime-sfu/` |
 
 ### Developer Tools
+
 | Product | Reference |
 |---------|-----------|
 | Wrangler | `references/wrangler/` |
@@ -229,6 +241,7 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 | Workers Playground | `references/workers-playground/` |
 
 ### Infrastructure as Code
+
 | Product | Reference |
 |---------|-----------|
 | Pulumi | `references/pulumi/` |
@@ -236,6 +249,7 @@ Need IaC? → pulumi/ (Pulumi), terraform/ (Terraform), or api/ (REST API)
 | API | `references/api/` |
 
 ### Other Services
+
 | Product | Reference |
 |---------|-----------|
 | Email Routing | `references/email-routing/` |

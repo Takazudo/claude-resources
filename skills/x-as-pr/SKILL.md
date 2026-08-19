@@ -1,7 +1,7 @@
 ---
 name: x-as-pr
 description: "Start a development workflow as a draft PR. Creates a NEW branch from the current branch, empty start commit, draft PR targeting the current branch, then implements. ALWAYS creates a new branch by default — produces a nested PR-on-PR when the current branch already has one. Use when: (1) User says 'dev as pr', (2) User wants a PR-first workflow before coding, (3) User passes -s/--stay to reuse the current branch instead of nesting, (4) User passes a GitHub issue URL to implement, (5) User passes --make-issue/--issue to create an issue first. Logs progress via issue comments when an issue is linked."
-argument-hint: "[-op|-so|-haiku] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [--make-issue|--issue] [-s|--stay] [-l|--review-loop] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number|plan-path] [branch-name] [base-branch]"
+argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [--make-issue|--issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number|plan-path] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
@@ -63,14 +63,13 @@ Parse `$ARGUMENTS` to extract:
 
 - **`--make-issue` or `--issue` flag**: If present, create a GitHub issue before starting (see "Issue Creation Mode" below)
 - **`-s` or `--stay` flag**: If present, stay on the current branch instead of creating a new one (see "Stay Mode" below). **Opt-in only — never auto-detected.**
-- **`-l` or `--review-loop` flag**: If present, replace the final review step with `/review-loop 5` instead of `/deep-review` (see "Post-Implementation: Automatic Deep Review" below)
-- **`-lo` or `--local` flag**: Local mode — keep this run's bookkeeping (the `--make-issue` tracking issue, progress log, and review-fix delegation issue) in a cclogs coordination directory instead of GitHub issues, for public / team repos where those issues read as spam. See "Local Mode" below and the shared spec `$HOME/.claude/skills/x-wt-teams/references/local-mode.md`. `agent-found` problem issues are still raised (governed by `-ri` / `-nori`). **`-lo` is not `-l`** — `-lo` is local mode, `-l` is the review loop; match the exact token. A path argument under `local-workflow/` (handed off by `/big-plan --local`) is the spec file, read in place of an issue.
+- **`-lo` or `--local` flag**: Local mode — keep this run's bookkeeping (the `--make-issue` tracking issue, progress log, and review-fix delegation issue) in a cclogs coordination directory instead of GitHub issues, for public / team repos where those issues read as spam. See "Local Mode" below and the shared spec `$HOME/.claude/skills/x-wt-teams/references/local-mode.md`. `agent-found` problem issues are still raised (governed by `-ri` / `-nori`). A path argument under `local-workflow/` (handed off by `/big-plan --local`) is the spec file, read in place of an issue.
 - **`-v` or `--verify-ui` flag**: If present, run `/verify-ui` after review fixes to verify frontend changes visually (see "Post-Implementation: Verify UI" below)
-- **`-nor` or `--no-review` flag**: Skip the post-implementation review entirely (no `/deep-review`, no `/review-loop`, no fix-delegation Agent). Just do the implementation, then proceed straight to verify-ui (if `-v` was passed), push, CI watch, and PR revision. See "No Review Mode" below
+- **`-nor` or `--no-review` flag**: Skip the post-implementation review entirely (no `/code-review`, no `/deep-review`, no fix-delegation Agent). Just do the implementation, then proceed straight to verify-ui (if `-v` was passed), push, CI watch, and PR revision. See "No Review Mode" below
 - **`-ri` or `--raise-issues` flag**: Explicitly enable raising GitHub issues for unrelated problems found during coding or reviewing (bugs, code smells, improvement possibilities). **This is the default** — pass for clarity, but the behavior is on unless `-nori` is passed. See "Raising Issues for Unrelated Findings" below
-- **`-nori` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. With `-l`, also forwarded to the inner `/review-loop` so its deferred needs-consideration findings stay terminal-only. Replaces the older `--noi` / `--noissue` spellings. See "Raising Issues for Unrelated Findings" below
-- **Reviewer model flags** (`-op` / `--opus`, `-so` / `--sonnet`, `-haiku` / `--haiku`): Claude model used by the Step "Automatic Deep Review" reviewer (`/deep-review` or `/review-loop`). Pick at most one. **Default when no reviewer flag is passed at all: `-co` — `/codex-review` (codex is the house default reviewer; `/deep-review` with no flags delegates to it).** See "Reviewer Mode (Claude model)" below.
-- **`-co` or `--codex` flag**: Add codex-based reviewer / writer / research. See "Codex Mode" below. Combines with every other reviewer flag — multiple flags means run all selected reviewers. **Silent Opus fallback** — every codex-backed step (`/codex-review`, `/codex-2nd`, `/codex-research`, `/codex-writer`) silently falls back to a subagent at `model: opus` if codex is rate-limited or unavailable. The `-co` flag means "the better reviewer/tool"; Opus is the Claude-side stand-in when codex is down.
+- **`-nori` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. Replaces the older `--noi` / `--noissue` spellings. See "Raising Issues for Unrelated Findings" below
+- **Effort level** (`low` / `medium` / `high` / `xhigh` / `max`): How hard the post-implementation reviewer looks. Forwarded verbatim to whichever reviewer runs. **Match only a standalone leading token, never a word inside the instruction text** — `/x-as-pr max "fix the thing"` sets max effort; `/x-as-pr "raise the max retry count"` does not. **Default `medium`** — the light tier. Want depth? Pass `-co` (codex), not a higher effort. Never pass `ultra` — only the user can launch that. See "Reviewer Tiers" below. The old reviewer model flags (`-op` / `-so` / `-haiku`) are accepted and ignored.
+- **`-co` or `--codex` flag**: Upgrade the review step to `/deep-review` (`/code-review` **plus** `/codex-review` for cross-model coverage), and prefer codex for research and doc writing. See "Codex Mode" below. **Silent fallback** — every codex-backed step (`/codex-review`, `/codex-2nd`, `/codex-research`, `/codex-writer`) degrades quietly to a Claude equivalent if codex is rate-limited or unavailable.
 - **Team-member model flags** (`-t-op` / `--team-opus`, `-t-so` / `--team-sonnet`): Override the model used by the fix-delegation Agent spawned after review (and any other subagents spawned during implementation). Pick at most one. **Default: `opus`.** No `-t-haiku` — haiku is too small for fix-delegation work and not offered as a session-wide override. See "Team Member Model Override" below.
 - **`-a` or `--auto` flag**: Autonomy/chain flag, usually arriving forwarded from `/x` or `/big-plan -a`. `/x-as-pr` is already fully autonomous (Auto-Pilot is always on) and single-topic (no waves to chain), so `-a` adds no extra behavior here — accept it for chain-compatibility. It does **NOT** merge the PR; merging is `-m`'s job
 - **`-m` or `--merge` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes — merge the PR into its base branch, close the linked issue, and watch post-merge CI on the base branch (fixing it if red). See "Merge Mode" below
@@ -221,7 +220,7 @@ When creating an issue (`--make-issue`) or linking an existing one, ensure the i
 ### TODO
 - [ ] Create branch and draft PR
 - [ ] Implementation
-- [ ] Deep review (`/deep-review`)
+- [ ] Code review (`/code-review`, or `/deep-review` with `-co`)
 - [ ] Push changes to remote
 - [ ] CI watch (if CI configured)
 - [ ] PR revision (`/pr-revise`)
@@ -238,6 +237,12 @@ gh issue view <ISSUE_NUM>
 ```
 
 This re-read step is **critical** — it prevents losing track of remaining steps during long workflows with many interactions. Always check the TODO list to determine "What's next?" before proceeding.
+
+4. **Refresh the orientation pointer** so the re-read above still works after a context compaction — once the session forgets the issue number it cannot re-read anything. Full spec: [`$HOME/.claude/skills/x-wt-teams/references/orientation-pointer.md`](../x-wt-teams/references/orientation-pointer.md).
+
+```bash
+node "$HOME/.claude/scripts/orientation.js" set --step "<step just completed>"
+```
 
 ## Progress Logging via Issue Comments
 
@@ -329,21 +334,22 @@ This step is advisory. If codex is unresponsive or provides no useful feedback, 
 
 Reviewer flags and team-member flags are orthogonal.
 
-- **Reviewer flags** (`-op` / `-so` / `-haiku` / `-co`) — choose which reviewer(s) run at the post-implementation review step and for any `/light-review` self-check. Multiple flags combine.
+- **Reviewer selection** (`-co` / `--codex` and an effort level) — chooses which reviewer runs at the post-implementation review step. One tier per run.
 - **Team-member flags** (`-t-op` / `-t-so`) — override the model for the fix-delegation Agent (and any other subagents spawned during implementation). Session-wide.
 
-## Reviewer Mode (Claude model: `-op` / `-so` / `-haiku`)
+## Reviewer Tiers
 
-Pick at most one Claude reviewer model flag (or none). When passed (or left at default), it governs:
+| Invocation | Reviewer | What it is |
+|---|---|---|
+| no flag | `/code-review <effort> --fix` | **Default.** The built-in reviewer, running in its own context window. |
+| `-co` / `--codex` | `/deep-review <effort>` | `/code-review` **plus** `/codex-review` — codex carries the depth.  |
+| `-nor` / `--no-review` | (skipped) | No review step at all. |
 
-- The Claude model used by `/deep-review` / `/review-loop` at the post-implementation review step.
-- The Claude model used by any Claude-side 2nd opinion during planning.
+**Effort** — `low` | `medium` | `high` | `xhigh` | `max`, forwarded to whichever reviewer runs. Default `medium` — this is the light tier, and `/code-review` is meant to be fast. Low and medium report only high-confidence findings; high and above widen coverage at the cost of some uncertain ones. Reach for `-co` rather than a higher effort when you want depth: codex is the deep reviewer.
 
-Multiple Claude model flags → last one wins (documented, not an error).
+**Never pass `ultra`.** It is a paid cloud review only the user can launch by typing `/code-review ultra`. If the change warrants one, recommend it in the final report.
 
-**Default when NO reviewer flag is passed at all**: `-co` — `/codex-review` (codex is the house default reviewer; `/deep-review` invoked with no flags delegates to it). Claude model flags opt IN to the Claude reviewer workflow.
-
-Claude model flags **combine** with `-co` — passing `-op -co` means run `/deep-review` at Opus AND `/codex-review`. See "Combined Reviewer Mode" in the backend mode sections below.
+**Removed:** `-op` / `-so` / `-haiku` are no longer reviewer flags. They used to pick the model for a fleet of `code-reviewer` subagents; that fleet is gone, and Claude Code ignores skill-level model overrides anyway — `/code-review` runs on **the session model** (change it with `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`). Effort replaced them as the quality dial. The tokens are still accepted and silently ignored so forwarded chains don't break. (`-t-op` / `-t-so` are a different family and still live.)
 
 ## Team Member Model Override (`-t-op` / `-t-so`)
 
@@ -356,44 +362,25 @@ When passed (or left at default), it governs:
 
 There is intentionally no `-t-haiku`. Haiku is too small for fix-delegation work — if you genuinely need a haiku subagent, spawn it directly with explicit `model: "haiku"`.
 
-Team-member flags do NOT affect reviewers. They do NOT get forwarded to `/deep-review` / `/review-loop` — those use the reviewer flags instead.
+Team-member flags do NOT affect reviewers. They do NOT get forwarded to the review step — that uses the reviewer tier instead.
 
 ---
 
 ## Codex Mode (`-co` / `--codex`)
 
-When `-co` or `--codex` is passed, the following substitutions apply throughout the entire workflow:
+`-co` swings work to codex in two places:
 
-| Default tool | Codex replacement | Used for |
+| Default | With `-co` | Used for |
 |---|---|---|
-| `/deep-review` | `/codex-review` | Post-implementation code review |
-| `/review-loop N` | `/codex-review` (run once) | Review loop mode review step |
-| Agent tool (web search, research) | `/codex-research` | Any web search or codebase research during planning/implementation |
-| Agent tool (doc writing) | `/codex-writer` | Writing documentation, README, or other text content |
+| `/code-review` | `/deep-review` (= `/code-review` + `/codex-review`) | Post-implementation review |
+| Agent tool (web search, research) | `/codex-research` | Research during planning or implementation |
+| Agent tool (doc writing) | `/codex-writer` | READMEs, doc comments, prose |
 
-**How it affects the workflow:**
+Note `-co` **adds** the codex reviewer rather than replacing the built-in one — that is the whole point of a cross-model pass.
 
-- **Post-Implementation Review**: Instead of `/deep-review` or `/review-loop`, invoke `/codex-review`. If `-l`/`--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
-- **Research during planning/implementation**: When you need to research libraries, APIs, or best practices (web search or codebase exploration), prefer `/codex-research` over the Agent tool or WebSearch.
-- **Documentation writing**: When writing README content, doc comments, or other prose during implementation, prefer `/codex-writer` over writing directly.
-
-**Silent Opus fallback** — every codex-backed skill above silently falls back to a subagent at `model: opus` when codex is rate-limited or unavailable (`/codex-review` → 2 `code-reviewer` subagents at Opus; `/codex-2nd` → general-purpose Opus; `/codex-research` → `researcher` at Opus; `/codex-writer` → `markdown-writer` at Opus). No special handling needed at this level — the fallback is invisible to this skill. The `-co` flag means "the better reviewer/tool," and Opus is the Claude-side stand-in when codex is down.
+**Silent fallback** — every codex-backed skill degrades quietly to a Claude equivalent when codex is rate-limited or unavailable (`/codex-review` → `/code-review`; `/codex-2nd` → general-purpose Opus; `/codex-research` → `researcher`; `/codex-writer` → `markdown-writer`). Nothing at this level handles it — the fallback is invisible, never pauses, and never surfaces a quota error.
 
 All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
-
----
-
-## Combined Reviewer Mode (multiple reviewer flags)
-
-All reviewer flags — Claude model (`-op` / `-so` / `-haiku`) and the codex backend (`-co`) — combine freely. When the user passes more than one (e.g. `-op -co`, `-so -co`), run **all** selected reviewers.
-
-**Rules:**
-
-- **Post-Implementation Review**: invoke every selected reviewer sequentially on the same branch. Collect findings from every run into a single combined fix issue before delegating fixes. Do not stop after the first reviewer.
-- **2nd opinions during planning**: when multiple backend flags are active, invoke every matching `*-2nd` command in sequence and read all feedback before finalizing the plan.
-- **Default reviewer when no flag at all**: `/codex-review` (`-co` is the house default). A single backend flag alone replaces the default (does not also run Claude reviewers). To run BOTH a Claude reviewer AND a backend reviewer, pass a Claude model flag explicitly alongside the backend flag.
-
-This mirrors `/x-wt-teams`'s Combined Reviewer Mode — see `$HOME/.claude/skills/x-wt-teams/references/reviewer-modes.md` for the full substitution tables.
 
 ---
 
@@ -506,6 +493,20 @@ fi
 ```
 
 The PR title should be descriptive based on the issue or instructions provided.
+
+**Record the orientation pointer** once the branch and PR exist, so a mid-workflow context compaction can find its way back to the tracker instead of re-creating work. `begin` (not `set`) is deliberate: it clears any earlier run in this session, so a second `/x-as-pr` does not inherit the first one's issue and PR. Full spec: [`$HOME/.claude/skills/x-wt-teams/references/orientation-pointer.md`](../x-wt-teams/references/orientation-pointer.md).
+
+```bash
+# Blank values are dropped by the script, so pass every flag unconditionally —
+# do NOT wrap them in ${VAR:+...}, which zsh does not word-split.
+node "$HOME/.claude/scripts/orientation.js" begin \
+  --workflow x-as-pr \
+  --issue "$ISSUE_NUM" \
+  --local-dir "$LOCAL_DIR" \
+  --repo "$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)" \
+  --branch "<BRANCH_NAME>" --base-branch "<TARGET_BRANCH>" --pr "<PR_URL>" \
+  --step "Step 4: branch + draft PR created"
+```
 
 ### Step 4.5: Screenshot Requirement Contract (when the spec includes visual evidence)
 
@@ -705,12 +706,12 @@ When `-nori` or `--no-raise-issues` is passed, **do NOT raise GitHub issues for 
 
 ## No Review Mode (`-nor` / `--no-review`)
 
-When `-nor` or `--no-review` is passed, **skip the entire post-implementation review step** — no `/deep-review`, no `/review-loop`, no fix-delegation Agent. Just do the implementation, then proceed straight to the remaining post-implementation steps (verify-ui if `-v` was passed, push, CI watch, PR revision, session report).
+When `-nor` or `--no-review` is passed, **skip the entire post-implementation review step** — no `/code-review`, no `/deep-review`, no fix-delegation Agent. Just do the implementation, then proceed straight to the remaining post-implementation steps (verify-ui if `-v` was passed, push, CI watch, PR revision, session report).
 
 **Effect on the workflow:**
 
 - "Post-Implementation: Automatic Deep Review" step → **skipped entirely**, including the fix-delegation Agent that would normally run after review findings
-- `-l` / `--review-loop` → **ignored** (no review at all overrides "more rigorous review")
+- `-co` / `--codex` → **ignored** for the review step (no review at all overrides "more rigorous review"); codex still handles research and doc writing
 - `-v` / `--verify-ui` → still honored (verify-ui is independent of code review)
 - All other post-implementation steps (push, CI watch, PR revision, session report, requirements verification, merge mode) → unchanged
 
@@ -740,18 +741,20 @@ After implementation is complete (in either mode), evaluate whether to run an au
 
 When all conditions are met, run the review:
 
-- **If `-l` / `--review-loop` was passed**: Invoke `/review-loop 5` instead of `/deep-review`, forwarding `-nori` if it was passed (`/review-loop` raises GitHub issues for deferred needs-consideration findings by default, matching this skill's `-ri`/`-nori` semantics). This runs 5 rounds of review-fix cycles for thorough quality improvement.
-- **Otherwise (default)**: Invoke `/deep-review`, forwarding any reviewer flags and `-nori` if it was passed (under the default `-ri`, `/deep-review` raises `agent-found` issues for findings it doesn't fix — those feed the auto-fix step below). With no reviewer flags, `/deep-review` delegates to `/codex-review` — codex is the house default reviewer.
+- **If `-co` / `--codex` was passed**: Invoke `/deep-review <effort>`, forwarding `-nori` if it was passed (under the default `-ri`, `/deep-review` raises `agent-found` issues for findings it doesn't fix — those feed the auto-fix step below). This is `/code-review` plus `/codex-review` for cross-model coverage.
+- **Otherwise (default)**: Invoke `Skill(skill="code-review", args="<effort> --fix")`. It runs in its own context window and applies what it finds, so this session's context stays light — commit the result. Findings it reports but does not fix become `agent-found` issues (unless `-nori`) and feed the auto-fix step below. Never pass `ultra`.
 
-Tell the user: "Implementation went smoothly — running deep review on the changes." (or "running review-loop" if `--review-loop` is active).
+Tell the user: "Implementation went smoothly — running deep review on the changes."
 
 #### Delegating Review Fixes to a Fresh Agent
 
-After the review produces findings that require code changes, **delegate the fixes to a fresh Agent** instead of fixing in the current (token-heavy) context. This resets the token budget so the finalization phase stays lightweight.
+**Default: don't delegate.** `/code-review --fix` already applied its findings in its own context window, so the manager never carried the review's token weight and there is no budget to reset. Commit what it applied, handle any leftover it flagged but didn't fix inline, and move on.
 
-**If the review found no actionable issues**, skip this — proceed directly to the next post-implementation step.
+Delegating is the exception, justified only when the leftover work is genuinely large — a multi-file refactor, or findings spanning subsystems this session hasn't loaded. That is the same bar `/deep-review -t` uses. If you're delegating three one-line fixes, you've turned a two-minute step into a worktree, an issue, and an agent spawn for nothing.
 
-**If fixes are needed:**
+**Skip entirely when**: the review found nothing actionable, or `--fix` already applied everything.
+
+**When the leftovers do clear that bar:**
 
 > **Local mode (`-lo`):** don't create a fix issue. Write the findings to `$LOCAL_DIR/fix-spec.md` and change the Agent prompt to "Read the fix spec at `$LOCAL_DIR/fix-spec.md`" instead of `gh issue view`. Skip the close-the-fix-issue steps. Everything else is identical.
 
@@ -786,14 +789,14 @@ After the review produces findings that require code changes, **delegate the fix
               Read GitHub issue #<FIX_ISSUE_NUM> with `gh issue view <FIX_ISSUE_NUM>`.
               Fix all issues described there.
               Commit fixes locally — do NOT push.
-              After committing, run `/light-review <forwarded reviewer flags>` as a self-check
+              After committing, self-review by reading your own diff (do NOT invoke a review skill)
               and address any high-priority findings it flags.
               When done, close the issue with a summary of what was fixed."
      mode: "bypassPermissions"
    ```
 
 - **Model**: set `model:` from the resolved team-member flag — `-t-op` → `"opus"`, `-t-so` → `"sonnet"`, default `"opus"`. This is the fix-delegation agent, not a reviewer — reviewer flags do NOT apply here.
-- **Reviewer flags forwarded to `/light-review`**: pass whichever of `-op` / `-so` / `-haiku` / `-co` were on the original invocation. If none were passed, omit them — `/light-review` falls to its own default (`-co`).
+- **The self-check is always a hand review of the agent's own diff** — `git diff <base>...HEAD`, one bugs/logic pass, one quality/structure pass — whatever tier the manager's own review step uses. A spawned agent must **not** invoke `/code-review`, `/deep-review`, or `/codex-review`: from a subagent those return a background handle instead of findings, `TaskOutput` isn't available to drain it, and the completion notification routes here rather than to the agent — so it parks forever with work committed but never reported.
 
 3. **Verify** — after the agent returns, confirm fixes were committed (`git log --oneline -5`)
 4. **Close the fix issue** if the agent didn't already
@@ -821,13 +824,15 @@ Do NOT run deep review if:
 >
 > Off web (Mac / WSL / local) `DEFER_MAC` is always false — run the normal step below.
 
-After the review step (whether `/deep-review` or `/review-loop`) is complete and fixes are committed:
+After the review step (`/code-review` or `/deep-review`) is complete and fixes are committed:
 
 1. **Launch a verification target** — start the project's dev server, use a PR preview URL, or any other means to get the implementation running in a browser
 2. **Invoke `/verify-ui`** to verify that frontend/CSS/layout changes were actually applied correctly
 3. If `/verify-ui` reveals issues, fix them and commit locally (do NOT push yet)
 
 This step ensures that visual/UI changes are not just code-correct but render correctly in the browser. Skip if the changes are purely backend or non-visual.
+
+Playwright work is serialized machine-wide by `$HOME/.claude/scripts/playwright-guard.sh` (automatic inside `/verify-ui` and `/headless-browser`). If a check fails with guard exit 75, another session holds the Playwright slot — wait and retry; never bypass the guard.
 
 ---
 
@@ -892,7 +897,7 @@ Write a markdown report summarizing:
 - What was implemented (feature/fix description)
 - Key decisions made during implementation
 - Files changed (summary, not full list)
-- Review findings and fixes applied (if `/deep-review` was run)
+- Review findings and fixes applied (if a review step ran)
 - CI status (pass/fail/skipped)
 - PR URL and status
 
@@ -1032,7 +1037,7 @@ gh label create "needs-decision" \
 For each fix branch (the tiny bundle, or one per non-trivial issue):
 
 1. `git checkout -b agent-fix/<slug> <TARGET_BRANCH>` and implement the fix(es). Commit locally.
-2. **Run `/light-review`** before merge — forward the active reviewer flags (`-op` / `-so` / `-haiku` / `-co`) so `-op` → opus-backed review. The tiny bundle is reviewed as a unit; per-issue fixes are reviewed individually. Address high-priority findings and commit.
+2. **Run `/code-review low --fix`** before merge. The tiny bundle is reviewed as a unit; per-issue fixes are reviewed individually. Address anything it flagged but did not apply, and commit.
 3. Push and open the fix PR (`gh pr create --base <TARGET_BRANCH> ...`), body linking the `agent-found` issue(s) it closes (e.g. `Closes #<n>`).
 4. **Verify the fix** (build / tests / the issue's described check, as appropriate).
 5. **On success: CLOSE the corresponding `agent-found` issue and link the fix PR:**
@@ -1059,7 +1064,7 @@ For each fix branch (the tiny bundle, or one per non-trivial issue):
 
 Fix PRs follow the **same auto-merge semantics as the main PR**:
 
-- **With `-m`**: after `/light-review` and verification, auto-merge each fix PR (e.g. `/pr-complete -c -w` per fix PR, or `gh pr merge --merge --delete-branch` once green) — same as the main PR's Merge Mode.
+- **With `-m`**: after `/code-review` and verification, auto-merge each fix PR (e.g. `/pr-complete -c -w` per fix PR, or `gh pr merge --merge --delete-branch` once green) — same as the main PR's Merge Mode.
 - **Without `-m`**: leave each fix PR as a ready (non-draft) PR for the user to merge, and still close the linked `agent-found` issue with the link once the fix is verified and the PR is up.
 
 Track the fix PRs and the closed issues in session state — pass the fix PRs to `/cleanup-resources` (role: `fix`) in the next step, and the closed `agent-found` issues will be left as-is by the audit.
@@ -1103,6 +1108,12 @@ Skill tool: skill="cleanup-resources", args="workflow:x-as-pr <-a if -m was pass
   - **`-fix` fix PRs** (if the auto-fix step created any) — role: `fix`, state from `gh pr view`. Merged → done; ready/open → KEEP (intentional, awaiting the user when `-m` was not passed).
 
 After `/cleanup-resources` returns its report, surface the closed/deleted/kept counts to the user. If the report has an "Ambiguous" section, list those resources verbatim and let the user decide before STOP.
+
+Then close out the orientation pointer, so a compaction after this point does not drag a fresh unrelated task back into this finished workflow:
+
+```bash
+node "$HOME/.claude/scripts/orientation.js" complete
+```
 
 **This step also resolves the long-standing local-branch leftover bug:** when `-m` was used and `/pr-complete --delete-branch` removed the remote, the old workflow left the local working branch behind, confusing the user. `/cleanup-resources` will propose deleting the dead local branch as part of its plan and the manager executes the safe `git branch -d` (which refuses if there are unmerged commits, so it's not destructive).
 

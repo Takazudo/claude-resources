@@ -1,69 +1,73 @@
-# Reviewer Backend Modes
+# Reviewer Modes
 
-Full substitution rules for `-co`, plus the combined-mode behavior with Claude reviewer model flags (`-op` / `-so` / `-haiku`). The skill body links here from Step 1 (planning), Step 5 (child self-review), and Step 9 (final quality assurance).
+Which reviewer runs at each review point, and how the flags select it. The skill body links here from Step 1 (planning), Step 5 (child self-review), and Step 9 (final quality assurance).
 
-All reviewer flags — both Claude model (`-op` / `-so` / `-haiku`) and the non-Claude backend (`-co`) — are reviewer-changers. They are **NOT mutually exclusive** with each other; passing multiple means run them all.
+## The two tiers
 
-These flags are orthogonal to team-member flags (`-t-op` / `-t-so`), which govern child agents and fix-delegation agents — not reviewers. See `references/arguments.md` for the two-family distinction.
+| Invocation | Reviewer | When |
+| --- | --- | --- |
+| no reviewer flag | `/code-review <effort> --fix` | **Default.** General review — the built-in reviewer, running in its own context window. |
+| `-co` / `--codex` | `/deep-review <effort>` | Deep pass: `/code-review` **plus** `/codex-review` for cross-model coverage. |
 
-## Codex Mode (`-co` / `--codex`)
+`-nor` / `--no-review` skips the review point entirely.
 
-| Default tool | Codex replacement | Used for |
-|---|---|---|
-| `/deep-review` | `/codex-review` | Step 9 quality assurance (manager review) |
-| `/review-loop N` | `/codex-review` (run once) | Review-loop mode review step |
-| `/light-review` in child agents (Step 5) | `/light-review -co` | Child agent self-review (routes to `/codex-review`) |
-| Agent tool (web search, research) | `/codex-research` | Web search or codebase research during planning/implementation |
-| Agent tool (doc writing) | `/codex-writer` | Writing README, doc comments, prose content |
+**Effort** — `low` | `medium` | `high` | `xhigh` | `max`, forwarded to whichever reviewer runs. Default `medium` — this is the light tier, and `/code-review` is meant to be fast. Low and medium report only high-confidence findings; high and above broaden coverage at the cost of some uncertain ones. Reach for `-co` rather than a higher effort when you want depth: codex is the deep reviewer.
 
-**Effect on workflow:**
+> **`ultra` is not a value any skill may pass.** It is a paid cloud review that only the user can start by typing `/code-review ultra`. If a change looks like it warrants one, recommend it in the final report.
 
-- **Step 5 (child agents)**: Children run `/light-review -co` for self-review. `/light-review` dispatches to `/codex-review` under the hood.
-- **Step 9 (quality assurance)**: Invoke `/codex-review` instead of `/deep-review` or `/review-loop`. If `-l` / `--review-loop` is also passed, still invoke `/codex-review` once (not multiple rounds — codex review is already thorough).
-- **Research during planning**: Prefer `/codex-research` over Agent tool / WebSearch.
-- **Documentation writing**: Prefer `/codex-writer`.
+## Where each review point lands
 
-**Silent Opus fallback** — every codex-backed skill (`/codex-review`, `/codex-2nd`, `/codex-research`, `/codex-writer`) silently falls back to a subagent at `model: opus` when codex is rate-limited or unavailable. No special handling needed at the dispatcher level — the fallback is invisible. The `-co` flag means "the better reviewer/tool"; Opus is the Claude-side stand-in when codex is down.
+- **Step 1 (planning 2nd opinion)** — `/codex-2nd`, unchanged. This reviews the *plan*, not code, and is a separate concern from the tiers above. It falls back silently to an Opus subagent when codex is down.
+- **Step 5 (child self-review)** — children review their own diff by hand, invoking no review skill. See "Child self-review" below; this is the one review point with a hard constraint on it.
+- **Step 9 (quality assurance)** — the manager runs whichever tier the flags selected, on the `base/<project-name>` branch.
 
-All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
+## Child self-review (Step 5) — foreground only
 
-## Combined Reviewer Mode (multiple reviewer flags)
+A child agent must never end its turn waiting on something it did not synchronously complete, because every completion notification in this harness routes to the **manager**, not to the child. A child that waits on one parks forever, with its work committed but never reported.
 
-All reviewer flags — Claude model (`-op` / `-so` / `-haiku`) and the non-Claude backend (`-co`) — combine freely. When the user passes more than one, run **all** selected reviewers. Multiple independent reviewers catch different classes of issues; combining them is an explicit quality-coverage choice.
+So at Step 5 **a child reviews its own diff by hand**: read `git diff <base>...HEAD`, make one bugs/logic pass and one quality/structure pass over the changed files, apply the clearly-useful fixes, and commit. No skill invocation, no subagent — a nested `Agent` call returns an async handle even with `run_in_background: false`, and its notification routes to the manager.
 
-**Rule: if multiple reviewer flags are passed, run them all — never pick one and drop the others.** Do not treat as redundant or "pick the best." The user is paying (in time, in quota) for multi-angle review on purpose.
+**Why not `/code-review` here, when it is the default reviewer everywhere else.** Measured, not assumed (see `references/execution-modes.md` for the full result): invoked from a plain subagent, `/code-review` returns an **async handle**, not findings — it backgrounds even there. And `TaskOutput`, the tool that would drain such a handle, **is not in a subagent's toolset at all**, so the child has no way to pull the result. A child's diff is one topic's worth of changes; reading it directly costs little and cannot park.
 
-### Which flag → which reviewer
+Managers keep using `/code-review` — they are the context it was built for.
 
-| Flag present | Reviewer invoked | 2nd-opinion invoked | Child self-review flag |
-|---|---|---|---|
-| `-op` / `-so` / `-haiku` | `/deep-review` (or `/review-loop`) at the chosen Claude model | `/codex-2nd` (default planning 2nd opinion still uses codex unless a backend flag overrides) | none — `/light-review` falls back to its own default |
-| `-co` | `/codex-review` | `/codex-2nd` | `-co` |
+Children never run `/deep-review` or `/codex-review`, regardless of the manager's flags. A deep cross-model pass is a manager-level concern at Step 9; running it per-child would multiply codex load by the number of live children for no added coverage.
 
-When **no reviewer flag** is passed at all, the default reviewer is `/codex-review` (`-co` is the house default — `/deep-review` invoked with no flags delegates to it). Single backend flag without any Claude model flag replaces the default — does NOT also run Claude reviewers.
+Canonical rule: `references/execution-modes.md` → "Invariant".
 
-To explicitly run BOTH Claude reviewer AND a backend reviewer, pass at least one Claude model flag together with the backend flag (e.g., `-op -co`).
+## Codex mode (`-co`) beyond review
 
-### How combinations apply per affected step
+`-co` also swings non-review work to codex, unchanged by this document's review changes:
 
-- **Step 5 (child self-review)**: Forward the active backend flag to `/light-review`. Example: `/light-review -co`. `/light-review` dispatches to the backend's reviewer (or falls back silently if it is unavailable).
-- **Step 9 (quality assurance)**: Invoke each selected reviewer **sequentially** on the same `base/<project-name>` branch. Collect findings from every run into a single combined fix issue before delegating fixes. Do not stop after the first reviewer — even if it reports "no issues," still run the others. If `-l` / `--review-loop` is also passed, each backend still runs once (no multi-round per backend).
-- **Planning 2nd opinion**: When multiple backend flags are active, invoke every matching `*-2nd` command in sequence and read all of their feedback before finalizing the plan. Silent fallbacks (rate limits, unavailable CLIs) are fine — do not block on them.
-- **Research and doc writing (`-co`)**: When `-co` is active, codex owns `/codex-research` and `/codex-writer` for research and docs.
+| Default | With `-co` | Used for |
+| --- | --- | --- |
+| Agent tool (web search, research) | `/codex-research` | Research during planning or implementation |
+| Agent tool (doc writing) | `/codex-writer` | READMEs, doc comments, prose |
 
-### Single-flag fallback
+Every codex-backed skill falls back silently to a Claude equivalent when codex is rate-limited or unavailable. Nothing at the dispatcher level needs to handle that — the fallback is invisible, and it never pauses the workflow or surfaces a quota error.
 
-If only `-co` is passed (no Claude model flag), behave exactly as the Codex Mode section above. Combined Reviewer Mode activates when a Claude model flag (`-op` / `-so` / `-haiku`) is passed together with `-co` — then both the Claude reviewer and codex run.
+## Removed: reviewer model flags
 
-## Review Findings to Fix — combined-mode template
+`-op` / `--opus`, `-so` / `--sonnet`, and `-haiku` / `--haiku` used to pick the model for a fleet of `code-reviewer` subagents. That fleet is gone, and there is nothing left for them to set: `/code-review` is a bundled skill, and **Claude Code ignores skill-level model overrides** — a skill that forks into a subagent resolves its model as `CLAUDE_CODE_SUBAGENT_MODEL` → per-invocation param → its own frontmatter → the main conversation's model.
 
-When creating the fix issue in Step 9, label findings by their source backend so the fix agent can weight them. Agreements (multiple backends flagging the same issue) are stronger signals; disagreements are judgment calls:
+So the reviewer runs on **the session model**. Change it with `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`, not with a flag here. **Effort** is the separate dial these flags are replaced by — it controls how much the reviewer reasons per step, not which model does it.
+
+These tokens are still **accepted and silently ignored** at this skill's reviewer layer, so older invocations and forwarded chains don't break. They are not reviewer flags any more; do not act on them. (`-t-op` / `-t-so` are a different family entirely — they set the *team member / fix agent* model and are still live. See `references/arguments.md`.)
+
+`-op` also keeps its own meaning inside `/big-plan`, where it selects `/opus-2nd` as a **plan** reviewer. That is unrelated to code review.
+
+## Review findings → fix issue
+
+When Step 9 produces findings to hand to a fix agent, group them by which reviewer raised them:
 
 ```markdown
 ## Review Findings to Fix
+
+### From /code-review
+- ...
 
 ### From /codex-review
 - ...
 ```
 
-This preserves the quality-coverage benefit of running multiple reviewers — the fix agent sees per-backend grouping rather than a flattened, homogenized list.
+A finding **both** reviewers raised independently is the strongest signal available — rank those first. Where they disagree, prefer the one citing specific code over the one reasoning abstractly. Flattening the list into one homogenized set throws that signal away.

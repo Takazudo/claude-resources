@@ -2,7 +2,7 @@
 
 How `/x-wt-teams` decides which Claude model each child should run. Read when the spawn step needs to set per-child model parameters or when a `-t-op` / `-t-so` flag is on the invocation.
 
-The reviewer model flags (`-op` / `-so` / `-haiku`) are a separate concern — they govern the Claude reviewer at Step 9, not child agents. See `references/arguments.md` for the two flag families.
+Reviewer selection (the effort level and `-co`) is a separate concern — it governs the Step 9 reviewer, not child agents. Note `-op` / `-so` / `-haiku` are no longer reviewer flags at all; only `-t-op` / `-t-so` set a model here. See `references/arguments.md` for the two flag families.
 
 ## Resolution order
 

@@ -1,0 +1,61 @@
+{
+  "name": "__PROJECT_NAME__",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.32.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "// ── Core ─────────────────────────────": "",
+    "dev": "zfb dev",
+    "build": "zfb build",
+    "preview": "zfb preview",
+
+    "// ── Quality ──────────────────────────": "",
+    "typecheck": "zfb check",
+    "lint": "eslint .",
+    "lint:tokens": "design-token-lint",
+    "test": "vitest run",
+    "test:worker": "vitest run --config vitest.worker.config.ts",
+    "test:e2e": "playwright test",
+    "b4push": "bash scripts/run-b4push.sh",
+
+    "// ── Format ───────────────────────────": "",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "format:md": "pnpm dlx @takazudo/mdx-formatter --write .",
+
+    "// ── Cloudflare ───────────────────────": "",
+    "cf:types": "wrangler types",
+    "cf:dry-run": "wrangler deploy --dry-run",
+    "db:migrate:local": "wrangler d1 migrations apply __PROJECT_NAME__ --local",
+
+    "// ── Lifecycle ────────────────────────": "",
+    "prepare": "lefthook install && bash scripts/install-git-hooks.sh",
+    "init-worktree": "bash scripts/install-git-hooks.sh"
+  },
+  "dependencies": {
+    "@takazudo/zfb": "latest",
+    "@takazudo/zfb-adapter-cloudflare": "latest",
+    "@takazudo/zfb-runtime": "latest",
+    "preact": "^10.29.1",
+    "preact-render-to-string": "^6.6.6",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "latest",
+    "@cloudflare/workers-types": "latest",
+    "@playwright/test": "latest",
+    "@takazudo/zudo-design-token-lint": "latest",
+    "@types/node": "^22.0.0",
+    "eslint": "latest",
+    "lefthook": "latest",
+    "prettier": "latest",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "latest",
+    "vitest": "latest",
+    "wrangler": "latest"
+  }
+}

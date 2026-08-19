@@ -136,7 +136,7 @@ When Tech Style involves exploring or documenting code:
 - **Tools and second opinions**: Use Read, Grep, and Glob to understand code
   structure, dependencies, and relationships. When a general programming or
   unfamiliar-framework question would sharpen the writing, reach for the active
-  second-opinion flow (`/codex-2nd`, `/codex-review`, `/opus-2nd`)
+  second-opinion flow (`/codex-2nd`, `/opus-2nd`)
 - **Evidence-Based Writing**: Ground all technical claims in actual code
   examination
 - **Architectural Awareness**: Understand and respect existing design decisions

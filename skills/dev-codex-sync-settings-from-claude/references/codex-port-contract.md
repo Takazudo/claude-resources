@@ -31,15 +31,15 @@ Never tell the user to open worktrees or start child sessions by hand.
 
 Keep the user's Claude flag spellings so habits transfer. Include only the flags a given skill actually uses:
 
-`-a`/`--auto`, `-m`/`--merge`, `-po`/`--plan-only`, `-lo`/`--local`, `-l`/`--review-loop`, `-v`/`--verify-ui`, `-nf`/`--no-fix`, `-nori`/`--no-raise-issues`, `-f`/`--fix`, `-ri`/`--raise-issues`, `-s`/`--stay`, `--no-issue`, `--make-issue`/`--issue`.
+`-a`/`--auto`, `-m`/`--merge`, `-po`/`--plan-only`, `-lo`/`--local`, `-v`/`--verify-ui`, `-nf`/`--no-fix`, `-nori`/`--no-raise-issues`, `-f`/`--fix`, `-ri`/`--raise-issues`, `-s`/`--stay`, `--no-issue`, `--make-issue`/`--issue`.
 
-`-a` and `-m` are orthogonal (full hands-off = `-a -m`). `-lo` (local) is distinct from `-l` (review-loop) — never conflate the short tokens.
+`-a` and `-m` are orthogonal (full hands-off = `-a -m`).
 
 ## Canonical Codex skill names
 
 Use these exact names in every "Related Skills" / routing section:
 
-`big-plan`, `cleanup-resources`, `x`, `x-as-pr`, `x-wt-teams` (canonical), `x-wt-team` (alias), `deep-review` (alias → codex-review), `review-loop`, `verify-ui` (external — from `Takazudo/zudo-test-wisdom`, not a `$HOME/.claude` port; reference only where installed), `watch-ci`, `pr-revise`, `gh-fetch-issue`, `codex-2nd`, `codex-review`, `codex-research`, `codex-writer`.
+`big-plan`, `cleanup-resources`, `x`, `x-as-pr`, `x-wt-teams` (canonical), `x-wt-team` (alias), `deep-review` (= `/code-review` + `/codex-review`), `verify-ui` (external — from `Takazudo/zudo-test-wisdom`, not a `$HOME/.claude` port; reference only where installed), `watch-ci`, `pr-revise`, `gh-fetch-issue`, `codex-2nd`, `codex-review`, `codex-research`, `codex-writer`.
 
 End every "Related Skills" list with: "If one of these related skills does not exist on the Codex side yet, keep going with the equivalent behavior directly in the current session instead of blocking."
 

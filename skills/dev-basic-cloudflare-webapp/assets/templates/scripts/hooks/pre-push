@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Worktree push guard. CI runs on every push, so a child agent pushing from a
+# worktree pre-empts the manager's merge-and-review step and multiplies CI cost
+# across intermediate state. Only the manager session, at the repo root, pushes.
+#
+# Emergency bypass (human use only): ALLOW_WORKTREE_PUSH=1 git push ...
+
+if [ "${ALLOW_WORKTREE_PUSH:-}" = "1" ]; then
+  echo "pre-push: worktree guard bypassed (ALLOW_WORKTREE_PUSH=1)"
+  exit 0
+fi
+
+COMMON_DIR="$(git rev-parse --git-common-dir)"
+GIT_DIR="$(git rev-parse --git-dir)"
+
+if [ "$COMMON_DIR" != "$GIT_DIR" ]; then
+  echo "pre-push: BLOCKED — pushing from a git worktree is not allowed." >&2
+  echo "  Merge this branch into the base branch from the main checkout and push there." >&2
+  echo "  Human override: ALLOW_WORKTREE_PUSH=1 git push ..." >&2
+  exit 1
+fi

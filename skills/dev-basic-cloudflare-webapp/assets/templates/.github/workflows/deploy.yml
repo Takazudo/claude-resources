@@ -1,0 +1,229 @@
+# Cloudflare Workers Static Assets deploy.
+#
+#   deploy  — push to main: `wrangler deploy` (uploads the Worker AND attaches
+#             the custom domain from wrangler.toml), then a live smoke test.
+#   preview — pull requests: `wrangler versions upload --preview-alias pr-<N>`,
+#             which does NOT touch routes or live traffic, so concurrent PRs get
+#             independent URLs and never publish to the custom domain.
+#
+# Both jobs SELF-SKIP when secrets.CLOUDFLARE_API_TOKEN is unset, so a fresh
+# repo (and any fork PR, which never receives secrets) stays green. Correctness
+# is proved by ci.yml, which needs no credentials.
+#
+# Enable deploys in Settings -> Secrets and variables -> Actions:
+#   CLOUDFLARE_API_TOKEN   Account - Workers Scripts: Edit
+#                          Account - Account Settings: Read
+#                          Zone   - Workers Routes: Edit  (custom domain)
+#                          plus one row per binding used (KV / D1 / R2)
+#   CLOUDFLARE_ACCOUNT_ID  target Cloudflare account id
+# See docs/cloudflare-setup.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  # Cancel superseded PR runs, but never interrupt a production deploy midway.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Workers
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Preflight — is Cloudflare configured?
+        id: preflight
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN is not set — skipping deploy. Add it and CLOUDFLARE_ACCOUNT_ID in repo Settings to enable deploys."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Idempotent: wrangler tracks applied files in the d1_migrations table, so
+      # a re-run applies only new ones. Delete if the project has no D1.
+      - name: Apply D1 migrations (remote)
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler d1 migrations apply __PROJECT_NAME__ --remote
+
+      # `--env=""` explicitly selects the top-level (production) config. Because
+      # a named environment exists, a bare `wrangler deploy` warns about an
+      # unspecified environment.
+      - name: Deploy
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --env=""
+
+      # Only an over-the-wire request proves the custom domain is attached and
+      # serving; the deploy step succeeds even when the domain is not reachable.
+      # Set SMOKE_REQUIRE_LIVE once the domain is confirmed live, so a host that
+      # stops resolving goes red instead of emitting a ::notice:: nobody reads.
+      - name: Smoke test the live site
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          SMOKE_REQUIRE_LIVE: "1"
+        run: node scripts/smoke.mjs
+
+  preview:
+    name: Preview deploy
+    # Fork PRs never receive repository secrets, so a preview could only fail
+    # there. Skip the job outright rather than letting it run and self-skip.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Preflight — is Cloudflare configured?
+        id: preflight
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN is not set — skipping preview."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply D1 migrations to the preview database
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler d1 migrations apply __PROJECT_NAME__-preview --env preview --remote
+
+      # A version PREVIEW URL requires previews_enabled on the Worker's
+      # subdomain, which `workers_dev = true` does NOT set. Without it
+      # `versions upload` skips computing the URL entirely and the sticky
+      # comment stays "pending" forever. Error 10056 = already configured.
+      # Tolerant: on a brand-new preview Worker the script does not exist yet
+      # and this 404s harmlessly until a first upload creates it.
+      - name: Enable preview URLs on the preview Worker
+        if: steps.preflight.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          RESPONSE=$(curl -sS -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/__PROJECT_NAME__-preview/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"enabled":true,"previews_enabled":true}')
+          echo "$RESPONSE"
+          CODE=$(echo "$RESPONSE" | node -e "const j=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log((j.errors||[]).map(e=>e.code).join(','))")
+          if [ -n "$CODE" ] && [ "$CODE" != "10056" ]; then
+            echo "Unexpected error code(s): $CODE" >&2
+            exit 1
+          fi
+
+      - name: Upload PR preview version
+        id: preview
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -o pipefail
+          SLUG="pr-${PR_NUMBER}"
+          LOG=$(mktemp)
+          pnpm exec wrangler versions upload --env preview \
+            --preview-alias "$SLUG" \
+            --message "PR #${PR_NUMBER} @ ${GITHUB_SHA:0:7}" 2>&1 | tee "$LOG"
+          # Match the alias-prefixed host, not the per-version hash URL, so the
+          # comment points at the predictable address. `|| true` because grep
+          # exits 1 with no match, which would fail the step under pipefail.
+          URL=$(grep -oE "https://${SLUG}-[a-z0-9.-]+\.workers\.dev" "$LOG" | head -1 || true)
+          if [ -z "$URL" ]; then
+            echo "::error::Failed to parse the alias preview URL for slug '$SLUG'"
+            exit 1
+          fi
+          echo "preview_url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Upsert sticky preview comment
+        if: steps.preview.outputs.preview_url != ''
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.preview_url }}
+        with:
+          # Passed explicitly: implicit detection can 401 on SHA-pinned runs.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- cf-preview-pr -->';
+            const body = `${marker}\n### Cloudflare Workers preview\n\n${process.env.PREVIEW_URL}\n\n_Updated for commit \`${context.sha.substring(0, 7)}\`._`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, body,
+              });
+            }

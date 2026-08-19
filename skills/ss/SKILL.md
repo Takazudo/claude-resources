@@ -1,8 +1,8 @@
 ---
 name: ss
-description: "Load screenshot images or other files from Dropbox screenshots directory. Use when user invokes /ss directly. NEVER manually list/read files from the screenshots dir — this skill handles Dropbox sync delays, freshness checks, retry logic that manual reads miss. Supports: /ss 2 (latest 2), /ss latest3, /ss filename.png (exact/substring), /ss full-path. Also non-image files (e.g., /ss pattern-4-variations.html)."
+description: "Load screenshot images or other files from Dropbox screenshots directory. Use when user invokes /ss directly. NEVER manually list/read files from the screenshots dir — this skill handles Dropbox sync delays, freshness checks, retry logic that manual reads miss. Supports: /ss 2 (latest 2), /ss latest3, /ss filename.png (exact/substring), /ss full-path, /ss a.png b.png (multiple files). Also non-image files (e.g., /ss pattern-4-variations.html)."
 disable-model-invocation: false
-argument-hint: "[N | latestN | filename]"
+argument-hint: "[N | latestN | filename | file1 file2 ...]"
 allowed-tools: Read, Bash(ls *), Bash(find *), Bash(for *), Bash(stat *), Bash(sleep *)
 ---
 
@@ -34,9 +34,42 @@ Use this as a cutoff for "Latest N" mode — only consider image files whose mod
 | Non-image filename (`.html`, `.txt`, etc.) | Read a non-image file from screenshots dir | `/ss pattern-4-variations.html` |
 | Other string (exact) | Exact filename in screenshots dir | `/ss Screenshot 2026-03-14 at 3.27.17.png` |
 | Other string (partial) | Substring search in filenames | `/ss foo-bar-moo.png` |
+| **Multiple filenames** | Load every named file (see below) | `/ss a.png b.png c.html` |
 | (empty) | Latest 1 image | `/ss` |
 
 **Default:** When `$ARGUMENTS` is empty or blank, treat it as `1` (load the latest single screenshot). This is the most common use case.
+
+## Multi-file detection
+
+Filenames can themselves contain spaces (`Screenshot 2026-03-14 at 3.27.17.png`), so a plain "split on whitespace" is wrong. Decide single vs. multiple with this algorithm, in order:
+
+1. **Whole-string exact match wins.** If `$DROPBOX_SCREENSHOTS_DIR/$ARGUMENTS` exists as a file (or `$ARGUMENTS` is an existing absolute path), it is ONE file. Stop — never split it.
+2. **Latest-N forms are never multi.** A bare number or `latestN` stays in Latest N mode.
+3. **Group by extension boundary.** Split `$ARGUMENTS` on whitespace, then walk the tokens left to right, accumulating them into the current group. When a token ends with a known file extension (`.png .jpg .jpeg .gif .webp .tiff .html .txt .json .css .js .svg .md`, case-insensitive), close the current group and start a new one.
+- Tokens left over at the end (a trailing run with no extension) mean the split is unreliable — discard the grouping and treat `$ARGUMENTS` as a single filename.
+- If exactly **one** group results → single-file mode (existing behavior).
+- If **two or more** groups result → multi-file mode: each group is one filename.
+4. **Quotes are explicit separators.** If the user quoted arguments (`/ss 'a b.png' 'c d.png'`), respect the quoting and treat each quoted string as one filename regardless of extensions.
+5. **Commas also separate.** If `$ARGUMENTS` contains commas between filename-looking chunks (`/ss a.png, b.png`), split on commas and trim.
+
+Worked examples:
+
+| Input | Result |
+| --- | --- |
+| `foo.png bar.png` | 2 files: `foo.png`, `bar.png` |
+| `Screenshot 2026-03-14 at 3.27.17.png` | 1 file (only one extension token) |
+| `Screenshot 2026-03-14 at 3.27.17.png other.png` | 2 files: `Screenshot 2026-03-14 at 3.27.17.png`, `other.png` |
+| `a.png b.png c.html` | 3 files, the last read as text |
+| `foo-bar-moo` | 1 file (no extension token → whole string) |
+| `2` | Latest 2 images (not multi) |
+
+## Multi-file mode
+
+Resolve **each** filename independently using the existing single-file rules — exact match first, then substring search (with plural/singular variants), then the retry loop for Dropbox sync. Non-image entries are read as text; image entries are read visually.
+
+- Resolve all entries before presenting, so the user sees one combined result.
+- If some entries resolve and others do not, present the ones that resolved and list the unresolved names explicitly. Never silently drop a name the user typed.
+- Preserve the order the user typed the filenames in when presenting.
 
 **Non-image files:** When the argument has a non-image extension (e.g., `.html`, `.txt`, `.json`, `.css`, `.js`, `.svg`, `.md`), look for that file in `$DROPBOX_SCREENSHOTS_DIR` and read it as a text file using the Read tool. This is for when the user shares files (not just screenshots) via the Dropbox screenshots directory.
 
@@ -139,6 +172,17 @@ If the file is not found (specific filename mode) or the freshness check fails (
 4. If the file appears or freshness check passes during polling, proceed normally
 5. If timeout is reached, report that the file was not found (or that only older files were found) and ask the user to confirm
 
+For **multi-file mode**, run one shared retry loop that checks all still-missing targets each round, and break as soon as every target exists — do not run a full 2-minute loop per file in sequence.
+
+```bash
+# Multi-file mode: TARGETS is a newline-separated list of resolved paths
+for i in $(seq 1 24); do
+  MISSING=$(printf '%s\n' "$TARGETS" | while IFS= read -r t; do [ -f "$t" ] || echo "$t"; done)
+  [ -z "$MISSING" ] && break
+  sleep 5
+done
+```
+
 ```bash
 # Specific filename mode
 for i in $(seq 1 24); do
@@ -169,7 +213,7 @@ done
 
 ## Present the files
 
-Use the Read tool to read each file. The Read tool supports reading image files (PNG, JPG, etc.) visually, and text files as content.
+Use the Read tool to read each file. The Read tool supports reading image files (PNG, JPG, etc.) visually, and text files as content. In multi-file mode, read every resolved file — one Read per file — before responding.
 
 After reading, briefly acknowledge which file(s) were loaded (filename only, not full path) and ask what the user would like to do with them.
 

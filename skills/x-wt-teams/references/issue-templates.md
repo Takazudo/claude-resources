@@ -30,7 +30,7 @@ ISSUE_URL=$(gh issue create \
 - [ ] Step 6: Review and merge topic PRs
 - [ ] Step 7: Shut down child agents
 - [ ] Step 8: Sync local base branch
-- [ ] Step 9: Quality assurance (deep review or review-loop)
+- [ ] Step 9: Quality assurance (code review, or deep review with -co)
 - [ ] Step 10: Verify UI (if --verify-ui)
 - [ ] Step 11: Push all changes to remote
 - [ ] Step 12: CI watch (verify CI passes)

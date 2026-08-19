@@ -79,8 +79,8 @@ points environment-aware — never a full fork.
 
 These skills carry a web-mode banner pointing at the contract — the full core
 workflow chain:
-`/big-plan`, `/x`, `/x-as-pr`, `/x-wt-teams`, `/light-review`, `/deep-review`,
-`/review-loop`, `/pr-complete`, `/watch-ci`, `/cleanup-resources`.
+`/big-plan`, `/x`, `/x-as-pr`, `/x-wt-teams`, `/deep-review`,
+`/pr-complete`, `/watch-ci`, `/cleanup-resources`.
 `settings.web.json` also disables the `codex-review` backend
 and omits the agent-teams env flag.
 

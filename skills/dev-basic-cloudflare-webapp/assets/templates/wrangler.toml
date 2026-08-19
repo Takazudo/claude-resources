@@ -1,0 +1,120 @@
+# Cloudflare Workers Static Assets configuration for __PROJECT_NAME__.
+#
+# One config, one `wrangler deploy`. `main` is the SSR Worker (the zfb
+# Cloudflare adapter emits it at dist/_worker.js); [assets] serves the static
+# build alongside it. Delete the binding blocks this project does not use.
+
+name = "__PROJECT_NAME__"
+main = "./dist/_worker.js"
+
+compatibility_date = "2026-05-01"
+# Required whenever the bundle imports node:async_hooks (the zfb CF adapter
+# threads `env` into SSR routes via AsyncLocalStorage) or node:crypto.
+compatibility_flags = ["nodejs_compat"]
+
+# These MUST stay above the first table header. In TOML any key written after a
+# table header belongs to that table, so placed lower they would be parsed as
+# [assets] fields — wrangler warns "Unexpected fields found in assets field"
+# and then silently ignores them.
+#
+# workers_dev = is the Worker served on *.workers.dev.
+# preview_urls = are per-version preview URLs generated. These are SEPARATE
+# toggles, and preview_urls defaults to *match* workers_dev — set both
+# explicitly, or flipping workers_dev off some day silently kills every PR
+# preview URL too.
+workers_dev = true
+preview_urls = true
+
+[observability]
+enabled = true
+
+# ---------------------------------------------------------------------------
+# Static asset serving.
+#
+# not_found_handling = "404-page" serves dist/404.html for unmatched GETs. It
+# applies to GET/HEAD only, so POST /api/... still reaches the Worker; a
+# deliberate API 404 should answer application/json so it is not mistaken for
+# the styled page.
+#
+# run_worker_first = false consults the asset layer first and only invokes the
+# Worker on a miss. Set it to true (or a glob array) when the Worker must
+# authorize before any public file can be served — e.g. a password gate.
+#
+# The adapter writes dist/.assetsignore (hiding _worker.js and _zfb_inner.mjs
+# from the public asset directory) at build time. It is generated, not committed.
+# ---------------------------------------------------------------------------
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "404-page"
+run_worker_first = false
+
+# ---------------------------------------------------------------------------
+# Production custom domain. custom_domain = true makes wrangler provision the
+# DNS record and TLS certificate on `wrangler deploy`.
+#
+# Preconditions: __DOMAIN__ is a zone on the SAME account as
+# CLOUDFLARE_ACCOUNT_ID, the hostname has no pre-existing CNAME, and the API
+# token carries Zone - Workers Routes - Edit. Without that permission the
+# Worker uploads fine and then the route step fails.
+#
+# This is a TOP-LEVEL table and must stay ABOVE [env.*].
+# ---------------------------------------------------------------------------
+[[routes]]
+pattern = "__PROJECT_NAME__.__DOMAIN__"
+custom_domain = true
+
+# ---------------------------------------------------------------------------
+# Bindings. Delete what this project does not use. Create the resources with
+# the commented command and paste the returned id — the deploy job reads the
+# COMMITTED file, not your working copy.
+# ---------------------------------------------------------------------------
+
+# wrangler d1 create __PROJECT_NAME__
+[[d1_databases]]
+binding = "DB"
+database_name = "__PROJECT_NAME__"
+database_id = "REPLACE_ME"
+
+# wrangler kv namespace create CACHE
+[[kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_ME"
+
+# wrangler r2 bucket create __PROJECT_NAME__-blobs
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "__PROJECT_NAME__-blobs"
+
+# Durable Objects. [[migrations]] is APPEND-ONLY — never edit a shipped tag;
+# add a new one. Renaming the class is a storage migration.
+# [[durable_objects.bindings]]
+# name = "ROOM"
+# class_name = "Room"
+#
+# [[migrations]]
+# tag = "v1"
+# new_sqlite_classes = ["Room"]
+
+# Non-secret config only — this file is committed and public. Runtime secrets
+# go through `wrangler secret put NAME`, never here.
+[vars]
+SITE_URL = "https://__PROJECT_NAME__.__DOMAIN__"
+
+# ---------------------------------------------------------------------------
+# Preview environment. A named environment deploys as a SEPARATE Worker
+# (__PROJECT_NAME__-preview), so a PR never touches production or its data.
+# ---------------------------------------------------------------------------
+[env.preview]
+# `routes` IS inherited. Left implicit, the preview Worker would try to claim
+# the production custom domain above. An explicit empty list overrides it;
+# previews stay on their generated *.workers.dev URLs.
+routes = []
+
+# Bindings are NOT inherited — repeat every one here, pointing at the
+# environment's own resource. Forgetting this is how a PR preview ends up
+# writing to production data.
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "__PROJECT_NAME__-preview"
+database_id = "REPLACE_ME"

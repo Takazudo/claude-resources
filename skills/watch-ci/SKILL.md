@@ -20,6 +20,37 @@ The polling itself is a pure shell loop (`gh` CLI + `jq`) launched via `Bash` wi
 
 All scripts default to a 60-minute cap and a 30-second poll interval.
 
+### False-pass guards — do NOT "simplify" these away
+
+A green report from this skill is often what authorizes a merge, so a false pass is the
+expensive failure mode. Both poll scripts carry three guards, added after a real incident
+where a PR was reported **"All CI passed" while its actual workflow had not started**:
+
+1. **A skipped check is not a passing check.** The original arithmetic was
+   `passed = total - pending - failed`, which folded skips into the pass count. A single
+   third-party `skipping` check therefore read as "1/1 ok". Both scripts now count the
+   `pass` / `success` state explicitly and report skips as their own number.
+2. **Checks that GitHub has not registered yet are invisible.** `gh pr checks` lists only
+   registered checks, so a queued workflow (or one waiting on a concurrency group) does not
+   appear at all — leaving one unrelated check to stand in for the whole PR.
+   `poll-pr-checks.sh` therefore cross-checks `gh run list` for the head SHA and refuses to
+   conclude while any run for that commit is not `completed`. Related: the server-side
+   `gh run list --commit <sha>` filter has been observed to **omit queued runs** that
+   `--branch` returns, so both scripts list by branch and match the SHA in `jq`.
+3. **A terminal-looking state must hold for 2 consecutive polls** before it is believed,
+   since both the check list and the run list lag a push by seconds.
+
+**Exit codes:** `0` passed · `1` failed · `2` timeout · **`3` inconclusive** · `64` bad args.
+
+**Exit 3 (`RESULT: INCONCLUSIVE`)** means checks reached a terminal state but *nothing
+produced a result* — only skips, or no real checks. That is legitimate for a fully
+path-filtered PR, but it is **not** a pass and must never be reported as one: the caller
+decides what it means. Treat it the same as a red result for any merge decision.
+
+**When reporting a pass to the user, sanity-check the job count.** If a repo normally runs
+N workflows and the result names fewer, say so rather than reporting green — that mismatch
+is exactly how the original bug surfaced.
+
 ## Workflow
 
 ### Step 1: Identify the PR
@@ -50,7 +81,10 @@ gh pr checks <PR_NUMBER> --json name,state,bucket,workflow
 
 Report to the user: PR number/title, total checks, current status breakdown (passed/pending/failed).
 
-If all checks already passed or failed, skip to Step 4 or Step 5 respectively. Otherwise proceed to **Step 3**.
+If checks have already **failed**, skip to Step 5. If they *look* all-green, go to Step 4 — but
+read its two confirmations first: an initial snapshot cannot distinguish "everything passed"
+from "the real workflow has not registered yet", and taking the fast path on that snapshot is
+the documented false-pass bug. Otherwise proceed to **Step 3**.
 
 ### Step 2b: Merged PR — Switch to Target Branch CI
 
@@ -101,7 +135,27 @@ When the background task completes you'll be notified automatically. Read its ou
 
 ### Step 4: All Checks Passed (Foreground Fast Path)
 
-If checks already passed at Step 2/2b (no polling needed):
+**This fast path is where the false-pass bug bites hardest**, because it skips the polling
+loop that carries the guards. An initial `gh pr checks` snapshot showing "everything green"
+is exactly what an un-started workflow looks like. So before taking it:
+
+1. **Confirm nothing is still queued for the head commit** — a run that is `queued` /
+   `in_progress` means CI has not finished, whatever the check list says:
+
+   ```bash
+   SHA=$(gh pr view <PR_NUMBER> --json headRefOid -q .headRefOid)
+   BR=$(gh pr view <PR_NUMBER> --json headRefName -q .headRefName)
+   gh run list --branch "$BR" --limit 40 --json headSha,name,status,conclusion \
+     | jq --arg sha "$SHA" '[.[] | select(.headSha == $sha)]'
+   ```
+
+2. **Confirm at least one check actually passed** — not merely "none failed". A list of
+   only `skipping` buckets is `RESULT: INCONCLUSIVE`, not a pass.
+
+If either confirmation fails, **do not use this fast path** — fall through to Step 3 and let
+the poll script settle it.
+
+Once both hold:
 
 1. Send notification:
 
@@ -109,7 +163,7 @@ If checks already passed at Step 2/2b (no polling needed):
    bash $HOME/.claude/skills/watch-ci/scripts/notify.sh success "All CI checks passed! PR #<number>"
    ```
 
-2. Report the final status summary.
+2. Report the final status summary, naming the jobs that passed and any that were skipped.
 
 ### Step 5: CI Check Failed (Foreground Fast Path)
 
@@ -140,3 +194,11 @@ If checks already failed at Step 2/2b:
 - Default cap 60 minutes; override with the optional `[max-min]` arg to either script
 - For merged PRs, watches workflow runs on the target branch filtered by merge commit SHA
 - The script's stdout (progress lines + final `RESULT:` line) is captured by the background task — read the output file when you get the completion notification
+- Each progress line reports `pass / fail / skip / pending` separately rather than a single
+  `N/M ok` ratio, so a run carrying skipped checks is legible at a glance instead of being
+  rounded up into the pass count
+- **`RESULT: PASSED` is the only line that authorizes a merge.** `RESULT: INCONCLUSIVE`
+  (exit 3) means nothing actually ran — treat it as not-green and investigate
+- On web, where these `gh` scripts can't run, the MCP polling that replaces them needs the
+  same three guards — skips aren't passes, queued runs block the verdict, and let the state
+  settle before believing it

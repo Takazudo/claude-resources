@@ -42,6 +42,20 @@ After the Agent call returns, the subagent is automatically torn down. Do not re
 
 **Applies to all browser tooling**: `/verify-ui`, `/headless-browser`, any Playwright MCP, any Chrome DevTools MCP, and any future tool that launches a real browser. When in doubt, route through the isolated subagent.
 
+### Cross-session serialization — the machine-wide Playwright guard
+
+The one-subagent-at-a-time rule above only serializes browser work **within this run**. A second concurrent Claude Code session (another `/x-wt-teams`, `/x-as-pr`, or a plain interactive session) knows nothing about it — two sessions launching Playwright-heavy work simultaneously thrash the machine. That gap is closed by `$HOME/.claude/scripts/playwright-guard.sh`, a machine-wide slot semaphore (same pattern as `codex-guard.sh`, default **1 slot** = strict global queue):
+
+- `/headless-browser`'s `headless-check.js` and `/verify-ui`'s `verify-styles.mjs` acquire it **automatically** (they re-exec themselves under the guard) — the isolated browser subagent needs no extra steps for those.
+- Any other Playwright launch (e2e suites, `playwright test`, Playwright CLI) must be wrapped explicitly:
+
+  ```bash
+  bash $HOME/.claude/scripts/playwright-guard.sh --wait 300 -- npx playwright test
+  ```
+
+- **Guard timeout (exit 75) is contention, not a bug**: another session holds the Playwright slot. Wait and retry, or report it — NEVER bypass the guard by running the browser tool unguarded, and never treat exit 75 as a failed verification.
+- The per-run rule stays load-bearing: the guard queues sessions machine-wide, but the token-balloon argument for one-subagent-at-a-time is unchanged.
+
 ## Port-Based Servers & Heavy Local Tests
 
 Parallel child worktrees can fight over the same port (multiple `pnpm dev` on :3000) or thrash the CPU (heavy integration suites running concurrently). Two rules prevent this.

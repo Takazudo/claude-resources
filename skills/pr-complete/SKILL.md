@@ -1,6 +1,6 @@
 ---
 name: pr-complete
-description: "Complete a pull request by monitoring CI checks and merging when ready. Use when: (1) User says 'complete pr', 'merge pr', or 'finish pr', (2) PR is reviewed and ready but CI may still be running, (3) User wants to wait for CI and auto-merge."
+description: "Land the current work and merge it: self-heals the branch state (commits and pushes uncommitted work via /commits push, pushes a new branch, opens the PR via /pr if none exists), then monitors CI checks and merges when ready. Use when: (1) User says 'complete pr', 'merge pr', or 'finish pr', (2) PR is reviewed and ready but CI may still be running, (3) User wants to wait for CI and auto-merge, (4) User wants their current branch committed, PR'd, and merged in one go. Missing PR, missing upstream, uncommitted changes, and a missing linked issue for -c are all normal states to fix silently — never preconditions to stop and report."
 argument-hint: "[-c/--close] [-k/--keep-issue] [-w/--watch-ci] [-now/--no-wait]"
 ---
 
@@ -10,15 +10,31 @@ This PR is checked, reviewed, and no other tasks are left. Complete the followin
 
 > **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). Check CI, merge the PR, and close the linked issue via the GitHub MCP (`pull_request_read` / `get_check_runs`, `merge_pull_request`, `issue_write`), not `gh`. **CI-watch + merge run in-turn on web — see web-mode.md §8:** web has no background-task wakeup, so do **NOT** "watch CI in the background" and end the turn (Step 1.4's background path and "do NOT block the conversation with polling" are terminal-only). Instead poll the PR's checks via MCP in a loop and merge in the **same run** the moment they're green — under `-m`/`-c` the merge is already authorized; never end the turn at "CI running, I'll check back." **Branch deletion — see web-mode.md §5:** when the PR's head is the `claude/*` session branch (the common web case — head=`$WEB_BASE`, base=`$WEB_PARENT`), merge via MCP `merge_pull_request` **WITHOUT any branch-delete** (no `delete_branch:true`). The web platform owns the session branch — never delete it. Deleting a `claude/agent-fix-*` fix branch is fine; deleting the session branch is not. Translate the `--delete-branch` in Step 1 / `--no-wait` accordingly: on web, drop the delete for the session branch.
 
-## Step 0: Pre-flight — check for uncommitted changes
+## Step 0: Pre-flight — get to a pushed PR, then continue
 
-Before anything else, run `git status` and `git diff --stat` to check for unstaged or staged-but-uncommitted changes.
+`/pr-complete` means **"take my current work, land it, and merge it."** The user does not always invoke it from a tidy state — often there is no PR yet, no upstream, or uncommitted work sitting in the tree. **These are normal, not errors.** Bring the branch up to a mergeable PR yourself and keep going. Do NOT stop and ask the user to run `/commits push` or `/pr` first, and do NOT narrate a list of preconditions before starting — just fix the state and proceed.
 
-- **If the working tree is clean** → skip to step 1.
-- **If there are uncommitted changes:**
-  - Look at what changed. In most cases, the user simply forgot to commit before invoking `/pr-complete`.
-  - **If it's clearly work that belongs in this PR** (source code, config, docs related to the current branch's topic) → invoke `/commits push` to commit and push automatically, then continue to step 1.
-  - **If it's ambiguous** (unrelated files, experimental changes, files you're unsure about) → tell the user: "There are uncommitted changes. Please run `/commits push` first, then re-invoke `/pr-complete`." and **stop here**.
+Gather the state in one pass:
+
+```bash
+git status --porcelain
+git branch --show-current
+git rev-parse --abbrev-ref @{upstream} 2>/dev/null || echo "NO_UPSTREAM"
+gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
+```
+
+Then heal in this order:
+
+1. **Uncommitted changes** (`git status --porcelain` non-empty) → invoke `/commits push`. This commits and pushes, and creates the upstream for a new branch. Only stop to ask if the changes are genuinely ambiguous (clearly unrelated files, experimental leftovers) — work that matches the branch topic is committed without asking.
+2. **No upstream** and nothing left to commit → `git push -u origin $(git branch --show-current)`.
+3. **No PR for this branch** → invoke `/pr`, which auto-detects the base branch. Take the PR number from its result.
+4. **PR exists but is a draft** → mark it ready: `gh pr ready <number>`.
+
+Then continue to step 1 with the PR that now exists.
+
+**The one case that must stop:** the current branch is the repo default (`main`/`master`). There is nothing to open a PR from, so healing is impossible. Say so in one line and stop.
+
+**Reporting:** mention healing steps only as part of the final result ("committed and pushed 2 files, opened PR #41, merged"). Do not preface the run with a warning about what is missing.
 
 ## Step 1: Check PR status
 
@@ -63,6 +79,9 @@ If `--close` or `-c` is passed, after the PR is successfully merged:
 1. Find the parent issue linked to this PR
 - Check PR body for "Closes #N", "Fixes #N", "Resolves #N" patterns
 - Also check `gh pr view --json closingIssuesReferences`
+
+**If no linked issue is found, `-c` is a no-op.** Merge as normal and add at most `no issue to close` to the final report. Do NOT explain what `-c` stands for, do NOT list it as a problem, and above all do NOT raise it *before* doing the work — a missing issue never blocks or delays the merge. This is a normal outcome, not a warning.
+
 2. If a linked issue is found and the PR was merged successfully:
 - Check if it is an **epic issue** (one that holds sub-issues):
 

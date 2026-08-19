@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.zfb/
+.zfb-build/
+.wrangler/
+worktrees/
+test-results/
+playwright-report/
+pnpm-lock.yaml

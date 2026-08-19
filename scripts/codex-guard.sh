@@ -34,11 +34,18 @@
 #   collapse to zero capacity. With the fd closed for the command (and thus for its
 #   detached descendants), the slot frees the moment the wrapped command itself exits.
 #
+# Lock backend — flock(1), or a perl shim on stock macOS
+#   flock(1) is used when present (Linux, `brew install flock` on Mac). Stock macOS
+#   ships NO flock binary, so the guard falls back to /usr/bin/perl: perl inherits the
+#   shell's fd 200, calls flock(2) on it non-blocking, and exits — the lock lives on
+#   the SHARED open file description, so it stays held by the shell's fd 200 with
+#   identical self-release semantics. (Before this shim the guard was silently
+#   fail-open on stock macOS — the semaphore never guarded anything there.)
+#
 # Fail-open
-#   If flock(1) is missing (stock macOS ships none), the guard prints a one-line stderr
-#   warning and execs the command UNGUARDED — today's behavior. We must not silently
-#   degrade codex to its Claude fallback machine-wide just because flock is absent.
-#   Install on macOS with:  brew install flock
+#   Only if BOTH flock(1) and perl are missing does the guard print a one-line stderr
+#   warning and exec the command UNGUARDED. We must not silently degrade codex to its
+#   Claude fallback machine-wide just because a lock backend is absent.
 #
 # Exit codes
 #   *   The wrapped command's own exit code, passed through, on normal completion.
@@ -96,9 +103,24 @@ if [ $# -eq 0 ]; then
   exit 2
 fi
 
-# Fail-open: no flock -> run unguarded (preserves today's behavior on stock macOS).
-if ! command -v flock >/dev/null 2>&1; then
-  echo "codex-guard: flock not found — running codex UNGUARDED (install: brew install flock)" >&2
+FLOCK_BIN="$(command -v flock 2>/dev/null || true)"
+PERL_BIN="$(command -v perl 2>/dev/null || true)"
+
+# Non-blocking exclusive flock(2) on fd 200 of the CALLING shell. With the perl shim,
+# perl inherits fd 200 across fork, flocks it, and exits: the lock lives on the shared
+# open file description and stays held by this shell's fd 200 (same pattern as
+# playwright-guard.sh).
+flock_nb_200() {
+  if [ -n "$FLOCK_BIN" ]; then
+    "$FLOCK_BIN" -n 200
+  else
+    "$PERL_BIN" -e 'use Fcntl qw(:flock); open(my $fh, ">&=", 200) or exit 1; exit(flock($fh, LOCK_EX|LOCK_NB) ? 0 : 1);'
+  fi
+}
+
+# Fail-open: no lock backend at all -> run unguarded.
+if [ -z "$FLOCK_BIN" ] && [ -z "$PERL_BIN" ]; then
+  echo "codex-guard: neither flock nor perl found — running codex UNGUARDED (install: brew install flock)" >&2
   exec "$@"
 fi
 
@@ -118,7 +140,7 @@ try_acquire() {
   local i
   for ((i = 0; i < 10#$SLOTS; i++)); do
     exec 200>"$CODEX_GUARD_DIR/slot-$i.lock" || continue
-    if flock -n 200; then
+    if flock_nb_200; then
       return 0
     fi
   done
