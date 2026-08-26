@@ -33,7 +33,7 @@ Prefer the item's **name** over its number when practical (`the FAQPage-structur
 
 A `#N` that points at a **real, existing issue or PR** is a correct autolink — keep it verbatim:
 
-- `Depends on: #1493, #1494`
+- `**Depends on:** #1493, #1494`
 - `Supersedes: #2599`
 - `Wave 1 (parallel): #1501, #1502, #1503` (the real created sub-issue numbers)
 

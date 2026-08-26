@@ -132,17 +132,23 @@ function resolveTarget(meta, cls) {
 const writeSpec = (cls, target) => (cls.operator || '') + target;
 
 // ---------- discovery ----------
-function findPackageJsons(dir, acc = []) {
+function findPackageJsons(dir, acc = [], depth = 0) {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {
     return acc;
   }
+  // A non-root directory that itself has a `.git` entry (dir, file, or symlink — even
+  // broken) is a separate checkout (nested worktree/clone/submodule). Skip it entirely,
+  // including its own package.json — don't rewrite another checkout's deps. The root is
+  // exempted by depth, not by inspecting its own `.git`, since the root may itself be a
+  // worktree (`.git` file) and must still be scanned.
+  if (depth > 0 && entries.some((e) => e.name === '.git')) return acc;
   for (const e of entries) {
     // e.isDirectory() is false for symlinks, so symlinked nested workspaces are not followed
     if (e.isDirectory()) {
-      if (!SKIP_DIRS.has(e.name)) findPackageJsons(join(dir, e.name), acc);
+      if (!SKIP_DIRS.has(e.name)) findPackageJsons(join(dir, e.name), acc, depth + 1);
     } else if (e.name === 'package.json') {
       acc.push(join(dir, e.name));
     }

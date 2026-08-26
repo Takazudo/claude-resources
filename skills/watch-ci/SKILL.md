@@ -27,17 +27,22 @@ expensive failure mode. Both poll scripts carry three guards, added after a real
 where a PR was reported **"All CI passed" while its actual workflow had not started**:
 
 1. **A skipped check is not a passing check.** The original arithmetic was
+
    `passed = total - pending - failed`, which folded skips into the pass count. A single
    third-party `skipping` check therefore read as "1/1 ok". Both scripts now count the
    `pass` / `success` state explicitly and report skips as their own number.
+
 2. **Checks that GitHub has not registered yet are invisible.** `gh pr checks` lists only
+
    registered checks, so a queued workflow (or one waiting on a concurrency group) does not
    appear at all — leaving one unrelated check to stand in for the whole PR.
    `poll-pr-checks.sh` therefore cross-checks `gh run list` for the head SHA and refuses to
    conclude while any run for that commit is not `completed`. Related: the server-side
    `gh run list --commit <sha>` filter has been observed to **omit queued runs** that
    `--branch` returns, so both scripts list by branch and match the SHA in `jq`.
+
 3. **A terminal-looking state must hold for 2 consecutive polls** before it is believed,
+
    since both the check list and the run list lag a push by seconds.
 
 **Exit codes:** `0` passed · `1` failed · `2` timeout · **`3` inconclusive** · `64` bad args.
@@ -92,19 +97,55 @@ When the PR is already merged:
 
 1. Get the base branch and merge commit SHA from Step 1 output
 2. Inform the user: "PR #123 is already merged into `main`. Watching CI on `main` for merge commit `abc1234`..."
-3. Show initial status:
+3. Show initial status, filtered by the merge commit SHA:
 
    ```bash
-   gh run list --branch <base-branch> --commit <merge-commit-sha> --json databaseId,name,status,conclusion --limit 20
+   # Filter on headSha CLIENT-side. Server-side `--commit <sha>` has been observed to OMIT
+   # queued runs that `--branch` does return (poll-runs.sh guard 2) — using it here would
+   # make a still-queued workflow invisible and push this step into the missing-run branch
+   # below for a run that is simply not started yet.
+   gh run list --branch <base-branch> --limit 40 --json databaseId,name,headSha,status,conclusion \
+     | jq --arg sha '<merge-commit-sha>' '[.[] | select(.headSha | startswith($sha))]'
    ```
 
-   If no runs found with commit SHA, retry without it:
+   Runs take a few seconds to register after a merge. If none are found, **retry this
+   same SHA-filtered query** 2-3 more times with a short delay (~10s) before concluding
+   anything. Do **not** fall back to an unfiltered `gh run list --branch <base-branch>`
+   as the result path — a run belonging to an unrelated commit can surface there and get
+   misreported as this merge's outcome. A broader, unfiltered listing may still be shown
+   alongside the determination below for context, but never in place of it.
 
-   ```bash
-   gh run list --branch <base-branch> --json databaseId,name,status,conclusion --limit 10
-   ```
+4. If the SHA-filtered query still returns nothing after retrying, do **not** report "no
 
-4. Proceed to **Step 3**.
+   CI detected" from that alone. Run the **push-trigger-check determination** — see
+   [`references/push-trigger-check.md`](references/push-trigger-check.md), the single
+   source of truth for this classification — and report one of its three outcomes:
+
+- `EXPECTED_RUN_MISSING` → report a **failure**. A workflow should have run for this
+
+     merge commit and did not; name the likely cause per the reference (a skip marker in
+     the merge commit message, or a merge performed by Actions using `GITHUB_TOKEN`).
+
+- `BENIGN_NO_TRIGGER` → report "no CI expected" **and name the specific reason** (no
+
+     matching `push` trigger, excluded by a `branches`/`paths` filter, a disabled
+     workflow, or Actions disabled repo-wide). Never report bare "no CI detected" without
+     the reason.
+
+- `INCONCLUSIVE` → surface it as unresolved — never as a pass, never as benign. State
+
+     what could not be determined and why (unparseable workflow YAML, an API error, a
+     truncated changed-file list).
+
+   **One escape hatch back to Step 3:** the reference's Step 5 may find a run for this SHA
+   that this step's listing missed and whose `status` is not yet `completed` (`queued`,
+   `in_progress`, `waiting`, `requested`). That is "not yet", not a verdict — do **not**
+   classify it into any of the three outcomes. Go to **Step 3** and poll it instead.
+   Otherwise do not proceed to Step 3 in this branch — there is nothing to poll.
+
+5. If runs were found (on the initial query or a retry), proceed to **Step 3** to poll
+
+   them to a terminal state.
 
 ### Step 3: Launch Background Poll (CLI-only, no subagent)
 
@@ -124,14 +165,15 @@ bash $HOME/.claude/skills/watch-ci/scripts/poll-runs.sh <BASE_BRANCH> <MERGE_SHA
 
 Behaviour:
 
-- Polls every 30 seconds (open PR: `gh pr checks`; merged PR: `gh run list --branch ... --commit ...`)
+- Polls every 30 seconds (open PR: `gh pr checks`; merged PR: `gh run list --branch ...` with the SHA matched client-side in `jq` — **not** `--commit`, which can hide queued runs)
 - On **success**: `notify.sh success` (Glass sound) + `RESULT: PASSED` to stdout, exit 0
 - On **failure**: `notify.sh error` (Basso sound) with failed check names + `RESULT: FAILED (<names>)`, exit 1
 - On **timeout** (default 60 min): `notify.sh warning` (Purr sound) + `RESULT: TIMEOUT`, exit 2
+- On **inconclusive** (runs completed but none produced a `success`, only skips): `notify.sh warning` + `RESULT: INCONCLUSIVE (...)`, exit 3 — this is `poll-runs.sh`'s own guard against reporting a fluke pass (see the false-pass guards above); it is **not** a pass
 
 After launching, tell the user: "Watching CI in background. You'll be notified when it completes."
 
-When the background task completes you'll be notified automatically. Read its output file to see the `RESULT:` line, report to the user, and — if FAILED — proceed to Step 5's investigation steps.
+When the background task completes you'll be notified automatically. Read its output file to see the `RESULT:` line, report to the user, and — if `FAILED` **or** `INCONCLUSIVE` — treat it as a problem, not a green light: for `FAILED`, proceed to Step 5's investigation steps; for `INCONCLUSIVE`, report it as unresolved and do not authorize a merge on it (same handling as the `INCONCLUSIVE` push-trigger-check outcome in Step 2b).
 
 ### Step 4: All Checks Passed (Foreground Fast Path)
 
@@ -140,6 +182,7 @@ loop that carries the guards. An initial `gh pr checks` snapshot showing "everyt
 is exactly what an un-started workflow looks like. So before taking it:
 
 1. **Confirm nothing is still queued for the head commit** — a run that is `queued` /
+
    `in_progress` means CI has not finished, whatever the check list says:
 
    ```bash
@@ -150,6 +193,7 @@ is exactly what an un-started workflow looks like. So before taking it:
    ```
 
 2. **Confirm at least one check actually passed** — not merely "none failed". A list of
+
    only `skipping` buckets is `RESULT: INCONCLUSIVE`, not a pass.
 
 If either confirmation fails, **do not use this fast path** — fall through to Step 3 and let
@@ -195,10 +239,15 @@ If checks already failed at Step 2/2b:
 - For merged PRs, watches workflow runs on the target branch filtered by merge commit SHA
 - The script's stdout (progress lines + final `RESULT:` line) is captured by the background task — read the output file when you get the completion notification
 - Each progress line reports `pass / fail / skip / pending` separately rather than a single
+
   `N/M ok` ratio, so a run carrying skipped checks is legible at a glance instead of being
   rounded up into the pass count
+
 - **`RESULT: PASSED` is the only line that authorizes a merge.** `RESULT: INCONCLUSIVE`
+
   (exit 3) means nothing actually ran — treat it as not-green and investigate
+
 - On web, where these `gh` scripts can't run, the MCP polling that replaces them needs the
+
   same three guards — skips aren't passes, queued runs block the verdict, and let the state
   settle before believing it

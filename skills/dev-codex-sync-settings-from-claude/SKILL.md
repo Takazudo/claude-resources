@@ -17,39 +17,60 @@ Before writing or refreshing any port, read [references/codex-port-contract.md](
 
 `$HOME/.codex/` is a git repo that intentionally tracks:
 
-- `.gitattributes` — wires the `config.toml` clean filter (see below)
 - `.gitignore`
+- `README.md` — how a machine is set up, and why `config.toml` is not tracked
 - `agents/` — per-model agent profiles (e.g. `sol.toml`, `terra.toml`)
-- `config.toml` — Codex's own config, shared across machines and normalized at staging time (see below)
+- `config.toml.example` — the **portable** template the live config is seeded from (see below)
 - `hooks/`
-- `scripts/` — includes `normalize-config-toml.js`, the clean filter's implementation
+- `scripts/` — includes `bootstrap-config.sh`, which seeds a machine's `config.toml`
 - `skills/` — the ported workflow skills plus separately-installed reference skills
+
+The live `config.toml` is **not** tracked — it is gitignored, and machine-local by design.
 
 Everything else in `$HOME/.codex` is machine-local runtime state (sqlite DBs, `auth.json`, sessions, caches) and stays gitignored.
 
-### config.toml clean filter (per-clone activation)
+### config.toml is untracked — template + bootstrap, not a clean filter
 
-`config.toml` is tracked and shared across machines, but Codex rewrites a handful of ephemeral/per-machine
-fields (`model`, `model_reasoning_effort`, the `[tui.model_availability_nux]` counters) on nearly every
-session. A git clean filter (`scripts/normalize-config-toml.js`, wired via `.gitattributes`) pins those
-volatile fields to fixed canonical values at staging time, so committed diffs stay clean instead of
-producing `git stash pop` conflicts every time two machines sync.
+The live `config.toml` is **gitignored**. Codex rewrites it constantly with machine-local project
+trust records, desktop-app paths, marketplace metadata, generated MCP settings and runtime state —
+at last count 40 `[projects."/Users/…"] trust_level` tables of machine-absolute paths, which are
+meaningless on the WSL machines and accumulate forever.
 
-The `.gitattributes` half ships with the repo, but the filter's git-config half is **per-clone, not
-shared** — run this once on every machine/clone of `codex-settings`, or config.toml commits will
-silently carry volatile model/effort/NUX values:
+What is tracked instead:
 
-```bash
-git -C "$HOME/.codex" config filter.normalize-config-toml.clean "node $HOME/.codex/scripts/normalize-config-toml.js"
-git -C "$HOME/.codex" config filter.normalize-config-toml.smudge cat
-git -C "$HOME/.codex" add --renormalize config.toml
-```
+- **`config.toml.example`** — the portable defaults.
+- **`scripts/bootstrap-config.sh`** — run once per machine, after cloning to `CODEX_HOME`:
 
-This skill runs from Claude Code, whose current directory may not be `$HOME/.codex` — use `-C
-"$HOME/.codex"` (not a bare `git config`) so the filter is configured on the Codex repo regardless of
-invocation context. Without this local config the filter is simply inactive (never an error) — verify
-it's active before committing config.toml changes: `git -C "$HOME/.codex" config --get
-filter.normalize-config-toml.clean` should print the command above.
+  ```bash
+  "$HOME/.codex/scripts/bootstrap-config.sh"
+  ```
+
+  It copies the template to `config.toml` **only when no local config exists**, and never overwrites
+  one.
+
+Change portable defaults by editing `config.toml.example`. **The trade to know about:** because
+bootstrap never overwrites, machines that already have a `config.toml` do *not* pick those changes
+up — that has to be done by hand. Keep machine-specific entries (`[projects]`, `[marketplaces]`,
+generated MCP settings, hook state, absolute paths) only in the ignored live config. Settings that
+belong to one codebase go in that codebase's own `.codex/config.toml`.
+
+#### Don't rebuild the clean filter
+
+An earlier design tracked `config.toml` behind a git clean filter that pinned `model`,
+`model_reasoning_effort` and the `[tui.model_availability_nux]` counters at staging time. It was
+real, and it is gone on purpose:
+
+- **`35ad713`** (2026-07-11) added `.gitattributes` + `scripts/normalize-config-toml.js`.
+- **`aaf192a`** (2026-07-23) deleted both and untracked `config.toml`, adding the template, the bootstrap script and `README.md` in their place.
+
+Twelve days, then replaced. A filter can pin a volatile *field*; it cannot make 40 machine-absolute
+path tables shareable, which was the real problem. The absence of `normalize-config-toml.js` is a
+**decision, not an oversight** — a later session read it as one and nearly rebuilt it. If tracked
+volatile fields ever come back, read `$HOME/.codex/README.md` first.
+
+(For comparison, `$HOME/.claude/settings.json` **keeps** its clean filter. Its payload is a large
+curated `permissions.allow` list that genuinely must propagate to every machine, and a copy-once
+bootstrap would stop that — the asymmetry is about ownership, not file format.)
 
 ## Canonical skill set to keep synced
 
@@ -65,7 +86,7 @@ Reference skills installed on the Codex side by other tools (e.g. the Cloudflare
 
 **Utility & Codex-only skills (don't prune):**
 
-- `ss` — utility port of the Claude `/ss` screenshot loader. Codex runs on WSL/Linux, so the port uses `stat -c %Y` (with a `stat -f %m` BSD fallback), not the macOS `stat -f %m` of the Claude source, and drops `$ARGUMENTS` / `` !`cmd` `` / `allowed-tools` frontmatter (Codex has none). Refresh it if the Claude source's resolve/freshness/retry logic changes; re-apply the Linux stat adaptation each time.
+- `db` + `ss` — utility ports of the Claude Dropbox loaders. `db` carries the resolution engine (Dropbox root, directory settle, sync retries, placeholder materialization) and `ss` is the thin screenshot shorthand that adds only latest-N selection, so **refresh them as a pair** — engine changes land in `db`, and `ss` must keep pointing at it. Two adaptations to re-apply each time: Codex runs on WSL/Linux, so the helpers lead with `stat -c %Y` / `stat -c %s` (BSD `stat -f` as fallback), the reverse of the macOS-first Claude source; and Codex has no `$ARGUMENTS` / `` !`cmd` `` / `allowed-tools` frontmatter, so the cutoff is captured by an explicit `date +%s` first action. The Claude side splits the engine into `db/references/resolve.md`; the Codex port inlines it into `db/SKILL.md` and keeps only `references/env-secrets.md` separate.
 - `ccref` — Codex-only, no Claude source. It bridges Codex to the Claude skills (`~/.claude`, `./.claude`) + `CLAUDE.md`. It has no upstream to sync from — leave it in place; never treat it as "missing" and never overwrite it.
 - `refer-another-project` — utility port of the Claude skill. Two Codex adaptations to re-apply on refresh: slug resolution uses `find "$HOME/repos" -mindepth 2 -maxdepth 2 -type d -name <slug>` (NOT the Claude source's `$HOME/repos/*/<slug>` glob, which is a fatal `no matches found` under Codex's interactive zsh), and update mode drops the Claude-only `-co` backend flag (Codex `x-as-pr` is already Codex-native).
 
@@ -89,4 +110,11 @@ Group into separate commits so history stays legible:
 2. the workflow-skill sync — `feat(skills): sync Codex-native workflow skills from ~/.claude`
 3. any newly-installed reference skills, as-is — `chore(skills): add <pack> reference skills`
 
-Then push. Prefer `/commits push` — it offloads the git work to a subagent and handles the grouping. Never stage machine-local state; after committing, `git ls-files | grep -E '\.sqlite|auth\.json'` must return nothing. `config.toml` IS intentionally tracked, so it's excluded from this check — instead confirm the clean filter is active (see "config.toml clean filter" above) before it's staged.
+Then push. Prefer `/commits push` — it offloads the git work to a subagent and handles the grouping. Never stage machine-local state; after committing, both of these must return nothing:
+
+```bash
+git -C "$HOME/.codex" ls-files | grep -E '\.sqlite|auth\.json'
+git -C "$HOME/.codex" ls-files config.toml
+```
+
+The second is the one that regresses quietly: the live `config.toml` must stay **untracked** (see above). If it ever shows up in `ls-files`, something re-added it — `git rm --cached config.toml`, don't "fix" it by reintroducing a filter.

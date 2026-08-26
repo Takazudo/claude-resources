@@ -1,5 +1,7 @@
 # Cloudflare AI Gateway
 
+> Vendored snapshot of Cloudflare's AI Gateway docs; Claude model ids are locally patched to the current lineup — a future re-vendor must not silently restore the stale ids.
+
 Expert guidance for implementing Cloudflare AI Gateway - a universal gateway for AI model providers with analytics, caching, rate limiting, and routing capabilities.
 
 ## When to Use This Reference
@@ -50,7 +52,7 @@ const { text } = await generateText({
 const { text } = await generateText({
   model: gateway([
     openai('gpt-4o'),              // Try first
-    anthropic('claude-sonnet-4-5'), // Fallback
+    anthropic('claude-sonnet-5'), // Fallback
   ]),
   prompt: 'Hello'
 });
@@ -75,7 +77,7 @@ const client = new OpenAI({
 
 // Switch providers by changing model format: {provider}/{model}
 const response = await client.chat.completions.create({
-  model: 'openai/gpt-4o', // or 'anthropic/claude-sonnet-4-5'
+  model: 'openai/gpt-4o', // or 'anthropic/claude-sonnet-5'
   messages: [{ role: 'user', content: 'Hello!' }]
 });
 ```

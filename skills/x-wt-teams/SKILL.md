@@ -1,14 +1,14 @@
 ---
 name: x-wt-teams
-description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main)."
-argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [--no-issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
+description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main). Pass -toco/--to-codex to hand the whole job to Codex CLI instead of implementing here: it opens a new tmux window running codex, stages the matching $-prefixed Codex skill invocation in its composer, focuses it, and ends the session -- fired at the very start, before any branch or PR is created (terminal-only)."
+argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [--no-issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
 
 Coordinate parallel development of multiple related features using git worktrees, a shared base branch, and Claude Code agent teams. **This is fully automated** — you (the manager) create the infrastructure and spawn child agents to do the work. Never ask the user to manually start sessions in worktrees.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co`. No Dropbox. **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — do NOT create `base/<project-name>` and do NOT push an empty start commit (web = the adopt-current-branch case). Topics fork from `$WEB_BASE` and merge back into it **locally**; the root PR is `$WEB_BASE` → `$WEB_PARENT` (the repo default branch — this inverts the ROOT PR TARGET rule below), created **after the first real commit exists** (no empty-diff PR). Push only `$WEB_BASE` while checked out on it — drop the per-topic push loop and the per-topic documentation PRs (topics are merged locally and never pushed). `-m` merges `$WEB_BASE` → `$WEB_PARENT` via MCP **without deleting the session branch** (web owns it); after merge `git checkout "$WEB_BASE"`, not the default. **Super-epic mode is unsupported on web** — refuse early (see Step 1a). When pushing before a PR, push **only the branch you are checked out on**. **Concurrency — see web-mode.md §6:** the local 6-concurrent-child cap is Mac-freeze protection and does NOT apply on web — fan out all topics in one parallel batch (the browser one-at-a-time rule and the port `flock` rule still hold).
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md). **Always take the subagents path — never create an agent team:** ignore the `Execution mode:` markers and the default-to-teams fallback, and do not read `references/teams-path.md`. Worktrees + one-shot `Agent`-tool fan-out work normally. Do all PR / issue / label / merge / CI work via the GitHub MCP, not `gh` (push branches before opening PRs; pre-create labels). Claude-only — ignore Codex `-co`. No Dropbox. **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — do NOT create `base/<project-name>` (web = the adopt-current-branch case). Topics fork from `$WEB_BASE` and merge back into it **locally**; the root PR is `$WEB_BASE` → `$WEB_PARENT` (the repo default branch — this inverts the ROOT PR TARGET rule below), created in **Step 11** once child work has landed on `$WEB_BASE` (no empty-diff PR, and no start commit is fabricated to allow one — the terminal path now works the same way). Push only `$WEB_BASE` while checked out on it — drop the per-topic push loop and the per-topic documentation PRs (topics are merged locally and never pushed). `-m` merges `$WEB_BASE` → `$WEB_PARENT` via MCP **without deleting the session branch** (web owns it); after merge `git checkout "$WEB_BASE"`, not the default. **Super-epic mode is unsupported on web** — refuse early (see Step 1a). When pushing before a PR, push **only the branch you are checked out on**. **Concurrency — see web-mode.md §6:** the local 6-concurrent-child cap is Mac-freeze protection and does NOT apply on web — fan out all topics in one parallel batch (the browser one-at-a-time rule and the port `flock` rule still hold).
 
 > **In a limited verification env (Claude Code web)** the final visual / browser / Mac-only check can't run, so follow [`web/mac-handoff.md`](../../web/mac-handoff.md) — the **`mac`-label handoff**. When `DEFER_MAC` is set (limited env AND (`-v` passed OR the diff touched UI files), per mac-handoff.md §1–§2): Step 10 (Verify UI) is skipped; with `-m`, Merge Mode merges anyway (CI still gates it) and raises a `mac` issue afterward; without `-m`, the `mac` signal + a "verify on Mac" comment go on the tracking issue **and** the root PR. Off web (Mac / WSL / local) this is always inert.
 
@@ -24,13 +24,14 @@ Detail lives in `references/` so this file stays a workflow spine. Open the rele
 - **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, manual `-t-op` / `-t-so` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
 - **`references/issue-templates.md`** — tracking issue body, claim comments, unrelated-findings issue, Step 14 session report, Step 15 verification comments, accumulating-epic Auto-Suggest hand-off.
 - **`references/github-text-conventions.md`** — writing GitHub-posted text: never use a bare `#N` for your own plan items (topics/waves/options) — it autolinks to an unrelated issue/PR; reserve `#N` for real existing issues/PRs.
+- **`references/codex-handoff.md`** — the `-toco` / `--to-codex` Codex hand-off, shared with `/big-plan` and `/x-as-pr`: where it fires per caller, the command shape, the `$`-prefix rule, the script's exit codes, and submit-only-under-`-a`.
 - **`references/resource-coordination.md`** — Playwright / browser isolation rule, the machine-wide cross-session `playwright-guard.sh` queue, and port-binding `flock` rule (full patterns).
 
 ## !! CRITICAL — ROOT PR TARGET BRANCH RULE !!
 
 **The root PR's base MUST be the current (invocation) branch, NOT the repository's default branch.**
 
-> **On web this rule INVERTS — see web-mode.md §5.** The invocation branch is the `claude/*` session branch (`$WEB_BASE`) and becomes the **base**; the root PR targets `$WEB_PARENT` (the repo default, the fork-from branch) — head=`$WEB_BASE`, base=`$WEB_PARENT`, created via MCP after the first real commit. The "default branch is almost always wrong" warning below applies to the terminal only.
+> **On web this rule INVERTS — see web-mode.md §5.** The invocation branch is the `claude/*` session branch (`$WEB_BASE`) and becomes the **base**; the root PR targets `$WEB_PARENT` (the repo default, the fork-from branch) — head=`$WEB_BASE`, base=`$WEB_PARENT`, created via MCP at Step 11. The "default branch is almost always wrong" warning below applies to the terminal only.
 
 As the very first action, record the current branch:
 
@@ -39,6 +40,8 @@ INVOCATION_BRANCH=$(git branch --show-current)
 ```
 
 The root PR's `--base` MUST be `$INVOCATION_BRANCH` (or a user-specified parent branch) — NEVER omit `--base` on `gh pr create`, because `gh` defaults to the repo's default branch (usually `main`), which is almost always wrong here.
+
+**The root PR is created in Step 11, long after this capture** (see Rule 4 — there is no empty start commit to open it early against). That gap is exactly why the capture above is recorded durably in Step 2 and re-asserted by the `!! PR TARGET CHECK !!` guard at the creation site: the target is pinned at bootstrap and merely *used* later, never re-derived from whatever branch the session happens to be on by then.
 
 **Concrete example (this is the bug this rule prevents):**
 
@@ -104,7 +107,7 @@ Each topic gets its own worktree directory, its own branch, and its own PR targe
 
 When creating any PR (`gh pr create`), check for parent references and prepend a header to the PR body. This identifies what the PR belongs to.
 
-**For the root PR (Step 2):**
+**For the root PR (created in Step 11):**
 
 1. **Parent issue**: Use `ISSUE_NUMBER` if set
 2. **Parent PR**: Check if the parent branch has an open PR:
@@ -138,15 +141,37 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 - **When updating the PR body later** (e.g., via `/pr-revise`), always preserve the reference header at the top — do not remove or replace it
 - **In the PR body prose** (Summary / Changes / anywhere), don't write a bare `#N` to refer to your own numbered items — GitHub autolinks it to an unrelated issue/PR. Use `topic 2`, `(2)`, or the item's name; keep `#N` only for real existing issues/PRs. See [`references/github-text-conventions.md`](references/github-text-conventions.md)
 
+## Codex Handoff Mode (`-toco` / `--to-codex`)
+
+**Only when `-toco` / `--to-codex` was passed.** Otherwise ignore this section.
+
+Full spec: [`references/codex-handoff.md`](references/codex-handoff.md) — shared with `/big-plan` and `/x-as-pr`. Read it for the `$`-prefix rule, the script's exit codes, and the submit-only-under-`-a` rule.
+
+**This runs before anything else in the Fully Automated Workflow below** — before the base branch, before any worktree, before the tracking issue. The whole job is going to Codex, so none of that should exist here. Creating worktrees and then handing off would strand them on disk with no session to clean them up, which is materially worse than the stray-branch case `/x-as-pr` avoids.
+
+Build the command from what the invocation carried — an epic issue number, a plan dir under `-lo`, or the topic text — and forward `-a` / `-m` / `-nf` / `-nori` / `-lo`. Reviewer flags, effort, and `-s` do not travel; the Codex session picks its own.
+
+```bash
+bash "$HOME/.claude/scripts/handoff-to-codex.sh" \
+  --dir "$(git rev-parse --show-toplevel)" \
+  --name "codex-{epic# or slug}" \
+  --command '$x-wt-teams -m -a 445' \
+  --submit          # only when -a was passed
+```
+
+Then **stop**. Run `node "$HOME/.claude/scripts/orientation.js" complete`, and report the window name, the exact command, and whether it was submitted or is waiting on Enter. Claim a passed epic issue before handing off so a concurrent session sees the work is taken; create nothing else, and skip the Step 16 cleanup audit — there are no resources to audit.
+
+If the script exits non-zero, surface its message verbatim: the work is un-started and the user needs the fallback command it printed.
+
 ## Fully Automated Workflow
 
 **IMPORTANT**: You are the manager. You handle ALL steps automatically:
 
 1. Resolve GitHub tracking issue (read existing, create new, or skip)
 
-1.5. **Resume check** — adopt an existing base branch / root PR left by a dead manager session instead of re-creating them, then classify surviving `worktrees/*` (dirty state + base merge history) and adopt uncommitted child work rather than re-spawning or discarding it. A half-done epic is a NORMAL state
+1.5. **Resume check** — adopt an existing base branch (and its root PR, if a previous run got far enough to open one) instead of re-creating them, then classify surviving `worktrees/*` (dirty state + base merge history) and adopt uncommitted child work rather than re-spawning or discarding it. A half-done epic is a NORMAL state, and so is a base branch with no PR yet
 
-2. Create base branch + root PR
+2. Create the base branch and push the ref (no start commit, no PR yet)
 3. Create worktrees for each topic
 4. Set up environment in worktrees
 5. Spawn child agents in worktrees — subagents (inline default) or teams (TeamCreate, when a topic is marked `teams`; see `references/teams-path.md`). NO pushing during implementation — commit only
@@ -155,7 +180,7 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 8. Sync local base branch
 9. Quality assurance: `/code-review` (default) or `/deep-review` (if `-co`/`--codex`)
 10. Verify UI: `/verify-ui` (if `-v`/`--verify-ui`)
-11. Push all changes to remote
+11. Push all changes to remote, then create the root PR (create-if-absent / adopt-if-present)
 12. CI watch: verify CI passes on root PR (invoke `/watch-ci`, fix if red)
 13. Update root PR and mark ready
 14. Session report
@@ -195,7 +220,24 @@ Use the issue body as the primary input for planning. Set `ISSUE_NUMBER=<number>
   - **On web (web-mode.md §5):** the stated name is not used at all — the `claude/*` session branch IS the base, regardless of what the epic says.
   - **On terminal, if the stated base is a `claude/*` name** (a plan made on Claude Code web) **without a "Use this PR as base" note**: that was the planning session's ephemeral branch, not a real base — treat the base as unspecified, create `base/{project-name}` from the invocation branch as normal (Step 2), and note the substitution in the claim comment. (With the "Use this PR as base" note, the branch is a pushed resource-handoff base — reuse it per the next bullet and Step 2.)
 - **Pre-made base branch ("Use this PR as base")** — if the epic body says to use an existing PR / base branch as the base (the `/big-plan` resource-handoff case from the `dev-setup-temp-resource` skill — it carries `_temp-resource/{epic#}-{slug}/` for the implementer), record that branch + PR. In Step 2 you will **reuse** it instead of creating a new base branch, and the resources are already on it for the child agents.
-- **Dependency order** — respect the dependency graph; start with independent topics first
+- **Dependency order** — respect the dependency graph; start with independent topics first.
+
+  **Self-heal trusted planner metadata before treating syntax as a blocker.** For a linked `[Sub]`
+  issue whose author association is `OWNER`, `MEMBER`, or `COLLABORATOR`, mechanically repair an
+  unambiguous dependency-line formatting mistake and continue without asking the user. In
+  particular, normalize an empty-set spelling of `nothing` to `none`, and normalize
+  same-repository issue URLs such as
+  `https://github.com/<owner>/<repo>/issues/123` (with optional explanatory parentheticals) to the
+  canonical sibling form `#123`, then rewrite the single dependency line as
+  `**Depends on:** #123, #456` (or `**Depends on:** none`). Preserve the rest of the issue body
+  byte-for-byte as far as practical, write the repaired body through `gh issue edit --body-file`,
+  record the repair in the progress ledger, re-fetch the issue, and validate the graph from the
+  repaired text. This repair is workflow bookkeeping, not re-planning, and does not require user
+  confirmation even outside `-a` mode. Apply it only when every extracted reference resolves to a
+  linked sibling and the intended edge list is lossless. Still stop for semantic ambiguity:
+  conflicting or duplicate dependency lines, a foreign or missing sibling, a self-edge, duplicate
+  edges after normalization, or a cycle. Never infer an edge from Wave numbers or prose.
+
 - **Execution mode per topic** — extract the `**Execution mode:** {subagents|teams}` marker from each `[Sub]` issue body (or each inline sub-task in a legacy inline-format Super-Epic child). This drives Step 5's spawn path. See `references/execution-modes.md` for the parsing logic, default-to-teams fallback, and mixed-mode degradation rule.
 - **Model per topic** — extract the `**Model:** {opus|sonnet|haiku|fable}` marker from each `[Sub]` issue body (or each inline sub-task in a legacy inline-format Super-Epic child). This drives the per-child model assignment in Step 5. A manual `-t-op` / `-t-so` flag on this invocation OVERRIDES per-topic markers session-wide. Default-when-missing-and-no-flag: `opus`. See `references/per-topic-models.md` for the resolution table.
 
@@ -220,7 +262,7 @@ After creation, capture `ISSUE_NUMBER` from the URL.
 No tracking issue is created; the spec + progress ledger live in a **cclogs coordination directory** instead. Read the shared spec **[`references/local-mode.md`](references/local-mode.md)** for the full layout, then:
 
 - Resolve `LOCAL_DIR` (`$LOGDIR/local-workflow/{datetime}-{slug}`) and write `plan.md` (the Summary + Topics + wave/mode/model that the tracking issue would hold) and `progress.md` (the TODO checklist + Progress Log). These are the file equivalents of the tracking issue — set `ISSUE_NUMBER` unset/empty so the `gh issue *` calls below are replaced by their `LOCAL_DIR` counterparts.
-- **If the argument is a plan path** (a directory or `sub-*.md` file under `local-workflow/`, handed off by `/big-plan --local`): reuse it as `LOCAL_DIR` — read the topics, base branch, and per-topic `**Execution mode:**` / `**Model:**` / `**Depends on:**` markers from its `plan.md` + `sub-NN.md` files. This mirrors how epic mode (1a) reads `**Execution mode:**` and `**Model:**` from `[Sub]` issue bodies, but dependency ordering differs in form: issue mode reads a plain `Depends on: #N1, #N2` note (not a bolded marker — see `references/github-text-conventions.md`), while local mode reads the bolded `**Depends on:**` marker line (sibling sub filenames, or `none`) per `references/local-mode.md`. Do NOT re-plan.
+- **If the argument is a plan path** (a directory or `sub-*.md` file under `local-workflow/`, handed off by `/big-plan --local`): reuse it as `LOCAL_DIR` — read the topics, base branch, and per-topic `**Execution mode:**` / `**Model:**` / `**Depends on:**` markers from its `plan.md` + `sub-NN.md` files. This mirrors how epic mode (1a) reads the same bold dependency marker from `[Sub]` issue bodies; only the value form differs: issue mode uses sibling `#N` refs, while local mode uses sibling sub filenames (or `none`) per `references/local-mode.md`. Do NOT re-plan.
 - **If a `#issue` / URL is ALSO passed** (implementing a tracked issue while keeping *this run's* bookkeeping local): read that issue as input (1a) but do NOT post a claim comment or per-step progress comments on it — those go to `progress.md`.
 
 `--local` differs from bare `--no-issue` history: it keeps the `progress.md` ledger so the re-read-after-each-step anti-drift mechanism still works. `--no-issue` is retained as an alias and now behaves identically.
@@ -280,7 +322,7 @@ This is distinct from the parked-agent machinery elsewhere in this skill (Step 5
 
 #### 1.5a: Adopt the base branch and root PR if a previous attempt created them
 
-A run that got as far as spawning children **already completed Step 2**, so `base/<project-name>` and its root PR exist. Falling through to Step 2's default flow would run `git checkout -b base/<project-name>` against an existing branch (fails) and `gh pr create` against an existing PR (fails). Probe first, and **reuse what exists, create only what is missing** — the same discipline `references/super-epic-mode.md` applies to the epic base:
+A run that got as far as spawning children **already completed Step 2**, so `base/<project-name>` exists. Falling through to Step 2's default flow would run `git checkout -b base/<project-name>` against an existing branch, which fails. Probe first, and **reuse what exists, create only what is missing** — the same discipline `references/super-epic-mode.md` applies to the epic base:
 
 ```bash
 git fetch origin --prune                # a crashed merge can leave stale remote refs
@@ -288,15 +330,30 @@ git fetch origin --prune                # a crashed merge can leave stale remote
 BASE_BRANCH="base/<project-name>"       # the base THIS run would create (see note below)
 git show-ref --verify --quiet "refs/heads/$BASE_BRANCH"          && echo "base exists locally"
 git show-ref --verify --quiet "refs/remotes/origin/$BASE_BRANCH" && echo "base exists on origin"
-gh pr list --head "$BASE_BRANCH" --state open --json number,url
 ```
 
 - **Local base only** (crashed before the first push): `git checkout "$BASE_BRANCH"`, then `git push -u origin "$BASE_BRANCH"`.
 - **Remote base** (with or without a local copy): `git checkout "$BASE_BRANCH" 2>/dev/null || git checkout -b "$BASE_BRANCH" "origin/$BASE_BRANCH"`, then `git pull origin "$BASE_BRANCH"`.
-- **No open root PR** but the base exists: create it now — do not skip Step 2's PR creation just because the branch is there.
-- **An open root PR exists**: adopt it as this run's root PR; do NOT `gh pr create` (it fails on a duplicate).
 
-When any of these adoptions fire, **skip Step 2's creation flow** and go to 1.5b, then Step 3.
+**An open root PR is NO LONGER the "bootstrap already ran" marker.** Step 2 pushes the base ref and stops; the root PR opens in Step 11. So a healthy, correctly-bootstrapped run leaves behind a pushed base with **no PR**, and treating that as "PR missing, create it now" would fire `gh pr create` at a zero-diff branch and fail. Classify from the **branch** instead:
+
+```bash
+# $PARENT_BRANCH is recovered per the note below — never guessed. Compare against the
+# REMOTE parent (refreshed by the fetch above): a stale local parent ref would make a
+# zero-diff base look "ahead" and send this run at a gh pr create that has no diff to open.
+git rev-list --count "origin/$PARENT_BRANCH..$BASE_BRANCH"                 # 0 = equal to parent, >0 = ahead
+gh pr list --head "$BASE_BRANCH" --state open --json number,url            # PR evidence, second
+```
+
+| base vs. its parent | open root PR? | Meaning | Action |
+|---|---|---|---|
+| equal (0 ahead) | no | **Healthy fresh bootstrap** — Step 2 completed, no child work has landed yet | Continue to 1.5b. Do **NOT** `gh pr create` — it fails on a zero-diff branch, and nothing is missing |
+| ahead | no | Child work landed but the run died before Step 11 opened the PR | Push the base if the remote is behind, then let Step 11's create-if-absent block open the root PR |
+| either | yes | A previous run reached Step 11 | Adopt it as this run's root PR; do NOT `gh pr create` (it fails on a duplicate) |
+
+**Recovering `$PARENT_BRANCH` on resume** — the row above needs it, and the original session that recorded it is gone. Read the value Step 2 recorded: the orientation pointer note (`orientation.js show`), else the `Base: … → Parent: …` line in the Step 2 progress comment on the tracking issue (or `progress.md`), else an existing PR's `baseRefName`, else a parent the user names. **Never fall back to the repo default branch** — that is precisely the mis-target the top-of-file ROOT PR TARGET rule prohibits, and with the empty start commit gone this recorded value is the only thing pinning it. If none of those answer, STOP and ask rather than guess.
+
+When any of these adoptions fire, **skip Step 2's creation flow** (the branch already exists) and go to 1.5b, then Step 3.
 
 **`BASE_BRANCH` is mode-specific — do not hard-code `base/<project-name>`.** Resolve it from the base this run actually uses, as already determined by Step 1 / the flags: `$EPIC_BASE` in Super-Epic child mode, the pre-made handoff branch in the resource-handoff case, the current branch under `-s` / `--stay`, `$WEB_BASE` on web (web-mode.md §5), and `base/<project-name>` in the plain default flow. Using the wrong name here silently misclassifies every worktree below.
 
@@ -352,13 +409,15 @@ For an **ADOPT** (dirty) or **INSPECT** (unmerged commits) worktree:
 
 When in doubt on a *clean* worktree, prefer re-running — a fresh child redoes clean work cheaply. When the worktree is *dirty*, always prefer adopting: the work is unrecoverable once removed.
 
-### Step 2: Create Base Branch and Root PR
+### Step 2: Create and Push the Base Branch (the root PR comes later, in Step 11)
 
-**If Step 1.5a adopted an existing base branch and/or root PR, skip the corresponding creation below** — create only what 1.5a found missing. Running `git checkout -b` on an existing base, or `gh pr create` on an existing open root PR, fails outright.
+**If Step 1.5a adopted an existing base branch, skip the creation below** — create only what 1.5a found missing. Running `git checkout -b` on an existing base fails outright.
+
+**This step does not open the root PR.** It creates the base branch and pushes the ref; the PR is created in Step 11, at the first push that carries child work. Everything below concerns the branch only.
 
 **CRITICAL: `-s` / `--stay` is STRICTLY opt-in.** Only use the `--stay` flow if the user explicitly passed `-s` or `--stay`. Do NOT auto-detect. Default ALWAYS creates a new branch — even if the current branch has an existing PR. See `references/arguments.md` for the full `--stay` mechanism. **On web this default does NOT hold (web-mode.md §5):** web always behaves as the adopt-current-branch case — `$WEB_BASE` (the `claude/*` session branch) is the base regardless of flags; no new base branch is created. The parent is `$WEB_PARENT` (the fork-from / default branch) **unconditionally — do NOT run the `gh pr view --json baseRefName` preference step**, even if the session branch already has a PR.
 
-**Super-Epic child mode**: parent branch is `$SUPER_EPIC_BASE`, base branch is `$EPIC_BASE` verbatim (from the marker). Root PR targets `$SUPER_EPIC_BASE`. See `references/super-epic-mode.md`.
+**Super-Epic child mode**: parent branch is `$SUPER_EPIC_BASE`, base branch is `$EPIC_BASE` verbatim (from the marker). The root PR (the epic-PR) targets `$SUPER_EPIC_BASE` and is created at the same deferred point as every other mode — Step 11, not here. See `references/super-epic-mode.md`.
 
 #### Pre-made base branch (resource handoff) — reuse, do NOT create
 
@@ -382,70 +441,90 @@ INVOCATION_BRANCH=$(git branch --show-current)  # Record before any checkout
 
 **Determine `<parent-branch>`**: If the user specified one, use it. Otherwise default to `INVOCATION_BRANCH`.
 
-**CRITICAL**: Create the root PR immediately with an empty commit. This locks in the correct parent branch from the start.
+**CRITICAL — push the base ref now, record `<parent-branch>` now, create the root PR later.** The branch is pushed here because child worktrees and sibling sessions target the **branch**, not the PR, so the remote ref must exist before Step 3. `gh pr create` waits until **Step 11**, when the integrated base first carries child work — a PR cannot be opened on a branch with zero commits ahead of its base.
 
-> **On web (web-mode.md §5):** run the canonical detection from §5 to set `$WEB_BASE` / `$WEB_PARENT`, stay on `$WEB_BASE`, and SKIP the entire terminal block below — no `git checkout <parent>`, no `base/<project-name>`, no empty commit, no `git push -u`. The draft root PR is created **later** (after the first real commit lands on `$WEB_BASE`) via MCP `create_pull_request` head=`$WEB_BASE` base=`$WEB_PARENT` draft:true; push `$WEB_BASE` first. The guard below makes this executable — do not run the terminal commands on web.
+**There is no empty start commit, and it must never come back.** Its `= start … = [skip ci]` subject survived as a branch-commit subject, and under `squash_merge_commit_message: COMMIT_MESSAGES` GitHub folds branch commit messages into the squash body — carrying `[skip ci]` onto the default branch, where it suppresses **every** `push`-triggered workflow, production deploys included (confirmed twice in `zudolab/zudo-text`). A branch ref may point at the same commit as its parent; no commit needs to be fabricated to push it.
+
+**Deferring the PR does NOT weaken the parent-branch guarantee the empty commit used to lock in.** That guarantee is preserved by an explicit mechanism: `INVOCATION_BRANCH` is captured above (before any checkout), `PARENT_BRANCH` is derived from it here and **recorded durably** (orientation pointer + the Step 2 progress comment on the tracking issue), and the `!! PR TARGET CHECK !!` guard still sits directly above `gh pr create --base "$PARENT_BRANCH"` — it moved to Step 11 with the creation, it was not dropped.
+
+> **On web (web-mode.md §5):** run the canonical detection from §5 to set `$WEB_BASE` / `$WEB_PARENT`, stay on `$WEB_BASE`, and SKIP the entire terminal block below — no `git checkout <parent>`, no `base/<project-name>`, no push. `$WEB_BASE` is pushed and the draft root PR created at the same Step 11 point (MCP `create_pull_request` head=`$WEB_BASE` base=`$WEB_PARENT` draft:true, push `$WEB_BASE` first). The guard below makes this executable — do not run the terminal commands on web.
 
 ```bash
+PARENT_BRANCH=<parent-branch>   # user-specified, else "$INVOCATION_BRANCH"; $SUPER_EPIC_BASE in Super-Epic child mode
+
 if [ "$CLAUDE_CODE_REMOTE" = "true" ]; then
   # Web: §5 detection already set WEB_BASE / WEB_PARENT. Stay on WEB_BASE.
-  # Root PR is deferred to after the first real commit (MCP create_pull_request,
-  # head=$WEB_BASE base=$WEB_PARENT draft:true). Do NOT create base/<project-name>,
-  # do NOT empty-commit, do NOT push here.
-  :
+  # Do NOT create base/<project-name> and do NOT push here — Step 11 pushes
+  # $WEB_BASE and creates the root PR via MCP.
+  BASE_BRANCH="$WEB_BASE"
+  PARENT_BRANCH="$WEB_PARENT"   # web INVERTS the target rule — see web-mode.md §5
 else
-  git checkout <parent-branch>
-  git pull origin <parent-branch>
+  BASE_BRANCH="base/<project-name>"
 
-  git checkout -b base/<project-name>
+  git checkout "$PARENT_BRANCH"
+  git pull origin "$PARENT_BRANCH"
 
-  # [skip ci] = GitHub-native skip instruction — the empty commit changes nothing, so CI on it
-  # is guaranteed-green waste; real commits that follow trigger CI normally
-  git commit --allow-empty -m "= start <project-name> dev = [skip ci]"
-  git push -u origin base/<project-name>
+  git checkout -b "$BASE_BRANCH"
 
-  # !! PR TARGET CHECK !! — <parent-branch> MUST be INVOCATION_BRANCH (recorded above) for non-Super-Epic
-  # sessions, or $SUPER_EPIC_BASE for Super-Epic child mode. NEVER omit --base — `gh pr create` falls
-  # back to the repo default branch (usually main). That is the bug the top-of-file rule prohibits.
-  gh pr create \
-    --base <parent-branch> \
-    --title "<project-name>: root PR title" \
-    --body "$(cat <<'EOF'
-## Summary
-(in progress)
-
-## Topic PRs
-(to be added as topics are completed)
-EOF
-)" \
-    --draft
+  # Push the ref even though it is zero-diff against its parent: worktree children and any
+  # sibling session target the BRANCH, not the PR, so it must exist before Step 3. A remote
+  # branch may point at the same commit as its parent — never fabricate a commit with
+  # `git commit --allow-empty` to make this (or `gh pr create`) work. See the [skip ci] note above.
+  git push -u origin "$BASE_BRANCH"
 fi
 ```
 
-Save the root PR number — you will update it as topics are merged. Add the base branch and root PR to the orientation pointer too, so a post-compaction session does not try to re-create either ([`references/orientation-pointer.md`](references/orientation-pointer.md)):
+`BASE_BRANCH` and `PARENT_BRANCH` set here are exactly the pair Step 11's creation block consumes — the same names Step 1.5a resolves on a resume.
+
+**No root PR number exists yet — that is the normal, resumable state after Step 2.** Record the base branch and the recorded parent in the orientation pointer, so a post-compaction session neither re-creates the branch nor loses the root PR's target ([`references/orientation-pointer.md`](references/orientation-pointer.md)):
 
 ```bash
 node "$HOME/.claude/scripts/orientation.js" set \
-  --base-branch "base/<project-name>" --pr "<ROOT_PR_URL>" --step "Step 2: base branch + root PR created"
+  --base-branch "$BASE_BRANCH" \
+  --note "root PR target (parent branch): $PARENT_BRANCH — root PR not created yet, opens in Step 11" \
+  --step "Step 2: base branch created and pushed; root PR deferred to Step 11"
+```
+
+The orientation pointer is machine-local and pruned after 7 days, so **also put the same pair in the Step 2 progress comment** on the tracking issue (or `progress.md` in local mode) — a session resuming days later reads it there:
+
+```
+Base: base/<project-name> → Parent: <parent-branch> (root PR deferred to Step 11)
 ```
 
 #### If `-s` / `--stay` is explicitly passed
 
-The current branch is reused as the base branch. No new branch or empty commit. Parent branch is determined from any existing PR on the current branch, or the repo default branch if none. See `references/arguments.md` for the full mechanism.
+The current branch is reused as the base branch — no new branch, and no commit is fabricated to make a PR possible. Parent branch resolution is **branch-first**: an open PR on the branch is the best evidence, but its absence is a legitimate mid-run state now that Step 2 no longer opens the root PR. See `references/arguments.md` for the full ordered mechanism.
 
 ```bash
 INVOCATION_BRANCH=$(git branch --show-current)
 BASE_BRANCH="$INVOCATION_BRANCH"
 
+# 1. open PR on this branch  2. closed/merged PR on it (a --stay round after a merged root PR)
 PARENT_BRANCH=$(gh pr view "$BASE_BRANCH" --json baseRefName -q '.baseRefName' 2>/dev/null)
+
+# 3. a parent recorded by an earlier, interrupted run — orientation pointer note first,
+#    then the `Base: … → Parent: …` line in the Step 2 progress comment / progress.md.
 if [ -z "$PARENT_BRANCH" ]; then
-  PARENT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
+  PARENT_BRANCH=$(node "$HOME/.claude/scripts/orientation.js" show 2>/dev/null \
+    | grep -oE 'root PR target \(parent branch\): [^ ]+' | awk '{print $NF}' | head -1)
 fi
 
-EXISTING_PR=$(gh pr view "$BASE_BRANCH" --json number -q '.number' 2>/dev/null)
+# 4. a user-specified parent — assign it here if the invocation named one.
+[ -z "$PARENT_BRANCH" ] && PARENT_BRANCH="<parent the user named on this invocation, else empty>"
+
+# 5. ONLY if 1-4 all came back empty: the repo default branch. This is a GUESS — say so in
+#    the progress comment, because mis-targeting the root PR is exactly what the top-of-file
+#    ROOT PR TARGET rule prohibits. If the base looks like it belongs under a topic branch,
+#    STOP and ask rather than take this fallback.
+if [ -z "$PARENT_BRANCH" ]; then
+  PARENT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
+  echo "WARNING: parent branch guessed as '$PARENT_BRANCH' (repo default) — record this in the progress comment"
+fi
+
+EXISTING_PR=$(gh pr list --head "$BASE_BRANCH" --state open --json number -q '.[0].number' 2>/dev/null)
 ```
 
-If `EXISTING_PR` exists: reuse it. If not: create a new draft PR targeting `PARENT_BRANCH`.
+If `EXISTING_PR` exists, record it and reuse it as this run's root PR. If not, **do not create one here** — Step 11's create-if-absent block opens it once the base carries this run's work, targeting the `PARENT_BRANCH` resolved above.
 
 ### Step 3: Create Worktrees
 
@@ -606,7 +685,6 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note. This is an additive human-visible log, NOT the report — an issue comment does not satisfy the merge gate, and children have repeatedly posted one and then gone idle without reporting. (Local mode: skip the comment — the SendMessage report per step 7 is the whole channel; the manager logs it to `progress.md`.)
 7. **Report back with the completion-report schema, via SendMessage to the manager** (see Step 6's
-
    merge gate) — not a brief status line, and not a plain-text return. The report must contain: (1)
    confirmation self-review ran in the foreground and findings were applied (or "none found"), (2)
    final commit SHA, (3) confirmation the working tree is clean, (4) log file path — plus a PR URL if
@@ -676,26 +754,21 @@ mid-review." Do not merge on inspection. Wait for the schema-conforming report.
 **Parked-child protocol (per-path recovery).**
 
 - **Detection**: the child's last message says something like "waiting for the review / Monitor /
-
   codex to finish" — that child has parked. A backgrounded review's completion notification routes to
   the manager, not the child, so its self-review will never complete on its own; it needs a nudge.
   **Also treat as parked: a child that went idle with no SendMessage report at all**, even when its
   worktree looks complete (commits present, tree clean, an issue comment posted). That is the
   commonest park in practice — the work is finished and only the report is missing. Inspecting the
   worktree cannot tell the two apart, which is why the gate above is the report, not the worktree.
-
 - **Recovery — teams path**: resume the parked child with `SendMessage` to its teammate name.
 - **Recovery — subagents path**: resume the parked one-shot agent via `SendMessage` using the agent
-
   name/ID returned by its original `Agent` call; if unresumable, spawn a replacement agent against the
   same worktree carrying the item-(k) foreground-review instruction. (This manager-side continuation is
   distinct from the Mixed-mode note in `references/execution-modes.md` — one teammate reaching a
   *different*, unrelated subagent it did not spawn.) When resuming, state the channel explicitly:
   "Return your report via SendMessage — a plain-text return does not reach me." A child that parked
   for want of the channel will otherwise park again the same way.
-
 - In every case, the resume/replacement message repeats item (k)'s wording (foreground review, no
-
   background wait, apply findings, COMMIT, then report). Resuming or replacing a parked child does not
   itself authorize a merge — the manager still waits for a schema-conforming completion report before
   merging that topic.
@@ -854,11 +927,11 @@ Skip if changes are purely backend or non-visual.
 
 ---
 
-### Step 11: Push All Changes to Remote
+### Step 11: Push All Changes to Remote and Create the Root PR
 
 **Pre-push gate**: Confirm Step 9 has run. If skipped (and `--no-review` was NOT passed), go back now.
 
-Push everything in one batch — first push after the initial empty commit. This avoids running CI on every intermediate commit.
+Push everything in one batch — this is the first push that carries any **work** (Step 2 pushed the base as a zero-diff ref so children had a branch to target). Batching avoids running CI on every intermediate commit.
 
 > **On web (web-mode.md §5): push ONLY `$WEB_BASE`, and DROP the topic-branch push loop.** Topic branches were merged into `$WEB_BASE` locally and are not `claude/`-prefixed — the proxy refuses non-current, non-`claude/` pushes. The manager is checked out on `$WEB_BASE` after Step 6, so `git push origin "$WEB_BASE"` satisfies push==current. The guard below makes this executable.
 
@@ -876,6 +949,68 @@ else
   done
 fi
 ```
+
+#### Create the root PR here — create-if-absent, adopt-if-present
+
+**This is the root PR's creation point.** The integrated base now carries child work, so `gh pr create` has a real diff to open against. This is the whole reason Step 2 no longer fabricates an empty `[skip ci]` commit: the PR waits for work instead of the work waiting for a PR.
+
+It must be **idempotent** — a resumed run, a `--stay` iteration, and every wave after the first reach this block with the PR already open, and `gh pr create` fails on a duplicate.
+
+`$BASE_BRANCH` / `$PARENT_BRANCH` are the mode-specific names resolved in Step 1.5a / Step 2 (`$EPIC_BASE` and `$SUPER_EPIC_BASE` in Super-Epic child mode, the handoff base, the `--stay` branch, or `base/<project-name>` → `$INVOCATION_BRANCH` in the default flow).
+
+> **On web (web-mode.md §5):** same point, same idempotence — after `git push origin "$WEB_BASE"` above, list PRs and create via MCP `create_pull_request` head=`$WEB_BASE` base=`$WEB_PARENT` draft:true only if none exists. The target rule **inverts** on web (`$WEB_PARENT` is the repo default); the check below still applies, against `$WEB_PARENT`.
+
+```bash
+if [ "$CLAUDE_CODE_REMOTE" = "true" ]; then
+  # Web: do NOT run `gh` here — use MCP list_pull_requests head=$WEB_BASE, then
+  # create_pull_request head=$WEB_BASE base=$WEB_PARENT draft:true only if none exists.
+  # The !! PR TARGET CHECK !! below still applies, against $WEB_PARENT.
+  :
+else
+ROOT_PR_NUM=$(gh pr list --head "$BASE_BRANCH" --state open --json number -q '.[0].number' 2>/dev/null)
+
+if [ -n "$ROOT_PR_NUM" ]; then
+  : # adopt it — resumed run, later wave, --stay round, or a /big-plan handoff base PR
+else
+  # !! PR TARGET CHECK !! — $PARENT_BRANCH MUST be INVOCATION_BRANCH (recorded in Step 2) for
+  # non-Super-Epic sessions, or $SUPER_EPIC_BASE for Super-Epic child mode. NEVER omit --base —
+  # `gh pr create` falls back to the repo default branch (usually main). That is the bug the
+  # top-of-file rule prohibits. Deferring creation MOVED this check here; it did not remove it,
+  # and it is what replaces the empty start commit's parent-branch lock-in.
+  if [ -z "$PARENT_BRANCH" ]; then
+    echo "PARENT_BRANCH unknown — recover it (orientation pointer note / Step 2 progress comment)"
+    echo "before creating the root PR. Do NOT let gh pick the repo default."
+    exit 1
+  fi
+
+  gh pr create \
+    --base "$PARENT_BRANCH" \
+    --head "$BASE_BRANCH" \
+    --title "<project-name>: root PR title" \
+    --body "$(cat <<'EOF'
+## Summary
+(Step 13 rewrites this from the full diff via /pr-revise)
+
+## Topic PRs
+(added below as topic PRs are opened)
+EOF
+)" \
+    --draft
+  ROOT_PR_NUM=$(gh pr list --head "$BASE_BRANCH" --state open --json number -q '.[0].number')
+fi
+
+# NEVER call `gh pr view` with an empty number — with no argument gh falls back to the
+# CURRENT BRANCH's PR, so a failed `gh pr create` above would silently record some other
+# PR as this run's root PR. Same hazard as the empty-`gh pr close` warning below.
+[ -n "$ROOT_PR_NUM" ] || { echo "root PR creation produced no open PR on $BASE_BRANCH — stop and investigate"; exit 1; }
+
+node "$HOME/.claude/scripts/orientation.js" set \
+  --pr "$(gh pr view "$ROOT_PR_NUM" --json url -q '.url')" \
+  --step "Step 11: base pushed, root PR open"
+fi
+```
+
+Save the root PR number — Steps 12 (CI watch), 13 (`/pr-revise` + `gh pr ready`), and the topic-PR reference headers all need it, and it exists from this point on.
 
 After pushing, create topic PRs for documentation/tracking, close them, then **immediately delete topic branches**.
 
@@ -925,6 +1060,8 @@ Invoke `/watch-ci <root-pr-number>` to monitor CI. The skill handles polling, no
 If the task is intentionally CI-breaking (new linting rules, framework migration), skip CI verification and inform the user.
 
 ### Step 13: Update Root PR and Mark Ready
+
+The root PR may have been opened only minutes ago (Step 11) rather than at the start of the session — that is the normal case, and it changes nothing here. Its body is still the Step 11 placeholder, so this step is what gives it real content.
 
 Invoke `/pr-revise` to analyze the full diff between the parent branch and `base/<project-name>` and update the root PR title and description to accurately reflect all combined changes.
 
@@ -1285,11 +1422,11 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 1. **NEVER checkout main or parent branch on your own** — the workflow ends at Step 16 (cleanup audit), and `/cleanup-resources` is the only step authorized to switch branches as part of dead-branch cleanup. Outside its execution, stay on `base/<project-name>`. **Exceptions** (all routed through `/cleanup-resources` per Rule 27, or explicit special cases of Rule 26 Dead Branch Cleanup): (a) `-m` / `--merge` and PR merged → cleanup-resources proposes deleting the dead local `base/<project-name>`; the skill itself handles the checkout-parent + `git branch -d` mechanics. (b) **Super-Epic child mode** → the mandatory super-epic merge step (before Step 16) still checks out `$SUPER_EPIC_BASE` and deletes the local epic base, per step 6 of `references/super-epic-mode.md`. Cleanup-resources then audits and confirms. **On web (web-mode.md §5):** the "dead local base" is the `claude/*` session branch (`$WEB_BASE`) — do NOT delete it (web owns it). After `-m` merge, return to `$WEB_BASE`, not the default branch.
 2. **Fully autonomous** — never ask the user to manually start sessions or cd into worktrees. Use Task tool to spawn agents.
 3. **Always pull the parent branch before creating the base branch** — stale bases cause conflicts.
-4. **Create the root PR immediately in Step 2** — empty commit + draft PR locks in the correct parent branch. **On web:** no empty start commit and no `base/<project-name>` — the `claude/*` session branch is the base; the root PR is created via MCP (head=`$WEB_BASE`, base=`$WEB_PARENT`) after the first real commit. See web-mode.md §5.
+4. **The root PR is created in Step 11, not Step 2** — Step 2 creates and pushes `base/<project-name>` as a zero-diff ref (children target the *branch*, so it must exist before Step 3) and stops; the PR opens once the integrated base carries child work. **There is no empty start commit and it must never come back:** its `[skip ci]` subject rode the squash body onto the default branch under `squash_merge_commit_message: COMMIT_MESSAGES` and suppressed every `push`-triggered workflow. **The parent-branch lock-in that commit provided is preserved by an explicit mechanism, not dropped:** `INVOCATION_BRANCH` is captured before any checkout, `PARENT_BRANCH` is derived from it in Step 2 and recorded durably (orientation pointer note + the Step 2 progress comment), and the `!! PR TARGET CHECK !!` guard moved with the creation — it still sits directly above `gh pr create --base "$PARENT_BRANCH"` in Step 11. **On web:** same shape at the same point — no start commit and no `base/<project-name>`; the `claude/*` session branch is the base and the root PR is created via MCP (head=`$WEB_BASE`, base=`$WEB_PARENT`). See web-mode.md §5.
 5. **Never force push** — regular merge only, preserves history.
-6. **Push-forbid during work** — child agents commit locally only. All pushing happens in Step 11 after deep review. Saves CI resources.
+6. **Push-forbid during work** — child agents commit locally only, and **no commit reaches the remote before Step 11**, after review. The one earlier push is Step 2's base ref, which carries no work at all (children need a remote branch to target). Saves CI resources.
 7. **Topic branches merge locally first** — manager merges via `git merge`, not GitHub PR merge. Topic branches are pushed later for documentation only. **On web:** topic branches are merged locally into `$WEB_BASE` and never pushed (push-only-current-branch) — drop the documentation push. See web-mode.md §5.
-8. **Root PR targets the parent branch** — handled automatically by creating it in Step 2. Super-Epic child sessions target the super-epic base; see `references/super-epic-mode.md`. **On web this inverts:** the root PR targets `$WEB_PARENT` (repo default); the session branch is the base. See web-mode.md §5.
+8. **Root PR targets the parent branch** — `$PARENT_BRANCH`, recorded at bootstrap from `INVOCATION_BRANCH` (Rule 4) and asserted by the `!! PR TARGET CHECK !!` guard immediately above `gh pr create` in Step 11. Deferring creation moved that assertion later; it did not weaken it. Never omit `--base`, and never let it fall back to the repo default — if the recorded parent cannot be recovered on a resume, STOP and ask rather than guess. Super-Epic child sessions target the super-epic base; see `references/super-epic-mode.md`. **On web this inverts:** the root PR targets `$WEB_PARENT` (repo default); the session branch is the base. See web-mode.md §5.
 9. **worktrees/ must be in .gitignore** — worktrees are local only.
 10. **Manager stays at repo root** — never cd into worktrees for git ops.
 11. **Each child agent works in its worktree** — git ops affect that branch only.
@@ -1314,7 +1451,6 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 4. `git branch -d "$DEAD_BRANCH"` — use **`-d` NOT `-D`**. If unmerged commits, `-d` refuses; surface as a loud failure rather than silently destroy work with `-D`.
 
     Why mandatory: a dead local branch confuses the user — its remote is gone, its commits are already in the parent, future operations (push, fetch, rebase) will surprise them. Concrete instances: Super-Epic merge (Rule 22), Merge Mode after `/pr-complete` (Rule 1 exception (a)), the Step 17 deferred manual cleanup hook. Add this principle to any new merge-and-delete pattern in this skill. Does NOT apply to: branches whose remote is still alive (super-epic base accumulates more epics and stays live), the `--stay` accumulating-epic flow's epic base (PR is intentionally kept open), branches that haven't been merged. **As of Rule 27, the actual implementation of this cleanup is delegated to `/cleanup-resources` at Step 16 — hand-rolled `git branch -d` blocks should not be added; let cleanup-resources do it.**
-
 27. **Cleanup audit via `/cleanup-resources` — mandatory before STOP** — every workflow MUST invoke `/cleanup-resources` at Step 16 unless local mode / `--no-issue` was used AND no branches were created (essentially never in practice). The Sonnet subagent re-fetches every resource the manifest names, returns a structured close/keep/delete plan, and the manager executes the safe actions. This is the single source of truth for "what gets closed / deleted at end of workflow" — do NOT scatter ad-hoc `gh issue close` or `git branch -d` calls earlier in the workflow that duplicate its job. Concrete bugs this rule fixes: (a) sub-issues staying open after their topic PRs merged because the manager forgot to close them mid-workflow, (b) the tracking issue silently staying open at the very end, (c) `-m` deleting the remote base via `--delete-branch` but leaving the local base around to confuse the user. Rule 26 (Dead Branch Cleanup Principle) is now implemented by this audit step rather than by hand-rolled cleanup blocks. **On web:** there is no `base/<topic>` and the session branch must survive (protected by name in the manifest) — the "(c)" leftover-base framing does not apply. See web-mode.md §5.
 
 28a. **Children report via SendMessage on BOTH paths — a plain-text return never reaches the manager.** This is the single highest-cost failure mode observed in the field. When a child ends its turn by returning a report as text, the manager receives only an idle notification; the report is lost, and the child is indistinguishable from one that parked mid-review. Say the channel explicitly in every child prompt ("return your report via SendMessage; a plain-text return does not reach me; an issue comment is not a substitute"), and treat a complete-looking worktree with no SendMessage report as PARKED, not done. Full field evidence in Step 5 item (i); the merge gate in Step 6 depends on it. Do NOT "simplify" the subagents path back to plain-text returns on the reasoning that it has no team — skipping the team ceremony is not the same as skipping the channel.
@@ -1322,7 +1458,7 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 28b. **A child must never end its turn waiting on ANY backgrounded task — not just a review.** Completion notifications route to the manager, so a child that backgrounds anything and waits is never woken, and whatever it had not committed sits stranded in its worktree. The rule is about backgrounding, not about reviews: in the field a child backgrounded a `pnpm test:unit` sanity pass — outside the old review-only wording — and parked with 434 uncommitted lines that a routine worktree removal during cleanup would have destroyed. Put the GENERAL form in every child prompt (Step 5 item (k)), never the review-only form. Corollary for the manager: a parked child is indistinguishable from a finished one by worktree inspection, which is why Step 6's merge gate is the SendMessage report and never the worktree (see 28a), and why Step 7's removal loop must never `--force` (see Rule 29).
 
 28. **Arm the agent watchdog whenever long-running agents are spawned** — a session `CronCreate` (~30-min cadence, off-minute) that checks each pending agent's real progress signals (build processes, worktree commits, issue comments) and resumes parked ones via SendMessage; disarm it (`CronDelete`) at STOP unless an `-a` auto-chain hop is about to spawn the next wave. Full spec: Step 5 "Agent watchdog". This exists because parked children otherwise stall the whole session until a human pokes it — idle notifications alone are not a reliable progress signal.
-29. **Resume before you create — scan surviving worktrees before treating any topic as unstarted** — a manager session can die mid-wave, leaving a base branch, a root PR, and worktrees that hold uncommitted child work nobody ever saw. Step 1.5 is mandatory before Step 2 creates anything: (a) adopt an existing base branch / root PR rather than re-creating them (`git checkout -b` and `gh pr create` both fail on existing resources), (b) classify each worktree on dirty-state **plus base merge history** — a clean worktree whose topic already merged is SKIP, not RUN, and a genuinely-unstarted one needs its leftover topic branch deleted before Step 3 can re-create it, (c) adopt dirty/unmerged work by validating it and then spawning a **replacement child** to self-review and file a completion report, so Step 6's merge gate is satisfied through the normal path rather than bypassed. Never `git worktree remove --force` a dirty worktree without first adopting or explicitly discarding its contents — the bare `git worktree remove` refusal is a signal to inspect, not an obstacle to override. `BASE_BRANCH` is mode-specific (`$EPIC_BASE`, handoff base, `--stay` branch, `$WEB_BASE`, or `base/<project-name>`) — hard-coding it misclassifies every worktree. This is cross-session recovery, distinct from Rule 28's within-session watchdog; the super-epic path has its own richer version in `references/super-epic-mode.md`.
+29. **Resume before you create — scan surviving worktrees before treating any topic as unstarted** — a manager session can die mid-wave, leaving a base branch, a root PR, and worktrees that hold uncommitted child work nobody ever saw. Step 1.5 is mandatory before Step 2 creates anything: (a) adopt an existing base branch — and its root PR if one was opened — rather than re-creating them (`git checkout -b` and `gh pr create` both fail on existing resources), classifying from the **branch** rather than from PR presence, since a healthy bootstrap now leaves a pushed base with no PR, (b) classify each worktree on dirty-state **plus base merge history** — a clean worktree whose topic already merged is SKIP, not RUN, and a genuinely-unstarted one needs its leftover topic branch deleted before Step 3 can re-create it, (c) adopt dirty/unmerged work by validating it and then spawning a **replacement child** to self-review and file a completion report, so Step 6's merge gate is satisfied through the normal path rather than bypassed. Never `git worktree remove --force` a dirty worktree without first adopting or explicitly discarding its contents — the bare `git worktree remove` refusal is a signal to inspect, not an obstacle to override. `BASE_BRANCH` is mode-specific (`$EPIC_BASE`, handoff base, `--stay` branch, `$WEB_BASE`, or `base/<project-name>`) — hard-coding it misclassifies every worktree. This is cross-session recovery, distinct from Rule 28's within-session watchdog; the super-epic path has its own richer version in `references/super-epic-mode.md`.
 
 ## Prerequisites
 

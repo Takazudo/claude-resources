@@ -92,11 +92,19 @@ for repo_url in "${WISDOM_REPOS[@]}"; do
   set -e
 
   # ── run setup:doc-skill-silent ───────────────────────────────────────────────
-  # Use the non-interactive `setup:doc-skill-silent` variant: every wisdom repo's
-  # setup-doc-skill.sh now prompts for the skill name unless --silent is passed
-  # (the silent script passes it), so no `read` prompt can block this headless run.
-  # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 prevents headless-browser's postinstall
-  # from hitting the CDN (which is blocked in web containers).
+  # Use the `setup:doc-skill-silent` variant. Verified 2026-08-22 against all
+  # five upstream repos' current scripts/setup-doc-skill.sh: the skill name is
+  # already deterministic in every one and none of them ever `read` a prompt
+  # for it — --silent/-y is accepted only as a no-op consumed flag so it isn't
+  # mistaken for the positional skill-name override. `setup:doc-skill` and
+  # `setup:doc-skill-silent` are functionally equivalent today; -silent is
+  # used because it's the documented public convention each repo's
+  # package.json exposes, so this stays headless-safe if a repo later adds a
+  # real prompt gated behind that flag.
+  #
+  # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 removed 2026-08-22: checked all five
+  # WISDOM_REPOS' package.json directly — none declares a playwright
+  # dependency, so the var had no reachable effect.
   #
   # Note: each repo's setup-doc-skill.sh generates and symlinks exactly ONE
   # doc-lookup skill into ~/.claude/skills/ (test-wisdom, cloudflare-wisdom,
@@ -107,7 +115,7 @@ for repo_url in "${WISDOM_REPOS[@]}"; do
   set +e
   (
     cd "$repo_dir" || exit 1
-    timeout "$SETUP_TIMEOUT" bash -c 'PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm run setup:doc-skill-silent' 2>&1
+    timeout "$SETUP_TIMEOUT" npm run setup:doc-skill-silent 2>&1
   )
   setup_exit=$?
   set -e

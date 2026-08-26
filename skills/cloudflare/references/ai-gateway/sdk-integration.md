@@ -1,5 +1,7 @@
 # AI Gateway SDK Integration
 
+> Vendored snapshot of Cloudflare's AI Gateway docs; Claude model ids are locally patched to the current lineup — a future re-vendor must not silently restore the stale ids.
+
 ## Vercel AI SDK (Recommended)
 
 ```typescript
@@ -25,7 +27,7 @@ const { text } = await generateText({
 const { text } = await generateText({
   model: gateway([
     openai('gpt-4o'),
-    anthropic('claude-sonnet-4-5'),
+    anthropic('claude-sonnet-5'),
     openai('gpt-4o-mini')
   ]),
   prompt: 'Complex task'
@@ -53,7 +55,7 @@ const client = new OpenAI({
 });
 
 // Unified API - switch providers via model name
-model: 'openai/gpt-4o'  // or 'anthropic/claude-sonnet-4-5'
+model: 'openai/gpt-4o'  // or 'anthropic/claude-sonnet-5'
 ```
 
 ## Anthropic SDK

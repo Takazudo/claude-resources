@@ -23,7 +23,7 @@ ISSUE_URL=$(gh issue create \
 
 ### TODO
 - [ ] Step 1: Resolve GitHub tracking issue
-- [ ] Step 2: Create base branch and root PR
+- [ ] Step 2: Create and push base branch (root PR is created in Step 11)
 - [ ] Step 3: Create worktrees
 - [ ] Step 4: Environment setup
 - [ ] Step 5: Spawn child agents (implementation)
@@ -32,9 +32,9 @@ ISSUE_URL=$(gh issue create \
 - [ ] Step 8: Sync local base branch
 - [ ] Step 9: Quality assurance (code review, or deep review with -co)
 - [ ] Step 10: Verify UI (if --verify-ui)
-- [ ] Step 11: Push all changes to remote
+- [ ] Step 11: Push all changes to remote and create the root PR
 - [ ] Step 12: CI watch (verify CI passes)
-- [ ] Step 13: Update root PR and mark ready
+- [ ] Step 13: Update root PR (created in Step 11) and mark ready
 - [ ] Step 14: Session report
 - [ ] Step 15: Requirements verification (if issue linked)
 - [ ] Step 16: Cleanup
@@ -102,6 +102,8 @@ The command is idempotent — it no-ops when the label already exists.
 
 **Create the issue with the label:**
 
+**Use the branch fallback whenever the root PR does not exist yet — which is most of the time.** These findings are raised during implementation (Steps 5–9), and the root PR is not opened until Step 11, so `<ROOT_PR_URL>` is usually unavailable. Write `branch: base/<project-name>` then; never invent a PR URL, and never block raising the issue on a PR that has not been created.
+
 ```bash
 gh issue create \
   --title "<concise description of the unrelated problem>" \
@@ -109,7 +111,7 @@ gh issue create \
   --body "$(cat <<'EOF'
 ## Found during
 
-Root PR: <ROOT_PR_URL> (or branch: base/<project-name>)
+Root PR: <ROOT_PR_URL> — or, while the root PR is still pending, branch: base/<project-name>
 
 ## Description
 

@@ -1,14 +1,14 @@
 ---
 name: x-as-pr
-description: "Start a development workflow as a draft PR. Creates a NEW branch from the current branch, empty start commit, draft PR targeting the current branch, then implements. ALWAYS creates a new branch by default — produces a nested PR-on-PR when the current branch already has one. Use when: (1) User says 'dev as pr', (2) User wants a PR-first workflow before coding, (3) User passes -s/--stay to reuse the current branch instead of nesting, (4) User passes a GitHub issue URL to implement, (5) User passes --make-issue/--issue to create an issue first. Logs progress via issue comments when an issue is linked."
-argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [--make-issue|--issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number|plan-path] [branch-name] [base-branch]"
+description: "Start a development workflow as a draft PR. Creates a NEW branch from the current branch, pushes the branch ref, implements, then opens a draft PR targeting the current branch as soon as the first real commit is pushed. ALWAYS creates a new branch by default — produces a nested PR-on-PR when the current branch already has one. Use when: (1) User says 'dev as pr', (2) User wants a PR-first workflow before coding, (3) User passes -s/--stay to reuse the current branch instead of nesting, (4) User passes a GitHub issue URL to implement, (5) User passes --make-issue/--issue to create an issue first. Logs progress via issue comments when an issue is linked. Pass -toco/--to-codex to hand the whole job to Codex CLI instead of implementing here: it opens a new tmux window running codex, stages the matching $-prefixed Codex skill invocation in its composer, focuses it, and ends the session -- fired at the very start, before any branch or PR is created (terminal-only)."
+argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [--make-issue|--issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number|plan-path] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
 
-Start a development workflow by creating a branch and draft PR before implementation — or create a PR from existing work on the current branch.
+Start a development workflow by creating a branch before implementation, then opening a draft PR as soon as there is a real commit to open it against — or create a PR from existing work on the current branch.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR). **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — commit directly on it (the adopt-current-branch model) and target `$WEB_PARENT` (the fork-from / default branch). Do NOT create `topic/<slug>` and do NOT push an empty start commit; create the draft PR via MCP **after the first real commit** (head=`$WEB_BASE`, base=`$WEB_PARENT`) — no empty-diff PR. Push only the branch you are on. `-m` merges into `$WEB_PARENT` and does **not** delete the session branch (web owns it; `/pr-complete` and `/cleanup-resources` are web-aware). Fix branches are `claude/agent-fix-<slug>`. Do NOT run the terminal `gh pr view --json baseRefName` preference step — parent is `$WEB_PARENT` unconditionally.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR). **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — commit directly on it (the adopt-current-branch model) and target `$WEB_PARENT` (the fork-from / default branch). Do NOT create `topic/<slug>`; the draft PR goes through MCP `create_pull_request` (head=`$WEB_BASE`, base=`$WEB_PARENT`). Deferring the PR until the first real commit is **not** a web distinction — it is the universal rule below. Push only the branch you are on. `-m` merges into `$WEB_PARENT` and does **not** delete the session branch (web owns it; `/pr-complete` and `/cleanup-resources` are web-aware). Fix branches are `claude/agent-fix-<slug>`. Do NOT run the terminal `gh pr view --json baseRefName` preference step — parent is `$WEB_PARENT` unconditionally.
 
 > **In a limited verification env (Claude Code web)** the final visual / browser / Mac-only check can't run, so follow [`web/mac-handoff.md`](../../web/mac-handoff.md) — the **`mac`-label handoff**. When `DEFER_MAC` is set (limited env AND (`-v` passed OR the diff touched UI files), per mac-handoff.md §1–§2): with `-m`, merge anyway (CI still gates it) and raise a `mac` issue afterward; without `-m`, put the `mac` signal + a "verify on Mac" comment on the original issue **and** the root PR. Off web (Mac / WSL / local) this is always inert.
 
@@ -46,6 +46,40 @@ If the user wants the PR to target a different branch, they pass it explicitly v
 
 (See Step 3 "Determine Target (Base) Branch" for the full mechanism, and the Scenarios table under "Default Behavior" for every case.)
 
+## !! CRITICAL — NEVER CREATE A PR ON A ZERO-DIFF BRANCH !!
+
+Bootstrap pushes the **branch ref only**. The draft PR is created **immediately after the first real commit is pushed** — never before. `gh pr create` (and MCP `create_pull_request`) fails with "No commits between …" against a branch with zero commits ahead of its base.
+
+**Never manufacture a commit to get around that.** The historical workaround — an empty `= start <SLUG> dev = [skip ci]` commit — is permanently banned, and not only for the wasted CI run: `[skip ci]` survives as a branch-commit subject, and in any repo with `squash_merge_commit_message: COMMIT_MESSAGES` GitHub concatenates branch commit subjects into the squash body, carrying the marker onto the default branch where it suppresses **every** `push`-triggered workflow, production deploys included (confirmed twice in `zudolab/zudo-text`). Do not reintroduce an empty start commit in any form, with or without the marker.
+
+**Push policy — exactly three pushes per session:**
+
+1. **Bootstrap** (Step 4) — `git push -u origin <BRANCH_NAME>` publishes the ref at zero commits ahead of base. No PR yet.
+2. **First real commit** (Step 5.1) — pushed the moment it exists, so the draft PR can be created. This is the only mid-implementation push.
+3. **Final batch** ("Post-Implementation: Push Changes") — every remaining commit at once, after review.
+
+Nothing else pushes. (`-s` / `--stay` on a branch **already ahead of its base** collapses 1 and 2 into a single push at Stay Mode step 2 — it still totals at most three.) Note that a zero-diff **branch-ref push is still a `push` event** — an unfiltered `on: push` workflow runs on it. The ref push is cheap, not silent.
+
+### Resuming a bootstrapped branch (branch adoption)
+
+**"The PR does not exist yet" is a normal, resumable state.** An open PR no longer doubles as the "bootstrap already ran" marker, so a crash between the branch push and PR creation must not trigger a re-bootstrap. Re-derive state from the **branch**:
+
+```bash
+git fetch origin
+git rev-parse --verify "origin/<BRANCH_NAME>"                    # branch on origin?
+git rev-list --count "<TARGET_BRANCH>..<BRANCH_NAME>"            # 0 = zero-diff
+gh pr list --head "<BRANCH_NAME>" --json number,url --jq '.[0]'  # PR exists?
+```
+
+| Probe result | State | Action |
+|---|---|---|
+| Branch on origin, no PR, 0 ahead of base | bootstrap complete, nothing implemented yet | continue implementing — do NOT re-bootstrap, do NOT create a PR |
+| Branch on origin, no PR, ahead of base | implementation started, PR never created | push if origin is behind, then create the draft PR (Step 5.1) |
+| PR exists | fully bootstrapped | adopt that PR (record its number and URL); never open a second |
+| No branch on origin | bootstrap never ran | run Step 4 from the top |
+
+`-s` / `--stay` on a zero-diff current branch is the first row: it is already the working branch, so push the ref if origin lacks it and defer the PR until the first real commit.
+
 ## Auto-Pilot Behavior (Always On)
 
 This skill orchestrates long-running autonomous work (branch setup, implementation, review, PR management). When invoked, behave as if Auto Mode is active — regardless of session mode:
@@ -73,6 +107,7 @@ Parse `$ARGUMENTS` to extract:
 - **Team-member model flags** (`-t-op` / `--team-opus`, `-t-so` / `--team-sonnet`): Override the model used by the fix-delegation Agent spawned after review (and any other subagents spawned during implementation). Pick at most one. **Default: `opus`.** No `-t-haiku` — haiku is too small for fix-delegation work and not offered as a session-wide override. See "Team Member Model Override" below.
 - **`-a` or `--auto` flag**: Autonomy/chain flag, usually arriving forwarded from `/x` or `/big-plan -a`. `/x-as-pr` is already fully autonomous (Auto-Pilot is always on) and single-topic (no waves to chain), so `-a` adds no extra behavior here — accept it for chain-compatibility. It does **NOT** merge the PR; merging is `-m`'s job
 - **`-m` or `--merge` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes — merge the PR into its base branch, close the linked issue, and watch post-merge CI on the base branch (fixing it if red). See "Merge Mode" below
+- **`-toco` or `--to-codex` flag**: Codex hand-off — do NOT implement here. Open a new tmux window running `codex` at the repo root, stage `$x-as-pr <flags> <issue# or instructions>` in its composer, focus the window, and end this session. **Fires at the very start, before any branch, PR, or commit** — see "Codex Handoff Mode" below and the shared spec `$HOME/.claude/skills/x-wt-teams/references/codex-handoff.md`. Terminal-only
 - **`-f`, `-fix`, or `--auto-fix` flag**: **Default — on unless `-nf` is passed.** After the main work, auto-fix the safe subset of `agent-found` issues raised this session, before final cleanup. Pass explicitly for clarity; behavior is identical to the default. Requires `-ri` (the default) and is a **no-op under `-nori`** (nothing was raised to fix). See "Auto-Fixing Raised Findings (`-f` / `--auto-fix`)" below. Fix PRs follow `-m`'s auto-merge semantics
 - **`-nf` or `--no-fix` flag**: Skip the auto-fix step — raised `agent-found` issues stay open for the user to triage. Use for careful / manual sessions
 - **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
@@ -90,6 +125,37 @@ Parse `$ARGUMENTS` to extract:
 (A `[Sub]` issue under such an epic is likewise off-limits — its topic branch belongs to the epic's `/x-wt-teams` session. `/big-plan` never routes a super-epic child to `/x-as-pr`; this guard catches a hand-typed invocation.)
 
 If ambiguous, ask the user to clarify.
+
+## Codex Handoff Mode (`-toco` / `--to-codex`)
+
+**Only when `-toco` / `--to-codex` was passed.** Otherwise ignore this section.
+
+Full spec: [`$HOME/.claude/skills/x-wt-teams/references/codex-handoff.md`](../x-wt-teams/references/codex-handoff.md) — shared with `/big-plan` and `/x-wt-teams`. Read it for the `$`-prefix rule, the script's exit codes, and the submit-only-under-`-a` rule.
+
+**This is the first thing the skill does — before `INVOCATION_BRANCH` is used for anything, before Step 1, and above all before Step 4 creates a branch.** The entire job is going to Codex, so there is nothing here to branch for. Creating the branch first and handing off after leaves a stray branch and a half-started PR, which is the failure mode this ordering exists to prevent.
+
+Build the command from what the invocation carried:
+
+| Given | Send |
+| --- | --- |
+| An issue URL or number | `$x-as-pr <flags> <issue#>` — bare number, Codex resolves it in-repo |
+| `--make-issue` + instructions | Create the issue **here** (it is the better spec and outlives the session), then send `$x-as-pr <flags> <new-issue#>` |
+| Instructions only | `$x-as-pr <flags> <the instruction text>` |
+| `-lo` + a plan path | `$x-as-pr -lo <path>` |
+
+Forward `-a` / `-m` / `-nf` / `-nori` / `-lo`. Do **not** forward reviewer flags (`-co`, `-nor`) or the effort level — the Codex session picks its own. `-s` / `--stay` is meaningless here (Codex chooses its own branch); ignore it and say so. `-v` likewise does not travel.
+
+```bash
+bash "$HOME/.claude/scripts/handoff-to-codex.sh" \
+  --dir "$(git rev-parse --show-toplevel)" \
+  --name "codex-{issue# or slug}" \
+  --command '$x-as-pr -m -a 42' \
+  --submit          # only when -a was passed
+```
+
+Then **stop**. Run `node "$HOME/.claude/scripts/orientation.js" complete`, and report the window name, the exact command, and whether it was submitted or is waiting on Enter. Do not create a branch, PR, or tracking issue, and do not run the cleanup audit — there are no resources to audit. If a claim comment is warranted on a passed issue, post it before handing off so a concurrent session sees the work is taken.
+
+If the script exits non-zero, surface its message verbatim: the work is un-started and the user needs the fallback command it printed.
 
 ## Local Mode (`-lo` / `--local`)
 
@@ -134,6 +200,9 @@ Local mode keeps this run's *bookkeeping* out of the GitHub issue tracker — fo
 | `topic/foo` (has PR → main) | `/x-as-pr -s bar` | Stay on `topic/foo`, commit there, extend existing PR |
 | `topic/foo` (has commits, no PR) | `/x-as-pr bar` | New branch `topic/bar` → PR targets `topic/foo` |
 | `topic/foo` (has commits, no PR) | `/x-as-pr -s` | Stay on `topic/foo`, create PR from current work |
+| `topic/foo` (zero-diff vs base, no PR) | `/x-as-pr -s bar` | Stay on `topic/foo`, push the ref if origin lacks it, PR deferred to the first real commit |
+
+This table settles the branch and the PR's **base**, not *when* the PR appears — that is always the first real commit (see the zero-diff rule). The only rows where a PR exists straight away are the ones adopting an existing PR, and `-s` on a branch already ahead of its base.
 
 ---
 
@@ -148,16 +217,16 @@ When `-s` or `--stay` is **explicitly passed by the user**, stay on the current 
 
 **How it works:**
 
-1. The current branch IS the working branch — no new branch, no empty commit
+1. The current branch IS the working branch — no new branch, and never an empty commit (see the zero-diff rule)
 2. Determine `TARGET_BRANCH` (for PR base):
 - Check if a PR already exists for this branch: `gh pr view --json baseRefName -q '.baseRefName'`
 - If yes, reuse that PR (record its number) — no new PR needed
-- If no PR exists, use the repository's default branch as `TARGET_BRANCH` and create a new draft PR
+- If no PR exists, use the repository's default branch as `TARGET_BRANCH`, then branch on the diff: **ahead of that base** → push and create the draft PR now (scenario 2 above, the common case); **zero-diff** → push the ref if origin lacks it and defer the PR to Step 5.1, exactly as the default path does
 
 > **On web (web-mode.md §5):** this `--stay` path is exactly the default web model — `$WEB_BASE` is the base, the PR targets `$WEB_PARENT` (the fork-from / default branch). Do NOT run the `gh pr view --json baseRefName` preference above — even when the session branch already has a PR, parent = `$WEB_PARENT` unconditionally (web = adopt-current-branch with parent forced to default). Replace `gh pr view` with MCP only for reading PR existence, not for choosing the base.
 3. If there are uncommitted changes, commit them with a descriptive message (no empty commits)
 4. If the spec carries visual evidence (screenshots / `expected.png` / `now.png` / `/ss` / image attachments), first produce the Screenshot Requirement Contract (see Step 4.5 — it applies in Stay Mode too)
-5. If implementation instructions are provided, start implementation (commit locally, no push)
+5. If implementation instructions are provided, start implementation (commit locally, no push) — unless the PR is still deferred from step 2, in which case push the first real commit and open it via Step 5.1, then go quiet again
 6. All post-implementation steps (deep review, push, CI watch, PR revision) work the same
 
 ---
@@ -218,7 +287,8 @@ When creating an issue (`--make-issue`) or linking an existing one, ensure the i
 
 ```markdown
 ### TODO
-- [ ] Create branch and draft PR
+- [ ] Create branch and push the branch ref
+- [ ] Draft PR (opened once the first real commit is pushed)
 - [ ] Implementation
 - [ ] Code review (`/code-review`, or `/deep-review` with `-co`)
 - [ ] Push changes to remote
@@ -252,8 +322,9 @@ When a GitHub issue is linked (either passed as argument or created via `--make-
 
 | Milestone | Comment content |
 |-----------|----------------|
-| PR created | "Draft PR created: `<PR_URL>`" |
+| Branch pushed | "Branch `<BRANCH_NAME>` pushed (PR opens with the first commit)" |
 | Implementation started | "Starting implementation. Plan: `<brief plan>`" |
+| PR created — fires *after* the first real commit is pushed, not at branch creation | "Draft PR created: `<PR_URL>`" |
 | Significant progress | "Progress: `<what was done so far>`" |
 | Plan changed | "Plan update: `<what changed and why>`" |
 | Problem encountered | "Issue encountered: `<description of problem and how it was resolved or workaround>`" |
@@ -449,52 +520,31 @@ Record this as `TARGET_BRANCH`.
 
 **Example**: If invoked on `topic/foobar`, the new branch targets `topic/foobar` by default, not the repository's default branch.
 
-### Step 4: Create Branch and Draft PR
+### Step 4: Create the Branch and Push the Branch Ref
 
-> **On web (web-mode.md §5): SKIP this entire block.** Stay on `$WEB_BASE` (the `claude/*` session branch) — no `git checkout -b`, no empty commit, no `git push -u`. Defer PR creation: after the first real commit lands on `$WEB_BASE`, push `$WEB_BASE` and create the draft PR via MCP `create_pull_request` head=`$WEB_BASE` base=`$WEB_PARENT` draft:true (creating it now with no diff fails with "No commits between …"). The `!! PR TARGET CHECK !!` "MUST be INVOCATION_BRANCH" assertion is terminal-only — on web `base` = `$WEB_PARENT`. The guard makes this executable.
+**No PR is created in this step.** The branch is zero commits ahead of its base here, so `gh pr create` would fail — see the zero-diff rule above. The draft PR is opened in **Step 5.1**, the moment the first real commit is pushed.
+
+The ref still gets pushed at bootstrap: sibling sessions, `/watch-ci`, and any handoff target the *branch*, and it must exist on origin from the start.
+
+> **On web (web-mode.md §5):** `$WEB_BASE` (the `claude/*` session branch) IS the working branch and is already on origin, so there is nothing to create or push here — no `git checkout -b`, no `topic/<slug>`. What stays web-specific is *how* (GitHub MCP instead of `gh`) and *which base* (`$WEB_PARENT`, so the terminal `!! PR TARGET CHECK !!` "MUST be INVOCATION_BRANCH" assertion inverts). **When** the PR is created is identical on both paths.
 
 ```bash
 if [ "$CLAUDE_CODE_REMOTE" = "true" ]; then
-  # Web: stay on $WEB_BASE; no branch, no empty commit, no push here.
-  # Draft PR is deferred to after the first real commit (MCP create_pull_request,
-  # head=$WEB_BASE base=$WEB_PARENT draft:true).
+  # Web: $WEB_BASE is already the working branch and already on origin — nothing to do here.
   :
 else
   # Create and switch to new branch from TARGET_BRANCH
   git checkout -b <BRANCH_NAME> <TARGET_BRANCH>
 
-  # Create empty start commit — [skip ci] is GitHub's native skip instruction: the commit changes
-  # nothing, so CI on it is guaranteed-green waste; the real commits that follow trigger CI normally
-  git commit --allow-empty -m "= start <SLUG> dev = [skip ci]"
-
-  # Push to remote (only the initial empty commit — this is the only push until implementation is complete)
+  # Push the ref only — zero commits ahead of <TARGET_BRANCH>, and that is correct.
+  # Do NOT commit anything to make this push "meaningful" (see the zero-diff rule).
   git push -u origin <BRANCH_NAME>
-
-  # Create draft PR against TARGET_BRANCH
-  # !! PR TARGET CHECK !! — <TARGET_BRANCH> MUST be INVOCATION_BRANCH (recorded at the start),
-  # not the repo default branch. If you about to pass `--base main` on a session that was
-  # invoked from `topic/foo`, STOP — that is the bug the top-of-file rule prohibits.
-  gh pr create \
-    --base <TARGET_BRANCH> \
-    --title "<PR_TITLE>" \
-    --body "$(cat <<'EOF'
-## Summary
-<brief description based on issue or instructions>
-
-## Changes
-- (in progress)
-
-## Test Plan
-- (to be determined)
-EOF
-)" \
-    --draft
 fi
 ```
 
-The PR title should be descriptive based on the issue or instructions provided.
+**Record the orientation pointer** once the branch exists, so a mid-workflow context compaction can find its way back to the tracker instead of re-creating work. `begin` (not `set`) is deliberate: it clears any earlier run in this session, so a second `/x-as-pr` does not inherit the first one's issue and PR. Full spec: [`$HOME/.claude/skills/x-wt-teams/references/orientation-pointer.md`](../x-wt-teams/references/orientation-pointer.md).
 
-**Record the orientation pointer** once the branch and PR exist, so a mid-workflow context compaction can find its way back to the tracker instead of re-creating work. `begin` (not `set`) is deliberate: it clears any earlier run in this session, so a second `/x-as-pr` does not inherit the first one's issue and PR. Full spec: [`$HOME/.claude/skills/x-wt-teams/references/orientation-pointer.md`](../x-wt-teams/references/orientation-pointer.md).
+**Do NOT pass `--pr` here** — there is no PR URL yet, and writing a placeholder is worse than leaving the field empty. Step 5.1 fills it in with `orientation.js set --pr`.
 
 ```bash
 # Blank values are dropped by the script, so pass every flag unconditionally —
@@ -504,8 +554,8 @@ node "$HOME/.claude/scripts/orientation.js" begin \
   --issue "$ISSUE_NUM" \
   --local-dir "$LOCAL_DIR" \
   --repo "$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)" \
-  --branch "<BRANCH_NAME>" --base-branch "<TARGET_BRANCH>" --pr "<PR_URL>" \
-  --step "Step 4: branch + draft PR created"
+  --branch "<BRANCH_NAME>" --base-branch "<TARGET_BRANCH>" \
+  --step "Step 4: branch created and pushed — PR deferred to the first real commit"
 ```
 
 ### Step 4.5: Screenshot Requirement Contract (when the spec includes visual evidence)
@@ -531,18 +581,68 @@ node "$HOME/.claude/scripts/orientation.js" begin \
    - <widths or breakpoints the screenshot implies, when visible>
    ```
 
-4. **Record it in the draft PR body** (under `-lo`, in `progress.md` instead) so it survives context compression and is visible to the review and `/verify-ui` steps. On web (web-mode.md §5), the draft PR is deferred until the first real commit — until it exists, hold the contract in your progress notes, then move it into the PR body once created.
+4. **Record it where it survives context compression** so it is visible to the review and `/verify-ui` steps. This step runs *before* implementation, so on every path the PR does not exist yet — hold the contract in your progress notes (under `-lo`, in `progress.md`; otherwise the linked issue or your session notes), then move it into the draft PR body at Step 5.1, right after the PR is created.
 5. **Use it as the source of truth** for both implementation and the `-v` `/verify-ui` pass. Derive the `Forbidden:` states deliberately from the diff, not just the `Expected:` ones — a result that still exhibits a forbidden state is a **FAIL** even when every `Expected:` item is met. (The ReadyCrew failure that motivated this step passed verification because it checked "reason text is wider" — an Expected-ish proxy — while never checking "AI and budget are no longer side-by-side", the forbidden state the screenshot was actually correcting. See `/verify-ui` for the worked example.)
 
-If `Unknown` holds anything that blocks implementation, ask the user one concise question; otherwise proceed on reasonable assumptions and note them in the PR body.
+If `Unknown` holds anything that blocks implementation, ask the user one concise question; otherwise proceed on reasonable assumptions and note them next to the contract — they ride into the PR body with it at Step 5.1.
 
 ### Step 5: Start Implementation (Push-Forbid Mode)
 
-**IMPORTANT: DO NOT push during implementation.** All commits stay local until the post-implementation phase. This saves CI resources by avoiding CI runs on every intermediate commit. Only push once at the end after deep review is complete.
+If the user provided implementation instructions (either via issue or direct text), begin the implementation work immediately. Commit frequently.
 
-If the user provided implementation instructions (either via issue or direct text), begin the implementation work immediately. Commit frequently but do NOT push.
+**IMPORTANT: exactly one push happens during implementation — the first real commit.** The moment that commit exists, go to Step 5.1: push it and open the draft PR. Every commit after that stays local until the post-implementation batch push, which saves CI resources by avoiding a CI run on every intermediate commit.
 
-If no instructions were provided, report the PR URL and wait for further direction.
+If no instructions were provided, report the **branch name** and wait for further direction. There is no PR to report — the branch is zero-diff, and **you must not create one to have a URL to hand back**. (The one exception: `-s` / `--stay` on a branch that was already ahead of its base created a real PR back in Stay Mode — report that URL.)
+
+### Step 5.1: Create the Draft PR — the moment the first real commit is pushed
+
+Trigger: the first commit with an actual diff has landed on the working branch. Do this **before** continuing to implement, not at the end — the PR is the workflow's tracker, and a session that crashes without it has nothing for the next session to adopt.
+
+```bash
+# 1. Push the first real commit — the branch is now ahead of its base, so a PR is creatable.
+# `-u` is idempotent and covers the `-s` path, where bootstrap may never have set an upstream.
+git push -u origin <BRANCH_NAME>
+
+# 2. Create draft PR against TARGET_BRANCH
+# !! PR TARGET CHECK !! — <TARGET_BRANCH> MUST be INVOCATION_BRANCH (recorded at the start),
+# not the repo default branch. If you are about to pass `--base main` on a session that was
+# invoked from `topic/foo`, STOP — that is the bug the top-of-file rule prohibits.
+gh pr create \
+  --base <TARGET_BRANCH> \
+  --title "<PR_TITLE>" \
+  --body "$(cat <<'EOF'
+## Summary
+<brief description based on issue or instructions>
+
+## Changes
+- (in progress)
+
+## Test Plan
+- (to be determined)
+EOF
+)" \
+  --draft
+```
+
+> **On web (web-mode.md §5):** same trigger, same ordering — push `$WEB_BASE`, then MCP `create_pull_request` head=`$WEB_BASE` base=`$WEB_PARENT` draft:true. The `!! PR TARGET CHECK !!` assertion above is terminal-only; on web the base is `$WEB_PARENT` unconditionally.
+
+The PR title should be descriptive based on the issue or instructions provided.
+
+Then, in order:
+
+1. **Record the PR on the orientation pointer** — `begin` already ran at Step 4, so this is a `set`:
+
+   ```bash
+   node "$HOME/.claude/scripts/orientation.js" set --pr "<PR_URL>" \
+     --step "Step 5.1: draft PR created"
+   ```
+
+2. **Move the Screenshot Requirement Contract into the PR body** if Step 4.5 produced one (under `-lo`, it stays in `progress.md`).
+3. **Log the milestone** — comment "Draft PR created: `<PR_URL>`" on the linked issue and check off the PR item in the TODO checklist (under `-lo`, append to `progress.md`).
+
+Then return to implementing. No further pushes until the post-implementation batch.
+
+**If a PR already exists for this branch** (resumed session, `-s` on an already-PR'd branch): adopt it — record its number and URL, run the `set --pr` above, and do not create a second one.
 
 ---
 
@@ -556,8 +656,9 @@ If no instructions were provided, report the PR URL and wait for further directi
 -> Read issue #42 "Add dark mode support"
 -> Branch: issue-#42/add-dark-mode-support
 -> Base: main
--> Empty commit, push, draft PR
+-> Push branch ref (zero-diff, no PR yet)
 -> Start implementing based on issue
+-> First real commit -> push -> draft PR targeting main
 ```
 
 ### Default: with explicit branch and base
@@ -567,7 +668,8 @@ If no instructions were provided, report the PR URL and wait for further directi
 -> Fetch, on develop
 -> Branch: feature/new-auth
 -> Base: develop
--> Empty commit, push, draft PR
+-> Push branch ref (zero-diff, no PR yet)
+-> Draft PR targeting develop once the first real commit is pushed
 ```
 
 ### Default: with instructions only
@@ -577,8 +679,9 @@ If no instructions were provided, report the PR URL and wait for further directi
 -> Fetch, on main
 -> Branch: topic/add-pagination-user-list
 -> Base: main
--> Empty commit, push, draft PR
+-> Push branch ref (zero-diff, no PR yet)
 -> Start implementing pagination
+-> First real commit -> push -> draft PR targeting main
 ```
 
 ### Default: from a non-default branch (nested PR)
@@ -588,8 +691,9 @@ If no instructions were provided, report the PR URL and wait for further directi
 -> Fetch, on topic/foobar (even if it has its own PR)
 -> Branch: topic/add-search-sidebar (new)
 -> Base: topic/foobar (INVOCATION_BRANCH)
--> Empty commit, push, draft PR targeting topic/foobar (nested PR-on-PR)
+-> Push branch ref (zero-diff, no PR yet)
 -> Start implementing search
+-> First real commit -> push -> draft PR targeting topic/foobar (nested PR-on-PR)
 ```
 
 ### Stay Mode: reuse current branch
@@ -618,9 +722,11 @@ If no instructions were provided, report the PR URL and wait for further directi
 -> Fetch issue #42 "Add dark mode support"
 -> Issue body describes what to implement → treat as implementation instructions
 -> Branch: issue-#42/add-dark-mode-support, base: main
--> Empty commit, push, draft PR
--> Comment on issue #42: "Draft PR created: <URL>. Starting implementation."
+-> Push branch ref (zero-diff, no PR yet)
+-> Comment on issue #42: "Starting implementation."
 -> Implement the issue
+-> First real commit -> push -> draft PR
+-> Comment on issue #42: "Draft PR created: <URL>"
 -> Comment on issue #42: "Implementation complete. Changes: ..."
 ```
 
@@ -630,9 +736,10 @@ If no instructions were provided, report the PR URL and wait for further directi
 /x-as-pr --make-issue add a search feature to the sidebar
 -> Create GitHub issue "Add search feature to sidebar" with plan
 -> Branch: issue-#99/add-search-sidebar, base: main
--> Empty commit, push, draft PR
--> Comment on issue #99: "Draft PR created: <URL>"
+-> Push branch ref (zero-diff, no PR yet)
 -> Implement, commenting on issue for progress
+-> First real commit -> push -> draft PR
+-> Comment on issue #99: "Draft PR created: <URL>"
 ```
 
 ---
@@ -732,7 +839,7 @@ After implementation is complete (in either mode), evaluate whether to run an au
 ### Trigger Conditions (ALL must be true)
 
 1. `-nor` / `--no-review` was NOT passed (if it was, skip this entire section — see "No Review Mode" above)
-2. Implementation was actually performed (not just PR creation with no instructions)
+2. Implementation was actually performed (not a bootstrap-only session with no instructions)
 3. The implementation completed without needing to ask the user for confirmation or clarification (no `AskUserQuestion` was used during implementation)
 4. No errors or failures occurred during implementation
 5. Changes were committed successfully
@@ -838,13 +945,13 @@ Playwright work is serialized machine-wide by `$HOME/.claude/scripts/playwright-
 
 ## Post-Implementation: Push Changes
 
-After deep review is complete (or skipped), **push all commits to remote in one batch**. This is the first push since the initial empty commit — saving CI resources.
+After deep review is complete (or skipped), **push all commits to remote in one batch**. This is push 3 of the three-push policy — the first push since the Step 5.1 commit that created the PR, saving CI resources.
 
 ```bash
 git push origin <BRANCH_NAME>
 ```
 
-This single push triggers CI once with the complete implementation, rather than on every intermediate commit.
+This single push triggers CI once with the complete implementation, rather than on every intermediate commit. If the whole implementation was that one Step 5.1 commit, this is a no-op — report it as already pushed and move on; never manufacture a commit to give the push something to carry.
 
 ---
 
@@ -871,7 +978,7 @@ After implementation, deep review, push, and CI watch are complete (or skipped),
 
 ### When to Run
 
-Run `/pr-revise` when implementation was performed. The PR was created at the start with placeholder or initial content, and the implementation may have gone beyond the original scope.
+Run `/pr-revise` when implementation was performed. The PR was opened at the first real commit (Step 5.1) with placeholder or initial content, and the implementation carried on well past it.
 
 ### Action
 
@@ -881,7 +988,7 @@ Invoke `/pr-revise` to analyze the full diff and update the PR title and descrip
 
 Do NOT run PR revision if:
 
-- No implementation was done (PR was just created with no instructions)
+- No implementation was done (no instructions were given, so no PR was created either)
 - The PR was just created with `--stay` from already-committed work and has an already-accurate description (the body was derived from actual commits/diff)
 
 ---
@@ -1089,7 +1196,7 @@ Skill tool: skill="cleanup-resources", args="workflow:x-as-pr <-a if -m was pass
   - `workflow: x-as-pr`
   - `auto-flag: <true if -m/--merge was passed, else false>`
   - `epic-mode: false`
-  - `root-PR: <PR_URL>` (always — every `/x-as-pr` session creates exactly one PR)
+  - `root-PR: <PR_URL>` — a session that reached implementation creates exactly one PR. If the session ended before the first real commit (no instructions given, or it stopped early), no PR exists: pass `root-PR: none (branch never got a commit — PR was never created)` rather than a placeholder, so the audit does not hunt for a missing resource. The branch is still audited normally.
   - `root-PR-merged: <true if -m and /pr-complete merged it, else false>`
   - `parent-branch: <TARGET_BRANCH>` — the branch the PR targets
 - Issues to include:
@@ -1104,7 +1211,7 @@ Skill tool: skill="cleanup-resources", args="workflow:x-as-pr <-a if -m was pass
   - **`agent-fix/<slug>` branches** (if the `-fix` step created any) — role: `fix`. Pass `pr-merged: <true if the fix PR merged — always under `-m`, else false>` so merged fix branches are cleaned up and unmerged ones (ready PRs awaiting the user) are kept.
   - **Target branch** (`$TARGET_BRANCH`) — role: `parent`. Always KEEP (cleanup-resources protects parent roles).
 - PRs to include:
-  - **Root PR** — role: `root`, state from `gh pr view`.
+  - **Root PR** — role: `root`, state from `gh pr view`. Omit entirely when `root-PR: none` (no commit was ever made).
   - **`-fix` fix PRs** (if the auto-fix step created any) — role: `fix`, state from `gh pr view`. Merged → done; ready/open → KEEP (intentional, awaiting the user when `-m` was not passed).
 
 After `/cleanup-resources` returns its report, surface the closed/deleted/kept counts to the user. If the report has an "Ambiguous" section, list those resources verbatim and let the user decide before STOP.
@@ -1121,7 +1228,7 @@ node "$HOME/.claude/scripts/orientation.js" complete
 
 ## STOP — WORKFLOW ENDS HERE
 
-**After `/cleanup-resources` returns its report and the manager executes the safe actions, the workflow is DONE.** Report the PR URL and stop.
+**After `/cleanup-resources` returns its report and the manager executes the safe actions, the workflow is DONE.** Report the PR URL and stop — or the branch name, if the session never reached a first commit and so has no PR.
 
 **CRITICAL RULES:**
 

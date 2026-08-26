@@ -122,11 +122,32 @@ If `--keep-issue` or `-k` is passed, after the PR is successfully merged:
 If `--watch-ci` or `-w` is passed, after the PR is successfully merged:
 
 1. Determine the merge target branch (the base branch of the PR)
-2. Check if there are any CI workflow runs triggered on the merge target branch for the merge commit:
-- `gh run list --branch <base-branch> --limit 5 --json databaseId,name,status,conclusion`
-3. If CI runs exist on the target branch, invoke `/watch-ci` to monitor the merge target branch CI in the background
-- `/watch-ci` already handles merged PRs — it will detect the merged state and watch the target branch CI
-4. If no CI runs exist on the target branch, skip and report: "No CI detected on the merge target branch."
+2. Invoke `/watch-ci` to monitor the merge target branch CI. `/watch-ci` already handles
+
+   merged PRs (its Step 2b): it detects the merged state and itself applies the
+   push-trigger-check determination — [`skills/watch-ci/references/push-trigger-check.md`](../watch-ci/references/push-trigger-check.md)
+   is the single source of truth for that classification; do not restate the recipe
+   here. Do not run a separate preliminary `gh run list` check before calling `/watch-ci`
+   — that duplicate check is exactly what silently swallowed the missing-run condition
+   before.
+
+3. Report whatever `/watch-ci` returns, without softening it:
+- a **pass** only for `RESULT: PASSED`
+- a **failure** for `RESULT: FAILED`, or for an `EXPECTED_RUN_MISSING` push-trigger-check
+
+  verdict — name the likely cause `/watch-ci` reports (a skip marker in the merge commit
+  message, or a merge performed by Actions using `GITHUB_TOKEN`)
+
+- **unresolved, never a pass**, for `RESULT: INCONCLUSIVE`, `RESULT: TIMEOUT` (the watch
+
+  gave up before CI reached a terminal state — say what was still unfinished), or an
+  `INCONCLUSIVE` push-trigger-check verdict
+
+- **benign, with the stated reason**, only for a `BENIGN_NO_TRIGGER` verdict — this is
+
+  the only case that may say "no CI detected", and the reason `/watch-ci` gave (no
+  matching trigger, excluded by a `branches`/`paths` filter, disabled workflow, Actions
+  disabled repo-wide) must be repeated, not dropped
 
 **On web (web-mode.md §8): the post-merge watch is also in-turn — do NOT background `/watch-ci`.** Web has no background-task wakeup, so a backgrounded post-merge watch would leave this step hanging exactly like the pre-merge case. Poll the target-branch CI via MCP (`pull_request_read` / `actions_*` per github-ops.md) in a loop (~30–60 s between polls) until terminal, then report. If it goes red, fix via a `claude/agent-fix-*` PR (web-mode.md §5) and re-poll until green. Stay in the turn — never end at "watching in background, I'll check back."
 

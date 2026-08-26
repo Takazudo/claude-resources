@@ -1,5 +1,7 @@
 # Features & Capabilities
 
+> Vendored snapshot of Cloudflare's AI Gateway docs; Claude model ids are locally patched to the current lineup — a future re-vendor must not silently restore the stale ids.
+
 ## Caching
 
 Dashboard: Settings → Cache Responses → Enable
@@ -77,7 +79,7 @@ Or via API: set `model`, `input_cost`, `output_cost`.
 | Provider | Unified API | Notes |
 |----------|-------------|-------|
 | OpenAI | `openai/gpt-4o` | Full support |
-| Anthropic | `anthropic/claude-sonnet-4-5` | Full support |
+| Anthropic | `anthropic/claude-sonnet-5` | Full support |
 | Google AI | `google-ai-studio/gemini-2.0-flash` | Full support |
 | Workers AI | `workersai/@cf/meta/llama-3` | Native |
 | Azure OpenAI | `azure-openai/*` | Deployment names |

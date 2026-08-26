@@ -19,6 +19,13 @@
 #
 # A state where nothing produced a result (only skips) is reported as INCONCLUSIVE
 # (exit 3), never as a pass — the caller decides what that means.
+#
+# This script polls for a result; it does not decide whether a run was expected to
+# exist in the first place. If $COMMIT never gets a matching run at all (total stays 0
+# every cycle), that is invisible here and just times out (exit 2) — the caller (watch-ci
+# SKILL.md Step 2b) is responsible for running the push-trigger-check determination
+# BEFORE launching this script, so it only launches when a run is actually expected or
+# already exists. See references/push-trigger-check.md.
 
 set -uo pipefail
 

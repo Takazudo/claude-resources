@@ -259,7 +259,9 @@ git fetch origin --prune
 n=1
 # Probe BOTH namespaces. A first attempt that died between `checkout -b` and the first push leaves
 # a LOCAL base with no remote: an origin-only probe would not bump the slug, `git checkout -b` would
-# then fail on the existing branch, and the anchor commit would land on the sweep's PARENT branch.
+# then fail on the existing branch, and the bootstrap would abort with the session still standing on
+# the sweep's PARENT branch — or, worse, resume onto that stale local base and publish the dead
+# attempt's commits as the trunk every epic-PR stacks onto.
 # The PR probe is the one that matters most, and it is NOT redundant: a SUCCESSFULLY COMPLETED
 # same-day sweep deletes BOTH refs (the terminal merge does `--delete-branch`, then `git branch -d`),
 # so a refs-only check would not bump the slug and the second sweep would reuse the identical base
@@ -303,7 +305,7 @@ scenario the collision check exists to prevent.
 
    **Super-epic base branch:** `base/{sweep-slug}`
    **Parent branch:** `{SWEEP_PARENT_BRANCH}`
-   **Super-PR:** {filled in at bootstrap step 3}
+   **Super-PR:** _pending — created after the first epic-PR merges into the super base_
 
    Each child epic is a normal /big-plan epic (with its own [Sub] issues) carrying the
    Super-Epic child markers. /x-wt-teams merges each epic-PR into the super base; the
@@ -320,8 +322,8 @@ scenario the collision check exists to prevent.
    ```
 
    **Capture the issue number — it is the one value nothing else can re-derive.** The super-PR body
-   (step 3), every child epic's `**Super-epic:** #N` marker (Step 4b), and the Step 4c backfill all
-   need it:
+   (step 3's deferred block, run by the `/x-wt-teams` sibling that creates the PR), every child
+   epic's `**Super-epic:** #N` marker (Step 4b), and the Step 4c backfill all need it:
 
    ```bash
    SUPER_BODY=$(mktemp)
@@ -335,7 +337,7 @@ scenario the collision check exists to prevent.
 
    **Super-epic base branch:** `base/{sweep-slug}`
    **Parent branch:** `{SWEEP_PARENT_BRANCH}`
-   **Super-PR:** {filled in at bootstrap step 3}
+   **Super-PR:** _pending — created after the first epic-PR merges into the super base_
 
    Each child epic is a normal /big-plan epic (with its own [Sub] issues) carrying the
    Super-Epic child markers. /x-wt-teams merges each epic-PR into the super base; the
@@ -372,7 +374,8 @@ scenario the collision check exists to prevent.
    and hoping to reorder afterwards is how the two drift apart.
 
    **Every later edit of the super-epic body is a read-modify-write** — the epic-order appends
-   (Step 4b), the super-PR URL (step 3 below), and the Step 4c backfill all rewrite the whole body.
+   (Step 4b), the Step 4c backfill, and the super-PR URL (recorded by whichever `/x-wt-teams`
+   sibling eventually creates the PR, long after this session ends) all rewrite the whole body.
    Always `gh issue view "$SUPER_EPIC_NUMBER" --json body --jq .body` first, edit *that* text, and
    pass the result via `--body-file`. Composing an edit from your own earlier draft silently drops
    whatever the other steps appended.
@@ -385,9 +388,10 @@ scenario the collision check exists to prevent.
    sweep intended `-a -m`, the resumed chain merges every epic-PR and then silently stops at an
    unmerged super-PR.
 
-3. **Create the super base + anchor commit + draft super-PR.** This is the sweep's one authorized
-   branch/PR operation during planning (mirrors `-br`'s resource-handoff exception) — no product
-   code is committed:
+3. **Create and push the super base — branch only, no commit, no PR.** This is the sweep's one
+   authorized branch operation during planning (mirrors `-br`'s resource-handoff exception). The
+   base starts as an exact copy of `$SWEEP_PARENT_BRANCH`: nothing is committed onto it here, not
+   even an empty commit. **The super-PR is deferred** — see "The deferred super-PR" below.
 
    ```bash
    # Shell state does not persist — assign every scalar this block uses, substituting the LITERAL
@@ -395,14 +399,13 @@ scenario the collision check exists to prevent.
    SWEEP_PARENT_BRANCH=<branch captured in Step 1>
    SWEEP_SLUG=<slug fixed in the Naming block>
    SUPER_BASE="base/$SWEEP_SLUG"
-   SUPER_EPIC_NUMBER=<number captured in bootstrap step 2>
    [ -n "$SWEEP_PARENT_BRANCH" ] || { echo "SWEEP_PARENT_BRANCH unset — abort"; exit 1; }
    [ -n "$SWEEP_SLUG" ]          || { echo "SWEEP_SLUG unset — abort"; exit 1; }
-   [ -n "$SUPER_EPIC_NUMBER" ]   || { echo "SUPER_EPIC_NUMBER unset — abort"; exit 1; }
 
-   # The anchor MUST be empty. `git commit --allow-empty` commits the INDEX — it does not force an
-   # empty commit — and `git checkout -b` carries a dirty tree onto the new branch. Anything staged
-   # here is baked into the anchor, rides every epic base, and is merged into $SWEEP_PARENT_BRANCH by
+   # The tree must be clean even though nothing is committed here: `git checkout -b` CARRIES a dirty
+   # tree and index onto the new branch. Whatever is in flight follows you onto $SUPER_BASE, where
+   # the next thing that commits — this session's own later work, or a child worktree cut from the
+   # base — sweeps it in. It then rides every epic base and is merged into $SWEEP_PARENT_BRANCH by
    # the terminal sibling: unrelated in-progress work silently shipped to a release branch.
    # (diff/diff --cached, not `status --porcelain`: untracked scratch files can never reach a commit
    # without -a/pathspec, and blocking on them would refuse legitimate sweeps.)
@@ -410,15 +413,48 @@ scenario the collision check exists to prevent.
      || { echo "working tree not clean — commit or stash before sweeping; abort"; exit 1; }
 
    # ONE && chain — this is load-bearing, not style. If `checkout -b` fails (empty name, or a stale
-   # local base) and the commit is NOT chained to it, the empty anchor commit lands on
-   # $SWEEP_PARENT_BRANCH — the long-lived release branch the sweep must never touch.
-   # [skip ci]: the empty anchor changes nothing, so CI on it is guaranteed-green waste.
+   # local base) you are still standing on $SWEEP_PARENT_BRANCH — the long-lived release branch the
+   # sweep must never touch — and an unchained `push -u origin "$SUPER_BASE"` would publish whatever
+   # HEAD happens to be, or re-publish a stale local base, as the trunk every epic-PR stacks onto.
+   # The rev-parse equality replaces the old "the anchor must be EMPTY" assertion: same invariant,
+   # new referent — the super base must start as an EXACT copy of the freshly pulled parent tip and
+   # carry no stray work. (It is chained BEFORE the push so a mismatch never reaches origin.)
    git checkout "$SWEEP_PARENT_BRANCH" && git pull origin "$SWEEP_PARENT_BRANCH" \
      && git checkout -b "$SUPER_BASE" \
-     && git commit --allow-empty -m "= start $SWEEP_SLUG super-epic = [skip ci]" \
-     && git diff --quiet HEAD^ HEAD \
+     && [ "$(git rev-parse "$SUPER_BASE")" = "$(git rev-parse "origin/$SWEEP_PARENT_BRANCH")" ] \
      && git push -u origin "$SUPER_BASE" \
-     || { echo "super base bootstrap failed — abort (the anchor must be EMPTY; also check for a stale local $SUPER_BASE)"; exit 1; }
+     || { echo "super base bootstrap failed — abort (the super base must point at origin/$SWEEP_PARENT_BRANCH; also check for a stale local $SUPER_BASE)"; exit 1; }
+   ```
+
+   **Push the zero-diff branch ref anyway.** Every epic session targets the *branch*, not the PR —
+   `/x-wt-teams`'s super-epic mode probes `refs/remotes/origin/$SUPER_EPIC_BASE` — so the ref must
+   exist on origin before any of them start. A remote branch pointing at the same commit as its
+   parent is a normal, valid state. Note that pushing a new branch **is** a push event: an
+   unfiltered `on: push` workflow still runs on it.
+
+   **The deferred super-PR — created by `/x-wt-teams`, not here.**
+   `gh pr create` cannot open a PR whose head is zero commits ahead of its base, and the empty
+   `[skip ci]` anchor commit that used to make one possible is exactly the defect this topology
+   removes (that subject rides into the squash body and suppresses every `push`-triggered workflow
+   on the branch it lands in). So **the sweep session does not create the super-PR.** It is created
+   **after the first epic-PR merges into the remote super base** — the first moment the base is
+   genuinely ahead of `$SWEEP_PARENT_BRANCH` — by the `/x-wt-teams` sibling that performed that
+   merge (`x-wt-teams/references/super-epic-mode.md`). "No super-PR yet" is a normal, resumable
+   state for the whole span between bootstrap and that merge; nothing may infer "bootstrap never
+   ran" from a missing PR — the branch ref is the marker.
+
+   The producer owns the PR's *shape*; this is the block the creating sibling runs:
+
+   ```bash
+   # Every value is re-derived from the issue markers — the sweep session that set them ended long
+   # before this runs, and nothing may be carried over in shell state.
+   SUPER_BASE=<the epic's **Super-epic base branch:** marker, e.g. base/sweep-260715>
+   SWEEP_PARENT_BRANCH=<the super-epic issue's **Parent branch:** marker>
+   SWEEP_SLUG="${SUPER_BASE#base/}"
+   SUPER_EPIC_NUMBER=<number from the epic's **Super-epic:** #N marker>
+   [ -n "$SUPER_BASE" ]            || { echo "SUPER_BASE unset — abort"; exit 1; }
+   [ -n "$SWEEP_PARENT_BRANCH" ]   || { echo "SWEEP_PARENT_BRANCH unset — abort"; exit 1; }
+   [ -n "$SUPER_EPIC_NUMBER" ]     || { echo "SUPER_EPIC_NUMBER unset — abort"; exit 1; }
 
    # Compose the PR body in a file — never an inline --body "…\n…" (the \n ships literally).
    BODY=$(mktemp)
@@ -442,8 +478,10 @@ scenario the collision check exists to prevent.
    (Unquoted heredoc — `$SUPER_EPIC_NUMBER` / `$SWEEP_SLUG` / the branch names must expand. The
    backticks are escaped so they stay literal.)
 
-   The super-PR must exist before any epic session starts — the epic-PRs target the super base and
-   accumulate onto it. Record the super-PR URL in the super-epic body.
+   What **must** exist before any epic session starts is the **super base branch on origin** — the
+   epic-PRs target that branch and accumulate onto it. The super-PR is a later artifact: record its
+   URL in the super-epic body's `**Super-PR:**` line (a read-modify-write, as above) at the moment
+   it is created, replacing the `pending` placeholder.
 
 4. **Stay on `$SUPER_BASE`** for the rest of the sweep. Every per-issue plan in Step 4 then runs
    with `$PARENT_BRANCH = $SUPER_BASE` naturally detected by big-plan's Branch Context — so the
@@ -634,7 +672,9 @@ live scaffolding, not dead resources):
 - The **super-epic issue** — role `super-epic`, KEEP (closed only by the terminal `/x-wt-teams`
   sibling under `-m`).
 - The **super base** `base/{sweep-slug}` — role `super-base`, KEEP.
-- The **draft super-PR** — role `super-pr`, KEEP.
+- The **super-PR** — role `super-pr`, KEEP. During planning it does not exist yet (it is created
+  after the first epic-PR merges), so record it as `pending` rather than asserting a URL — and
+  never read its absence as a dead or missing resource to clean up.
 
 Each child epic + its `[Sub]` issues stay KEEP as usual; source issues are superseded-closed as
 usual.
@@ -751,12 +791,13 @@ open epic, `-re` is identical to normal creation.
 ## Step 6: Final report
 
 Summarize the sweep. **In a default bundled sweep this report prints BEFORE the 4c auto-invoke** (the
-chain never hands control back), so nothing is implemented or merged yet and the super-PR is still a
-draft. Report only state you have actually observed — never write a merged/handled outcome you have
-not seen.
+chain never hands control back), so nothing is implemented or merged yet and the super-PR does not
+exist yet. Report only state you have actually observed — never write a merged/handled outcome you
+have not seen, and never print a super-PR URL you have not been given one to print.
 
-- **Super-epic bundle** (when Step 3b fired): `#S` — super base `base/{sweep-slug}`, super-PR
-  `{url}` (draft), `{N}` child epics, parent `{SWEEP_PARENT_BRANCH}`
+- **Super-epic bundle** (when Step 3b fired): `#S` — super base `base/{sweep-slug}` (pushed,
+  currently identical to `{SWEEP_PARENT_BRANCH}`), super-PR *pending — opens after the first
+  epic-PR merges*, `{N}` child epics, parent `{SWEEP_PARENT_BRANCH}`
 - **Planned — epics created**: the batch epic `#E` (tiny topics `#N, #N…`) plus `#N` → epic `#E`
   per substantial topic, in `## Implementation order`
 - **Queued for implementation** (every default sweep — implementation runs *after* this report, and
@@ -788,10 +829,11 @@ whole point of the bundle is that the chain finds the rest):
 Super-epic: {super-epic-url}   ({N} child epics, in Implementation order)
 
 -a chains every sibling epic in dependency order (each epic-PR merges into
-base/{sweep-slug}); -m makes the last one take the super-PR out of draft and merge
-it into {SWEEP_PARENT_BRANCH}. Drop -m to stop at a reviewable super-PR — then run
-/deep-review -t on the super base, `gh pr ready` the super-PR (the sweep opened it
-as a draft), and merge it yourself.
+base/{sweep-slug}). The super-PR does not exist yet — the sibling that merges the
+FIRST epic-PR opens it as a draft; -m makes the last one take it out of draft and
+merge it into {SWEEP_PARENT_BRANCH}. Drop -m to stop at a reviewable super-PR —
+then run /deep-review -t on the super base, `gh pr ready` the super-PR, and merge
+it yourself.
 
 Manual fallback — run each epic in its own fresh session (lower token cost per
 session; you drive the order):

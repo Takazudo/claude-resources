@@ -3,7 +3,11 @@
 /**
  * Git clean filter for settings.json: pins the "model" field to a fixed
  * value before staging, so switching models locally via /model doesn't
- * produce commit/diff noise on that one field.
+ * produce commit/diff noise on that one field. Also strips "modelSettings"
+ * (the per-model effortLevel map /model and /config write to) entirely,
+ * since it's the same class of local-only preference — unlike "model" it
+ * has no single committed default worth pinning per model id, so it's
+ * simply never tracked.
  *
  * Wired up via .gitattributes (filter=normalize-model) + local git config:
  *   git config filter.normalize-model.clean "node $HOME/.claude/scripts/normalize-settings-model.js"
@@ -23,6 +27,7 @@ process.stdin.on('end', () => {
     if ('model' in data) {
       data.model = PINNED_MODEL;
     }
+    delete data.modelSettings;
     process.stdout.write(JSON.stringify(data, null, 2) + '\n');
   } catch {
     // Not valid JSON (mid-edit, etc.) — pass through unchanged.

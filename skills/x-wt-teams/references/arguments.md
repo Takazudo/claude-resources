@@ -34,6 +34,7 @@ Two orthogonal groups govern delegation:
 | `-f` | `-fix`, `--auto-fix` | **Default — on unless `-nf` is passed.** After the main work, before Step 16 cleanup, auto-fix the safe subset of `agent-found` issues raised this session (triage leave-open-vs-fix; tiny fixes bundled into one `agent-fix/<slug>` PR, non-trivial ones each own PR; every fix runs `/code-review low --fix`; close + link on success; cap ~3 rounds). See the "Auto-Fixing Raised Findings" step in `SKILL.md`. | Requires `-ri` (the default); **no-op under `-nori`**. Fix PRs follow the same `-m` auto-merge semantics as the root PR. Independent of `-a` / `-m`. |
 | `-nf` | `--no-fix` | Skip the Step 15.5 auto-fix — raised `agent-found` issues stay open for human triage. | Use for careful / manual sessions. Forwarded on `-a` chain waves. |
 | `-lo` | `--local` | Local mode: no tracking issue — the spec + progress ledger live in a cclogs coordination dir (`plan.md` / `progress.md` / `sub-NN.md`) instead. Accepts a plan-dir path from `/big-plan --local`. See Step 1c and `local-mode.md`. | `agent-found` problem issues are still raised (use `-nori` to suppress). Keeps the anti-drift ledger, unlike bare `--no-issue`. |
+| `-toco` | `--to-codex` | Codex hand-off: do NOT implement here. Open a new tmux window running `codex` at the repo root, stage `$x-wt-teams <flags> <epic# or topics>` in its composer, focus it, and end the session. **Fires at the very start**, before any base branch, worktree, or PR exists. See `codex-handoff.md`. | Forwards `-a` / `-m` / `-nf` / `-nori` / `-lo`; submits only under `-a`. Reviewer flags and `-s` do not travel — the Codex session picks its own. Terminal-only (web has no tmux or local codex). |
 | `--no-issue` | `-lo`, `--local` | Alias of `--local`. Skip GitHub issue creation; use the cclogs ledger instead. | Retained for back-compat; now identical to `--local` (writes `progress.md`, no longer a pure skip). |
 | `-s` | `--stay` | **OPT-IN ONLY.** Reuse the current branch as the base branch (no new `base/<project-name>`). | See "`-s` / `--stay` mechanism" below. NEVER auto-detect — even with an existing PR, even on a topic branch. |
 | `-v` | `--verify-ui` | After Step 9, run `/verify-ui` (via the isolated browser subagent). See Step 10. | Requires the isolated-browser dispatch pattern from `resource-coordination.md`. **Limited env (web):** can't run here — Step 10 defers to the `mac`-label handoff (`../../../web/mac-handoff.md`). Also fires when no `-v` but the diff touched UI files. |
@@ -71,11 +72,14 @@ Reviewer selection and team-member flags do not interact — pass any combinatio
 
 When `-s` / `--stay` IS explicitly passed:
 
-- The current branch becomes `BASE_BRANCH` directly (no new branch, no empty commit).
-- Parent branch (root PR target) is determined by:
-  1. Check existing PR: `gh pr view --json baseRefName -q '.baseRefName'`
-  2. If yes, reuse that PR (record number) and use its base as parent.
-  3. If no PR, use repo default branch as parent and create a new root PR.
+- The current branch becomes `BASE_BRANCH` directly (no new branch, and no commit is fabricated to make a PR possible — see the deferred-root-PR rule in `SKILL.md` Rule 4).
+- Parent branch (root PR target) is determined **branch-first**, in this order. The absence of a PR is no longer evidence of anything: since the root PR is created in Step 11 rather than Step 2, a base branch with no PR is a legitimate mid-run state.
+  1. **Open PR on the branch**: `gh pr view --json baseRefName -q '.baseRefName'`. If one exists, reuse that PR as this run's root PR (record its number) and take its base as the parent.
+  2. **Closed or merged PR on the branch** — the common `--stay` round after a merged root PR. Its recorded base is still the right parent.
+  3. **A parent recorded by an earlier, interrupted run** on this same base: the orientation pointer note (`orientation.js show`), or the `Base: … → Parent: …` line in the Step 2 progress comment on the tracking issue / `progress.md`.
+  4. **A parent the user named** on this invocation.
+  5. Only when none of the above answers, fall back to the repo default branch — and say so in the progress comment, because it is a guess, and mis-targeting the root PR is exactly what the ROOT PR TARGET rule at the top of `SKILL.md` prohibits.
+- The root PR itself is **not** created here. Step 11 opens it (create-if-absent / adopt-if-present) against the parent resolved above, with the `!! PR TARGET CHECK !!` guard asserting the target at the point of creation.
 - Topics branch off `BASE_BRANCH` and merge back into it as usual.
 - Everything else (worktrees, child agents, review, push) is identical.
 
