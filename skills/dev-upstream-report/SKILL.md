@@ -40,21 +40,37 @@ package. A misread API is not an upstream bug.
 ## Step 2: Resolve the package to its repo
 
 1. Read `node_modules/<pkg>/package.json` → `repository` field (or run
-
    `npm view <pkg> repository.url`).
-
 2. If that fails, look for the repo directly:
-
    `gh repo list takazudo --limit 100` / `gh repo list zudolab --limit 100`.
-
 3. Only file on repos under these two accounts. If the culprit is a
-
    third-party package, tell the user instead of filing.
 
 Also capture the **installed version** from the lockfile or
 `node_modules/<pkg>/package.json` — the issue is meaningless without it.
 
-## Step 3: Check for duplicates
+## Step 3: Decide whether to name the source project
+
+An upstream issue is far easier to act on when it says which repo the finding
+came from — but that repo may be private or client work, so check before
+naming it:
+
+```bash
+gh repo view --json nameWithOwner,visibility -q '.nameWithOwner + " " + .visibility'
+```
+
+- `PUBLIC` → name the source repo in the issue's Context line as
+  `<src-owner>/<src-repo>`, and link a permalink
+  (`https://github.com/<src-owner>/<src-repo>/blob/<sha>/<path>#L<n>`) to the
+  calling code when it sharpens the repro.
+- `PRIVATE`, `INTERNAL`, or the command fails (no remote, not a GitHub repo,
+  `gh` unavailable) → treat it as private: describe the project generically and
+  name nothing.
+
+Default to private when in doubt — guessing that way costs one line of context;
+guessing the other way leaks a client's name onto a public tracker.
+
+## Step 4: Check for duplicates
 
 ```bash
 gh issue list -R <owner>/<repo> --search "<keywords>" --state all --limit 20
@@ -64,18 +80,18 @@ If an existing issue already covers it, add a comment with the new context
 (installed version, repro from this project) instead of opening a duplicate,
 and report that URL.
 
-## Step 4: File the issue
+## Step 5: File the issue
 
 ```bash
 gh issue create -R <owner>/<repo> --title "<concise summary>" --body "<body>"
 ```
 
+`<owner>/<repo>` is the **upstream** repo throughout; the source repo from
+Step 3 is written `<src-owner>/<src-repo>`.
+
 - Apply a `bug` or `enhancement` label if the repo has one
-
   (`gh label list -R <owner>/<repo>`); skip labels that don't exist.
-
 - If a screenshot or diagram is essential to the report, use
-
   `/gh-issue-with-imgs` instead of plain `gh issue create`.
 
 Issue body shape:
@@ -83,7 +99,9 @@ Issue body shape:
 ```markdown
 ## Context
 
-Found while developing <project name>. Installed version: `<pkg>@<version>`.
+Found while developing
+[<src-owner>/<src-repo>](https://github.com/<src-owner>/<src-repo>).
+Installed version: `<pkg>@<version>`.
 
 ## Expected
 
@@ -103,10 +121,20 @@ independent of the current project>
 <only if the cause was actually located in the package source>
 ```
 
+When Step 3 said the source repo is not public, use this Context block instead
+— no repo name, no link:
+
+```markdown
+## Context
+
+Found while developing a private project. Installed version: `<pkg>@<version>`.
+```
+
 **Privacy**: upstream repos may be public while the current project may be
-private or client work. Reduce the repro to the package's API surface — no
-client names, private URLs, business logic, or pasted blocks of the current
-project's proprietary code.
+private or client work. Name the source repo only on a Step 3 `PUBLIC` verdict.
+Either way, reduce the repro to the package's API surface — no client names,
+private URLs, business logic, or pasted blocks of the current project's
+proprietary code.
 
 ### Fallback: when you can't file on the upstream repo
 
@@ -134,15 +162,10 @@ finding still survives the session; never silently drop it.
 When falling back:
 
 - Check the working repo (not the upstream repo) for an existing placeholder
-
   first, so you don't file the same one twice.
-
 - Title it `[upstream: <owner>/<repo>] <concise summary>` so it's easy to spot
-
   and move later.
-
 - Open the body with a callout naming the real target, then the normal body
-
   shape above:
 
 ```markdown
@@ -156,20 +179,15 @@ Tell the user it landed on the working repo as a placeholder and that they'll
 move it upstream in another session — don't try to route around the permission
 error by other means.
 
-## Step 5: Keep dev moving
+## Step 6: Keep dev moving
 
 Filing the issue is a side quest — return to the main task immediately after.
 
 - If the bug blocks progress, apply a local workaround and mark it with a
-
   one-line comment linking the issue: `// workaround for <issue URL>` (this
   is exactly the "context that lives outside the codebase" comment exception).
-
 - Never patch files inside `node_modules/` as the fix.
 - If the user would rather fix the package now instead of just reporting,
-
   point them at `/dev-wip-package-upstream-wt-dev`.
-
 - Include every filed or commented issue URL in the final summary of the
-
   turn, so the user can review them.

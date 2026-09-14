@@ -158,7 +158,7 @@ npm/pnpm lifecycle hooks auto-run `predev` before `dev` — no manual step neede
 
 ```json
 {
-  "predev": "lsof -ti :5173,:8787 | xargs kill 2>/dev/null; true",
+  "predev": "lsof -ti :5173 -ti :8787 | xargs kill 2>/dev/null; true",
   "dev": "vite"
 }
 ```
@@ -167,23 +167,27 @@ npm/pnpm lifecycle hooks auto-run `predev` before `dev` — no manual step neede
 
 | Part | Purpose |
 |------|---------|
-| `lsof -ti :5173,:8787` | Find PIDs on ports 5173 and 8787 (`-t` = PID only) |
+| `lsof -ti :5173 -ti :8787` | Find PIDs on ports 5173 and 8787 (`-t` = PID only; repeat `-ti :PORT` per port) |
 | `xargs kill` | SIGTERM (graceful shutdown) to each PID |
 | `2>/dev/null; true` | Silently succeed when no processes found |
+
+**Multiple ports: repeat the `-ti` flag.** A comma list takes the colon once, before the whole
+list: `lsof -ti :5173,8787` matches both ports, but `lsof -ti :5173,:8787` is a usage error on
+macOS ("unknown service :8787"). Repeating the flag avoids the easy-to-mistype colon placement.
 
 **Common port combinations:**
 
 | Stack | Ports | predev |
 |-------|-------|--------|
-| Vite + Wrangler | 5173, 8787 | `lsof -ti :5173,:8787 \| xargs kill 2>/dev/null; true` |
+| Vite + Wrangler | 5173, 8787 | `lsof -ti :5173 -ti :8787 \| xargs kill 2>/dev/null; true` |
 | Next.js | 3000 | `lsof -ti :3000 \| xargs kill 2>/dev/null; true` |
-| Vite + Express | 5173, 3001 | `lsof -ti :5173,:3001 \| xargs kill 2>/dev/null; true` |
-| CRA + API | 3000, 8080 | `lsof -ti :3000,:8080 \| xargs kill 2>/dev/null; true` |
+| Vite + Express | 5173, 3001 | `lsof -ti :5173 -ti :3001 \| xargs kill 2>/dev/null; true` |
+| CRA + API | 3000, 8080 | `lsof -ti :3000 -ti :8080 \| xargs kill 2>/dev/null; true` |
 
 **Notes:**
 - Use `kill` (SIGTERM) not `kill -9` (SIGKILL) — give processes a chance to clean up
-- `; true` is preferred over `|| true` because it always succeeds regardless of which command in the pipeline fails
-- This is macOS/Linux only (`lsof`). For cross-platform needs, use `npx kill-port 5173 8787` instead
+- `; true` unconditionally zeroes the exit status (lsof exits 1 when no process matches, and that must not fail the lifecycle hook)
+- This is macOS/Linux only (`lsof`). For cross-platform needs, add `kill-port` as a declared devDependency and use `pnpm exec kill-port 5173 8787` — a tool invoked from a script gets installed and pinned, never fetched via `npx`/`dlx` at run time (see the pin-vs-dlx rule in dev-reduce-deps; bare `npx kill-port` is fine only as an interactive one-shot)
 
 ## Internal/Private Scripts
 

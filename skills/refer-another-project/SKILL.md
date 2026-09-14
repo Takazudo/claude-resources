@@ -1,7 +1,7 @@
 ---
 name: refer-another-project
-description: "Refer another project while protecting sensitive information. Use when: (1) User says 'refer project', 'copy from project', or 'look at another repo', (2) User wants to reference patterns or setup from another codebase, (3) User needs to learn from another project's structure without leaking private data."
-argument-hint: "[-u|--update] <slug|path> [slug2 ...] — repo slug (e.g. zmod) or full path"
+description: "Refer another project while protecting sensitive information. Use when: (1) User says 'refer project', 'copy from project', or 'look at another repo', (2) User wants to reference patterns or setup from another codebase, (3) User needs to learn from another project's structure without leaking private data. Pass -p/--pull to verify the referenced repo is fresh before reading it — checks it's on its default branch, checks for uncommitted work, then pulls and reports the commit it landed on."
+argument-hint: "[-p|--pull] [-u|--update] <slug|path> [slug2 ...] — repo slug (e.g. zmod) or full path"
 ---
 
 > **DO NOT auto-invoke this skill.** Referencing another project exposes its contents to the current session, which may leak private/client information across project boundaries. Always ask for user confirmation before proceeding.
@@ -33,6 +33,132 @@ For each slug argument (any argument that is NOT an absolute path starting with 
 # Resolution command for each slug
 ls -d $HOME/repos/*/{slug} 2>/dev/null
 ```
+
+## Pull Mode (`-p` / `--pull`)
+
+The referenced repo is a working checkout, not a pristine mirror. It may sit on a stale
+commit, or on someone's topic branch, or hold half-finished edits. Reading it in that
+state means referring to **data that isn't the project's current truth** — the exact
+failure this flag exists to prevent.
+
+When `-p` or `--pull` is passed, run the freshness gate below **for each resolved path,
+before reading a single file from it**. The gate composes with every other mode: with
+`-u` it runs before `/x-as-pr` is invoked there.
+
+Run every command with `git -C <resolved-path> …` — never `cd` into the referenced repo
+for the gate.
+
+### Step 1 — Branch check
+
+```bash
+git -C <path> rev-parse --abbrev-ref HEAD                       # current branch
+git -C <path> symbolic-ref --quiet refs/remotes/origin/HEAD     # default branch (origin/<default>)
+```
+
+If `symbolic-ref` fails, fall back in this order and stop at the first that answers:
+
+```bash
+git -C <path> remote show origin | sed -n 's/.*HEAD branch: //p'
+gh repo view --json defaultBranchRef -q .defaultBranchRef.name  # run with cwd = <path>
+```
+
+If none resolves, tell the user the default branch can't be determined and ask which
+branch to treat as default. Do not assume `main`.
+
+**If current branch == default branch:** go to Step 2.
+
+**If current branch != default branch:** STOP and ask the user. Do not check out
+anything on your own — this is a checkout of a repo the user may be mid-work in.
+
+> The referenced repo `<slug>` is **not** on its default branch `<default>` — it's on
+> `<current-branch>`. Check out `<default>` there instead of `<current-branch>`?
+
+- **Yes** → `git -C <path> checkout <default>`, then go to Step 2.
+  If checkout fails (local changes would be overwritten), report the git error verbatim
+  and go to the Step 2 dirty-tree question instead of forcing anything.
+- **No** → **cancel referring to this repo entirely.** Do not read it, do not fall back
+  to reading the topic branch. The user being on another branch is a signal that
+  something is in flight there; a "no" means they've now noticed it and want to handle it
+  themselves. Report the cancellation and continue with any other resolved repos.
+
+### Step 2 — Uncommitted changes check
+
+```bash
+git -C <path> status --porcelain
+git -C <path> diff --stat
+git -C <path> diff --cached --stat
+```
+
+Clean tree → go to Step 3.
+
+Dirty tree → classify what's there. Judge by **what the files are**, not by how many.
+
+**Benign — proceed to Step 3 without asking:**
+
+- Build output and generated assets (`dist/`, `build/`, `.next/`, `out/`, compiled CSS/JS)
+- Temp / scratch dirs (`tmp/`, `__inbox/`, `.cache/`, `node_modules/` noise)
+- Lockfile churn with no `package.json` change
+- Editor / OS cruft (`.DS_Store`, `*.swp`)
+- A one-or-two-line tweak in a file irrelevant to what's being referenced
+
+**Not benign — STOP and ask:**
+
+- Edits to source files, configs, or docs — especially anything in the area being
+  referenced
+- Anything staged and clearly deliberate
+- A broad diff across many source files (real work in progress)
+
+> The referenced repo `<slug>` has uncommitted changes that look like real work:
+> `<short file list + diffstat>`. How should I handle this? I can (a) leave them and pull
+> anyway if it fast-forwards, (b) skip the pull and refer to the repo as-is, or
+> (c) cancel referring to this repo.
+
+Act on the answer only. **Never `stash`, `checkout --`, `reset`, or `clean` in the
+referenced repo** — those discard the user's work in a repo they didn't ask you to
+modify. If they want a stash, they can make one themselves.
+
+### Step 3 — Pull and confirm
+
+```bash
+git -C <path> pull --ff-only
+```
+
+`--ff-only` is deliberate: a pull that can't fast-forward means the local branch has
+diverged, which is exactly the "something is going on there" case. On failure, report the
+git error and ask the user how to proceed — do not merge or rebase to force it through.
+
+Then confirm the checkout actually advanced to current upstream:
+
+```bash
+git -C <path> log -1 --format='%h %ad %s' --date=short
+git -C <path> status -sb | head -1     # should show no "behind"
+```
+
+Report the result in one line before reading anything:
+
+> `<slug>` @ `<default>` — pulled, now at `<sha> <date> <subject>`
+
+If the repo was already up to date, say that instead. Either way the user must see
+**which commit the reference is based on**, so a stale reference is visible rather than
+silent.
+
+### Example
+
+```
+/refer-another-project -p zmod how does it configure vitest
+```
+
+1. Resolve `zmod` → `$HOME/repos/*/zmod`
+2. Confirm it's on `develop` (its default) — if it's on `topic/foo`, ask before checking out `develop`
+3. Confirm nothing meaningful is uncommitted there
+4. `git pull --ff-only`, report `zmod @ develop — pulled, now at abc1234 2026-08-29 <subject>`
+5. Only then read its vitest config
+
+### Without `-p`
+
+Default behaviour is unchanged — the repo is read exactly as it sits on disk. If you
+notice while reading that the repo looks stale or is on a topic branch, mention it and
+offer `-p`; don't run the gate uninvited, since it mutates another repo's checkout.
 
 ## Update Mode (`-u` / `--update`)
 
@@ -113,14 +239,18 @@ The referenced project may belong to a work client. Exposing client names or pro
 
 Parse `$ARGUMENTS` to extract:
 
+- **`-p` or `--pull` flag**: If present, run the freshness gate on every resolved path before reading anything (see "Pull Mode" above)
 - **`-u` or `--update` flag**: If present, switch to update mode (see "Update Mode" above)
 - **Slug(s) or path(s)**: Project identifiers to resolve
 - **Remaining text** (update mode only): Implementation instructions passed to `/x-as-pr -co`
+
+Flags are independent and may be combined: `-p` alone freshens then reads; `-p -u` freshens then fixes; `-u` alone fixes whatever is on disk.
 
 ## Instructions
 
 ### Default mode (no `-u` flag)
 
+0. **If `-p` was passed**: run the Pull Mode gate on every resolved path first, and abort any repo the gate cancels
 1. **Identify what you need**: Clearly state what patterns or setup you want to learn from
 2. **Read with filtering mindset**: When reading files, mentally separate:
 - Generic patterns (copy these)

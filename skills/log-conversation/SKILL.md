@@ -8,18 +8,15 @@ allowed-tools: Bash, Read
 # Log Conversation
 
 Save the current session transcript as a pair of markdown files in `$HOME/cclogs/{slug}/`
-(same directory other skills use — see `logrefer`). The skill is session-scoped: state lives in
+(the repo-scoped cclogs dir other skills use — see `/cclogs`). The skill is session-scoped: state lives in
 `$HOME/cclogs/{slug}/.log-conversation-state.<sessionId>.json`, so multiple concurrent sessions
 do not collide.
 
 Two files are written on each save (sharing the same timestamp base):
 
 - `{stamp}-conversation.md` — **conversation only**: user + assistant text turns, no tool calls,
-
   no tool results, no thinking blocks. Optimized for human reading and reuse in articles/memos.
-
 - `{stamp}-conversation.raw.md` — **full raw transcript**: everything in the conversation file
-
   plus thinking blocks, `tool_use` blocks with arguments, and `tool_result` blocks.
 
 ## Arguments ($ARGUMENTS)

@@ -1,6 +1,6 @@
 ---
 name: dev-package-json
-description: "Organize and maintain package.json and npm config (.npmrc) for readability and security. Use when: (1) Reorganizing scripts section or adding separators, (2) Extracting multi-process commands into shell scripts, (3) Setting up multi-environment dev commands (local/preview/prod), (4) Handling pnpm \"Ignored build scripts\" warnings, (5) Configuring .npmrc security (strictDepBuilds, allowBuilds, ignoredBuilds), (6) Managing pnpm via corepack and packageManager field, (7) Adding predev port cleanup. Keywords: package.json, npm scripts, .npmrc, pnpm, build scripts, supply chain, corepack, packageManager, predev, kill port, port in use."
+description: "Organize and maintain package.json and pnpm config for readability and security. Use when: (1) Reorganizing scripts section or adding separators, (2) Extracting multi-process commands into shell scripts, (3) Setting up multi-environment dev commands (local/preview/prod), (4) Handling pnpm \"Ignored build scripts\" warnings, (5) Configuring dependency build-script security (allowBuilds / strictDepBuilds in pnpm-workspace.yaml), (6) Managing pnpm via corepack and packageManager field, (7) Adding predev port cleanup. Keywords: package.json, npm scripts, .npmrc, pnpm-workspace.yaml, pnpm, build scripts, supply chain, corepack, packageManager, predev, kill port, port in use."
 ---
 
 # package.json & npm Config Management
@@ -35,7 +35,7 @@ Add a `predev` script that kills stale processes on dev server ports before star
 ```json
 {
   "scripts": {
-    "predev": "lsof -ti :5173,:8787 | xargs kill 2>/dev/null; true",
+    "predev": "lsof -ti :5173 -ti :8787 | xargs kill 2>/dev/null; true",
     "dev": "next dev"
   }
 }
@@ -43,13 +43,13 @@ Add a `predev` script that kills stale processes on dev server ports before star
 
 How it works:
 
-- `lsof -ti :PORT` — finds PIDs listening on specified ports (`-t` = terse/PID-only, `-i` = internet addresses)
-- Comma-separated ports: `:5173,:8787` checks multiple ports at once
+- `lsof -ti :PORT` — finds PIDs listening on the specified port (`-t` = terse/PID-only, `-i` = internet addresses)
+- Multiple ports: **repeat the flag** — `-ti :5173 -ti :8787`. A comma list takes the colon once, before the whole list (`:5173,8787` works; `:5173,:8787` is a usage error on macOS — "unknown service :8787"), so the repeated-flag form is the harder-to-mistype choice
 - `xargs kill` — sends SIGTERM (graceful) to found processes
 - `2>/dev/null; true` — silently succeeds when no processes are found
 - npm/pnpm auto-runs `predev` before `dev` (lifecycle hook convention)
 
-Adapt port numbers to match your project's dev servers (e.g., `:3000,:8080` for a typical Node.js + API setup).
+Adapt port numbers to match your project's dev servers (e.g., `-ti :3000 -ti :8080` for a typical Node.js + API setup).
 
 ### Technique 3: External Shell Scripts for Multi-Process Commands
 
@@ -149,13 +149,16 @@ AI tools and automation sometimes add `corepack use pnpm@latest` to setup steps.
 
 ---
 
-## Part 3: .npmrc Build Script Security Management
+## Part 3: Dependency Build Script Security (pnpm `allowBuilds`)
 
-Evaluate and manage dependency build scripts for supply chain security.
+Evaluate and manage dependency build scripts for supply chain security. pnpm 10+ blocks dependency
+lifecycle scripts by default; decisions are recorded in the `allowBuilds` map in
+**`pnpm-workspace.yaml`** (`true` = run, `false` = deny + silence) — NOT in `.npmrc`, which since
+pnpm 11 carries only auth/registry settings.
 
-See [references/npmrc-build-scripts.md](references/npmrc-build-scripts.md) for:
+See [references/build-scripts.md](references/build-scripts.md) for:
 
 - The full evaluation workflow for "Ignored build scripts" warnings
-- Decision criteria for allowBuilds vs ignoredBuilds
+- Decision criteria for `allowBuilds` `true` vs `false`
 - Common package evaluations (reference table)
-- .npmrc configuration patterns
+- `pnpm-workspace.yaml` configuration patterns and `strictDepBuilds` (escalate warning → install failure)

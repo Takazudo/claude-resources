@@ -1,6 +1,6 @@
 ---
 name: tocodex
-description: "Hand work over to OpenAI Codex CLI instead of doing it here: opens a NEW tmux window running codex at the repo root, stages a prompt in its composer, submits it, and focuses the window. This session implements nothing. Use when: (1) User says '/tocodex', (2) User says 'hand this to codex', 'do this on codex', 'let codex implement it', 'implement the next feature with codex', or 'continue on codex', (3) A planning session (typically /big-plan -po) has finished and the user wants Codex to build the epic, (4) /big-plan Step 11 delegates its -toco hand-off here. Default behaviour is to pass the user's instruction through to Codex verbatim; a plan / epic issue is routed to the matching $-prefixed Codex workflow skill ($x-wt-teams or $x-as-pr) instead. Long or multi-line prompts are written to a cclogs file and the path is sent, because the Codex composer takes one line. Submits by default; -ns/--no-submit stages the command for the user to send. Terminal-only (needs tmux plus codex on PATH). NOT for /codex-review, /codex-2nd, /codex-sweep or other read-only Codex consultations -- those answer a question in this session, while this one starts a whole implementation session elsewhere."
+description: "Hand work over to OpenAI Codex CLI instead of doing it here: opens a NEW tmux window running codex at the repo root on model gpt-5.6-sol at medium reasoning effort, stages a prompt in its composer, submits it, and focuses the window. This session implements nothing. Use when: (1) User says '/tocodex', (2) User says 'hand this to codex', 'do this on codex', 'let codex implement it', 'implement the next feature with codex', or 'continue on codex', (3) A planning session (typically /big-plan -po) has finished and the user wants Codex to build the epic, (4) /big-plan Step 11 delegates its -toco hand-off here. Default behaviour is to pass the user's instruction through to Codex verbatim; a plan / epic issue is routed to the matching $-prefixed Codex workflow skill ($x-wt-teams or $x-as-pr) instead. Long or multi-line prompts are written to a cclogs file and the path is sent, because the Codex composer takes one line. Submits by default; -ns/--no-submit stages the command for the user to send. Terminal-only (needs tmux plus codex on PATH). NOT for /codex-review, /codex-2nd, /codex-sweep or other read-only Codex consultations -- those answer a question in this session, while this one starts a whole implementation session elsewhere. For a hand-off to a FRESH Claude Code session rather than to Codex -- a clean context window, the agent-side stand-in for /clear -- use /toclaude instead; the two are mutually exclusive."
 argument-hint: "[-ns|--no-submit] [-a] [-m] [-nf] [-nori] [-lo] [$codex-skill-invocation | issue-number | instructions]"
 ---
 
@@ -48,7 +48,7 @@ Before sending any `$name`, confirm the port exists: `ls "$HOME/.codex/skills/{n
 
 ### Which flags travel
 
-Forward `-a` / `-m` / `-nf` / `-nori` / `-lo` into the Codex invocation when they were passed. Do **not** forward reviewer flags (`-co`, `-op`, `-nor`), effort levels, or `-s` / `--stay` — those are the Codex session's own choice, and it picks its own branch.
+Forward `-a` / `-m` / `-nf` / `-nori` / `-lo` into the Codex invocation when they were passed. Do **not** forward reviewer flags (`-co`, `-nor`), effort levels, or `-s` / `--stay` — those are the Codex session's own choice, and it picks its own branch.
 
 **Forward only what was typed.** A bare `/tocodex` after a plan sends `$x-wt-teams 445`, which stops at the PR. `-m` merges and `-a` runs unattended; neither is something to start on someone's behalf because it would have been convenient. Full hands-off is `/tocodex -a -m`.
 
@@ -80,7 +80,13 @@ bash "$HOME/.claude/scripts/handoff-to-codex.sh" \
   --submit          # omit only under -ns / --no-submit
 ```
 
-The script opens the window, answers Codex's startup prompts, waits for the composer, types the command, and focuses the window. It handles what silently breaks a naive `send-keys`.
+The script opens the window as `codex -m gpt-5.6-sol -c model_reasoning_effort="medium"`, answers Codex's startup prompts, waits for the composer, types the command, and focuses the window. It handles what silently breaks a naive `send-keys`, and reports the model and effort it pinned — repeat that in the report.
+
+### The Codex session starts on Sol at medium effort
+
+The launch pins `-m gpt-5.6-sol` and `-c model_reasoning_effort="medium"`. A hand-off fires *after* the planning is done: the receiving session is executing a spec that has already been argued out, which is a manager's job — dispatch the work, keep the run moving — not a reasoning-heavy one. Re-deriving decisions that are already written down buys nothing, so the manager sits at Sol/medium and the reasoning-heavy topics go to `gpt-6-astra` workers at `max` effort, which is what the Codex `x-wt-teams` difficulty policy does. The Codex session can raise its own with `/model` if the work turns out to need it.
+
+Pass `--model <name>` or `--effort <level>` to the script to pin something else, or either one as `inherit` to send no flag at all and let `~/.codex/config.toml` decide. There is no skill-level flag for this — if the user names a model or an effort, hand it to the script.
 
 | Exit | Cause |
 | --- | --- |
@@ -90,9 +96,9 @@ The script opens the window, answers Codex's startup prompts, waits for the comp
 | 6 | `tmux new-window` failed — an empty pane id would otherwise resolve to the **current** pane and type into the user's own Claude session |
 | 7 | `codex` exited at startup, so the window closed |
 | 8 | The command was typed but Codex did not start on it after three Enter presses — the draft is left in the composer for the user to submit |
-| 64 | Usage error — a missing or unknown argument. A caller bug, not a user-fixable state; no fallback command is printed |
+| 64 | Usage error — a missing, unknown, or invalid argument. A caller bug, not a user-fixable state; no fallback command is printed |
 
-Every exit except 64 prints the command for the user to send by hand. **Surface whatever it prints, verbatim** — a failed hand-off leaves the work un-started, and that fallback is what the user needs. Exit 64 means this skill built the invocation wrong: fix the call, do not hand the user a fallback.
+Every nonzero exit except 64 prints the command for the user to send by hand. **Surface whatever it prints, verbatim** — a failed hand-off leaves the work un-started, and that fallback is what the user needs. Exit 64 means this skill built the invocation wrong: fix the call, do not hand the user a fallback.
 
 Codex needs ~10-14s before it accepts input, so the script polls for the composer rather than sleeping blind.
 
@@ -128,12 +134,14 @@ Then stop touching that work. No branch, no PR, no worktree, no cleanup audit fo
 
 - **Read-only Codex consultations** — `/codex-review`, `/codex-2nd`, `/codex-research`, `/codex-sweep` answer a question *in this session*. This skill starts an implementation session somewhere else and ends involvement here.
 - **`/x-as-pr -toco` and `/x-wt-teams -toco`** keep their own start-of-skill hand-off (`$HOME/.claude/skills/x-wt-teams/references/codex-handoff.md`). Those fire before any branch exists and are already immediate; nothing routes through here.
+- **Handing the job to a fresh Claude Code session** is `/toclaude`. Same shape, different destination: this one when the point is a different tool, that one when the point is a clean context (the agent-side stand-in for `/clear`). They are mutually exclusive — never fire both.
 - **Verifying what Codex produced** is `/finalize-codex-work`, not this skill.
 
 ## Examples
 
 ```
 /tocodex implement the product detail pages
+   → new window: codex -m gpt-5.6-sol -c model_reasoning_effort="medium"
    → composer: implement the product detail pages          (passthrough, submitted)
 
 /tocodex

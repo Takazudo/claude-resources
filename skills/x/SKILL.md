@@ -1,7 +1,7 @@
 ---
 name: x
-description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). The downstream skill runs /code-review by default; -co/--codex upgrades it to /deep-review. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m. Pass -lo/--local to keep the run's bookkeeping (plan / tracking / spec) in a cclogs dir instead of creating GitHub issues — for public / team repos where those issues read as spam; agent-found problem issues are still raised (add -nori to suppress those too). Pass -toco/--to-codex to implement on Codex CLI instead of in-session: it works on every route -- the escalation plans here and hands the epic off at the end of /big-plan, while the fast paths hand off immediately -- by opening a new tmux window running codex with the matching $-prefixed invocation staged in it (terminal-only)."
-argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [-v|--verify-ui] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
+description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). The downstream skill runs /code-review by default; -co/--codex upgrades it to /deep-review. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m. Pass -lo/--local to keep the run's bookkeeping (plan / tracking / spec) in a cclogs dir instead of creating GitHub issues — for public / team repos where those issues read as spam; agent-found problem issues are still raised (add -nori to suppress those too). Pass -toco/--to-codex to implement on Codex CLI instead of in-session, or -tocl/--to-claude to implement in a FRESH Claude Code session (a clean context window -- the agent-side stand-in for /clear, which cannot be invoked from inside a session). Both work on every route -- the escalation plans here and hands the epic off at the end of /big-plan, while the fast paths hand off immediately -- by opening a new tmux window running that CLI with the matching invocation (terminal-only, mutually exclusive)."
+argument-hint: "[-co|--codex] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [-tocl|--to-claude] [-v|--verify-ui] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
@@ -52,8 +52,7 @@ These rules apply to the facade itself and propagate to the chosen downstream sk
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`-op`, `--opus`, `-so`, `--sonnet`, `-haiku`, `--haiku`, `-co`, `--codex`, `-t-op`, `--team-opus`, `-t-so`, `--team-sonnet`, `--make-issue`, `--issue`, `-s`, `--stay`, `-lo`, `--local`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, `-toco`, `--to-codex`, etc.)
-- **Effort level** — a bare `low` / `medium` / `high` / `xhigh` / `max` token. Extract it and forward it to the chosen skill; default `medium` when absent. **Match it only as a standalone leading token, never inside the instruction text** — `/x max "fix the thing"` sets max effort, but `/x "raise the max retry count"` does not. Without this rule the token falls through into the instructions and the review silently runs at the default.
+- **All flags from both skills** (`-co`, `--codex`, `--make-issue`, `--issue`, `-s`, `--stay`, `-lo`, `--local`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, `-toco`, `--to-codex`, `-tocl`, `--to-claude`, etc.)
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
@@ -63,27 +62,25 @@ If NO flags are passed (just instructions or an issue), apply this default:
 
 - `-v` (verify-ui)
 
-If any flags ARE passed explicitly, use those as-is — do NOT add the `-v` default either. **A bare effort token does not count as a flag** for this rule: `/x max "…"` still gets the `-v` default, because effort selects review depth and says nothing about whether the change needs visual verification.
+If any flags ARE passed explicitly, use those as-is — do NOT add the `-v` default either.
 
 ### Reviewer selection
 
-Two tiers plus a skip, forwarded to the chosen skill. They change which reviewer runs — not subagents or team members.
+Two tiers plus a skip, forwarded to the chosen skill. They change which reviewer runs — not child or subagent models.
 
 | Passed | Reviewer at the downstream review step |
 | --- | --- |
-| nothing | `/code-review <effort> --fix` — **the default**, the built-in reviewer in its own context |
+| nothing | `/code-review --fix` — **the default**, the built-in reviewer in its own context |
 | `-co` / `--codex` | `/deep-review` — `/code-review` **plus** `/codex-review` for cross-model coverage (also swings research/doc writing to codex) |
 | `-nor` / `--no-review` | none |
 
-An **effort level** (`low` / `medium` / `high` / `xhigh` / `max`, default `medium`) forwards to whichever tier runs. Never forward `ultra` — only the user can launch that, by typing `/code-review ultra` themselves.
+**There is no effort level.** Neither this skill nor the downstream ones take one — the reviewer is invoked bare and uses its own default (`/code-review` reuses the level the user last typed). Depth comes from `-co`. Never pass `ultra` — only the user can launch that, by typing `/code-review ultra` themselves.
 
-`-op` / `-so` / `-haiku` are **no longer reviewer flags**. Forward them if present so nothing breaks, but they select nothing: `/code-review` runs on the session model (Claude Code ignores skill-level model overrides), so the model is set by `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`, and effort is the dial that replaced them.
+There is no reviewer-model flag. `/code-review` runs on the session model — Claude Code ignores skill-level model overrides — so the model is set by `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`.
 
-### Team-member flags (`-t-op` / `-t-so`)
+### Child and subagent models
 
-`-t-op` / `--team-opus` and `-t-so` / `--team-sonnet` override the model used by spawned subagents and agent-team members (child worktree agents in `/x-wt-teams`, fix-delegation agents in `/x-as-pr`). Pick at most one. **Default: `opus`.** No `-t-haiku`. Forward to the chosen skill.
-
-These do NOT affect reviewers and are orthogonal to all reviewer flags.
+No flag sets them. Child worktree agents in `/x-wt-teams` take their model from the per-topic `/big-plan` `**Model:**` annotation (default `opus`); the fix-delegation agent in `/x-as-pr` is always `opus`.
 
 ### Autonomy Mode (`-a` / `--auto`)
 
@@ -95,19 +92,28 @@ When `-m` or `--merge` is passed, forward it to the chosen skill. When the final
 
 **On web (web-mode.md §8):** the downstream merge runs **in-turn** — the agent polls CI via the GitHub MCP and merges in the same run once green, because web has no background-task wakeup to resume a backgrounded `/watch-ci`. So on web, `-a -m` must finish at a *merged* PR in one autonomous run; the agent must not stop at "PR ready, CI running, I'll check back" (the recurring "agent is waiting for my order to merge" failure). Off web this is inert — the terminal's background-poll path already auto-resumes.
 
-### Codex Handoff Mode (`-toco` / `--to-codex`)
+### Handoff Modes (`-toco` / `--to-codex`, `-tocl` / `--to-claude`)
 
-Plan on Claude Code, implement on Codex CLI. `/x` only parses and forwards — the behavior lives in whichever skill it routes to (`/big-plan`'s Step 11, which delegates to `/tocodex`, or `/x-as-pr` / `/x-wt-teams`'s own Codex Handoff Mode). In every case a **new tmux window** opens running `codex` at the repo root with the matching `$`-prefixed Codex invocation staged in its composer, the window is focused, and the session ends — forwarding `-a` / `-m` / `-nf` / `-nori` / `-lo` into that command. The two fast paths submit only under `-a`; the `/big-plan` route submits by default, since `/tocodex` treats the hand-off itself as the ask.
+Plan here, implement somewhere else. Two destinations for the same move:
 
-`-toco` works on **every** route, so forward it verbatim and never drop it — dropping it silently implements locally, the exact opposite of what was asked. The routing decision is unchanged; only who implements changes:
+| Flag | Destination | Reach for it when |
+| --- | --- | --- |
+| `-toco` / `--to-codex` | A Codex CLI session | The implementation should run on a **different tool** |
+| `-tocl` / `--to-claude` | A brand-new Claude Code session | The implementation should start on a **clean context window** — the agent-side stand-in for `/clear`, which cannot be invoked from inside a session |
+
+**They are mutually exclusive.** If both were typed, say which two collided and stop — do not guess, and do not let two windows open.
+
+`/x` only parses and forwards — the behavior lives in whichever skill it routes to (`/big-plan`'s Step 11, which delegates to `/tocodex` or `/toclaude`, or `/x-as-pr` / `/x-wt-teams`'s own Handoff Modes section). In every case a **new tmux window** opens at the repo root running that CLI with the matching invocation, the window is focused, and the session ends — forwarding `-a` / `-m` / `-nf` / `-nori` / `-lo` into that command. The two fast paths submit only under `-a`; the `/big-plan` route submits by default, since `/tocodex` and `/toclaude` treat the hand-off itself as the ask.
+
+Either flag works on **every** route, so forward it verbatim and never drop it — dropping it silently implements locally, the exact opposite of what was asked. The routing decision is unchanged; only who implements changes:
 
 | Route | Result |
 | --- | --- |
-| Escalation | `/big-plan -a -toco` — plans here, hands the epic to Codex at Step 11 (via `/tocodex`) |
-| Fast path, single | `/x-as-pr -toco …` — hands off immediately, implements nothing here |
-| Fast path, multi | `/x-wt-teams -toco …` — same |
+| Escalation | `/big-plan -a -toco` / `-tocl` — plans here, hands the epic over at Step 11 (via `/tocodex` / `/toclaude`) |
+| Fast path, single | `/x-as-pr -toco …` / `-tocl …` — hands off immediately, implements nothing here |
+| Fast path, multi | `/x-wt-teams -toco …` / `-tocl …` — same |
 
-The two fast paths fire the hand-off at the **start** (there is no artifact to build first); `/big-plan` fires it at the **end**, once the issues Codex is pointed at exist. Terminal-only: web has no tmux and no local Codex.
+The two fast paths fire the hand-off at the **start** (there is no artifact to build first); `/big-plan` fires it at the **end**, once the issues the new session is pointed at exist. Terminal-only: web has no tmux and no second CLI to launch, so both flags are inert there and the skill implements normally.
 
 ### No Review Mode (`-nor` / `--no-review`)
 
@@ -146,7 +152,7 @@ Escalate to planning when the request is research/decomposition-heavy or its sco
 - The request is a **multi-phase build** where later phases depend on earlier ones landing correctly (planning sequences these into dependency waves).
 - You cannot confidently pick `/x-as-pr` vs `/x-wt-teams` because the topic boundaries aren't yet clear — planning will surface them.
 
-**`/x` appends `-a` on the escalation, even when the user didn't type it.** The user asked `/x` for action, so the plan must chain into the implementation skill in the same session — not end at a planning-only hand-off. `/big-plan -a` auto-creates the issues (skipping the Step 6 confirmation wait, with its own concern-signal fallbacks) and then auto-invokes the implementation skill. `/big-plan` keeps the single-vs-multi routing downstream (single-sub-issue plan → `/x-as-pr`; multi → `/x-wt-teams`), so there is no duplicated single/multi logic here.
+**`/x` appends `-a` on the escalation, even when the user didn't type it.** The user asked `/x` for action, so the plan must chain into the implementation skill in the same session — not end at a planning-only hand-off. `/big-plan -a` auto-creates the issues, delegates ordinary design/architecture/scoping choices to the planner, and then auto-invokes the implementation skill; only its narrow hard-autonomy stops (a concrete unmitigated operational hazard or genuinely non-executable plan) may interrupt that chain. `/big-plan` keeps the single-vs-multi routing downstream (single-sub-issue plan → `/x-as-pr`; multi → `/x-wt-teams`), so there is no duplicated single/multi logic here.
 
 **Forward `-m`, `-nf`, `-nori`, and `-lo` cleanly into the escalation:**
 
@@ -154,8 +160,9 @@ Escalate to planning when the request is research/decomposition-heavy or its sco
 - `/x -a -m "big thing"` → `/big-plan -a -m` (plan + auto-implement + auto-merge + cleanup — full hands-off).
 - `/x -nf "big thing"` → `/big-plan -a -nf` (the no-fix opt-out rides through `/big-plan`'s hand-off into the implementation skill, exactly like `-m`; `-nori` rides the same way).
 - `/x -lo "big thing"` → `/big-plan -a -lo` (local mode rides all the way down: `/big-plan` writes the plan to cclogs instead of an epic/sub issues and hands the plan path — not an issue URL — to the implementation skill).
-- `/x -a -m -toco "big thing"` → `/big-plan -a -m -toco` (plan here, implement on Codex: `/big-plan` ends by handing `$x-wt-teams -a -m {epic#}` to `/tocodex`, which runs it in a new tmux window. Nothing is implemented in this session — see Codex Handoff Mode below).
-- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` / `-lo` / `-toco` ride along. Reviewer flags (`-op` / `-co`) pass through to `/big-plan` and shape its Step 5 plan review. Note that on the escalation path, implementation-only flags (`-v`, `-t-op` / `-t-so`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, `-nori`, and `-lo` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
+- `/x -a -m -toco "big thing"` → `/big-plan -a -m -toco` (plan here, implement on Codex: `/big-plan` ends by handing `$x-wt-teams -a -m {epic#}` to `/tocodex`, which runs it in a new tmux window. Nothing is implemented in this session — see Handoff Modes below).
+- `/x -a -m -tocl "big thing"` → `/big-plan -a -m -tocl` (same, but the epic goes to `/toclaude`, which starts a **fresh Claude Code session** on `/x-wt-teams -a -m {epic#}` — for when the implementation should not inherit the planner's context).
+- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` / `-lo` / `-toco` / `-tocl` ride along. **Do NOT forward `-co` to `/big-plan`** — it has no reviewer flags: its Step 5 plan review is unconditional (`/codex-2nd`, with a silent Opus fallback) and `-nor` is the only opt-out. `-co` keeps its meaning on the fast paths, where it upgrades the code review to `/deep-review`. Note that on the escalation path, implementation-only flags (`-v`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, `-nori`, and `-lo` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
 
 **Guardrail (asymmetric cost — escalation is more expensive than a fast path):**
 
@@ -217,7 +224,7 @@ Once the strategy is chosen, invoke the appropriate skill.
 **Plan-first escalation (Axis 1 → big):** append `-a` (and forward `-m` / `-nf` / `-nori` if passed) and invoke `/big-plan`. `-a` is appended by `/x` even when the user didn't type it — `/x`'s contract is action, so the plan chains into implementation in-session.
 
 ```
-Skill tool: skill="big-plan", args="-a <-m if passed> <-nf if passed> <-nori if passed> <-lo if passed> <-toco if passed> <other flags> <instructions-or-issue-refs>"
+Skill tool: skill="big-plan", args="-a <-m if passed> <-nf if passed> <-nori if passed> <-lo if passed> <-toco or -tocl if passed> <other flags> <instructions-or-issue-refs>"
 ```
 
 (If the request was ambiguous and `-a` was NOT passed, ask the one-line plan/build confirm first — see Strategy Selection — then either escalate as above or take a fast path per the answer.)
@@ -230,7 +237,7 @@ Skill tool: skill="x-as-pr", args="<flags> <instructions>"
 Skill tool: skill="x-wt-teams", args="<flags> <instructions>"
 ```
 
-Pass through ALL arguments (flags + instructions) to the chosen skill (`-a`, `-m`, `-f`/`-nf`, `-ri`/`-nori`, `-lo`/`--local`, and `-toco`/`--to-codex` included — they're forwarded on every route; the defaults `-f`/`-ri` need no forwarding when not explicitly typed).
+Pass through ALL arguments (flags + instructions) to the chosen skill (`-a`, `-m`, `-f`/`-nf`, `-ri`/`-nori`, `-lo`/`--local`, and `-toco`/`--to-codex` or `-tocl`/`--to-claude` included — they're forwarded on every route; the defaults `-f`/`-ri` need no forwarding when not explicitly typed).
 
 ## Important Notes
 

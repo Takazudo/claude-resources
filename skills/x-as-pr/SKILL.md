@@ -1,7 +1,7 @@
 ---
 name: x-as-pr
-description: "Start a development workflow as a draft PR. Creates a NEW branch from the current branch, pushes the branch ref, implements, then opens a draft PR targeting the current branch as soon as the first real commit is pushed. ALWAYS creates a new branch by default — produces a nested PR-on-PR when the current branch already has one. Use when: (1) User says 'dev as pr', (2) User wants a PR-first workflow before coding, (3) User passes -s/--stay to reuse the current branch instead of nesting, (4) User passes a GitHub issue URL to implement, (5) User passes --make-issue/--issue to create an issue first. Logs progress via issue comments when an issue is linked. Pass -toco/--to-codex to hand the whole job to Codex CLI instead of implementing here: it opens a new tmux window running codex, stages the matching $-prefixed Codex skill invocation in its composer, focuses it, and ends the session -- fired at the very start, before any branch or PR is created (terminal-only)."
-argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [--make-issue|--issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number|plan-path] [branch-name] [base-branch]"
+description: "Start a development workflow as a draft PR. Creates a NEW branch from the current branch, pushes the branch ref, implements, then opens a draft PR targeting the current branch as soon as the first real commit is pushed. ALWAYS creates a new branch by default — produces a nested PR-on-PR when the current branch already has one. Use when: (1) User says 'dev as pr', (2) User wants a PR-first workflow before coding, (3) User passes -s/--stay to reuse the current branch instead of nesting, (4) User passes a GitHub issue URL to implement, (5) User passes --make-issue/--issue to create an issue first. Logs progress via issue comments when an issue is linked. Pass -toco/--to-codex to hand the whole job to Codex CLI instead of implementing here, or -tocl/--to-claude to hand it to a FRESH Claude Code session (a clean context window -- the agent-side stand-in for /clear): either opens a new tmux window running that CLI with the matching invocation, focuses it, and ends the session -- fired at the very start, before any branch or PR is created (terminal-only, mutually exclusive)."
+argument-hint: "[-co|--codex] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [-tocl|--to-claude] [--make-issue|--issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [issue-url-or-number|plan-path] [branch-name] [base-branch]"
 ---
 
 # Dev As PR
@@ -102,12 +102,12 @@ Parse `$ARGUMENTS` to extract:
 - **`-nor` or `--no-review` flag**: Skip the post-implementation review entirely (no `/code-review`, no `/deep-review`, no fix-delegation Agent). Just do the implementation, then proceed straight to verify-ui (if `-v` was passed), push, CI watch, and PR revision. See "No Review Mode" below
 - **`-ri` or `--raise-issues` flag**: Explicitly enable raising GitHub issues for unrelated problems found during coding or reviewing (bugs, code smells, improvement possibilities). **This is the default** — pass for clarity, but the behavior is on unless `-nori` is passed. See "Raising Issues for Unrelated Findings" below
 - **`-nori` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. Replaces the older `--noi` / `--noissue` spellings. See "Raising Issues for Unrelated Findings" below
-- **Effort level** (`low` / `medium` / `high` / `xhigh` / `max`): How hard the post-implementation reviewer looks. Forwarded verbatim to whichever reviewer runs. **Match only a standalone leading token, never a word inside the instruction text** — `/x-as-pr max "fix the thing"` sets max effort; `/x-as-pr "raise the max retry count"` does not. **Default `medium`** — the light tier. Want depth? Pass `-co` (codex), not a higher effort. Never pass `ultra` — only the user can launch that. See "Reviewer Tiers" below. The old reviewer model flags (`-op` / `-so` / `-haiku`) are accepted and ignored.
+- **No effort level**: this skill takes none. Whichever reviewer runs is invoked bare and falls back to its own default. Depth comes from `-co` (codex), not from an effort dial. Never pass `ultra` — only the user can launch that. See "Reviewer Tiers" below.
 - **`-co` or `--codex` flag**: Upgrade the review step to `/deep-review` (`/code-review` **plus** `/codex-review` for cross-model coverage), and prefer codex for research and doc writing. See "Codex Mode" below. **Silent fallback** — every codex-backed step (`/codex-review`, `/codex-2nd`, `/codex-research`, `/codex-writer`) degrades quietly to a Claude equivalent if codex is rate-limited or unavailable.
-- **Team-member model flags** (`-t-op` / `--team-opus`, `-t-so` / `--team-sonnet`): Override the model used by the fix-delegation Agent spawned after review (and any other subagents spawned during implementation). Pick at most one. **Default: `opus`.** No `-t-haiku` — haiku is too small for fix-delegation work and not offered as a session-wide override. See "Team Member Model Override" below.
 - **`-a` or `--auto` flag**: Autonomy/chain flag, usually arriving forwarded from `/x` or `/big-plan -a`. `/x-as-pr` is already fully autonomous (Auto-Pilot is always on) and single-topic (no waves to chain), so `-a` adds no extra behavior here — accept it for chain-compatibility. It does **NOT** merge the PR; merging is `-m`'s job
 - **`-m` or `--merge` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes — merge the PR into its base branch, close the linked issue, and watch post-merge CI on the base branch (fixing it if red). See "Merge Mode" below
-- **`-toco` or `--to-codex` flag**: Codex hand-off — do NOT implement here. Open a new tmux window running `codex` at the repo root, stage `$x-as-pr <flags> <issue# or instructions>` in its composer, focus the window, and end this session. **Fires at the very start, before any branch, PR, or commit** — see "Codex Handoff Mode" below and the shared spec `$HOME/.claude/skills/x-wt-teams/references/codex-handoff.md`. Terminal-only
+- **`-toco` or `--to-codex` flag**: Codex hand-off — do NOT implement here. Open a new tmux window running `codex` at the repo root, stage `$x-as-pr <flags> <issue# or instructions>` in its composer, focus the window, and end this session. **Fires at the very start, before any branch, PR, or commit** — see "Handoff Modes" below and the shared specs `$HOME/.claude/skills/x-wt-teams/references/handoff-common.md` + `codex-handoff.md`. Terminal-only
+- **`-tocl` or `--to-claude` flag**: Fresh-Claude hand-off — do NOT implement here. Open a new tmux window running `CLAUDE_CODE_NO_FLICKER=1 claude --dangerously-skip-permissions --model opus` at the repo root and start it on `/x-as-pr <flags> <issue# or instructions>`, focus the window, and end this session. Same move as `-toco` to a different destination: a clean context window rather than a different tool — the agent-side stand-in for `/clear`. **Fires at the very start, before any branch, PR, or commit** — see "Handoff Modes" below and the shared specs `handoff-common.md` + `claude-handoff.md`. **Mutually exclusive with `-toco`.** Terminal-only
 - **`-f`, `-fix`, or `--auto-fix` flag**: **Default — on unless `-nf` is passed.** After the main work, auto-fix the safe subset of `agent-found` issues raised this session, before final cleanup. Pass explicitly for clarity; behavior is identical to the default. Requires `-ri` (the default) and is a **no-op under `-nori`** (nothing was raised to fix). See "Auto-Fixing Raised Findings (`-f` / `--auto-fix`)" below. Fix PRs follow `-m`'s auto-merge semantics
 - **`-nf` or `--no-fix` flag**: Skip the auto-fix step — raised `agent-found` issues stay open for the user to triage. Use for careful / manual sessions
 - **GitHub issue**: URL (`https://github.com/owner/repo/issues/123`) or number (`123` or `#123`)
@@ -126,36 +126,46 @@ Parse `$ARGUMENTS` to extract:
 
 If ambiguous, ask the user to clarify.
 
-## Codex Handoff Mode (`-toco` / `--to-codex`)
+## Handoff Modes (`-toco` / `--to-codex`, `-tocl` / `--to-claude`)
 
-**Only when `-toco` / `--to-codex` was passed.** Otherwise ignore this section.
+**Only when one of them was passed.** Otherwise ignore this section.
 
-Full spec: [`$HOME/.claude/skills/x-wt-teams/references/codex-handoff.md`](../x-wt-teams/references/codex-handoff.md) — shared with `/big-plan` and `/x-wt-teams`. Read it for the `$`-prefix rule, the script's exit codes, and the submit-only-under-`-a` rule.
+Two destinations for the same move — implement somewhere else instead of here. **`-toco`** hands the job to Codex CLI; **`-tocl`** hands it to a brand-new Claude Code session, because the implementation should start on a clean context window (the agent-side stand-in for `/clear`, which cannot be invoked from here). **They are mutually exclusive** — if both were passed, name the collision and stop rather than opening two windows.
 
-**This is the first thing the skill does — before `INVOCATION_BRANCH` is used for anything, before Step 1, and above all before Step 4 creates a branch.** The entire job is going to Codex, so there is nothing here to branch for. Creating the branch first and handing off after leaves a stray branch and a half-started PR, which is the failure mode this ordering exists to prevent.
+Read [`handoff-common.md`](../x-wt-teams/references/handoff-common.md) first — it holds what both modes share. Then the one that applies: [`codex-handoff.md`](../x-wt-teams/references/codex-handoff.md) for the `$`-prefix rule and Codex's startup prompts, or [`claude-handoff.md`](../x-wt-teams/references/claude-handoff.md) for the argv mechanism and the directory-trust prompt.
 
-Build the command from what the invocation carried:
+**This is the first thing the skill does — before `INVOCATION_BRANCH` is used for anything, before Step 1, and above all before Step 4 creates a branch.** The entire job is leaving, so there is nothing here to branch for. Creating the branch first and handing off after leaves a stray branch and a half-started PR, which is the failure mode this ordering exists to prevent.
+
+Build the command from what the invocation carried. The shapes are identical; only the prefix differs — Codex needs `$x-as-pr`, Claude Code takes the plain `/x-as-pr`:
 
 | Given | Send |
 | --- | --- |
-| An issue URL or number | `$x-as-pr <flags> <issue#>` — bare number, Codex resolves it in-repo |
-| `--make-issue` + instructions | Create the issue **here** (it is the better spec and outlives the session), then send `$x-as-pr <flags> <new-issue#>` |
-| Instructions only | `$x-as-pr <flags> <the instruction text>` |
-| `-lo` + a plan path | `$x-as-pr -lo <path>` |
+| An issue URL or number | `<prefix>x-as-pr <flags> <issue#>` — bare number, the receiving session resolves it in-repo |
+| `--make-issue` + instructions | Create the issue **here** (it is the better spec and outlives the session), then send `<prefix>x-as-pr <flags> <new-issue#>` |
+| Instructions only | `<prefix>x-as-pr <flags> <the instruction text>` |
+| `-lo` + a plan path | `<prefix>x-as-pr -lo <path>` |
 
-Forward `-a` / `-m` / `-nf` / `-nori` / `-lo`. Do **not** forward reviewer flags (`-co`, `-nor`) or the effort level — the Codex session picks its own. `-s` / `--stay` is meaningless here (Codex chooses its own branch); ignore it and say so. `-v` likewise does not travel.
+Forward `-a` / `-m` / `-nf` / `-nori` / `-lo`. Do **not** forward reviewer flags (`-co`, `-nor`) — the receiving session picks its own. `-s` / `--stay` is meaningless here (it chooses its own branch); ignore it and say so. `-v` likewise does not travel. And never carry `-toco` / `-tocl` into the command itself — that would make the new session hand off again.
 
 ```bash
+# -toco
 bash "$HOME/.claude/scripts/handoff-to-codex.sh" \
   --dir "$(git rev-parse --show-toplevel)" \
   --name "codex-{issue# or slug}" \
   --command '$x-as-pr -m -a 42' \
   --submit          # only when -a was passed
+
+# -tocl  (note: a plain slash, not a $ prefix)
+bash "$HOME/.claude/scripts/handoff-to-claude.sh" \
+  --dir "$(git rev-parse --show-toplevel)" \
+  --name "claude-{issue# or slug}" \
+  --command '/x-as-pr -m -a 42' \
+  --submit          # only when -a was passed
 ```
 
 Then **stop**. Run `node "$HOME/.claude/scripts/orientation.js" complete`, and report the window name, the exact command, and whether it was submitted or is waiting on Enter. Do not create a branch, PR, or tracking issue, and do not run the cleanup audit — there are no resources to audit. If a claim comment is warranted on a passed issue, post it before handing off so a concurrent session sees the work is taken.
 
-If the script exits non-zero, surface its message verbatim: the work is un-started and the user needs the fallback command it printed.
+If the script exits non-zero, surface its message verbatim — the user needs the fallback command it printed. For `-toco` that means the work is un-started; for `-tocl` an argv prompt may still be queued behind a startup prompt, so repeat the script's "look at the window first" wording rather than declaring it dead.
 
 ## Local Mode (`-lo` / `--local`)
 
@@ -401,39 +411,34 @@ This step is advisory. If codex is unresponsive or provides no useful feedback, 
 
 ---
 
-## Two flag families
+## Reviewer selection is the only delegation dial
 
-Reviewer flags and team-member flags are orthogonal.
-
-- **Reviewer selection** (`-co` / `--codex` and an effort level) — chooses which reviewer runs at the post-implementation review step. One tier per run.
-- **Team-member flags** (`-t-op` / `-t-so`) — override the model for the fix-delegation Agent (and any other subagents spawned during implementation). Session-wide.
+`-co` / `--codex` chooses which reviewer runs at the post-implementation review step. One tier per run. There is no effort level and no team-member model flag — reviewers are invoked bare, and spawned agents default to `opus`.
 
 ## Reviewer Tiers
 
 | Invocation | Reviewer | What it is |
 |---|---|---|
-| no flag | `/code-review <effort> --fix` | **Default.** The built-in reviewer, running in its own context window. |
-| `-co` / `--codex` | `/deep-review <effort>` | `/code-review` **plus** `/codex-review` — codex carries the depth.  |
+| no flag | `/code-review --fix` | **Default.** The built-in reviewer, running in its own context window. |
+| `-co` / `--codex` | `/deep-review` | `/code-review` **plus** `/codex-review` — codex carries the depth.  |
 | `-nor` / `--no-review` | (skipped) | No review step at all. |
 
-**Effort** — `low` | `medium` | `high` | `xhigh` | `max`, forwarded to whichever reviewer runs. Default `medium` — this is the light tier, and `/code-review` is meant to be fast. Low and medium report only high-confidence findings; high and above widen coverage at the cost of some uncertain ones. Reach for `-co` rather than a higher effort when you want depth: codex is the deep reviewer.
+**Effort is not settable here.** This skill has no effort option — invoke whichever reviewer runs bare, and it falls back to its own default (`/code-review` reuses the level the user last typed). Depth comes from `-co`, not from an effort dial: codex is the deep reviewer.
 
 **Never pass `ultra`.** It is a paid cloud review only the user can launch by typing `/code-review ultra`. If the change warrants one, recommend it in the final report.
 
-**Removed:** `-op` / `-so` / `-haiku` are no longer reviewer flags. They used to pick the model for a fleet of `code-reviewer` subagents; that fleet is gone, and Claude Code ignores skill-level model overrides anyway — `/code-review` runs on **the session model** (change it with `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`). Effort replaced them as the quality dial. The tokens are still accepted and silently ignored so forwarded chains don't break. (`-t-op` / `-t-so` are a different family and still live.)
+**No reviewer-model flag exists.** `/code-review` runs on **the session model** — Claude Code ignores skill-level model overrides — so change it with `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`.
 
-## Team Member Model Override (`-t-op` / `-t-so`)
+## Spawned-Agent Model
 
-Pick at most one. **Default: `opus`.**
-
-When passed (or left at default), it governs:
+**Always `opus`.** It governs:
 
 - The `model:` field of the fresh **fix-delegation Agent** spawned after review (see "Delegating Review Fixes to a Fresh Agent" below).
 - Any other subagents spawned during implementation.
 
-There is intentionally no `-t-haiku`. Haiku is too small for fix-delegation work — if you genuinely need a haiku subagent, spawn it directly with explicit `model: "haiku"`.
+There is no flag for it. If you genuinely need a smaller subagent for a one-off, spawn it directly with an explicit `model:`.
 
-Team-member flags do NOT affect reviewers. They do NOT get forwarded to the review step — that uses the reviewer tier instead.
+Nothing here affects reviewers — the review step uses the reviewer tier instead.
 
 ---
 
@@ -848,8 +853,8 @@ After implementation is complete (in either mode), evaluate whether to run an au
 
 When all conditions are met, run the review:
 
-- **If `-co` / `--codex` was passed**: Invoke `/deep-review <effort>`, forwarding `-nori` if it was passed (under the default `-ri`, `/deep-review` raises `agent-found` issues for findings it doesn't fix — those feed the auto-fix step below). This is `/code-review` plus `/codex-review` for cross-model coverage.
-- **Otherwise (default)**: Invoke `Skill(skill="code-review", args="<effort> --fix")`. It runs in its own context window and applies what it finds, so this session's context stays light — commit the result. Findings it reports but does not fix become `agent-found` issues (unless `-nori`) and feed the auto-fix step below. Never pass `ultra`.
+- **If `-co` / `--codex` was passed**: Invoke `/deep-review`, forwarding `-nori` if it was passed (under the default `-ri`, `/deep-review` raises `agent-found` issues for findings it doesn't fix — those feed the auto-fix step below). This is `/code-review` plus `/codex-review` for cross-model coverage.
+- **Otherwise (default)**: Invoke `Skill(skill="code-review", args="--fix")`. It runs in its own context window and applies what it finds, so this session's context stays light — commit the result. Findings it reports but does not fix become `agent-found` issues (unless `-nori`) and feed the auto-fix step below. Never pass `ultra`.
 
 Tell the user: "Implementation went smoothly — running deep review on the changes."
 
@@ -902,8 +907,8 @@ Delegating is the exception, justified only when the leftover work is genuinely 
      mode: "bypassPermissions"
    ```
 
-- **Model**: set `model:` from the resolved team-member flag — `-t-op` → `"opus"`, `-t-so` → `"sonnet"`, default `"opus"`. This is the fix-delegation agent, not a reviewer — reviewer flags do NOT apply here.
-- **The self-check is always a hand review of the agent's own diff** — `git diff <base>...HEAD`, one bugs/logic pass, one quality/structure pass — whatever tier the manager's own review step uses. A spawned agent must **not** invoke `/code-review`, `/deep-review`, or `/codex-review`: from a subagent those return a background handle instead of findings, `TaskOutput` isn't available to drain it, and the completion notification routes here rather than to the agent — so it parks forever with work committed but never reported.
+- **Model**: set `model: "opus"`. This is the fix-delegation agent, not a reviewer — reviewer flags do NOT apply here, and there is no flag that changes it.
+- **The self-check is always a hand review of the agent's own diff** — `git diff <base>...HEAD` — whatever tier the manager's own review step uses. A spawned agent must **not** invoke `/code-review`, `/deep-review`, or `/codex-review`: from a subagent those return a background handle instead of findings, `TaskOutput` isn't available to drain it, and the completion notification routes here rather than to the agent — so it parks forever with work committed but never reported.
 
 3. **Verify** — after the agent returns, confirm fixes were committed (`git log --oneline -5`)
 4. **Close the fix issue** if the agent didn't already
@@ -995,7 +1000,7 @@ Do NOT run PR revision if:
 
 ## Post-Implementation: Session Report
 
-After all post-implementation steps are complete, generate a structured session report. This report serves two purposes: (1) a log for future Claude Code sessions to reference via `/logrefer`, and (2) a GitHub issue comment for human visibility.
+After all post-implementation steps are complete, generate a structured session report. This report serves two purposes: (1) a log for future Claude Code sessions to reference via `/cclogs`, and (2) a GitHub issue comment for human visibility.
 
 ### Report Content
 
