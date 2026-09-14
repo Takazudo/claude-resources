@@ -1,9 +1,17 @@
-# Sweep Mode (`-is` / `--issue-sweep`) — Full Procedure
+# Sweep Mode (`-is` / `--issue-sweep`, `-isask` / `--issue-sweep-ask`) — Full Procedure
 
 Collect open GitHub issues (optionally filtered by label), triage out the ones that need careful
 human judgment, confirm the plan once, then plan every remaining issue — each handled issue gets
 its own **normal `/big-plan` chain** (one epic + `[Sub]` issues, full review + verification
 gates).
+
+**Two modes share this procedure.** `-is` is the default sweep: it skips issues an earlier sweep
+already confirmed as human-gated, and takes one bulk confirmation. `-isask` is the **interview
+sweep**: it deliberately re-opens those postponed issues and walks the user through the candidates
+one recommendation at a time. Everything else — triage buckets, labeling, the super-epic bundle,
+the dashboard, the hand-off — is identical, and the two are never combined (`-isask` wins if both
+are typed; say so and continue). Wherever the steps below differ, the difference is called out
+under a **`-isask`** heading.
 
 **When the sweep will produce 2+ epics, they are bundled under ONE sweep-level super-epic**
 (Step 3b) so the whole batch is a single durable unit of work instead of N loose epics an
@@ -18,23 +26,29 @@ Confirmed skips don't just vanish into labels: every issue the sweep confirms as
 labeled `no-auto` and surfaced on a single pinned **human-check central epic** (`sticky` label,
 date-titled) — a checklist dashboard the human works through at their own pace (Step 5).
 
-There is exactly one **planned** human checkpoint: the confirmation in Step 3. Everything after it
+There is exactly one **planned** human checkpoint: the confirmation in Step 3 (an interview,
+under `-isask`). Everything after it
 runs autonomously (per `-po` in plan-only sweeps). A nested per-issue plan can still hit `/big-plan`'s
-own pause conditions — most commonly a plan that classifies as `Plan mode: design-decision` (Step
-3.6), which pauses for a judgment only the user can make. That is a legitimate stop, not a bug in
-the sweep: treat it like any other per-issue failure (Step 4d) — stop, report which issue and why,
-and let the user decide. It is not a *second checkpoint you plan for*; it is a blocker you surface.
-(The Step 3 confirmation carries an internal `-pc`, which suppresses only the foreign-parent signal,
-never the design-decision or unresolved-verification pauses.)
+hard-autonomy stops. `Plan mode: design-decision`, architecture importance, a foreign parent, and
+assumable verification ambiguity are disclosed decisions, not blockers under `-a`; the planner
+chooses its recommendation and continues. Stop only for a concrete unmitigated operational hazard
+or a genuinely non-executable plan. Treat that like any other per-issue failure (Step 4d): report
+which issue, the exact evidence/missing item, and why mitigation or a safe assumption could not
+unblock it. Ordinary parent-branch shape does not gate an auto chain: the Step 3 confirmation
+settles the parent branch for the whole sweep, and each nested plan discloses the topology rather
+than re-asking about it.
 
 > **MANUAL-ONLY — never self-select.** Sweep mode runs only when the user explicitly passes `-is`
-> or unmistakably asks for a sweep ("sweep the issues", "clear the issue backlog"). Do NOT enter
+> or `-isask`, or unmistakably asks for a sweep ("sweep the issues", "clear the issue backlog",
+> "let's go through the postponed ones"). Do NOT enter
 > it on your own inference — not after finishing a work round that left follow-up issues, not
 > because a label has open issues, not because it "would be helpful." A default-mode sweep fans
 > out plan → implement → **merge** chains across many issues — running it uninvited is
 > destructive. If a sweep might help, *suggest* it and let the user decide. (`-is -po` is
 > non-destructive — it only creates plan issues — but stays manual-only: a wave of unsolicited
-> epics is still spam.)
+> epics is still spam. `-isask` is interactive by construction and so cannot run away on its own,
+> but it still reaches into the user's deliberately-postponed backlog — never open that on a
+> hunch.)
 
 ## Sweep options
 
@@ -46,13 +60,36 @@ never the design-decision or unresolved-verification pauses.)
 | `-re` | `--refresh-epic` | Close the current human-check central epic and mint a fresh date-titled one seeded with all still-open `no-auto` issues (carryovers + newly confirmed) | `/big-plan -is -re` |
 
 - `-f`/`-ex` each accept a comma-separated list (`-f a,b`) or may be repeated.
-- **Flag reinterpretation under `-is`:** `-f LABEL` means `--filter` (it takes a label argument).
+- Every option above applies to `-isask` exactly as it does to `-is`.
+- **Flag reinterpretation under `-is` / `-isask`:** `-f LABEL` means `--filter` (it takes a label argument).
   `/big-plan`'s auto-fix `-f` is inert in sweep mode anyway — auto-fix is already the downstream
   default — so nothing is lost.
 - Both are applied client-side to the paginated snapshot (Step 1): `--filter` has AND semantics (an
   issue must carry every filter label); `--exclude` drops an issue carrying ANY excluded label.
 - Flags compose: `/big-plan -is -f agent-found -ex deferred`.
 - **No defaults.** With no `-f`/`-ex`, every open issue is a candidate.
+
+## Mode: `-isask` / `--issue-sweep-ask`
+
+`-isask` selects the **interview sweep**. It is a variant of `-is`, not a companion to it — it
+implies sweep mode on its own, and if the user typed both, `-isask` wins (say which one is running,
+then continue). It runs this entire procedure with exactly two deltas:
+
+| | `-is` (default) | `-isask` (interview) |
+| --- | --- | --- |
+| Candidates already labeled `no-auto` | skipped at triage (Step 2) — that saved cost is the label's whole point | **re-included**, marked as previously postponed, plus the still-open dashboard entries |
+| Step 3 confirmation | ONE bulk accept/adjust/cancel over the whole batch | a **per-candidate interview**: summary + recommendation + reasoning, with accept / override / postpone-again |
+
+Everything else is unchanged: the coordination shortcut still protects workflow bookkeeping, Step 3a
+still labels confirmed skips, the super-epic bundle still fires at 2+ epics, and Step 4 onward runs
+identically.
+
+**Neither `-a` nor `-nor` suppresses the interview.** The interview is the only reason to pass
+`-isask` at all, so no autonomy or no-review flag can skip it: `-nor` drops `/big-plan`'s ordinary
+Step 5 / 6 / 9 planning gates, never the sweep's own human checkpoint (the same is true of the bulk
+Step 3 confirmation under plain `-is`). Everything downstream of the confirmed list runs exactly as
+autonomously as it does under `-is`. Reach for `-isask` when the job is *working through the
+postponed backlog*; reach for `-is` when the job is *clearing new issues*.
 
 ## Step 1: Collect candidate issues
 
@@ -107,6 +144,16 @@ and stop (still run Step 5 if `-re` was passed).
 With no `-f`, the candidate set is **all open issues** — surface the count to the user so the
 scale of the sweep is clear before triaging.
 
+**`-isask` — also pull in the dashboard's open entries.** The paginated snapshot already contains
+every open issue, `no-auto` ones included, so nothing extra needs fetching for those. What does need
+fetching is the pinned `[Sticky] Human-check central` dashboard's checklist (found by the
+`<!-- human-check-checklist -->` marker — see Step 5), plus its per-item `## topic` comments: those
+comments carry *why* each item was postponed and what result would close it, which is exactly the
+context the interview needs to make a recommendation. Read them once here and keep them keyed by
+issue number. **When no open dashboard exists, that is not an error** — there is simply no recorded
+reason to carry, and the `no-auto` issues in the snapshot are still re-included on their own. A
+dashboard entry whose issue is already closed is ticked, not a candidate.
+
 ## Step 2: Triage — handle vs skip
 
 **Coordination shortcut (check FIRST, before the `no-auto` shortcut):** workflow-bookkeeping
@@ -127,6 +174,14 @@ human-gated by a previous sweep — do NOT re-read or re-classify them (that sav
 the label's whole point). They flow straight to the epic sync (Step 5) and are listed as skips in
 the report. Re-triage one only when the user asks, or its title/labels clearly show the blocker
 was resolved.
+
+> **`-isask` inverts this shortcut.** The postponed set is the point of the run, so every `no-auto`
+> candidate IS read and re-classified. Mark each one **previously postponed** and carry forward the
+> reason recorded on the dashboard (Step 1) — or, when no reason survives, say so plainly rather
+> than inventing one. The coordination shortcut above still wins: a `sticky` / `epic` / `sub` /
+> `super-epic` issue that happens to carry a stale `no-auto` label stays **Untouched — coordination**
+> and never enters the interview. `-isask` re-opens postponed *work*, never the sweep's own
+> bookkeeping.
 
 For each remaining candidate, read its concrete detail with `/gh-fetch-issue <number>` (this downloads
 embedded screenshots so they are actually readable — plain `gh issue view` cannot show them).
@@ -178,15 +233,57 @@ Present a triage table before doing anything irreversible:
   epic base branches off `$SWEEP_PARENT_BRANCH` and its PR targets it directly
 - **Will handle**: `#N` — title — one-line scope. Mark which are **tiny** (batched into one epic)
   vs **substantial** (one epic each) — the same split in BOTH sweep modes (see Step 4)
+- **`-isask` only — previously postponed**: `#N` — title — when it was postponed and why (from the
+  dashboard comments read in Step 1). These are what the run exists to work through, so list them
+  as their own group rather than folding them into the buckets above
 - **Will skip**: `#N` — title — reason
 - **Will leave untouched (coordination)**: `#N` — title — reason
 - **Epic count** → whether the super-epic bundle fires: `{N} epics` (tiny batch epic counts as
   one) → **bundled under one super-epic** if ≥2, single standalone epic if 1
 
 Get explicit confirmation (use `AskUserQuestion`) before launching. This is the single human
-checkpoint. Confirmation also settles the parent branch for every nested plan — carry it as an
-internal `-pc` (`--parent-confirmed`) so no per-issue run re-asks about a foreign-looking parent
-(it suppresses only that signal; design-decision and unresolved-verification pauses still apply).
+checkpoint. Confirmation also settles the parent branch for every nested plan, so no per-issue run
+re-asks about a foreign-looking parent — the nested `-a` planner treats branch shape as disclosure
+and pauses only on its hard-autonomy stops.
+
+### `-isask` — the interview
+
+Under `-isask` the bulk gate becomes a conversation. **Still print the triage table above first** —
+the user needs the shape and scale of the batch before being asked about its parts — then work
+through the candidates.
+
+**Per candidate, present three things:**
+
+1. **What it asks for** — 1–3 sentences grounded in the issue's *latest* comments, not just its
+   title; scope narrows over time. For a previously-postponed issue, add when and why it was
+   postponed, from the dashboard context read in Step 1.
+2. **Your recommendation** — exactly one of *handle* / *skip* / *leave untouched*, using the Step 2
+   bucket definitions.
+3. **Why** — the reasoning behind that recommendation, including what changed since the last sweep
+   if that is what makes the issue actionable now (a dependency landed, a blocking decision was
+   made, the scope shrank).
+
+**Then offer: accept the recommendation, override it, or postpone again.**
+
+**Batch the easy ones; interview only what is genuinely arguable.** An interview that asks about
+every trivially-obvious skip is worse than the bulk gate it replaced — the user stops reading. Group
+the candidates whose classification is not in doubt into a single "these all look like X, ok?"
+question, and spend individual questions on the ones where a reasonable person could disagree.
+`AskUserQuestion` allows at most 4 questions per call and 4 options per question, so this is a
+**sequence** of calls, not one — and it means the batching above is a hard requirement on a large
+backlog, not a stylistic preference.
+
+**Postponing again is a first-class outcome, not a failure.** An issue the user defers:
+
+- keeps its `no-auto` label (Step 3a does not need to re-apply it, but must not remove it),
+- stays on the human-check central epic — it is neither closed nor ticked,
+- and has its **deferral reason recorded or refreshed** on the dashboard so the *next* `-isask` can
+  show it (Step 5). Record what the user actually said. A postponement with no recorded reason is
+  the failure mode this flag exists to fix — the next run would present it as an unexplained
+  leftover and the user would have to re-derive the decision they already made.
+
+Once the interview is complete, the confirmed handle / skip / untouched lists are exactly what a
+bulk `-is` confirmation would have produced, and every step from 3a onward runs unchanged.
 
 ## Step 3a: Label the confirmed skips
 
@@ -215,6 +312,33 @@ ensure_label "needs-human-verify" "1D76DB" \
 # then, per issue:
 gh issue edit <N> --add-label "no-auto"
 ```
+
+> **`-isask` — the labels also come OFF, but only once the promotion has stuck.** This is the one
+> mode that moves issues *out* of the postponed set, and forgetting the removal is how an issue the
+> user just promoted stays invisible to the next default `-is` sweep. For every candidate the
+> interview confirmed as **handle**, strip `no-auto` / `needs-human-verify` **after that issue's
+> Step 4b plan run has created its epic**, not before. Removing them up front loses the issue in
+> both directions when the plan then fails at Step 4d: it is no longer in the `no-auto` set a future
+> `-is`/`-isask` re-triages, and Step 5 seeds the dashboard from currently-open `no-auto` issues, so
+> it silently drops off the human-check list too. If a promotion is stripped early and its plan
+> fails, re-apply the labels you removed before reporting the failure.
+>
+> Remove only the labels the issue actually carries, and only ones that exist in the repo —
+> `gh issue edit --remove-label` resolves the name against the repo and errors on an unknown label,
+> so a repo that never minted `needs-human-verify` would abort the edit:
+>
+> ```bash
+> # Read the issue's labels ONCE, then drop only the ones it actually carries.
+> HAVE=$(gh issue view <N> --json labels --jq '.labels[].name')
+> REMOVE=""
+> for L in no-auto needs-human-verify; do
+>   grep -Fxq "$L" <<<"$HAVE" && REMOVE="$REMOVE --remove-label $L"
+> done
+> [ -n "$REMOVE" ] && gh issue edit <N> $REMOVE
+> ```
+>
+> Issues the user postponed *again* keep their labels — re-adding `no-auto` to an issue that already
+> has it is a no-op, so no special-casing is needed there.
 
 (Keep label descriptions ≤ 100 characters — GitHub rejects longer, and multi-byte dashes inflate
 the count.) Do **not** apply `deferred` here — that one stays a suggestion in the final report.
@@ -486,7 +610,7 @@ scenario the collision check exists to prevent.
 4. **Stay on `$SUPER_BASE`** for the rest of the sweep. Every per-issue plan in Step 4 then runs
    with `$PARENT_BRANCH = $SUPER_BASE` naturally detected by big-plan's Branch Context — so the
    epic/sub bodies come out correct with no wording overrides, and `base/*` is base-like so no
-   foreign-parent pause fires.
+   foreign-parent warning is needed.
 
 ## Step 4: Plan every handled issue, then implement (once)
 
@@ -529,8 +653,8 @@ workflow per unit, no Skill re-invocation. Every run:
   auto-invoke implementation, even in default mode: the ONE implementation entry point is the
   chain command in Step 4c. (Otherwise `-m -a` would fire an implementation per issue, and a
   single-sub plan would route to `/x-as-pr`, which has no super-epic support.)
-- Carries the confirmed-parent state from Step 3 (internal `-pc`) and the forwarded flags
-  (`-nf` / `-nori` / reviewer flags as passed).
+- Carries the confirmed-parent state from Step 3 — the parent branch is settled for the whole
+  sweep, so no nested run re-asks about it — and the forwarded flags (`-nf` / `-nori` as passed).
 - **In a super-epic bundle** (Step 3b fired), additionally:
   - **Set the plan's `impl-title-slug` to `{sweep-slug}-{epic-slug}`** — do NOT "override the base
     name" in one place. `/big-plan` writes `base/{impl-title-slug}` into *four* artifacts (the Step
@@ -680,6 +804,7 @@ Each child epic + its `[Sub]` issues stay KEEP as usual; source issues are super
 usual.
 
 Notes:
+
 - **"Verify X" tasks that are locally checkable** (the Handle bucket) do **not** go through
   the plan-implement chain — running it on a pure-verify issue forces an empty PR. They are
   handled **outside** the super-epic bundle (no epic, so they don't count toward the ≥2 trigger).
@@ -773,6 +898,26 @@ Closed epics are dead — never reopen or append to one; a new epic gets minted 
    short completion comment and unpin it — the next sweep that confirms a human-gated issue mints
    a fresh one.
 
+#### `-isask` — record what the interview decided
+
+**This applies to whichever dashboard path ran** — the sync above, the *Create — no open epic* path,
+and the `-re` refresh (where the fresh epic's `## topic` comments are written from scratch and must
+carry the deferral history forward from the superseded epic, or it is lost exactly when `-isask` and
+`-re` compose).
+
+The interview's whole value leaks away if its outcomes are not written down where the next run can
+read them. Once the dashboard exists for this run, for each issue the user **postponed again**,
+append a short dated line to that issue's `## topic` comment on the dashboard: the date, the
+decision, and the reason the user gave. Keep the existing history — the point is that the *next* `-isask` can show "postponed
+2026-03-11: waiting on the API contract" instead of presenting an unexplained leftover and making
+the user re-derive a decision they already made. When the user gave no reason, record that the item
+was reviewed on this date and deferred without one; a dated no-reason entry is still more useful
+than silence.
+
+Issues the interview **promoted to handle** need nothing extra here: Step 4b closed them as
+superseded by their new epic and their `no-auto` came off once that epic existed (Step 3a), so the
+dashboard path ticks their checklist entry on that basis.
+
 ### Create — no open epic
 
 Create per the format above, seeded with **all currently-open `no-auto` issues** (not just this
@@ -814,6 +959,10 @@ have not seen, and never print a super-PR URL you have not been given one to pri
 - **Untouched — coordination** (no mutation): `#N` …
 - **Human-check epic**: `#E` — created / synced (`X` new entries, `Y` ticked) / refreshed
   (superseded `#old`) / closed (all done)
+- **`-isask` only — promoted from postponed**: `#N` — previously `no-auto`, taken on in this run,
+  labels removed. This is the interview's headline result; report it even when the list is short
+- **`-isask` only — postponed again**: `#N` — the reason the user gave, as recorded on the
+  dashboard. Say plainly if any were deferred without a reason
 - **Failed / needs attention**: `#N` …
 
 ### The hand-off — ONE command

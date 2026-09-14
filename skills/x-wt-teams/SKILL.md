@@ -1,7 +1,7 @@
 ---
 name: x-wt-teams
-description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main). Pass -toco/--to-codex to hand the whole job to Codex CLI instead of implementing here: it opens a new tmux window running codex, stages the matching $-prefixed Codex skill invocation in its composer, focuses it, and ends the session -- fired at the very start, before any branch or PR is created (terminal-only)."
-argument-hint: "[low|medium|high|xhigh|max] [-co|--codex] [-t-op|--team-opus] [-t-so|--team-sonnet] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [--no-issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
+description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main). Pass -toco/--to-codex to hand the whole job to Codex CLI instead of implementing here, or -tocl/--to-claude to hand it to a FRESH Claude Code session (a clean context window -- the agent-side stand-in for /clear): either opens a new tmux window running that CLI with the matching invocation, focuses it, and ends the session -- fired at the very start, before any branch or PR is created (terminal-only, mutually exclusive)."
+argument-hint: "[-co|--codex] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [-tocl|--to-claude] [--no-issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
 # Git Worktree Multi-Topic Development
@@ -16,15 +16,17 @@ Coordinate parallel development of multiple related features using git worktrees
 
 Detail lives in `references/` so this file stays a workflow spine. Open the relevant reference whenever the workflow touches its topic — these are not optional:
 
-- **`references/arguments.md`** — every flag (model, backend, `-s` / `-a` / `-m` / `--no-review`, etc.), how they combine, manager-invariant rule.
+- **`references/arguments.md`** — every flag (`-co` / `-s` / `-a` / `-m` / `--no-review`, etc.), how they combine, manager-invariant rule.
 - **`references/super-epic-mode.md`** — Super-Epic child mode lifecycle: detection markers, Step 1a / Step 2 overrides, mandatory epic-PR merge, Auto-Suggest variant (`## Implementation order` sibling chaining), and how `-m` defers to chain termination (the terminal sibling merges the super-PR).
-- **`references/reviewer-modes.md`** — the two reviewer tiers (`/code-review` → `/deep-review`), effort levels, and the child self-review constraint.
+- **`references/reviewer-modes.md`** — the two reviewer tiers (`/code-review` → `/deep-review`) and the child self-review constraint.
 - **`references/execution-modes.md`** — subagents vs teams routing: how `/big-plan`'s `Execution mode:` markers are read, default-to-teams fallback, mixed-mode degradation, Step 5 / Step 7 path differences, drift sanity check.
 - **`references/teams-path.md`** — the on-demand teams-path body (read ONLY when a topic is marked `teams` or a marker is missing): TeamCreate + named teammates, idle/wake, the shutdown_request teardown, TeamDelete. The common subagents default is inline in Step 5 / Step 7.
-- **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, manual `-t-op` / `-t-so` flag override, per-topic model assignment in spawn calls, default-to-opus fallback.
+- **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, per-topic model assignment in spawn calls, default-to-opus fallback.
 - **`references/issue-templates.md`** — tracking issue body, claim comments, unrelated-findings issue, Step 14 session report, Step 15 verification comments, accumulating-epic Auto-Suggest hand-off.
 - **`references/github-text-conventions.md`** — writing GitHub-posted text: never use a bare `#N` for your own plan items (topics/waves/options) — it autolinks to an unrelated issue/PR; reserve `#N` for real existing issues/PRs.
-- **`references/codex-handoff.md`** — the `-toco` / `--to-codex` Codex hand-off, shared with `/big-plan` and `/x-as-pr`: where it fires per caller, the command shape, the `$`-prefix rule, the script's exit codes, and submit-only-under-`-a`.
+- **`references/handoff-common.md`** — rules shared by BOTH hand-off modes: where the hand-off fires per caller, which flags travel, the recursion and mutual-exclusion guards, the long-prompt-to-a-file rule, what "terminal-only" means per caller, and the after-hand-off checklist. Read it before either file below.
+- **`references/codex-handoff.md`** — the `-toco` / `--to-codex` Codex hand-off, shared with `/x-as-pr`: the command shape, the `$`-prefix rule, the script's exit codes, and submit-only-under-`-a`.
+- **`references/claude-handoff.md`** — the `-tocl` / `--to-claude` hand-off to a FRESH Claude Code session, shared with `/x-as-pr`: the fresh-context motivation, the argv mechanism, the directory-trust prompt, and the script's exit codes.
 - **`references/resource-coordination.md`** — Playwright / browser isolation rule, the machine-wide cross-session `playwright-guard.sh` queue, and port-binding `flock` rule (full patterns).
 
 ## !! CRITICAL — ROOT PR TARGET BRANCH RULE !!
@@ -141,27 +143,37 @@ When creating any PR (`gh pr create`), check for parent references and prepend a
 - **When updating the PR body later** (e.g., via `/pr-revise`), always preserve the reference header at the top — do not remove or replace it
 - **In the PR body prose** (Summary / Changes / anywhere), don't write a bare `#N` to refer to your own numbered items — GitHub autolinks it to an unrelated issue/PR. Use `topic 2`, `(2)`, or the item's name; keep `#N` only for real existing issues/PRs. See [`references/github-text-conventions.md`](references/github-text-conventions.md)
 
-## Codex Handoff Mode (`-toco` / `--to-codex`)
+## Handoff Modes (`-toco` / `--to-codex`, `-tocl` / `--to-claude`)
 
-**Only when `-toco` / `--to-codex` was passed.** Otherwise ignore this section.
+**Only when one of them was passed.** Otherwise ignore this section.
 
-Full spec: [`references/codex-handoff.md`](references/codex-handoff.md) — shared with `/big-plan` and `/x-as-pr`. Read it for the `$`-prefix rule, the script's exit codes, and the submit-only-under-`-a` rule.
+Two destinations for the same move — implement somewhere else instead of here. **`-toco`** hands the job to Codex CLI; **`-tocl`** hands it to a brand-new Claude Code session, because the implementation should start on a clean context window (the agent-side stand-in for `/clear`, which cannot be invoked from here). **They are mutually exclusive** — if both were passed, name the collision and stop rather than opening two windows.
 
-**This runs before anything else in the Fully Automated Workflow below** — before the base branch, before any worktree, before the tracking issue. The whole job is going to Codex, so none of that should exist here. Creating worktrees and then handing off would strand them on disk with no session to clean them up, which is materially worse than the stray-branch case `/x-as-pr` avoids.
+Read [`references/handoff-common.md`](references/handoff-common.md) first — it holds what both modes share. Then the one that applies: [`codex-handoff.md`](references/codex-handoff.md) for the `$`-prefix rule and Codex's startup prompts, or [`claude-handoff.md`](references/claude-handoff.md) for the argv mechanism and the directory-trust prompt.
 
-Build the command from what the invocation carried — an epic issue number, a plan dir under `-lo`, or the topic text — and forward `-a` / `-m` / `-nf` / `-nori` / `-lo`. Reviewer flags, effort, and `-s` do not travel; the Codex session picks its own.
+**This runs before anything else in the Fully Automated Workflow below** — before the base branch, before any worktree, before the tracking issue. The whole job is leaving, so none of that should exist here. Creating worktrees and then handing off would strand them on disk with no session to clean them up, which is materially worse than the stray-branch case `/x-as-pr` avoids.
+
+Build the command from what the invocation carried — an epic issue number, a plan dir under `-lo`, or the topic text — and forward `-a` / `-m` / `-nf` / `-nori` / `-lo`. Reviewer flags and `-s` do not travel; the receiving session picks its own. Never carry the hand-off flag itself into the command — that would make the new session hand off again.
 
 ```bash
+# -toco
 bash "$HOME/.claude/scripts/handoff-to-codex.sh" \
   --dir "$(git rev-parse --show-toplevel)" \
   --name "codex-{epic# or slug}" \
   --command '$x-wt-teams -m -a 445' \
   --submit          # only when -a was passed
+
+# -tocl  (note: a plain slash, not a $ prefix)
+bash "$HOME/.claude/scripts/handoff-to-claude.sh" \
+  --dir "$(git rev-parse --show-toplevel)" \
+  --name "claude-{epic# or slug}" \
+  --command '/x-wt-teams -m -a 445' \
+  --submit          # only when -a was passed
 ```
 
 Then **stop**. Run `node "$HOME/.claude/scripts/orientation.js" complete`, and report the window name, the exact command, and whether it was submitted or is waiting on Enter. Claim a passed epic issue before handing off so a concurrent session sees the work is taken; create nothing else, and skip the Step 16 cleanup audit — there are no resources to audit.
 
-If the script exits non-zero, surface its message verbatim: the work is un-started and the user needs the fallback command it printed.
+If the script exits non-zero, surface its message verbatim — the user needs the fallback command it printed. For `-toco` that means the work is un-started; for `-tocl` an argv prompt may still be queued behind a startup prompt, so repeat the script's "look at the window first" wording rather than declaring it dead.
 
 ## Fully Automated Workflow
 
@@ -239,7 +251,9 @@ Use the issue body as the primary input for planning. Set `ISSUE_NUMBER=<number>
   edges after normalization, or a cycle. Never infer an edge from Wave numbers or prose.
 
 - **Execution mode per topic** — extract the `**Execution mode:** {subagents|teams}` marker from each `[Sub]` issue body (or each inline sub-task in a legacy inline-format Super-Epic child). This drives Step 5's spawn path. See `references/execution-modes.md` for the parsing logic, default-to-teams fallback, and mixed-mode degradation rule.
-- **Model per topic** — extract the `**Model:** {opus|sonnet|haiku|fable}` marker from each `[Sub]` issue body (or each inline sub-task in a legacy inline-format Super-Epic child). This drives the per-child model assignment in Step 5. A manual `-t-op` / `-t-so` flag on this invocation OVERRIDES per-topic markers session-wide. Default-when-missing-and-no-flag: `opus`. See `references/per-topic-models.md` for the resolution table.
+- **Model per topic** — extract the `**Model:** {opus|sonnet|haiku|fable}` marker from each `[Sub]` issue body (or each inline sub-task in a legacy inline-format Super-Epic child). This drives the per-child model assignment in Step 5. Default when the marker is missing: `opus`. See `references/per-topic-models.md` for the resolution table.
+- **Optional SKIP decision per topic** — accept at most one exact `**SKIP:** <non-empty reason>` line. It never satisfies the dependency graph by itself. Once ready, spawn that topic as a verification-only child on the current base; require the ordinary foreground self-review, clean-tree, exact-SHA, and manager-report gate before recording a verified no-op. If the child finds the skip unjustified, it implements the original scope or reports a blocker. Duplicate/blank markers block before branch/worktree creation.
+- **Baseline-aware confirm repair** — a trusted confirm spec may accidentally require exit 0 from a repository-wide command that was already red before the epic. If a confirm worker reports such a failure, do not silently pass it and do not expand the topic into unrelated cleanup. Reproduce the exact command on the recorded parent/pre-epic SHA in an isolated clean worktree. If the failure signature/count is the same or better and all previously-green checks remain green, mechanically repair the trusted local/owner-authored confirm acceptance text to an explicit no-new-failures contract, record the baseline SHA/evidence in the ledger, and rerun the worker's foreground review/report gate. Any new or worsened failure remains a real blocker. This is handoff conversion, not re-planning.
 
 Do NOT re-plan or re-analyze. Do NOT update the epic issue body. Proceed to Step 2 with the extracted topics, base branch, and per-topic execution mode.
 
@@ -263,6 +277,8 @@ No tracking issue is created; the spec + progress ledger live in a **cclogs coor
 
 - Resolve `LOCAL_DIR` (`$LOGDIR/local-workflow/{datetime}-{slug}`) and write `plan.md` (the Summary + Topics + wave/mode/model that the tracking issue would hold) and `progress.md` (the TODO checklist + Progress Log). These are the file equivalents of the tracking issue — set `ISSUE_NUMBER` unset/empty so the `gh issue *` calls below are replaced by their `LOCAL_DIR` counterparts.
 - **If the argument is a plan path** (a directory or `sub-*.md` file under `local-workflow/`, handed off by `/big-plan --local`): reuse it as `LOCAL_DIR` — read the topics, base branch, and per-topic `**Execution mode:**` / `**Model:**` / `**Depends on:**` markers from its `plan.md` + `sub-NN.md` files. This mirrors how epic mode (1a) reads the same bold dependency marker from `[Sub]` issue bodies; only the value form differs: issue mode uses sibling `#N` refs, while local mode uses sibling sub filenames (or `none`) per `references/local-mode.md`. Do NOT re-plan.
+- Read an optional `**SKIP:**` line from local sub specs using the same verification-only semantics as issue mode; never drop the topic from the graph merely because the line exists.
+- **Trusted legacy local repair:** before scheduling a handed-off directory, run `python3 "$HOME/.claude/skills/big-plan/scripts/validate-local-handoff.py" --repair "$LOCAL_DIR"`, record any rewritten dependency lines in `progress.md`, then re-read the files. The repair may map an explicit short `sub-NN` value only to one uniquely matching enumerated sibling filename. Duplicate lines/edges, ambiguous or missing siblings, self-edges, and cycles still block before branch/worktree creation; never infer dependencies from Wave metadata or prose.
 - **If a `#issue` / URL is ALSO passed** (implementing a tracked issue while keeping *this run's* bookkeeping local): read that issue as input (1a) but do NOT post a claim comment or per-step progress comments on it — those go to `progress.md`.
 
 `--local` differs from bare `--no-issue` history: it keeps the `progress.md` ledger so the re-read-after-each-step anti-drift mechanism still works. `--no-issue` is retained as an alias and now behaves identically.
@@ -305,14 +321,13 @@ For all other sessions (no issue, or user-provided non-epic issue), after Step 1
 
 This is advisory. If codex is unresponsive, proceed with the original plan.
 
-### Manager invariant & two flag families
+### Manager invariant & reviewer selection
 
-**The manager session is ALWAYS Opus.** Neither reviewer flags nor team-member flags downgrade the manager.
+**The manager session is ALWAYS Opus.** No flag downgrades the manager.
 
-Two orthogonal flag families:
+**Reviewer selection** — `-co` upgrades Step 9 from `/code-review` to `/deep-review` (adding the codex cross-model pass). One tier per run. This skill sets no effort level: whichever reviewer runs is invoked bare and uses its own default. See `references/reviewer-modes.md`.
 
-- **Reviewer selection** — an effort level (`low` … `max`, default `medium`) sets how hard Step 9 looks — match it only as a standalone leading token, never a word inside the instructions (`/x-wt-teams max "…"` sets it; `"raise the max retry count"` does not); `-co` upgrades it to `/deep-review` (adding the codex cross-model pass). One tier per run. `-op` / `-so` / `-haiku` are no longer reviewer flags. See `references/reviewer-modes.md`.
-- **Team-member flags** — `-t-op` / `-t-so` override the model for child worktree agents and fix-delegation agents session-wide, replacing any per-topic `Model:` annotations from `/big-plan`. Without a flag, each child's model resolves per-topic from the annotation (default `opus`). See `references/per-topic-models.md` for resolution order and `references/arguments.md` for the canonical flag table.
+**Child models are per-topic, never session-wide** — each child's model resolves from its `/big-plan` `Model:` annotation (default `opus`). There is no flag that overrides them here. See `references/per-topic-models.md` for resolution order and `references/arguments.md` for the canonical flag table.
 
 ### Step 1.5: Resuming an interrupted run (MANDATORY check before Step 2 creates anything)
 
@@ -584,13 +599,12 @@ Full routing logic, marker grep patterns, drift sanity check, and the subagents-
 
 The downstream child model is **per-topic**, not session-wide. Resolve in this order:
 
-1. **Manual team-member flag override** — if the invocation has `-t-op` or `-t-so`, that flag applies to ALL topics. This is a deliberate manual override; the per-topic markers are ignored. Tell the user explicitly: "Manual override: all topics use {model} (-{flag})."
-2. **Per-topic annotation** — otherwise, use the `**Model:**` marker extracted from each topic's `[Sub]` issue body (or legacy inline sub-task) in Step 1a.
-3. **Default** — if a topic has no marker AND no flag was passed, default to `opus`.
+1. **Per-topic annotation** — use the `**Model:**` marker extracted from each topic's `[Sub]` issue body (or legacy inline sub-task) in Step 1a.
+2. **Default** — if a topic has no marker, default to `opus`.
 
 Tell the user the resolution before spawning, e.g. "Models per topic: topicA=opus, topicB=sonnet, topicC=opus." When children spawn (either path), set each one's model parameter to its own resolved value — children in the same session may run different models, that's fine.
 
-Note: reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children. Only `-t-op` / `-t-so` does. Full table and rationale: `references/per-topic-models.md`.
+Note: reviewer flags do NOT affect children — nothing on the invocation does. The annotation is the only input. Full table and rationale: `references/per-topic-models.md`.
 
 #### Subagents path (default)
 
@@ -681,7 +695,7 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 1. Work in its assigned worktree directory
 2. Implement the topic
 3. **Commit changes locally only — DO NOT push** (deferred to Step 11)
-4. **Self-review your own diff by hand** — read `git diff <base>...HEAD`, make one bugs/logic pass and one quality/structure pass over the changed files, fix what's clearly useful, and commit. **Invoke no review skill and spawn no reviewer** — from a subagent `/code-review` returns a background handle rather than findings, `TaskOutput` isn't in your toolset to drain it, and a nested `Agent` call's completion notification routes to the manager; any of those leaves you parked with work committed but never reported. `/deep-review` and `/codex-review` are likewise off-limits regardless of the manager's flags — the cross-model pass is a manager-level Step 9 concern, and running it per-child multiplies codex load by the number of live children for no added coverage. Apply findings, COMMIT, then report (item k). **Then reap this workspace's leaked codex broker** — a child session never fires the plugin's SessionEnd hook, so its broker + app-server pair would otherwise orphan to PPID 1: run `node $HOME/.claude/scripts/codex-sweep.js --workspace "<your-worktree-abs-path>"` (use your **assigned worktree's absolute path**, not `$PWD` — a team-child's cwd can stay the lead's, and reaping `$PWD` there would kill the lead's broker; a quiet no-op when none exists; safe because the plugin's `ensureBrokerSession` self-heals if codex is needed again).
+4. **Self-review your own diff by hand** — read `git diff <base>...HEAD`, fix what's clearly useful, and commit. **Invoke no review skill and spawn no reviewer** — from a subagent `/code-review` returns a background handle rather than findings, `TaskOutput` isn't in your toolset to drain it, and a nested `Agent` call's completion notification routes to the manager; any of those leaves you parked with work committed but never reported. `/deep-review` and `/codex-review` are likewise off-limits regardless of the manager's flags — the cross-model pass is a manager-level Step 9 concern, and running it per-child multiplies codex load by the number of live children for no added coverage. Apply findings, COMMIT, then report (item k). **Then reap this workspace's leaked codex broker** — a child session never fires the plugin's SessionEnd hook, so its broker + app-server pair would otherwise orphan to PPID 1: run `node $HOME/.claude/scripts/codex-sweep.js --workspace "<your-worktree-abs-path>"` (use your **assigned worktree's absolute path**, not `$PWD` — a team-child's cwd can stay the lead's, and reaping `$PWD` there would kill the lead's broker; a quiet no-op when none exists; safe because the plugin's `ensureBrokerSession` self-heals if codex is needed again).
 5. Save a log to `{logdir}/` (the agent's log-writing constraint handles this)
 6. (If issue tracking is active) Comment on the tracking issue with a brief completion note. This is an additive human-visible log, NOT the report — an issue comment does not satisfy the merge gate, and children have repeatedly posted one and then gone idle without reporting. (Local mode: skip the comment — the SendMessage report per step 7 is the whole channel; the manager logs it to `progress.md`.)
 7. **Report back with the completion-report schema, via SendMessage to the manager** (see Step 6's
@@ -696,6 +710,18 @@ If any topic is marked `teams` (see `references/execution-modes.md` for the mark
 #### Concurrency Limit: Max 6 Child Agents at Once
 
 **CPU load protection**: Never run more than **6 child agents concurrently**. Running 7+ parallel agents overloads the local machine.
+
+**The cap is about CPU — it says nothing about disk, and disk is the constraint that bites on
+compile-heavy repos.** Each child works in its own worktree with its own build directory; on a Rust
+(or C++/Bazel) workspace that is routinely **6-30 GB each**, so 6 concurrent children can need well
+over 100 GB and fill the volume mid-run — which fails children in confusing, unrelated-looking ways.
+Before the first spawn, check free space (`df -h .`) against the repo's realistic per-worktree build
+size. If the headroom will not cover the batch, spawn **fewer than 6** and remove each worktree the
+moment its topic merges rather than at the end of the wave.
+
+A plan can also encode this for you: when `Depends on:` chains sub-issues that have no logical
+dependency, that is usually a deliberate **resource edge** (`/big-plan` Step 3.5). Honor it — do not
+"optimise" by spawning those siblings together because the cap says you have room.
 
 > **On web (web-mode.md §6):** this cap is Mac-freeze protection and does NOT apply — the cloud container is not your interactive machine. Spawn **all** topics in one parallel batch (one Agent call per topic in a single message); do not throttle to 6 or queue. (The browser "one alive at a time" rule and the port `flock` rule still hold — their reasons are context-window token balloon and port collisions, not CPU freeze.)
 
@@ -869,10 +895,10 @@ This flag's purpose: when `/deep-review -t` (default team-fix path) spawns a chi
 If no reviewer flag was passed, invoke the built-in reviewer on the base branch:
 
 ```
-Skill tool: skill="code-review", args="<resolved effort> --fix"
+Skill tool: skill="code-review", args="--fix"
 ```
 
-Interpolate the **resolved** effort — the level passed on this invocation, or `medium` when none was. Do not hard-code it: a run invoked as `/x-wt-teams max …` must review at `max`.
+Do not pass an effort level. This skill has no effort option — `/code-review` invoked bare reuses the level the user last typed, which is the intended behavior.
 
 It runs in its own context window and applies what it finds, so the manager's context stays light. Findings it reports but does not fix feed Step 15.5's auto-fix — raise them as `agent-found` issues unless `-nori` was passed.
 
@@ -883,10 +909,10 @@ Never pass `ultra` here: it is a paid cloud review only the user can start by ty
 If `-co` was passed, invoke `/deep-review` instead — `/code-review` plus `/codex-review` for cross-model coverage. Forward `-nori` if it was passed (under the default `-ri`, `/deep-review` raises `agent-found` issues for findings it doesn't fix):
 
 ```
-Skill tool: skill="deep-review", args="<resolved effort> [-nori if passed]"
+Skill tool: skill="deep-review", args="[-nori if passed]"
 ```
 
-Same rule as above — pass the resolved effort, and forward `-nori` when it was passed. Invoking it bare makes it fall back to its own defaults, so `-co max -nori` would silently review at `medium` and raise issues the user opted out of.
+Pass no effort level; forward `-nori` when it was passed. Dropping `-nori` would raise issues the user opted out of.
 
 `/deep-review` applies fixes inline by default and commits them, so by the time it returns there is normally nothing left to delegate from this step. Pass `-t` only when the fix work is genuinely large — then it spawns a fresh `/x-wt-teams --no-review -nf -nori --stay`, which applies the fixes, commits, merges back into `base/<project-name>`, pushes, and runs `/pr-revise` on its own. Either way, do not create a fix issue or spawn a fix Agent from here.
 
@@ -894,7 +920,7 @@ For the legacy inline-fix flow (manager applies fixes in own context, no nested 
 
 #### Effort
 
-Any of `low` / `medium` / `high` / `xhigh` / `max` on the invocation is forwarded to whichever reviewer runs; default `medium`. The old reviewer model flags (`-op` / `-so` / `-haiku`) no longer select a reviewer — they are accepted and ignored here. Full rules: `references/reviewer-modes.md`.
+**Not settable here.** This skill takes no effort level and no reviewer-model flag; whichever reviewer runs is invoked bare and falls back to its own default. Full rules: `references/reviewer-modes.md`.
 
 #### Common steps
 
@@ -1075,7 +1101,7 @@ gh pr ready <root-pr-number>
 
 ### Step 14: Session Report
 
-Generate a structured report — a log for future Claude Code sessions to reference via `/logrefer`, and a GitHub issue comment for human visibility.
+Generate a structured report — a log for future Claude Code sessions to reference via `/cclogs`, and a GitHub issue comment for human visibility.
 
 Save to `{logdir}/{timestamp}-x-wt-teams-{slug}.md` and (if issue is linked) post as a comment on `$ISSUE_NUMBER`. Full template and content checklist: `references/issue-templates.md`. **Local mode:** the `{logdir}` report still happens; instead of an issue comment, also write it to `$LOCAL_DIR/session-report.md`.
 
@@ -1442,7 +1468,7 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 21. **Auto-Suggest Next Command is MANDATORY for multi-session plans** — before STOP, if Signal A (Super-Epic) or Signal B (`--stay` accumulating-epic) applies, MUST print a copy-pasteable next command. The user should never have to type "give me next command" for a planned multi-session workflow.
 22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP, then switch to the super-epic base and delete the local epic base** — see `references/super-epic-mode.md`. The mandatory merge step is unconditional in Super-Epic child mode and runs whether or not `-m` was passed — `-m` never governs the epic-PR; it defers to chain termination, where the LAST sibling merges the super-PR (and closes the super-epic issue + cleans up the super base). This rule OVERRIDES Rule 1's "stay on `base/<project-name>`" default.
 23. **Execution mode is read from `/big-plan` annotations, not guessed** — when an `[Epic]` or Super-Epic child issue is the input, Step 1a extracts the per-topic `**Execution mode:** {subagents|teams}` markers and Step 5 routes accordingly. The **subagents path is the inline default** (it owns the canonical prompt body in Step 5 / Step 7); the **routing fallback when a marker is missing is teams** (preserves pre-annotation behavior). All-subagents → spawn one-shot Agent calls without TeamCreate (inline). Any-teams or any-missing → full team workflow in `references/teams-path.md`. The skill never auto-classifies execution mode itself — that decision belongs in `/big-plan`. Full routing logic, drift sanity check, and the subagents-path Agent-call shape live in `references/execution-modes.md`; the teams-path body lives in `references/teams-path.md`.
-24. **Per-topic model is read from `/big-plan` annotations, with manual team-member flag override** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku|fable}` marker and Step 5 spawns each child with its own model. A manual `-t-op` / `-t-so` flag on the invocation OVERRIDES every topic's annotation as a session-wide manual override; without a flag, per-topic markers are honored. Default-when-missing-and-no-flag is **opus** (preserves pre-annotation behavior). Reviewer flags (`-op` / `-so` / `-haiku`) do NOT affect children — those govern the Step 9 Claude reviewer only. The skill never auto-classifies the model itself — that decision belongs in `/big-plan` or in the user's flag. Full resolution table and rationale: `references/per-topic-models.md`.
+24. **Per-topic model is read from `/big-plan` annotations** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku|fable}` marker and Step 5 spawns each child with its own model. No invocation flag overrides them; the annotation is the only input. Default-when-missing is **opus** (preserves pre-annotation behavior). The skill never auto-classifies the model itself — that decision belongs in `/big-plan`. Full resolution table and rationale: `references/per-topic-models.md`.
 25. **`-a` / `--auto` auto-continues multi-wave plans in one session** — when `-a` is passed AND Auto-Suggest detected a next wave (Signal A or Signal B), the manager appends `-a` to the next-wave command (forwarding `-m` / `-nf` / `-nori` / `-lo` too) and invokes it immediately via the Skill tool instead of stopping. The chain keeps running until a future iteration finds no more siblings; if `-m` rode the chain, the merge runs at chain termination (Signal B: the root PR; Signal A: the super-PR, merged by the last sibling per `references/super-epic-mode.md`). Pause (soft-stop with hand-off + blocker note) on the conditions listed in the Auto-Suggest sub-section — never silently swallow a blocker to keep the chain going. Single-session runs and `-a`-less invocations are unaffected. (`-a` replaces the retired `-seq` flag; `-a` itself never merges — merging is `-m`'s job.)
 26. **Dead Branch Cleanup Principle (general meta-rule)** — whenever this skill orchestrates a merge (or watches one) where the source branch's work is absorbed into a parent **and** the source remote is deleted (e.g., `gh pr merge --delete-branch`, `/pr-complete`, equivalent), the local source branch is now a dead pointer and MUST be cleaned up before session ends. Pattern:
 1. Capture the dead branch name BEFORE switching off it: `DEAD_BRANCH=$(git branch --show-current)`

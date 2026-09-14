@@ -6,12 +6,12 @@ Which reviewer runs at each review point, and how the flags select it. The skill
 
 | Invocation | Reviewer | When |
 | --- | --- | --- |
-| no reviewer flag | `/code-review <effort> --fix` | **Default.** General review — the built-in reviewer, running in its own context window. |
-| `-co` / `--codex` | `/deep-review <effort>` | Deep pass: `/code-review` **plus** `/codex-review` for cross-model coverage. |
+| no reviewer flag | `/code-review --fix` | **Default.** General review — the built-in reviewer, running in its own context window. |
+| `-co` / `--codex` | `/deep-review` | Deep pass: `/code-review` **plus** `/codex-review` for cross-model coverage. |
 
 `-nor` / `--no-review` skips the review point entirely.
 
-**Effort** — `low` | `medium` | `high` | `xhigh` | `max`, forwarded to whichever reviewer runs. Default `medium` — this is the light tier, and `/code-review` is meant to be fast. Low and medium report only high-confidence findings; high and above broaden coverage at the cost of some uncertain ones. Reach for `-co` rather than a higher effort when you want depth: codex is the deep reviewer.
+**Effort is not settable here.** This skill has no effort option — invoke whichever reviewer runs bare, and it falls back to its own default (`/code-review` reuses the level the user last typed). Depth comes from `-co`, not from an effort dial: codex is the deep reviewer.
 
 > **`ultra` is not a value any skill may pass.** It is a paid cloud review that only the user can start by typing `/code-review ultra`. If a change looks like it warrants one, recommend it in the final report.
 
@@ -25,7 +25,7 @@ Which reviewer runs at each review point, and how the flags select it. The skill
 
 A child agent must never end its turn waiting on something it did not synchronously complete, because every completion notification in this harness routes to the **manager**, not to the child. A child that waits on one parks forever, with its work committed but never reported.
 
-So at Step 5 **a child reviews its own diff by hand**: read `git diff <base>...HEAD`, make one bugs/logic pass and one quality/structure pass over the changed files, apply the clearly-useful fixes, and commit. No skill invocation, no subagent — a nested `Agent` call returns an async handle even with `run_in_background: false`, and its notification routes to the manager.
+So at Step 5 **a child reviews its own diff by hand**: read `git diff <base>...HEAD`, apply the clearly-useful fixes, and commit. No skill invocation, no subagent — a nested `Agent` call returns an async handle even with `run_in_background: false`, and its notification routes to the manager.
 
 **Why not `/code-review` here, when it is the default reviewer everywhere else.** Measured, not assumed (see `references/execution-modes.md` for the full result): invoked from a plain subagent, `/code-review` returns an **async handle**, not findings — it backgrounds even there. And `TaskOutput`, the tool that would drain such a handle, **is not in a subagent's toolset at all**, so the child has no way to pull the result. A child's diff is one topic's worth of changes; reading it directly costs little and cannot park.
 
@@ -46,15 +46,13 @@ Canonical rule: `references/execution-modes.md` → "Invariant".
 
 Every codex-backed skill falls back silently to a Claude equivalent when codex is rate-limited or unavailable. Nothing at the dispatcher level needs to handle that — the fallback is invisible, and it never pauses the workflow or surfaces a quota error.
 
-## Removed: reviewer model flags
+## There is no reviewer-model flag
 
-`-op` / `--opus`, `-so` / `--sonnet`, and `-haiku` / `--haiku` used to pick the model for a fleet of `code-reviewer` subagents. That fleet is gone, and there is nothing left for them to set: `/code-review` is a bundled skill, and **Claude Code ignores skill-level model overrides** — a skill that forks into a subagent resolves its model as `CLAUDE_CODE_SUBAGENT_MODEL` → per-invocation param → its own frontmatter → the main conversation's model.
+**Claude Code ignores skill-level model overrides** — a skill that forks into a subagent resolves its model as `CLAUDE_CODE_SUBAGENT_MODEL` → per-invocation param → its own frontmatter → the main conversation's model. So `/code-review` runs on **the session model**. Change it with `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`.
 
-So the reviewer runs on **the session model**. Change it with `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`, not with a flag here. **Effort** is the separate dial these flags are replaced by — it controls how much the reviewer reasons per step, not which model does it.
+Effort is `/code-review`'s own dial, not this skill's — nothing on this invocation sets it. A child's model comes from its per-topic `/big-plan` annotation; see `arguments.md`.
 
-These tokens are still **accepted and silently ignored** at this skill's reviewer layer, so older invocations and forwarded chains don't break. They are not reviewer flags any more; do not act on them. (`-t-op` / `-t-so` are a different family entirely — they set the *team member / fix agent* model and are still live. See `references/arguments.md`.)
-
-`-op` also keeps its own meaning inside `/big-plan`, where it selects `/opus-2nd` as a **plan** reviewer. That is unrelated to code review.
+`/big-plan` has no plan-reviewer model flag either: its Step 5 review is unconditional (`/codex-2nd`, falling back to Opus on its own) with `-nor` as the only opt-out.
 
 ## Review findings → fix issue
 

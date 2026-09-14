@@ -116,8 +116,8 @@ This is **advisory, not blocking**. Don't pause for confirmation when no drift s
      prompt: <the canonical prompt body (items a–k) from SKILL.md Step 5, with these adjustments:
               - tell the agent its working directory is the absolute path of worktrees/<topic>/
               - tell it to commit locally only (no push)
-              - tell it to SELF-REVIEW BY READING ITS OWN DIFF (git diff <base>...HEAD; one bugs/logic
-                pass, one quality/structure pass) — NOT by invoking /code-review, /deep-review or
+              - tell it to SELF-REVIEW BY READING ITS OWN DIFF (git diff <base>...HEAD)
+                — NOT by invoking /code-review, /deep-review or
                 /codex-review. From a plain subagent /code-review returns a background handle rather than
                 findings, and TaskOutput is not in a subagent's toolset, so there is no way to drain it;
                 a child that starts one and waits parks. Apply findings, COMMIT, then report (item k)
@@ -155,7 +155,7 @@ The rest of the workflow (Step 6 merge, Step 8 sync, Step 9 review, Step 10 veri
 
 **The trap: starting the review and then waiting for it.** Any review a child starts out-of-band lands the same way — a `/codex-review` shell-out backgrounded via Bash, or a `/code-review` that returns an async handle because the built-in reviewer runs as a background subagent with its own context window. Subagents *can* reach these (the `frontend-worktree-child` agent has "All tools"); reachability is not the problem. The problem is a child that ends its turn waiting on a completion notification, because that notification is delivered to the **manager**, not to the child. The child parks indefinitely — often with real work already committed but never reported. This is the documented cause behind two linked defects in issue #114: parked children, and a manager that (lacking any report) fell back to merging on worktree inspection alone.
 
-The fix is `SKILL.md` Step 5 item (k) (mirrored above in this file's Agent-call shape): **the child reviews its own diff by hand** — read `git diff <base>...HEAD`, one bugs/logic pass, one quality/structure pass — applies findings, COMMITs, then reports. Item (k) is a prompt-level override: the child follows this explicit orchestrator instruction over whatever a review skill's own default flow would do.
+The fix is `SKILL.md` Step 5 item (k) (mirrored above in this file's Agent-call shape): **the child reviews its own diff by hand** — read `git diff <base>...HEAD` — applies findings, COMMITs, then reports. Item (k) is a prompt-level override: the child follows this explicit orchestrator instruction over whatever a review skill's own default flow would do.
 
 **Why a child does not invoke `/code-review`, when it is the default reviewer everywhere else.** `/code-review` is a `context: fork` skill that backgrounds by default, and there is no per-invocation way to force it foreground. The documented levers are all skill-level (`background: false` in frontmatter — not editable on a bundled skill) or session-level (`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, which also kills every other background feature). `skillOverrides` controls visibility only, not execution mode. A child therefore cannot *request* synchronous behavior.
 
@@ -178,7 +178,7 @@ The findings *did* arrive as a push notification into that subagent's own turn a
 
 For a child, in priority order:
 
-1. **Do the work in the foreground yourself.** For a review that means: read `git diff <base-branch>...HEAD`, make one bugs/logic pass and one quality/structure pass over the changed files, apply clearly-useful fixes, and commit. No `Agent` call, nothing to await.
+1. **Do the work in the foreground yourself.** For a review that means: read `git diff <base-branch>...HEAD`, apply clearly-useful fixes, and commit. No `Agent` call, nothing to await.
 2. **If something you called nevertheless returned an async handle, assume you cannot drain it.** `TaskOutput` is not in a subagent's toolset (measured — see the table above), so there is no pull channel. Abandon the handle and fall back to step 1. Never wait passively for a notification.
 3. **If you cannot collect it in-turn, abandon it and do the work yourself** (step 1). A self-done foreground pass is strictly better than a parked turn.
 

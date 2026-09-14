@@ -25,7 +25,7 @@ create a PR, and report back to the manager.
 - **Never force push**: Regular push only.
 - **Report back when done**: After creating the PR, send a brief message to the
   manager via SendMessage with: (1) status in 1-2 sentences, (2) PR URL, (3) log file path.
-  Keep it short — the full detail is in the log file. The manager can `/logrefer read <filename>` if needed.
+  Keep it short — the full detail is in the log file. The manager can `/cclogs` it if needed.
 
 ## Testing Strategy
 

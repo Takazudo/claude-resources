@@ -5,36 +5,31 @@ Single source of truth for every `/x-wt-teams` flag. The skill body links here i
 ## Argument hint
 
 ```
-[low|medium|high|xhigh|max] [-co|--codex]
-[-t-op|--team-opus] [-t-so|--team-sonnet]
+[-co|--codex]
 [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [--no-issue] [-s|--stay] [-v|--verify-ui]
 [-nor|--no-review]
 [-ri|--raise-issues] [-nori|--no-raise-issues]
 [#issue-number] <instructions>
 ```
 
-## Two flag families
+## Reviewer selection is the only delegation dial
 
-Two orthogonal groups govern delegation:
+`-co` / `--codex` chooses which reviewer runs at Step 9 (final QA). It does NOT affect child agents or fix-delegation agents. See `reviewer-modes.md`.
 
-- **Reviewer selection** — `-co` / `--codex` and an effort level (`low` … `max`). These choose which reviewer runs at Step 9 (final QA) and how hard it looks. They do NOT affect child agents or fix-delegation agents. The old model flags `-op` / `-so` / `-haiku` are no longer reviewer flags — accepted and ignored. See `reviewer-modes.md`.
-- **Team-member flags** — `-t-op` / `-t-so`. These override the model for every spawned child agent (Step 5 worktree teammates) and every fix-delegation agent (Step 9 review-fix delegation, `/x-as-pr` post-review fix agent). Session-wide; overrides per-topic `/big-plan` annotations.
+There is **no effort level and no team-member model flag** on this skill. Reviewers are invoked bare and use their own defaults; child and fix-delegation agents take their model from the per-topic `/big-plan` `**Model:**` annotation (default `opus`). See `per-topic-models.md`.
 
 ## Flag table
 
 | Flag | Aliases | What it does | Conflicts / notes |
 |---|---|---|---|
-| `low` … `max` | — | Effort level for the Step 9 reviewer (`low`, `medium`, `high`, `xhigh`, `max`). **Default `medium`** — the light tier. Want depth? Pass `-co` (codex), not a higher effort. | `ultra` is not accepted — only the user can launch a cloud review, by typing `/code-review ultra`. |
 | `-co` | `--codex` | Upgrade Step 9 from `/code-review` to `/deep-review` (`/code-review` **plus** `/codex-review`), and prefer codex for writing / research tooling. Degrades silently to the Claude equivalent if codex is rate-limited or unavailable. See `reviewer-modes.md`. | Adds the codex reviewer rather than replacing the built-in one. |
-| `-op` `-so` `-haiku` | `--opus` `--sonnet` `--haiku` | **No longer reviewer flags** — accepted and ignored so older invocations don't break. | They used to set the model for a fleet of `code-reviewer` subagents; that fleet is gone and effort replaced it. Not to be confused with `-t-op` / `-t-so`. |
-| `-t-op` | `--team-opus` | Force every child agent and fix-delegation agent to Opus. Session-wide override of per-topic `/big-plan` `**Model:**` markers. | Mutually exclusive with `-t-so`. **Manager always runs as Opus regardless.** Default without any team-member flag stays `opus`. |
-| `-t-so` | `--team-sonnet` | Force every child agent and fix-delegation agent to Sonnet. Session-wide override. | Mutually exclusive with `-t-op`. There is no `-t-haiku` — haiku is rare enough that it stays opt-in via `/big-plan` per-topic markers only. |
 | `-a` | `--auto` | Auto-chain flag. When Auto-Suggest matches Signal A (Super-Epic child) or Signal B (`--stay` accumulating-epic) with a next wave remaining, invoke the next-wave command immediately via Skill instead of printing-and-stopping; append `-a` (and forward `-m` / `-nf` / `-nori` / `-lo`) so the chain self-runs. Pause and surface to the user only on a blocker. Does **NOT** merge — that's `-m`. | Replaces the retired `-seq` flag. Only meaningful for multi-wave plans (typically `/big-plan` epics); single-session runs are no-ops. Combinable with all other flags. See "`-a` chain mechanism" below. |
 | `-m` | `--merge` | Merge mode. After Step 15, run `/pr-complete -c` (wait for CI, merge the root PR, close issue), then invoke `/watch-ci` on the merged target branch; if red, spawn an Opus subagent to fix (max 2 cycles). This was `-a`'s behavior before the `-a`/`-m` split. | **Deferred to chain termination in Super-Epic child mode** — mid-chain sessions carry it only; the terminal sibling merges the **super-PR** into its parent, closes the super-epic issue, and cleans up the super base (see `super-epic-mode.md`). **Deferred mid-chain generally** — in a Signal A/B chain the merge runs only at chain termination; intermediate waves forward `-m` onward. **Limited env (web):** the merge stays CI-gated (never force-merged) but skips the local visual/Mac check, then raises a `mac` issue — see `../../../web/mac-handoff.md` §6-A. |
 | `-f` | `-fix`, `--auto-fix` | **Default — on unless `-nf` is passed.** After the main work, before Step 16 cleanup, auto-fix the safe subset of `agent-found` issues raised this session (triage leave-open-vs-fix; tiny fixes bundled into one `agent-fix/<slug>` PR, non-trivial ones each own PR; every fix runs `/code-review low --fix`; close + link on success; cap ~3 rounds). See the "Auto-Fixing Raised Findings" step in `SKILL.md`. | Requires `-ri` (the default); **no-op under `-nori`**. Fix PRs follow the same `-m` auto-merge semantics as the root PR. Independent of `-a` / `-m`. |
 | `-nf` | `--no-fix` | Skip the Step 15.5 auto-fix — raised `agent-found` issues stay open for human triage. | Use for careful / manual sessions. Forwarded on `-a` chain waves. |
 | `-lo` | `--local` | Local mode: no tracking issue — the spec + progress ledger live in a cclogs coordination dir (`plan.md` / `progress.md` / `sub-NN.md`) instead. Accepts a plan-dir path from `/big-plan --local`. See Step 1c and `local-mode.md`. | `agent-found` problem issues are still raised (use `-nori` to suppress). Keeps the anti-drift ledger, unlike bare `--no-issue`. |
-| `-toco` | `--to-codex` | Codex hand-off: do NOT implement here. Open a new tmux window running `codex` at the repo root, stage `$x-wt-teams <flags> <epic# or topics>` in its composer, focus it, and end the session. **Fires at the very start**, before any base branch, worktree, or PR exists. See `codex-handoff.md`. | Forwards `-a` / `-m` / `-nf` / `-nori` / `-lo`; submits only under `-a`. Reviewer flags and `-s` do not travel — the Codex session picks its own. Terminal-only (web has no tmux or local codex). |
+| `-toco` | `--to-codex` | Codex hand-off: do NOT implement here. Open a new tmux window running `codex` at the repo root, stage `$x-wt-teams <flags> <epic# or topics>` in its composer, focus it, and end the session. **Fires at the very start**, before any base branch, worktree, or PR exists. See `codex-handoff.md`. | Forwards `-a` / `-m` / `-nf` / `-nori` / `-lo`; submits only under `-a`. `-co` and `-s` do not travel — the Codex session picks its own. Terminal-only (web has no tmux or local codex). |
+| `-tocl` | `--to-claude` | Fresh-Claude hand-off: do NOT implement here. Open a new tmux window running `CLAUDE_CODE_NO_FLICKER=1 claude --dangerously-skip-permissions --model opus` at the repo root, start it on `/x-wt-teams <flags> <epic# or topics>`, focus it, and end the session. Same move as `-toco` to a different destination — a clean context window rather than a different tool (the agent-side stand-in for `/clear`). **Fires at the very start**, before any base branch, worktree, or PR exists. See `handoff-common.md` + `claude-handoff.md`. | **Mutually exclusive with `-toco`** — if both are passed, name the collision and stop. Forwards `-a` / `-m` / `-nf` / `-nori` / `-lo`; submits only under `-a`. `-co` and `-s` do not travel. Plain `/` prefix, not `$` — the target is Claude Code. Terminal-only (web has no tmux or second CLI). |
 | `--no-issue` | `-lo`, `--local` | Alias of `--local`. Skip GitHub issue creation; use the cclogs ledger instead. | Retained for back-compat; now identical to `--local` (writes `progress.md`, no longer a pure skip). |
 | `-s` | `--stay` | **OPT-IN ONLY.** Reuse the current branch as the base branch (no new `base/<project-name>`). | See "`-s` / `--stay` mechanism" below. NEVER auto-detect — even with an existing PR, even on a topic branch. |
 | `-v` | `--verify-ui` | After Step 9, run `/verify-ui` (via the isolated browser subagent). See Step 10. | Requires the isolated-browser dispatch pattern from `resource-coordination.md`. **Limited env (web):** can't run here — Step 10 defers to the `mac`-label handoff (`../../../web/mac-handoff.md`). Also fires when no `-v` but the diff touched UI files. |
@@ -45,26 +40,22 @@ Two orthogonal groups govern delegation:
 
 ## Manager invariant
 
-**The manager session is ALWAYS Opus.** Neither reviewer flags (`-op` / `-so` / `-haiku`) nor team-member flags (`-t-op` / `-t-so`) downgrade the manager. If invoked on a non-Opus session and the user passes any of these flags, note it but proceed.
+**The manager session is ALWAYS Opus.** No flag downgrades the manager. If invoked on a non-Opus session, note it but proceed.
 
 ## Reviewer flag application points
 
 The resolved reviewer selection is applied at:
 
-1. **Step 9 final review** — `/code-review <effort> --fix` by default; `/deep-review` when `-co` is passed. One reviewer tier per run, not a combination (see `reviewer-modes.md`).
+1. **Step 9 final review** — `/code-review --fix` by default; `/deep-review` when `-co` is passed. Neither is given an effort level. One reviewer tier per run, not a combination (see `reviewer-modes.md`).
 2. **Planning 2nd opinion** — `/codex-2nd`, always. It reviews the *plan*, not code, and is unaffected by the reviewer tier.
 3. **Child self-review** — child agents read their own diff and review it by hand, regardless of the manager's tier. They invoke no review skill: from a subagent `/code-review` returns a background handle instead of findings and `TaskOutput` isn't available to drain it, so a child that starts one and waits parks.
 
-## Team-member flag application points
+## Where the child model comes from
 
-The resolved team-member flag (`-t-op` / `-t-so`, default `opus`) is applied at:
+There is no flag for it. The model is resolved per topic and applied at:
 
-1. **Child worktree agents** (Step 5) — every `Agent(...)` gets `model:` set to the resolved team model. Always set explicitly per spawn. Overrides per-topic `/big-plan` `**Model:**` markers (see `per-topic-models.md`).
-2. **Fix-delegation agent** — the fresh Agent spawned after Step 9 review to apply fixes in `/x-as-pr`, and the inner `/x-wt-teams --no-review --stay` session spawned by `/deep-review -t`.
-
-## Two flag families are orthogonal
-
-Reviewer selection and team-member flags do not interact — pass any combination. Example: `max -co -t-op` means "run `/deep-review` at max effort for QA, with all child agents on Opus."
+1. **Child worktree agents** (Step 5) — every `Agent(...)` gets `model:` set from that topic's `/big-plan` `**Model:**` marker, default `opus`. Always set explicitly per spawn (see `per-topic-models.md`).
+2. **Fix-delegation agent** — the fresh Agent spawned after Step 9 review to apply fixes in `/x-as-pr`, and the inner `/x-wt-teams --no-review --stay` session spawned by `/deep-review -t`. Default `opus`.
 
 ## `-s` / `--stay` mechanism
 
