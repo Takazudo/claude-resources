@@ -26,8 +26,10 @@ If the file does not exist, report "Codex plugin not installed. Run `/codex:setu
 Usage for writing tasks:
 
 ```bash
-node "$CODEX_COMPANION" task "<writing prompt>"
+node "$CODEX_COMPANION" task -- "<writing prompt>"
 ```
+
+**The `--` is load-bearing — do not remove it.** `codex-companion.mjs` shell-splits the prompt back into tokens when it is the *only* argument (`normalizeArgv`), and then reads any token starting with `-` as an option: a prompt merely *mentioning* `-m` sets `--model` to the next word and drops both from the text the model sees. `--` stops option parsing and keeps the prompt one argument.
 
 The `task` command runs Codex in read-only mode by default (no `--write` flag). Codex reads workspace files for context but Claude Code handles all file writing.
 
@@ -83,7 +85,7 @@ else
 fi
 
 bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
-  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1500} node "$CODEX_COMPANION" task -- \
   "<detailed prompt here>" \
   > "$LOGDIR/${DATETIME}-codex-writer-draft.md" \
   2>"$LOGDIR/${DATETIME}-codex-writer-draft-stderr.log"

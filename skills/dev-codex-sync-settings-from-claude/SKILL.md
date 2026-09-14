@@ -78,7 +78,8 @@ The user's Codex workflow centers on `/big-plan`, `/x-wt-teams`, `/x-as-pr`. Kee
 
 - **Entry points:** `big-plan`, `x`, `x-as-pr`, `x-wt-teams` (canonical) + `x-wt-team` (thin alias → x-wt-teams)
 - **Support:** `cleanup-resources`, `deep-review` (= `/code-review` + `/codex-review`), `verify-ui` (external — sourced from `Takazudo/zudo-test-wisdom`, NOT `$HOME/.claude/skills`; only sync/keep it on machines where that repo's setup installed it), `watch-ci`, `pr-revise`, `gh-fetch-issue`
-- **Codex-native helpers:** `codex-2nd`, `codex-review`, `codex-research`, `codex-writer`
+- **Codex-native helpers:** `codex-2nd`, `codex-research`, `codex-writer`
+- **Do NOT port `/codex-review`.** It exists here because codex is a *different* model from the session; on Codex the session already is codex, and Codex ships a native `$review-agent`. The Codex-side workflow skills invoke that directly.
 
 Rule of thumb: the set = the workflow trio + every skill named in their "Related Skills" sections. If a Claude workflow starts referencing a new helper, add its Codex port too.
 

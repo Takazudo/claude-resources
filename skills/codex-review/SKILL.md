@@ -120,7 +120,7 @@ Codex being down must never stall the caller or surface a quota error. Do not re
 
 - **Called by `/deep-review`**: return **"codex unavailable — no findings"** and nothing else. Do **not** run `/code-review` as a stand-in: `/deep-review` already ran it in parallel in its Step 1, so a second run would review the same diff with the same reviewer, and its Step 2 ranks "findings both reviewers raised independently" as the highest-confidence signal. Two runs of one reviewer agree by construction, which would manufacture exactly that signal with no cross-model corroboration behind it. Telling the caller the codex half is missing is what lets it skip the consensus ranking honestly. Silent means silent *to the user*, never to the caller.
 - **Manager context, invoked standalone**: `Skill(skill="code-review", args="<the effort and target this skill was given, else medium>")` and return those findings instead. Here there is no parallel run to duplicate, so the user still gets a review.
-- **Subagent / child context**: review the diff yourself in the foreground — read `git diff "$BASE"...HEAD`, make one bugs/logic pass and one quality/structure pass, and return what you find. **Spawn nothing.** A nested `Agent` call returns an async handle even with `run_in_background: false`, and its completion notification routes to the manager, so a child that dispatches a fallback reviewer and ends its turn parks with work done but never reported. See the canonical rule — *a subagent must never end its turn waiting on anything it did not itself synchronously complete* — in `$HOME/.claude/skills/x-wt-teams/references/execution-modes.md` → "Invariant".
+- **Subagent / child context**: review the diff yourself in the foreground — read `git diff "$BASE"...HEAD` and return what you find. **Spawn nothing.** A nested `Agent` call returns an async handle even with `run_in_background: false`, and its completion notification routes to the manager, so a child that dispatches a fallback reviewer and ends its turn parks with work done but never reported. See the canonical rule — *a subagent must never end its turn waiting on anything it did not itself synchronously complete* — in `$HOME/.claude/skills/x-wt-teams/references/execution-modes.md` → "Invariant".
 
 ### Step 5: Reap the broker (child context only, every exit path)
 
@@ -142,6 +142,6 @@ Pass your **own** worktree path. `$PWD` is wrong in a team-child session whose c
 ## Notes
 
 - **Scope discipline is the point of this skill's existence.** It used to be the house default reviewer; it no longer is. `/code-review` handles general review, and codex is reserved for the cross-model pass in `/deep-review` and explicit user requests. Running codex everywhere burned quota for a second opinion nobody had asked for.
-- Output lands in `$LOGDIR/${DATETIME}-codex-review*.md`, timestamped so runs never overwrite each other. Reachable later via `/logrefer`.
+- Output lands in `$LOGDIR/${DATETIME}-codex-review*.md`, timestamped so runs never overwrite each other. Reachable later via `/cclogs`.
 - Codex reviews in a read-only sandbox. Every file edit is made by Claude Code.
 - **Never background this call from a subagent** — see Step 2.

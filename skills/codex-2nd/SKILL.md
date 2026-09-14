@@ -26,8 +26,10 @@ If the file does not exist, report "Codex plugin not installed — skipping seco
 Usage for second opinion tasks:
 
 ```bash
-node "$CODEX_COMPANION" task "<prompt>"
+node "$CODEX_COMPANION" task -- "<prompt>"
 ```
+
+**The `--` is load-bearing — do not remove it.** `codex-companion.mjs` shell-splits the prompt back into tokens when it is the *only* argument (`normalizeArgv`), and then reads any token starting with `-` as an option: a prompt merely *mentioning* `-m` sets `--model` to the next word and drops both from the text the model sees. `--` stops option parsing and keeps the prompt one argument.
 
 The `task` command runs Codex in read-only mode by default (no `--write` flag).
 
@@ -103,14 +105,14 @@ else
 fi
 
 bash $HOME/.claude/scripts/codex-guard.sh --wait 300 -- \
-  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1800} node "$CODEX_COMPANION" task \
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD} ${TIMEOUT_CMD:+1800} node "$CODEX_COMPANION" task -- \
   "<prompt>" \
   > "$LOGDIR/${DATETIME}-codex-2nd.md" \
   2>"$LOGDIR/${DATETIME}-codex-2nd-stderr.log"
 ```
 
 Long prompts: write the prompt to a file first and pass it as
-`PROMPT=$(cat <prompt-file>)` … `task "$PROMPT"`, rather than inlining a multi-hundred-line
+`PROMPT=$(cat <prompt-file>)` … `task -- "$PROMPT"`, rather than inlining a multi-hundred-line
 heredoc into the command.
 
 **Timeout: 30 minutes (1800s), enforced by `gtimeout`/`timeout` inside a backgrounded

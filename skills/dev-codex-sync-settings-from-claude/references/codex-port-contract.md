@@ -39,13 +39,13 @@ Keep the user's Claude flag spellings so habits transfer. Include only the flags
 
 Use these exact names in every "Related Skills" / routing section:
 
-`big-plan`, `cleanup-resources`, `x`, `x-as-pr`, `x-wt-teams` (canonical), `x-wt-team` (alias), `deep-review` (= `/code-review` + `/codex-review`), `verify-ui` (external — from `Takazudo/zudo-test-wisdom`, not a `$HOME/.claude` port; reference only where installed), `watch-ci`, `pr-revise`, `gh-fetch-issue`, `codex-2nd`, `codex-review`, `codex-research`, `codex-writer`.
+`big-plan`, `cleanup-resources`, `x`, `x-as-pr`, `x-wt-teams` (canonical), `x-wt-team` (alias), `deep-review` (= `/code-review` + `/codex-review`), `verify-ui` (external — from `Takazudo/zudo-test-wisdom`, not a `$HOME/.claude` port; reference only where installed), `watch-ci`, `pr-revise`, `gh-fetch-issue`, `codex-2nd`, `codex-research`, `codex-writer`.
 
 End every "Related Skills" list with: "If one of these related skills does not exist on the Codex side yet, keep going with the equivalent behavior directly in the current session instead of blocking."
 
 ## Adapting Claude-only concepts
 
-- **Opus-based reviewers** (`opus-2nd`, `-op`): no Codex equivalent → map plan/second-opinion review to `codex-2nd` (a fresh independent Codex pass). Mention `-op` only as "approximate with a second codex-2nd pass" when the source leans on it.
+- **Opus-based reviewers** (`opus-2nd`): no Codex equivalent → map plan/second-opinion review to `codex-2nd` (a fresh independent Codex pass).
 - **Per-task model picks** (opus/sonnet/haiku annotations): drop them — Codex doesn't switch models per sub-task. Keep the execution-mode annotation (independent worker vs needs coordination); it drives how the downstream skill spawns children.
 - **Sonnet/Haiku subagents** (e.g. cleanup, commits): → an inline in-session pass, or a `spawn_agent` worker when scope warrants.
 - Never leave a dangling Claude-only instruction. When unsure, state the Codex equivalent inline.
