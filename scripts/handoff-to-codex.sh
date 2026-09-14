@@ -5,7 +5,17 @@
 # Shared spec: skills/x-wt-teams/references/codex-handoff.md
 #
 # Usage:
-#   handoff-to-codex.sh --dir <repo-root> --command '<text>' [--name <window>] [--submit] [--timeout <sec>] [--no-auto-answer]
+#   handoff-to-codex.sh --dir <repo-root> --command '<text>' [--name <window>] [--submit] [--model <name>] [--effort <level>] [--timeout <sec>] [--no-auto-answer]
+#
+# --model / --effort pin the Codex session's model and reasoning effort,
+# default 'gpt-5.6-sol' and 'medium' (launched as `-m <model> -c
+# model_reasoning_effort="<effort>"`). The hand-off happens after the plan is
+# already made, so the receiving session is executing a decided spec rather than
+# deciding anything -- a manager's job, not a reasoning-heavy one. Sol at medium
+# is the manager tier; the reasoning-heavy work is dispatched to gpt-6-astra
+# workers at max effort. The session can change either from inside.
+# Pass 'inherit' to either one to omit that flag and take the value from
+# ~/.codex/config.toml instead.
 #
 # Codex's startup prompts are answered automatically (spec: "Startup prompts"):
 # the directory-trust menu gets YES, an update offer gets NO. --no-auto-answer
@@ -22,20 +32,29 @@
 #   7  Codex exited at startup (window closed before the composer appeared)
 #   8  command typed, but Codex did not start on it after 3 Enter presses
 #      (the draft is left in the composer for the user to submit)
-#   64 usage error (missing/unknown argument) -- a caller bug, no fallback printed
+#   64 usage error (missing/unknown/invalid argument) -- a caller bug, no fallback printed
 
 set -uo pipefail
 
 DIR="" COMMAND="" NAME="" SUBMIT=0 TIMEOUT=60 SESSION="" AUTO_ANSWER=1
+MODEL="gpt-5.6-sol" EFFORT="medium"
+
+# `shift 2` on a flag whose value is missing aborts under `set -u` with a raw
+# bash error, escaping the advertised exit-64 contract. Check first.
+need_value() {
+  [ "$2" -ge 2 ] || { echo "$1 requires a value" >&2; exit 64; }
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --dir) DIR="$2"; shift 2 ;;
-    --command) COMMAND="$2"; shift 2 ;;
-    --name) NAME="$2"; shift 2 ;;
+    --dir) need_value "$1" $#; DIR="$2"; shift 2 ;;
+    --command) need_value "$1" $#; COMMAND="$2"; shift 2 ;;
+    --name) need_value "$1" $#; NAME="$2"; shift 2 ;;
+    --model) need_value "$1" $#; MODEL="$2"; shift 2 ;;
+    --effort) need_value "$1" $#; EFFORT="$2"; shift 2 ;;
     --submit) SUBMIT=1; shift ;;
-    --timeout) TIMEOUT="$2"; shift 2 ;;
-    --session) SESSION="$2"; shift 2 ;;
+    --timeout) need_value "$1" $#; TIMEOUT="$2"; shift 2 ;;
+    --session) need_value "$1" $#; SESSION="$2"; shift 2 ;;
     --no-auto-answer) AUTO_ANSWER=0; shift ;;
     *) echo "unknown argument: $1" >&2; exit 64 ;;
   esac
@@ -44,6 +63,44 @@ done
 [ -n "$DIR" ] || { echo "--dir is required" >&2; exit 64; }
 [ -n "$COMMAND" ] || { echo "--command is required" >&2; exit 64; }
 [ -n "$NAME" ] || NAME="codex"
+[ -n "$MODEL" ] || { echo "--model must not be empty (pass 'inherit' to send no -m)" >&2; exit 64; }
+[ -n "$EFFORT" ] || { echo "--effort must not be empty (pass 'inherit' to send no override)" >&2; exit 64; }
+case "$MODEL" in
+  -*) echo "--model must be a model name, not a flag: $MODEL" >&2; exit 64 ;;
+esac
+case "$EFFORT" in
+  -*) echo "--effort must be a reasoning level, not a flag: $EFFORT" >&2; exit 64 ;;
+esac
+
+# 'inherit' is the opt-out, not a value: it drops the flag so Codex falls back to
+# ~/.codex/config.toml. Useful when the pinned model is unavailable on the
+# account, which would otherwise kill startup (exit 7).
+#
+# LAUNCH_ARGS goes to tmux as separate argv elements (no shell in between, same
+# as the claude sibling), so the TOML quoting inside the -c value is literal and
+# reaches Codex intact. LAUNCH_FLAG_TEXT is the same thing as one string, for the
+# "run this yourself" fallbacks -- a shell strips those quotes, and Codex accepts
+# the bare word too, so the pasted command behaves identically.
+LAUNCH_ARGS=()
+LAUNCH_FLAG_TEXT=""
+if [ "$MODEL" != "inherit" ]; then
+  LAUNCH_ARGS+=(-m "$MODEL")
+  LAUNCH_FLAG_TEXT="$LAUNCH_FLAG_TEXT -m $MODEL"
+fi
+if [ "$EFFORT" != "inherit" ]; then
+  LAUNCH_ARGS+=(-c "model_reasoning_effort=\"$EFFORT\"")
+  LAUNCH_FLAG_TEXT="$LAUNCH_FLAG_TEXT -c model_reasoning_effort=\"$EFFORT\""
+fi
+
+if [ "$MODEL" != "inherit" ] && [ "$EFFORT" != "inherit" ]; then
+  MODEL_NOTE=" on model '$MODEL' at '$EFFORT' reasoning effort"
+elif [ "$MODEL" != "inherit" ]; then
+  MODEL_NOTE=" on model '$MODEL'"
+elif [ "$EFFORT" != "inherit" ]; then
+  MODEL_NOTE=" at '$EFFORT' reasoning effort"
+else
+  MODEL_NOTE=""
+fi
 
 # Collapse newlines/tabs in --command. Skill invocations never contain one, but
 # a free-text instruction forwarded from /x-as-pr -toco can. Codex's composer
@@ -63,18 +120,19 @@ if [ -z "${TMUX:-}" ]; then
 Not running inside tmux — the Codex handoff needs a tmux session to open a window in.
 Run this yourself instead:
 
-  cd $DIR && codex
+  cd $DIR && codex${LAUNCH_FLAG_TEXT}
   # then type:  $COMMAND
 EOF
   exit 2
 fi
 
-if ! command -v codex >/dev/null 2>&1; then
+CODEX_BIN=$(command -v codex 2>/dev/null)
+if [ -z "$CODEX_BIN" ]; then
   cat >&2 <<EOF
 codex CLI not found on PATH — the handoff cannot open a Codex window.
 Install/expose it, then run this yourself:
 
-  cd $DIR && codex
+  cd $DIR && codex${LAUNCH_FLAG_TEXT}
   # then type:  $COMMAND
 EOF
   exit 3
@@ -84,7 +142,10 @@ fi
 [ -n "$SESSION" ] || SESSION=$(tmux display-message -p '#{session_name}')
 
 # -P -F prints the new pane's id so we can poll exactly this pane.
-PANE=$(tmux new-window -t "$SESSION" -n "$NAME" -c "$DIR" -P -F '#{pane_id}' 'codex')
+# tmux runs a MULTI-ARGUMENT command directly, with no intervening shell, so each
+# launch flag stays its own argv element and needs no quoting of its own.
+PANE=$(tmux new-window -t "$SESSION" -n "$NAME" -c "$DIR" -P -F '#{pane_id}' \
+  "$CODEX_BIN" ${LAUNCH_ARGS[@]+"${LAUNCH_ARGS[@]}"})
 # An empty pane id means new-window failed. Every later -t "" would silently
 # resolve to the CURRENT pane -- i.e. this very session -- and the command would
 # be typed into it. Bail instead.
@@ -92,12 +153,12 @@ if [ -z "$PANE" ]; then
   cat >&2 <<EOF
 Failed to open a tmux window in session '$SESSION'. Run this yourself instead:
 
-  cd $DIR && codex
+  cd $DIR && codex${LAUNCH_FLAG_TEXT}
   # then type:  $COMMAND
 EOF
   exit 6
 fi
-echo "Opened tmux window '$NAME' ($PANE) in session '$SESSION'."
+echo "Opened tmux window '$NAME' ($PANE) in session '$SESSION'${MODEL_NOTE}."
 
 # Codex needs ~10-14s before it accepts input; keystrokes sent earlier are
 # silently swallowed, so poll for the composer rather than sleeping blind.
@@ -223,7 +284,7 @@ while [ "$SECONDS" -lt "$DEADLINE" ]; do
 The Codex window closed before the composer appeared -- 'codex' exited at startup
 (not logged in, or it failed for another reason). Run it by hand to see why:
 
-  cd $DIR && codex
+  cd $DIR && codex${LAUNCH_FLAG_TEXT}
   # then type:  $COMMAND
 EOF
     exit 7
