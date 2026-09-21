@@ -33,9 +33,9 @@
 - No force push, no `--amend` unless explicitly permitted
 - No branch name reuse. Regular merge by default (not squash)
 
-## Git Commit/Push -- token-optimized /commits
+## Git Commit/Push -- token-optimized /co
 
-- `/commits` delegates to a Haiku subagent so the main session context (the session model — currently Fable 5) only sees a summary, not the full git diff / staging reasoning.
+- `/co` delegates to a Haiku subagent so the main session context (the session model — currently Fable 5) only sees a summary, not the full git diff / staging reasoning.
 - Direct execution is the last-resort fallback if the subagent fails.
 - The old Copilot CLI (`gcom`/`gpush`) path was removed — too fragile for multi-turn stateful git work (see claude-settings#29).
 - In `$HOME/.claude`, `settings.json` is tracked but its `model` field is pinned on stage by the `normalize-model` clean filter (`.gitattributes` → `scripts/normalize-settings-model.js`). `/model` changes therefore never appear in `git diff` or in commits. **This is by design — don't investigate it, don't "fix" it, don't propose re-pinning it.** Every other field in the file diffs normally. (This line used to also claim `reset --hard` won't revert the model value. That is **unverified** and looks wrong — with `smudge = cat`, `reset --hard` should write the pinned blob back. It can't be checked on a scratch clone, since the filter's git-config half is per-clone and isn't inherited, and wiring one needs `git config`, which is hard-denied. Verify it by hand — back up `settings.json`, `git reset --hard`, read `model`, restore — before relying on it either way.)
@@ -97,4 +97,4 @@ Default permission mode is `auto`. When a command is blocked, the response depen
 
 - `rm -rf`: relative paths only (`./path`, never `/absolute/path`)
 - Agent logs/artifacts go to the repo-scoped cclogs dir via save-file.js `{logdir}` placeholder. cclogs is **Dropbox-synced** (`$DROPBOX_CCLOGS_DIR`, set in `.zshrc` for Mac + WSL) so logs/prototypes/artifacts survive switching machines; `~/cclogs` still works as a symlink to it, and `{logdir}` / `get-logdir.js` resolve it. Worktrees and numbered sibling copies fold onto the base repo dir — a trailing number on the repo folder name is stripped, so `zzmod` and `zzmod2` both resolve to `cclogs/zzmod/`. NEVER use `~` in file paths — `~` is NOT expanded in Node.js or non-login shell contexts. Always use `$HOME` or the `{logdir}` placeholder
-- WIP / testing / prototype / worktree-prompt files go in the repo-scoped cclogs dir (`$DROPBOX_CCLOGS_DIR/{repo-name}/`), NOT `__inbox/` — the `__inbox/` convention is retired (it was machine-local; cclogs is Dropbox-synced). Existing `__inbox/` files may stay; just don't create new ones. Exception: a prototype that must import the repo's production code or use its workspace/Vite tooling stays in `__inbox/` (in-repo, gitignored) so relative imports and tooling resolve (see `/prototype-first-wisdom`)
+- WIP / testing / prototype / worktree-prompt files go in the repo-scoped cclogs dir (`$DROPBOX_CCLOGS_DIR/{repo-name}/`), NOT `__inbox/` — the `__inbox/` convention is retired (it was machine-local; cclogs is Dropbox-synced). Existing `__inbox/` files may stay; just don't create new ones. Exception: a prototype that must import the repo's production code or use its workspace/Vite tooling stays in `__inbox/` (in-repo, gitignored) so relative imports and tooling resolve (see `/protodev`)
