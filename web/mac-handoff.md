@@ -140,7 +140,7 @@ Pick by whether `-m` / `--merge` was passed. Both run only when `DEFER_MAC=true`
    out — macOS-native rendering, Dropbox-dependent flows, real-device rendering, the user's own
    visual judgment; the `/verify-ui` / `/headless-browser` skills aren't installed by name
    either, though a raw `web-mode.md` §7 Playwright check is available if useful). **Keep CI
-   gating:** the merge still goes through the skill's normal `/pr-complete -c` path, which
+   gating:** the merge still goes through the skill's normal `/prc -c` path, which
    waits for GitHub CI to be green. Never force-merge red CI. ("Merge without final
    confirmation" = skip the *rich-environment/Mac* check, not skip CI.)
 2. **After the merge succeeds**, create a NEW tracking issue:

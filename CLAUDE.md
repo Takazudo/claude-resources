@@ -58,6 +58,7 @@ Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (s
 - Unit tests alone cannot prove visual correctness. If the change is UI/CSS/layout, verify with `/verify-ui` (computed styles) or `/headless-browser` (screenshots, interactions)
 - When user says "it's still broken" after you tested, escalate to a deeper testing level -- do not re-run the same test
 - Invoke `/test-wisdom` when unsure which testing approach fits the current situation
+- **Heavy local runs (b4push, e2e / browser suites, long build + full test) go through `bash $HOME/.claude/scripts/heavy-guard.sh -- <command>`** — a machine-wide queue + memory gate shared by all Claude Code and Codex sessions, because 2–3 heavy suites at once starve memory and go red for non-code reasons. Projects on the current `/dev-b4push` template self-guard. Exit 75 = contention, never a test failure. `verdict=ENV_SUSPECT` → rerun once; still red with no broken expectation → defer to CI under a `deferred-verification` issue and report it as *deferred*, never as passed. Same path for platform-bound steps (macOS-only on WSL). Never weaken a test to fit this machine. Full policy: `skills/.shared/heavy-test-policy.md`
 - **NEVER suggest "clear browser cache" or "hard refresh" as a solution.** If the user says it's still broken, the code is still broken. Investigate the actual cause instead of blaming cache.
 
 ## Code Review — three tiers, nothing else
@@ -66,7 +67,7 @@ Screenshots directory path is available as `$DROPBOX_SCREENSHOTS_DIR` env var (s
 | --- | --- |
 | General review | `/code-review` (built-in) |
 | Deep review | `/code-review` + `/codex-review` — i.e. `/deep-review` |
-| Second opinion on a *plan* | `/codex-2nd` (or `/opus-2nd`) |
+| Second opinion on a *plan* | `/codex-2nd` |
 
 - **`/code-review` is the default reviewer everywhere.** It runs in its own context window, takes an effort level (`low` … `max`), a target (PR number / branch / path), and `--fix` / `--comment`.
 - **It reviews on the session model.** As a forked subagent it resolves the model in this order: `CLAUDE_CODE_SUBAGENT_MODEL` → per-invocation param → the skill's own frontmatter → the main conversation's model. So change the reviewer's model with `/model` or that env var — a skill-level override is *ignored* for skills and commands, which is why per-skill reviewer-model flags never worked and were removed.

@@ -23,8 +23,7 @@ The Codex CLI (`-co` / `/codex-review`) is not available in the container. The
 - **Ignore the `-co` flag.**
 - `/deep-review` runs only its `/code-review` half — the built-in reviewer works
   here, so a deep review degrades to a general one rather than failing.
-- Anywhere else that would reach for codex (`/codex-review`, `/codex-2nd`,
-  `/codex-research`, `/codex-writer`), use the Claude equivalent instead.
+- Anywhere else that would reach for codex (`/codex-review`, `/codex-2nd`), use the Claude equivalent instead.
 
 ## 3. Subagents-only — no agent teams
 
@@ -288,7 +287,7 @@ on them will time out; use `http://127.0.0.1:<port>` directly.
 
 ## 8. The `-m` merge runs in-turn on web — never punt CI to the background
 
-On the terminal, `/pr-complete -c -w` watches CI by launching a `gh` poll loop as
+On the terminal, `/prc -c -w` watches CI by launching a `gh` poll loop as
 a **background** `Bash` task; when that task exits, the harness re-invokes the
 agent with a `<task-notification>`, so "CI green → merge" fires autonomously
 without the agent having to stay in the turn. **On web that wakeup does not
@@ -327,7 +326,7 @@ So on web, treat **"watch CI then merge" as one blocking, in-turn step**:
    action you need from the user.
 
 This applies wherever a web skill would "watch CI in the background and merge when
-green": `/pr-complete -c -w`, `/watch-ci`, and the Merge Mode of `/x-as-pr` and
+green": `/prc -c -w`, `/watch-ci`, and the Merge Mode of `/x-as-pr` and
 `/x-wt-teams`. The post-merge `-w` watch is the same in-turn poll (report when
 green; if the target-branch CI goes red, fix via a `claude/agent-fix-*` PR per
 §5). The terminal background-poll model (`/watch-ci` via `Bash

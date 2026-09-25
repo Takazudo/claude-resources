@@ -24,6 +24,13 @@
  *     → exit 0 + prints "ok"      if no rate limit detected in file
  *     → exit 1 + prints reason    if rate limit pattern found (also marks lockout)
  *
+ *   node $HOME/.claude/scripts/codex-rate-limit.js check-output <stdout> <stderr>
+ *     → same contract, but the two files are scanned with DIFFERENT strictness:
+ *       stdout is the model's answer and is scanned strictly, stderr is a
+ *       diagnostic stream and is scanned with the full pattern set. See the
+ *       RATE_LIMIT_PATTERNS comment for why conflating them caused a false
+ *       lockout on a successful review.
+ *
  * Whenever a lockout is freshly created (via `mark`, or automatically from
  * `check-stderr`/`check-output` detecting a pattern), a best-effort IFTTT push
  * "codex rate limit detected" fires once per lockout window (dedupe logic lives
@@ -80,15 +87,50 @@ function notifyIfttt(detail) {
   return true;
 }
 
-// Patterns that indicate Codex rate limiting in stdout/stderr
-const RATE_LIMIT_PATTERNS = [
+// Patterns that indicate Codex rate limiting, split by how safely each one can
+// be matched against MODEL OUTPUT rather than a diagnostic stream.
+//
+// WHY THE SPLIT: `check-output` scans codex's stdout, which is the model's own
+// answer. Matching /rate limit/i there fires on any answer that merely DISCUSSES
+// rate limiting — a code review weighing an API's rate limits, say. That is not
+// hypothetical: a successful /codex-2nd review whose text argued "retry logic
+// does not handle a sustained npm outage, rate limiting, ..." was classified as
+// a rate-limit error and locked codex out for an hour. A diagnostic stream
+// mentions limits because it hit one; an answer may mention anything.
+const STRONG_RATE_LIMIT_PATTERNS = [
+  // Unambiguous — phrasings that occur in an actual limit error and essentially
+  // never in prose about limits. Safe to match against model output.
   /you've hit your limit/i,
-  /rate limit/i,
   /too many requests/i,
   /quota exceeded/i,
-  /usage limit/i,
+  /\b429\b/,
   /resets?\s+\d{1,2}[ap]m/i,
 ];
+
+const WEAK_RATE_LIMIT_PATTERNS = [
+  // Ambiguous — ordinary English a legitimate answer may contain. Trusted only
+  // on a diagnostic stream, never on model output.
+  /rate limit/i,
+  /usage limit/i,
+];
+
+const RATE_LIMIT_PATTERNS = [
+  ...STRONG_RATE_LIMIT_PATTERNS,
+  ...WEAK_RATE_LIMIT_PATTERNS,
+];
+
+// A rate-limit refusal is short. Past this many bytes codex produced a real
+// answer, so the run was not rate-limited whatever words that answer uses.
+const SUBSTANTIVE_OUTPUT_BYTES = 2000;
+
+// Returns the matching pattern, or null when the content shows no rate limit.
+// `strict` is for model output: strong patterns only, and only while the content
+// is still short enough to be a refusal rather than an answer.
+function matchRateLimit(content, { strict }) {
+  if (strict && content.length >= SUBSTANTIVE_OUTPUT_BYTES) return null;
+  const patterns = strict ? STRONG_RATE_LIMIT_PATTERNS : RATE_LIMIT_PATTERNS;
+  return patterns.find((pattern) => pattern.test(content)) || null;
+}
 
 function check() {
   if (!fs.existsSync(LOCKOUT_FILE)) {
@@ -181,35 +223,37 @@ function checkStderr(filePath) {
 
   const content = fs.readFileSync(filePath, "utf8");
 
-  for (const pattern of RATE_LIMIT_PATTERNS) {
-    if (pattern.test(content)) {
-      // Auto-mark as rate-limited
-      mark(DEFAULT_LOCKOUT_MINUTES);
-      console.log(`rate-limited: Detected rate limit in output: ${content.trim().split("\n")[0]}`);
-      process.exit(1);
-    }
+  // stderr is a diagnostic stream, so the full pattern set applies here.
+  if (matchRateLimit(content, { strict: false })) {
+    // Auto-mark as rate-limited
+    mark(DEFAULT_LOCKOUT_MINUTES);
+    console.log(`rate-limited: Detected rate limit in output: ${content.trim().split("\n")[0]}`);
+    process.exit(1);
   }
 
   console.log("ok");
   process.exit(0);
 }
 
-// Also check stdout file if provided as second argument
+// Scan a finished codex run for rate-limit evidence.
+//
+// The two files are NOT equivalent and must not share a scan: stdout holds the
+// model's answer (scanned strictly — see matchRateLimit), while stderr is a
+// diagnostic stream where limit wording is evidence rather than subject matter.
 function checkOutput(stdoutPath, stderrPath) {
-  const files = [stdoutPath, stderrPath].filter(
-    (f) => f && fs.existsSync(f)
-  );
+  const targets = [
+    { filePath: stdoutPath, strict: true },
+    { filePath: stderrPath, strict: false },
+  ].filter(({ filePath }) => filePath && fs.existsSync(filePath));
 
-  for (const filePath of files) {
+  for (const { filePath, strict } of targets) {
     const content = fs.readFileSync(filePath, "utf8");
-    for (const pattern of RATE_LIMIT_PATTERNS) {
-      if (pattern.test(content)) {
-        mark(DEFAULT_LOCKOUT_MINUTES);
-        console.log(
-          `rate-limited: Detected rate limit in ${path.basename(filePath)}: ${content.trim().split("\n")[0]}`
-        );
-        process.exit(1);
-      }
+    if (matchRateLimit(content, { strict })) {
+      mark(DEFAULT_LOCKOUT_MINUTES);
+      console.log(
+        `rate-limited: Detected rate limit in ${path.basename(filePath)}: ${content.trim().split("\n")[0]}`
+      );
+      process.exit(1);
     }
   }
 

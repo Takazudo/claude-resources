@@ -18,9 +18,8 @@
 # "worktrees" with a topic directory beneath it (the layout x-wt-teams Step 3
 # creates: worktrees/<topic>/). Regular sessions and subagents whose cwd AND
 # target file both sit outside worktrees go through the normal permission
-# flow. This covers both frontend-worktree-child (which already has
-# permissionMode: acceptEdits) and general-purpose teammates used for
-# non-frontend topics, regardless of which agent type the manager chose.
+# flow. This covers the general-purpose children x-wt-teams spawns,
+# regardless of which agent type the manager chose.
 
 set -euo pipefail
 

@@ -12,7 +12,7 @@
  *   1. $DROPBOX_CCLOGS_DIR when set (defined in ~/.zshrc for macOS + WSL2)
  *   2. platform default when the env var is missing (hooks / cron / non-login
  *      shells don't source ~/.zshrc): macOS -> ~/Library/CloudStorage/Dropbox/cclogs,
- *      WSL2/Linux -> /mnt/c/Users/takaz/Dropbox/cclogs
+ *      WSL2/Linux -> /mnt/c/Users/<windows-user>/Dropbox/cclogs (auto-detected)
  *   3. ~/cclogs as a last-resort fallback (on macOS this is a symlink to #2)
  *
  * Returns: <base>/{repo-basename}/ (worktrees resolve to main repo; a trailing
@@ -33,7 +33,15 @@ function cclogsBase() {
     return path.join(os.homedir(), 'Library', 'CloudStorage', 'Dropbox', 'cclogs');
   }
   if (process.platform === 'linux') {
-    return '/mnt/c/Users/takaz/Dropbox/cclogs';
+    const winUsers = '/mnt/c/Users';
+    try {
+      for (const user of fs.readdirSync(winUsers)) {
+        const candidate = path.join(winUsers, user, 'Dropbox', 'cclogs');
+        if (fs.existsSync(candidate)) return candidate;
+      }
+    } catch {
+      // not WSL, or /mnt/c not mounted
+    }
   }
   return path.join(os.homedir(), 'cclogs');
 }
