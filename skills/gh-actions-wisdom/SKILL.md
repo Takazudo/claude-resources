@@ -1,6 +1,6 @@
 ---
 name: gh-actions-wisdom
-description: "GitHub Actions workflow best practices and pitfalls reference. Use when: (1) Writing or reviewing .yml workflows, (2) Setting up CI/CD pipelines, (3) Debugging slow, expensive, or stuck workflow runs, (4) User says 'gh actions', 'github actions', 'workflow best practices', (5) Before creating or modifying any .github/workflows/ file. Keywords: GitHub Actions, CI/CD, workflow, timeout, concurrency, security, caching."
+description: "GitHub Actions workflow best practices and pitfalls reference. Use when: (1) Writing or reviewing .yml workflows, (2) Setting up CI/CD pipelines, (3) Debugging slow, expensive, or stuck workflow runs, (4) User says 'gh actions', 'github actions', 'workflow best practices', (5) Before creating or modifying any .github/workflows/ file, (6) Editing another CI's build/cache config (e.g. AWS Amplify amplify.yml) or debugging 'Build container ran out of memory'. Keywords: GitHub Actions, CI/CD, workflow, timeout, concurrency, security, caching, node_modules, pnpm, Amplify."
 ---
 
 # GitHub Actions Wisdom
@@ -111,6 +111,16 @@ Do **not** use `cache: 'pnpm'` (or `cache: 'npm'`, `cache: 'yarn'`) in `actions/
 ```
 
 This is especially true for **self-hosted runners** where the pnpm store is already local — caching to GitHub's remote cache and restoring it is pointless overhead.
+
+#### …and never cache `node_modules` itself (any CI, not just GitHub Actions)
+
+The same logic applies to caching `node_modules` directories directly — `actions/cache` paths, AWS Amplify `cache.paths`, other hosts' build caches — and with pnpm it is actively dangerous, not just slow:
+
+- pnpm's `node_modules` is mostly symlinks into `node_modules/.pnpm`, including cycles. A cache step that follows symlinks materializes them: in one pnpm monorepo, 391 symlinks under `packages/*/node_modules` expanded to 166,841 files with 36 loops.
+- The bloated cache made Amplify's "Creating cache artifact" step run an 8 GiB build container out of memory — *after* the build itself had succeeded. Every later build restored the bloated cache and died at the same step.
+- It bought nothing: the pnpm store lives outside `node_modules`, so `pnpm install` still logged `reused 0` and re-downloaded every package (~10 s), while the cache round trip cost 2.5–4 min per build.
+
+Cache expensive **build outputs** keyed by a content hash (include the lockfile in the hash) instead. Details, an Amplify example, and how to recognize this failure: [references/performance.md](references/performance.md#never-cache-node_modules-any-ci).
 
 ### 6. `set-safe-directory`: leave default on ephemeral runners, set `false` on self-hosted
 
@@ -275,7 +285,7 @@ When reviewing or writing a workflow, verify:
 5. `pull_request_target` is NOT used with PR code checkout
 6. No string interpolation of user-controlled values in `run:` blocks
 7. Secrets passed individually, not via `secrets: inherit`
-8. No `cache:` parameter in `setup-node` (fresh install from CDN is faster — see rule 5)
+8. No `cache:` parameter in `setup-node`, and no `node_modules` paths in any cache config (`actions/cache`, `amplify.yml` `cache.paths`, …) — fresh install is faster, and pnpm's symlinked `node_modules` can OOM the cache step (see rule 5)
 9. Path filters used where possible to skip irrelevant runs
 10. Deploy steps have retry logic for network operations
 11. `actions/checkout` matches the runner type — default on ephemeral, `set-safe-directory: false` on self-hosted only (see rule 6)

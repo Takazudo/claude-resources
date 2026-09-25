@@ -210,3 +210,17 @@ This is especially dangerous with sharded E2E tests on self-hosted runners — m
 ## 16. Remote Caching on Self-Hosted Runners
 
 On self-hosted runners, build caches (Cargo, pnpm store, Go modules) already persist on disk. Using `actions/cache` or `cache: pnpm` in `setup-node` uploads them to GitHub's remote cache API on every run — pure overhead that creates duplicate entries.
+
+## 17. Caching `node_modules` Directories
+
+Caching `node_modules` (via `actions/cache`, AWS Amplify `cache.paths`, etc.) is slower than a fresh install and, with pnpm, dangerous: its symlinked trees (including cycles) get materialized by the cache archiver, bloating the cache until the cache step itself runs the container out of memory — after the build succeeded. The pnpm store isn't in `node_modules`, so nothing is reused anyway (`reused 0`).
+
+```yaml
+# BAD
+cache:
+  paths:
+    - node_modules/**/*
+    - packages/**/node_modules/**/*
+```
+
+Cache expensive build outputs keyed by a content hash (including the lockfile) instead. See [performance.md](performance.md#never-cache-node_modules-any-ci).

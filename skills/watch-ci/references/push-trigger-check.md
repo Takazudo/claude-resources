@@ -2,7 +2,7 @@
 
 The single documented recipe for answering one question: **a PR just merged into a target branch — was a `push`-triggered workflow supposed to run for the merge commit, and did one?**
 
-`/watch-ci` (Step 2b) and `/pr-complete` (post-merge watch) both need this answer and must give the same one. Read this file before either of them reports anything resembling *"no CI detected on the merge target branch."*
+`/watch-ci` (Step 2b) and `/prc` (post-merge watch) both need this answer and must give the same one. Read this file before either of them reports anything resembling *"no CI detected on the merge target branch."*
 
 ## TL;DR
 

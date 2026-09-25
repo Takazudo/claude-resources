@@ -8,7 +8,7 @@ argument-hint: "[-co|--codex] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf
 
 Start a development workflow by creating a branch before implementation, then opening a draft PR as soon as there is a real commit to open it against — or create a PR from existing work on the current branch.
 
-> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR). **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — commit directly on it (the adopt-current-branch model) and target `$WEB_PARENT` (the fork-from / default branch). Do NOT create `topic/<slug>`; the draft PR goes through MCP `create_pull_request` (head=`$WEB_BASE`, base=`$WEB_PARENT`). Deferring the PR until the first real commit is **not** a web distinction — it is the universal rule below. Push only the branch you are on. `-m` merges into `$WEB_PARENT` and does **not** delete the session branch (web owns it; `/pr-complete` and `/cleanup-resources` are web-aware). Fix branches are `claude/agent-fix-<slug>`. Do NOT run the terminal `gh pr view --json baseRefName` preference step — parent is `$WEB_PARENT` unconditionally.
+> **On Claude Code on the web** (`$CLAUDE_CODE_REMOTE=true`): follow [`web/web-mode.md`](../../web/web-mode.md) — perform every `gh` step via the GitHub MCP (push the branch before `create_pull_request`; pre-create labels), Claude-only (ignore Codex `-co`), subagents-only (no agent teams), no Dropbox (persist to the repo or the issue/PR). **Branch model — see web-mode.md §5:** the `claude/*` session branch IS the base (`$WEB_BASE`) — commit directly on it (the adopt-current-branch model) and target `$WEB_PARENT` (the fork-from / default branch). Do NOT create `topic/<slug>`; the draft PR goes through MCP `create_pull_request` (head=`$WEB_BASE`, base=`$WEB_PARENT`). Deferring the PR until the first real commit is **not** a web distinction — it is the universal rule below. Push only the branch you are on. `-m` merges into `$WEB_PARENT` and does **not** delete the session branch (web owns it; `/prc` and `/cleanup-resources` are web-aware). Fix branches are `claude/agent-fix-<slug>`. Do NOT run the terminal `gh pr view --json baseRefName` preference step — parent is `$WEB_PARENT` unconditionally.
 
 > **In a limited verification env (Claude Code web)** the final visual / browser / Mac-only check can't run, so follow [`web/mac-handoff.md`](../../web/mac-handoff.md) — the **`mac`-label handoff**. When `DEFER_MAC` is set (limited env AND (`-v` passed OR the diff touched UI files), per mac-handoff.md §1–§2): with `-m`, merge anyway (CI still gates it) and raise a `mac` issue afterward; without `-m`, put the `mac` signal + a "verify on Mac" comment on the original issue **and** the root PR. Off web (Mac / WSL / local) this is always inert.
 
@@ -103,9 +103,9 @@ Parse `$ARGUMENTS` to extract:
 - **`-ri` or `--raise-issues` flag**: Explicitly enable raising GitHub issues for unrelated problems found during coding or reviewing (bugs, code smells, improvement possibilities). **This is the default** — pass for clarity, but the behavior is on unless `-nori` is passed. See "Raising Issues for Unrelated Findings" below
 - **`-nori` or `--no-raise-issues` flag**: Suppress raising GitHub issues for unrelated problems found during coding or reviewing. Replaces the older `--noi` / `--noissue` spellings. See "Raising Issues for Unrelated Findings" below
 - **No effort level**: this skill takes none. Whichever reviewer runs is invoked bare and falls back to its own default. Depth comes from `-co` (codex), not from an effort dial. Never pass `ultra` — only the user can launch that. See "Reviewer Tiers" below.
-- **`-co` or `--codex` flag**: Upgrade the review step to `/deep-review` (`/code-review` **plus** `/codex-review` for cross-model coverage), and prefer codex for research and doc writing. See "Codex Mode" below. **Silent fallback** — every codex-backed step (`/codex-review`, `/codex-2nd`, `/codex-research`, `/codex-writer`) degrades quietly to a Claude equivalent if codex is rate-limited or unavailable.
+- **`-co` or `--codex` flag**: Upgrade the review step to `/deep-review` (`/code-review` **plus** `/codex-review` for cross-model coverage). See "Codex Mode" below. **Silent fallback** — every codex-backed step (`/codex-review`, `/codex-2nd`) degrades quietly to a Claude equivalent if codex is rate-limited or unavailable.
 - **`-a` or `--auto` flag**: Autonomy/chain flag, usually arriving forwarded from `/x` or `/big-plan -a`. `/x-as-pr` is already fully autonomous (Auto-Pilot is always on) and single-topic (no waves to chain), so `-a` adds no extra behavior here — accept it for chain-compatibility. It does **NOT** merge the PR; merging is `-m`'s job
-- **`-m` or `--merge` flag**: If present, automatically run `/pr-complete -c -w` after the workflow completes — merge the PR into its base branch, close the linked issue, and watch post-merge CI on the base branch (fixing it if red). See "Merge Mode" below
+- **`-m` or `--merge` flag**: If present, automatically run `/prc -c -w` after the workflow completes — merge the PR into its base branch, close the linked issue, and watch post-merge CI on the base branch (fixing it if red). See "Merge Mode" below
 - **`-toco` or `--to-codex` flag**: Codex hand-off — do NOT implement here. Open a new tmux window running `codex` at the repo root, stage `$x-as-pr <flags> <issue# or instructions>` in its composer, focus the window, and end this session. **Fires at the very start, before any branch, PR, or commit** — see "Handoff Modes" below and the shared specs `$HOME/.claude/skills/x-wt-teams/references/handoff-common.md` + `codex-handoff.md`. Terminal-only
 - **`-tocl` or `--to-claude` flag**: Fresh-Claude hand-off — do NOT implement here. Open a new tmux window running `CLAUDE_CODE_NO_FLICKER=1 claude --dangerously-skip-permissions --model opus` at the repo root and start it on `/x-as-pr <flags> <issue# or instructions>`, focus the window, and end this session. Same move as `-toco` to a different destination: a clean context window rather than a different tool — the agent-side stand-in for `/clear`. **Fires at the very start, before any branch, PR, or commit** — see "Handoff Modes" below and the shared specs `handoff-common.md` + `claude-handoff.md`. **Mutually exclusive with `-toco`.** Terminal-only
 - **`-f`, `-fix`, or `--auto-fix` flag**: **Default — on unless `-nf` is passed.** After the main work, auto-fix the safe subset of `agent-found` issues raised this session, before final cleanup. Pass explicitly for clarity; behavior is identical to the default. Requires `-ri` (the default) and is a **no-op under `-nori`** (nothing was raised to fix). See "Auto-Fixing Raised Findings (`-f` / `--auto-fix`)" below. Fix PRs follow `-m`'s auto-merge semantics
@@ -444,17 +444,15 @@ Nothing here affects reviewers — the review step uses the reviewer tier instea
 
 ## Codex Mode (`-co` / `--codex`)
 
-`-co` swings work to codex in two places:
+`-co` upgrades the review step:
 
 | Default | With `-co` | Used for |
 |---|---|---|
 | `/code-review` | `/deep-review` (= `/code-review` + `/codex-review`) | Post-implementation review |
-| Agent tool (web search, research) | `/codex-research` | Research during planning or implementation |
-| Agent tool (doc writing) | `/codex-writer` | READMEs, doc comments, prose |
 
 Note `-co` **adds** the codex reviewer rather than replacing the built-in one — that is the whole point of a cross-model pass.
 
-**Silent fallback** — every codex-backed skill degrades quietly to a Claude equivalent when codex is rate-limited or unavailable (`/codex-review` → `/code-review`; `/codex-2nd` → general-purpose Opus; `/codex-research` → `researcher`; `/codex-writer` → `markdown-writer`). Nothing at this level handles it — the fallback is invisible, never pauses, and never surfaces a quota error.
+**Silent fallback** — every codex-backed skill degrades quietly to a Claude equivalent when codex is rate-limited or unavailable (`/codex-review` → `/code-review`; `/codex-2nd` → general-purpose Opus). Nothing at this level handles it — the fallback is invisible, never pauses, and never surfaces a quota error.
 
 All other workflow steps (branch creation, PR, CI watch, etc.) remain unchanged.
 
@@ -823,7 +821,7 @@ When `-nor` or `--no-review` is passed, **skip the entire post-implementation re
 **Effect on the workflow:**
 
 - "Post-Implementation: Automatic Deep Review" step → **skipped entirely**, including the fix-delegation Agent that would normally run after review findings
-- `-co` / `--codex` → **ignored** for the review step (no review at all overrides "more rigorous review"); codex still handles research and doc writing
+- `-co` / `--codex` → **ignored** for the review step (no review at all overrides "more rigorous review")
 - `-v` / `--verify-ui` → still honored (verify-ui is independent of code review)
 - All other post-implementation steps (push, CI watch, PR revision, session report, requirements verification, merge mode) → unchanged
 
@@ -945,6 +943,8 @@ After the review step (`/code-review` or `/deep-review`) is complete and fixes a
 This step ensures that visual/UI changes are not just code-correct but render correctly in the browser. Skip if the changes are purely backend or non-visual.
 
 Playwright work is serialized machine-wide by `$HOME/.claude/scripts/playwright-guard.sh` (automatic inside `/verify-ui` and `/headless-browser`). If a check fails with guard exit 75, another session holds the Playwright slot — wait and retry; never bypass the guard.
+
+Heavy local runs (b4push, e2e suites, long build + full test) are likewise serialized machine-wide — across sessions and Codex — by `$HOME/.claude/scripts/heavy-guard.sh -- <command>` (projects on the current `/dev-b4push` template self-guard). Exit 75 is contention, not a failure. On `verdict=ENV_SUSPECT` rerun once; still red with no broken expectation → defer the step to CI under a `deferred-verification` issue and report it as deferred, never as passed. Policy: [`skills/.shared/heavy-test-policy.md`](../.shared/heavy-test-policy.md).
 
 ---
 
@@ -1077,20 +1077,20 @@ This creates a self-correcting loop that ensures nothing from the original spec 
 
 **Only run this step if `-m` or `--merge` was passed.** Otherwise, skip to STOP below. (This was `-a`'s job before the `-a`/`-m` split — `-a` is now the autonomy/chain flag and does NOT merge.)
 
-> **On web (web-mode.md §5):** `-m` merges `$WEB_BASE` → `$WEB_PARENT` (repo default). `/pr-complete` is web-aware and does NOT `--delete-branch` the `claude/*` session branch — the web owns it; there is no `base/<topic>` to clean up (Part E). After the merge, the manager returns to `$WEB_BASE` (it survives — the default branch is not pushable on web), NOT `$WEB_PARENT`. Replace every `gh pr view` / `gh pr merge` with MCP.
+> **On web (web-mode.md §5):** `-m` merges `$WEB_BASE` → `$WEB_PARENT` (repo default). `/prc` is web-aware and does NOT `--delete-branch` the `claude/*` session branch — the web owns it; there is no `base/<topic>` to clean up (Part E). After the merge, the manager returns to `$WEB_BASE` (it survives — the default branch is not pushable on web), NOT `$WEB_PARENT`. Replace every `gh pr view` / `gh pr merge` with MCP.
 >
 > **CI-watch + merge are in-turn on web (web-mode.md §8).** This is the step that most often stalls: web has no background-task wakeup, so the terminal "`/watch-ci` in the background → get notified → merge" loop never completes — the PR sits ready-but-unmerged and the user thinks you're waiting on them. Under `-m`, poll the PR's checks via MCP in a loop and **merge in the same run** the moment they're green. Do **NOT** end the turn at "PR ready, CI running, I'll check back" — `-m` already authorized the merge, so `/x -a -m` must finish at a merged PR in one autonomous run (stop only on CI failure after the fix cap, or a real blocker like an expired MCP token).
 
-After requirements verification passes (or after the session report if no issue is linked), automatically invoke `/pr-complete -c -w` to:
+After requirements verification passes (or after the session report if no issue is linked), automatically invoke `/prc -c -w` to:
 
 1. Wait for CI checks to pass
 2. Merge the PR (`--merge --delete-branch`)
 3. Close the linked issue (`-c`)
-4. Watch post-merge CI on the target branch (`-w`) — `/pr-complete -w` investigates and fixes if post-merge CI goes red
+4. Watch post-merge CI on the target branch (`-w`) — `/prc -w` investigates and fixes if post-merge CI goes red
 
-This is intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/pr-complete` will handle the error reporting.
+This is intended for safe-to-merge, fully automated workflows. If CI fails or the PR cannot be merged, `/prc` will handle the error reporting.
 
-**After `/pr-complete` succeeds**, checkout the merged target branch and pull so the manager lands somewhere live:
+**After `/prc` succeeds**, checkout the merged target branch and pull so the manager lands somewhere live:
 
 ```bash
 # On web (web-mode.md §5): return to $WEB_BASE (it survives; the default branch is not pushable):
@@ -1103,7 +1103,7 @@ git checkout "$TARGET_BRANCH"
 git pull origin "$TARGET_BRANCH"
 ```
 
-> **Limited env (web) — Mac handoff (`-m`).** If `DEFER_MAC` was set at the Verify-UI step, the merge above proceeded **without** the local visual/Mac check — but CI gating was still enforced by `/pr-complete -c` (we never force-merge red CI; the handoff covers only the local/visual gap). Once the merge succeeds, raise a new `mac`-labeled tracking issue per [`web/mac-handoff.md`](../../web/mac-handoff.md) §6-A — title prefixed `[Mac] `, body documenting the unverified merge and linking the merged PR + the original issue — and record it `role: mac-deferred` for the cleanup manifest below.
+> **Limited env (web) — Mac handoff (`-m`).** If `DEFER_MAC` was set at the Verify-UI step, the merge above proceeded **without** the local visual/Mac check — but CI gating was still enforced by `/prc -c` (we never force-merge red CI; the handoff covers only the local/visual gap). Once the merge succeeds, raise a new `mac`-labeled tracking issue per [`web/mac-handoff.md`](../../web/mac-handoff.md) §6-A — title prefixed `[Mac] `, body documenting the unverified merge and linking the merged PR + the original issue — and record it `role: mac-deferred` for the cleanup manifest below.
 
 **Do NOT delete the dead local working branch here.** Branch deletion is handed off to `/cleanup-resources` (next step), which audits every branch the workflow touched and applies the safety mechanics consistently. Doing it inline AND in the cleanup step caused the double-cleanup-confusion bug.
 
@@ -1176,7 +1176,7 @@ For each fix branch (the tiny bundle, or one per non-trivial issue):
 
 Fix PRs follow the **same auto-merge semantics as the main PR**:
 
-- **With `-m`**: after `/code-review` and verification, auto-merge each fix PR (e.g. `/pr-complete -c -w` per fix PR, or `gh pr merge --merge --delete-branch` once green) — same as the main PR's Merge Mode.
+- **With `-m`**: after `/code-review` and verification, auto-merge each fix PR (e.g. `/prc -c -w` per fix PR, or `gh pr merge --merge --delete-branch` once green) — same as the main PR's Merge Mode.
 - **Without `-m`**: leave each fix PR as a ready (non-draft) PR for the user to merge, and still close the linked `agent-found` issue with the link once the fix is verified and the PR is up.
 
 Track the fix PRs and the closed issues in session state — pass the fix PRs to `/cleanup-resources` (role: `fix`) in the next step, and the closed `agent-found` issues will be left as-is by the audit.
@@ -1202,11 +1202,11 @@ Skill tool: skill="cleanup-resources", args="workflow:x-as-pr <-a if -m was pass
   - `auto-flag: <true if -m/--merge was passed, else false>`
   - `epic-mode: false`
   - `root-PR: <PR_URL>` — a session that reached implementation creates exactly one PR. If the session ended before the first real commit (no instructions given, or it stopped early), no PR exists: pass `root-PR: none (branch never got a commit — PR was never created)` rather than a placeholder, so the audit does not hunt for a missing resource. The branch is still audited normally.
-  - `root-PR-merged: <true if -m and /pr-complete merged it, else false>`
+  - `root-PR-merged: <true if -m and /prc merged it, else false>`
   - `parent-branch: <TARGET_BRANCH>` — the branch the PR targets
 - Issues to include:
   - **Tracking issue** (if `--make-issue` created it) — role: `tracking`. Sonnet should propose CLOSE on success. The agent's prompt forbids closing a `tracking` issue if its TODO checklist still has unchecked items, which guards against premature closure.
-  - **Pre-existing issue** (if user passed an issue URL/number) — role: `claimed-existing`. Sonnet should propose KEEP unless the user passed `-m` and the PR merged (in which case `/pr-complete -c` already closed it; agent should propose KEEP with reason "already closed by /pr-complete").
+  - **Pre-existing issue** (if user passed an issue URL/number) — role: `claimed-existing`. Sonnet should propose KEEP unless the user passed `-m` and the PR merged (in which case `/prc -c` already closed it; agent should propose KEEP with reason "already closed by /prc").
   - **Unrelated-findings issues** raised during coding/review (track them in session state as you create them) — role: `unrelated-finding`. ALWAYS KEEP unless closed by `-fix` (the auto-fix step closes the ones it fixed and links the fix PR; the audit leaves those closed and keeps every still-open one).
   - **Review-fix issue** (if review fixes were delegated) — role: `fix`. Sonnet should propose CLOSE if the fix-delegation agent merged its fixes successfully.
   - **`agent-found` issues closed by `-fix`** (if the auto-fix step ran) — already closed by this session; the audit confirms KEEP-as-closed.
@@ -1227,7 +1227,7 @@ Then close out the orientation pointer, so a compaction after this point does no
 node "$HOME/.claude/scripts/orientation.js" complete
 ```
 
-**This step also resolves the long-standing local-branch leftover bug:** when `-m` was used and `/pr-complete --delete-branch` removed the remote, the old workflow left the local working branch behind, confusing the user. `/cleanup-resources` will propose deleting the dead local branch as part of its plan and the manager executes the safe `git branch -d` (which refuses if there are unmerged commits, so it's not destructive).
+**This step also resolves the long-standing local-branch leftover bug:** when `-m` was used and `/prc --delete-branch` removed the remote, the old workflow left the local working branch behind, confusing the user. `/cleanup-resources` will propose deleting the dead local branch as part of its plan and the manager executes the safe `git branch -d` (which refuses if there are unmerged commits, so it's not destructive).
 
 ---
 

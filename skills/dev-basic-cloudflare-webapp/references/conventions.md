@@ -152,4 +152,4 @@ for human use in `CLAUDE.md`.
   filters.
 - Named preview branches are `preview` and `expreview/**`.
 - No force push, no `--amend`, no branch-name reuse.
-- Commit with `/commits`; open PRs with `/pr`; land them with `/pr-complete`.
+- Commit with `/co`; open PRs with `/pr`; land them with `/prc`.

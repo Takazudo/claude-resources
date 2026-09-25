@@ -1,6 +1,6 @@
 ---
 name: codex-ratelimit-notify
-description: "Send an IFTTT mobile push \"codex rate limit detected\" when an OpenAI Codex CLI run hits a rate/usage limit. The companion codex skills (/codex-review, /codex-2nd, /codex-research, /codex-writer, /codex-translator) fire this automatically via codex-rate-limit.js. Invoke manually whenever a codex run that BYPASSES that path — /codex-imagegen, /codex:codex-rescue, or an ad-hoc `codex exec` — shows \"you've hit your limit\", \"rate limit\", \"usage limit\", \"too many requests\", \"quota exceeded\", \"429\", or a reset time, even if the flow otherwise stays silent. Also use to test the notification."
+description: "Send an IFTTT mobile push \"codex rate limit detected\" when an OpenAI Codex CLI run hits a rate/usage limit. The companion codex skills (/codex-review, /codex-2nd) fire this automatically via codex-rate-limit.js. Invoke manually whenever a codex run that BYPASSES that path — /codex-imagegen, /codex:codex-rescue, or an ad-hoc `codex exec` — shows \"you've hit your limit\", \"rate limit\", \"usage limit\", \"too many requests\", \"quota exceeded\", \"429\", or a reset time, even if the flow otherwise stays silent. Also use to test the notification."
 allowed-tools:
   - Bash(node *)
 ---
@@ -17,8 +17,7 @@ only way the user learns Codex is throttled.
 All rate-limit state, notification, and dedupe live in one script:
 `$HOME/.claude/scripts/codex-rate-limit.js`.
 
-The five companion codex skills (`/codex-review`, `/codex-2nd`, `/codex-research`,
-`/codex-writer`, `/codex-translator`) already run `codex-rate-limit.js check-output` after
+The companion codex skills (`/codex-review`, `/codex-2nd`) already run `codex-rate-limit.js check-output` after
 each Codex run. When it detects a limit it marks a lockout **and** fires the push — so for
 those skills the notification happens on its own. You do **not** need this skill for them.
 

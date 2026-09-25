@@ -1,6 +1,6 @@
 ---
 name: dev-clean-wsl
-description: "Reclaim disk space on WSL2 by purging dev caches and orphaned build artifacts, then guide the user through compacting the ext4.vhdx from Windows. Use when: (1) the user says 'dev-clean-wsl', 'clean wsl', 'wsl disk full', 'free disk space', 'reclaim space', 'purge caches', or 'disk almost full' on a WSL machine; (2) a build or tool fails with ENOSPC / no space left; (3) the user wants to shrink the WSL virtual disk. Covers cargo target/registry, pnpm/npm caches, node_modules, and the vhdx-compaction step that actually returns space to the Windows C: drive."
+description: "Reclaim disk space on WSL2 by purging dev caches and orphaned build artifacts, then guide the user through compacting the ext4.vhdx from Windows. Use when: (1) the user says 'dev-clean-wsl', 'clean wsl', 'wsl disk full', 'free disk space', 'reclaim space', 'purge caches', or 'disk almost full' on a WSL machine; (2) a build or tool fails with ENOSPC / no space left; (3) the user wants to shrink the WSL virtual disk. Covers cargo target/registry, pnpm/npm caches, node_modules, and the vhdx-compaction step that actually returns space to the Windows drive holding it (C: or wherever it was moved)."
 argument-hint: "[code-root]"
 ---
 
@@ -11,19 +11,22 @@ themselves to make that space real.
 
 ## The crux (why WSL is different)
 
-On WSL2 the Linux filesystem is a single `ext4.vhdx` file that lives on the
-**Windows `C:` drive**. Two consequences drive this whole skill:
+On WSL2 the Linux filesystem is a single `ext4.vhdx` file on a **Windows drive** —
+`C:` by default, but it is often moved (e.g. to `D:`). The scan resolves the real
+location from the registry (`HKCU\...\Lxss` → `BasePath` for `$WSL_DISTRO_NAME`). Two consequences drive this whole skill:
 
 1. **`/` looking healthy is not enough.** The disk that actually fills up is
 
-   usually `C:`, not the Linux `/`. The scan reports both — read `C:` first.
+   usually the drive holding the vhdx, not the Linux `/`. The scan reports both —
+   read that drive first. The vhdx size minus data inside `/` is the compaction ceiling.
 
 2. **Deleting files inside WSL does not shrink the vhdx.** The vhdx only grows; freed
 
    blocks stay allocated until the vhdx is **compacted from Windows**. So every purge
-   below is "banked" inside WSL and becomes real free space on `C:` only after the
+   below is "banked" inside WSL and becomes real free space on the host drive only after the
    compaction step. Always finish with that step — skipping it makes the cleanup
-   look like it did nothing from Windows' side.
+   look like it did nothing from Windows' side. Often the vhdx has ballooned far past
+   the real data (e.g. 674G file vs 204G used) — then compaction itself is the big win.
 
 `wsl --shutdown` (required for compaction) kills this session, so compaction is
 always handed to the user as commands to run in a **Windows** terminal — never run
@@ -36,9 +39,11 @@ bash $HOME/.claude/skills/dev-clean-wsl/scripts/scan.sh [code-root]
 ```
 
 `code-root` is optional (defaults to `$HOME/repos`, else `$HOME`) — the directory
-searched for `node_modules` and orphaned `target/` dirs. The deep home scan takes
-~1 minute. It deletes nothing and prints: `/` vs `C:` usage, the vhdx path + size,
-top home consumers, and per-category reclaimable sizes.
+searched for `node_modules` and orphaned `target/` dirs, and the cwd for
+`pnpm store path` (which is cwd-dependent: from `/mnt/c` it reports the Windows-side store). The deep home scan takes
+~1 minute. It deletes nothing and prints: `/` vs host-drive usage, the vhdx path + size,
+top home consumers, and per-category reclaimable sizes. Docker Desktop's vhdx
+(`AppData\Local\Docker\wsl`) is not the distro's disk — never hand it out for compaction.
 
 ## Step 2 — Present findings and confirm
 
@@ -114,7 +119,7 @@ target dir if the user accepts a full cold rebuild — call out the tradeoff exp
 After purging, re-run a quick `df -h /` and re-measure the touched dirs so the
 reported total reflects reality.
 
-## Step 4 — Hand off the vhdx compaction (the step that frees C:)
+## Step 4 — Hand off the vhdx compaction (the step that frees the host drive)
 
 This is the finale every run must end on. Pull the vhdx path from the scan output and
 give the user a ready-to-paste block for a **Windows PowerShell** terminal (not WSL):
@@ -126,7 +131,7 @@ wsl --manage <DistroName> --set-sparse true    # DistroName from: wsl -l -v
 
 # …or a reliable one-time compaction via diskpart:
 diskpart
-  select vdisk file="C:\Users\<you>\AppData\Local\wsl\{GUID}\ext4.vhdx"
+  select vdisk file="<vhdx Windows path from the scan>"
   attach vdisk readonly
   compact vdisk
   detach vdisk
@@ -134,12 +139,12 @@ diskpart
 ```
 
 Set expectations honestly: compaction reclaims only the *free* blocks inside the
-filesystem (i.e. roughly what was just purged), so the vhdx — and `C:` usage — stays
-about as large as the real data still inside WSL. State the rough before/after `C:`
-free numbers from the scan so the user knows what to expect.
+filesystem, so the vhdx shrinks to about the real data still inside WSL (the scan's
+"data inside /"). State the rough before/after free numbers for the host drive from the scan so the user knows what to expect.
 
 If the scan could not find the vhdx, have the user locate it on Windows with
-`Get-ChildItem -Recurse $env:LOCALAPPDATA -Filter ext4.vhdx`.
+`Get-ChildItem -Recurse $env:LOCALAPPDATA -Filter ext4.vhdx` — or, if it was moved
+off `C:`, by reading `BasePath` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss`.
 
 ## Bonus — stale Codex processes (EMFILE / inotify exhaustion)
 

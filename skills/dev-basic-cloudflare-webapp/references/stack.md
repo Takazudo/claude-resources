@@ -75,7 +75,7 @@ Under plain Vite, add `tailwindcss` + `@tailwindcss/vite`.
 | Stateful coordination | **Durable Objects**, SQLite-backed (`new_sqlite_classes`) | Rooms, rate limiters, spend caps, per-user sessions. |
 | Background / retries | **Workflows** or **Queues** | |
 | Scheduled work | Cron triggers in `wrangler.toml` | |
-| AI | **Workers AI** binding, or the Anthropic API via `fetch` | For agent-shaped work read `/agents-sdk`. |
+| AI | **Workers AI** binding, or the Anthropic API via `fetch` | For agent-shaped work read `/cloudflare:agents-sdk`. |
 | Caching | Workers Cache API + explicit `Cache-Control` + `Cache-Tag` | Local `wrangler dev` does not simulate cache hits — verify on a deployed preview. |
 
 `compatibility_flags = ["nodejs_compat"]` is required whenever the bundle
@@ -151,4 +151,4 @@ Prefer these before reaching for a third-party equivalent. Bump them with
 Working examples of every Cloudflare shape (KV guestbook, D1 webshop, JSON API,
 Workers AI, workers cache, reverse proxy, password gate) live in the
 `zfb-example-*` repos under `$HOME/repos/zfb-ex/` — read one with
-`/refer-another-project` when a concrete recipe would help.
+`/ref` when a concrete recipe would help.

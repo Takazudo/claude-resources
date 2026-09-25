@@ -30,31 +30,52 @@ else
 fi
 echo "CODE_ROOT for repo scans: $CODE_ROOT"
 
-# --- filesystem usage: Linux ext4 vs Windows C: -------------------------------
+# --- locate THIS distro's ext4.vhdx via the Windows registry ------------------
+# The vhdx can live on any drive (users move it off C: with `wsl --export/--import`
+# or `wsl --manage --move`), so ask the registry rather than guessing paths.
+# Docker Desktop registers its own distros there too — match $WSL_DISTRO_NAME.
+vhdx=""
+if command -v reg.exe >/dev/null 2>&1 && [ -n "${WSL_DISTRO_NAME:-}" ]; then
+  base="$(reg.exe query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss' /s 2>/dev/null | tr -d '\r' \
+    | awk -v d="$WSL_DISTRO_NAME" '/^HKEY/{n=""} $1=="DistributionName"{n=$3} $1=="BasePath"&&n==d{sub(/^[ \t]*BasePath[ \t]+REG_SZ[ \t]+/,""); print; exit}')"
+  base="${base#\\\\?\\}"
+  [ -n "$base" ] && vhdx="$(wslpath -u "$base" 2>/dev/null)/ext4.vhdx"
+  [ -e "$vhdx" ] || vhdx=""
+fi
+if [ -z "$vhdx" ]; then
+  for g in /mnt/c/Users/*/AppData/Local/wsl/*/ext4.vhdx /mnt/c/Users/*/AppData/Local/Packages/*/LocalState/ext4.vhdx; do
+    [ -e "$g" ] && vhdx="$g" && break
+  done
+fi
+host_mnt=""
+[ -n "$vhdx" ] && host_mnt="$(printf '%s' "$vhdx" | cut -d/ -f1-3)"
+[ -z "$host_mnt" ] && [ -d /mnt/c ] && host_mnt=/mnt/c
+
+# --- filesystem usage: Linux ext4 vs the Windows drive holding the vhdx -------
 hr "DISK USAGE (the key WSL2 distinction)"
 echo "--- Linux root (/) — the ext4 filesystem inside WSL ---"
 df -h / 2>/dev/null
-if [ -d /mnt/c ]; then
-  echo "--- Windows C: (/mnt/c) — the drive that physically holds the vhdx ---"
-  df -h /mnt/c 2>/dev/null
-  echo "NOTE: if C: is near-full but / looks fine, the real problem is the Windows"
+if [ -n "$host_mnt" ] && [ -d "$host_mnt" ]; then
+  echo "--- Windows drive holding the vhdx ($host_mnt) — the drive that actually fills up ---"
+  df -h "$host_mnt" 2>/dev/null
+  echo "NOTE: if this drive is near-full but / looks fine, the real problem is the Windows"
   echo "drive. Purging inside WSL only helps after the vhdx is compacted (see end)."
 fi
 
-# --- locate the ext4.vhdx on the Windows side ---------------------------------
 hr "WSL vhdx LOCATION + SIZE (for the compaction step)"
-found_vhdx=0
-for g in \
-  /mnt/c/Users/*/AppData/Local/wsl/*/ext4.vhdx \
-  /mnt/c/Users/*/AppData/Local/Packages/*/LocalState/ext4.vhdx \
-  /mnt/c/Users/*/AppData/Local/Docker/wsl/*/ext4.vhdx ; do
-  [ -e "$g" ] || continue
-  found_vhdx=1
-  # ls -lah size is the on-disk vhdx size as Windows sees it
-  printf '%s\n' "$(ls -lah "$g" 2>/dev/null | awk '{print $5"\t"$9}')"
-done
-[ "$found_vhdx" = 0 ] && echo "(no ext4.vhdx found under common paths — distro may store it elsewhere;"
-[ "$found_vhdx" = 0 ] && echo " find it on Windows with: (Get-ChildItem -Recurse \$env:LOCALAPPDATA -Filter ext4.vhdx) )"
+if [ -n "$vhdx" ]; then
+  vhdx_bytes=$(stat -c %s "$vhdx" 2>/dev/null || echo 0)
+  used_bytes=$(df -B1 --output=used / 2>/dev/null | tail -1 | tr -d ' ')
+  echo "distro: ${WSL_DISTRO_NAME:-?}"
+  echo "vhdx (Linux path):   $vhdx"
+  echo "vhdx (Windows path): $(wslpath -w "$vhdx" 2>/dev/null)"
+  echo "vhdx size: $(numfmt --to=iec "$vhdx_bytes")   data inside /: $(numfmt --to=iec "${used_bytes:-0}")"
+  echo "compaction could return up to ~$(numfmt --to=iec $(( vhdx_bytes > used_bytes ? vhdx_bytes - used_bytes : 0 ))) to $host_mnt"
+else
+  echo "(this distro's ext4.vhdx was not found via registry or common paths;"
+  echo " find it on Windows with: (Get-ChildItem -Recurse \$env:LOCALAPPDATA -Filter ext4.vhdx),"
+  echo " or read BasePath under HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss)"
+fi
 
 # --- top consumers in home ----------------------------------------------------
 hr "TOP HOME CONSUMERS (du --max-depth=1, may take ~1 min)"
@@ -98,7 +119,8 @@ done < <(find "$CODE_ROOT" -maxdepth 4 -type d -name target -prune 2>/dev/null)
 
 # --- pnpm ---------------------------------------------------------------------
 hr "PNPM — store versions (old versions are orphaned; prune only touches the active one)"
-pstore="$(pnpm store path 2>/dev/null)"
+# `pnpm store path` depends on cwd (a /mnt/c cwd yields the Windows-side store), so resolve it from CODE_ROOT
+pstore="$(cd "$CODE_ROOT" && pnpm store path 2>/dev/null)"
 if [ -n "$pstore" ]; then
   echo "active store: $pstore"
   parent="$(dirname "$pstore")"

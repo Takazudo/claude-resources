@@ -96,8 +96,9 @@ Load only what the current decision needs.
   `CLAUDE.md`, docs site, README, worktrees, `.gitignore`, scratch dirs.
 
 For Cloudflare **platform** API detail (exact binding APIs, runtime limits,
-current wrangler flags), defer to the `/cloudflare`, `/wrangler`,
-`/workers-best-practices`, `/durable-objects`, and `/agents-sdk` skills — they
+current wrangler flags), defer to the Cloudflare plugin skills — `/cloudflare:cloudflare`,
+`/cloudflare:wrangler`, `/cloudflare:workers-best-practices`,
+`/cloudflare:durable-objects`, and `/cloudflare:agents-sdk` — they
 retrieve live docs. This skill owns the *opinion*; those own the *facts*.
 
 ## Step 4 — Report

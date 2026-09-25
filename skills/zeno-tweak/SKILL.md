@@ -39,4 +39,4 @@ Manage zeno.zsh snippet shortcuts in `$HOME/.config/zeno/config.yml`.
 ## After modification
 
 1. `cd $HOME/repos/p/dotconfigetc`
-2. Run `/commits push`
+2. Run `/co push`

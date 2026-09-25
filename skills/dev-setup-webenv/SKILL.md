@@ -95,7 +95,7 @@ and the env script is read from disk instead of being embedded here.
    }
    ```
 
-4. Commit both files (use `/commits`) and push. In the report, always mention
+4. Commit both files (use `/co`) and push. In the report, always mention
 
    the single-repo-sessions-only limitation so a silent multi-repo skip is not
    mistaken for breakage.

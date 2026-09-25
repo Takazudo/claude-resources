@@ -1,164 +1,57 @@
 ---
 name: dev-package-json
-description: "Organize and maintain package.json and pnpm config for readability and security. Use when: (1) Reorganizing scripts section or adding separators, (2) Extracting multi-process commands into shell scripts, (3) Setting up multi-environment dev commands (local/preview/prod), (4) Handling pnpm \"Ignored build scripts\" warnings, (5) Configuring dependency build-script security (allowBuilds / strictDepBuilds in pnpm-workspace.yaml), (6) Managing pnpm via corepack and packageManager field, (7) Adding predev port cleanup. Keywords: package.json, npm scripts, .npmrc, pnpm-workspace.yaml, pnpm, build scripts, supply chain, corepack, packageManager, predev, kill port, port in use."
+description: "Organize and maintain package.json and pnpm config: scripts layout and separators, multi-process/multi-environment dev commands, serve/dev script tweaks (predev kill-port, `:net` LAN variants, non-destructive port-rotation launcher), corepack/packageManager pinning, and pnpm build-script security (allowBuilds / strictDepBuilds). Use when editing package.json scripts, on 'tweak serve', 'kill port', 'port in use', 'port rotation', 'don't kill the port', or on pnpm 'Ignored build scripts' warnings."
+user-invocable: true
+argument-hint: "[--kill] [--net] [--rotate]"
 ---
 
-# package.json & npm Config Management
+# package.json & pnpm config
 
-## Part 1: package.json Scripts Organization
+## 1. Scripts organization
 
-Two techniques for keeping large `scripts` sections readable and maintainable.
-
-### Technique 1: Comment Separator Keys
-
-Add visual section dividers using unused JSON keys:
+**Separator keys** — unused JSON keys as section dividers: `"// ── Name ───…": ""`, padded with `─` to ~50 chars, placed before the first script of each section.
 
 ```json
-{
-  "scripts": {
-    "// ── Core ─────────────────────────────────────────": "",
-    "dev": "next dev",
-    "build": "next build",
-    "// ── Testing ─────────────────────────────────────": "",
-    "test": "jest",
-    "test:e2e": "playwright test"
-  }
-}
+"// ── Core ─────────────────────────────────────────": "",
+"dev": "next dev",
+"build": "next build",
+"// ── Testing ─────────────────────────────────────": "",
+"test": "jest"
 ```
 
-Format: `"// ── Section Name ──────..."` with `─` padding to ~50 chars, value `""`.
+**Multi-process commands** — when a script starts 2+ background processes, extract it to `scripts/*.sh` from the template `scripts/multi-process-dev.sh.template` (trap-based cleanup so Ctrl+C takes every child down). `chmod +x` it.
 
-### Technique 2: Predev Port Cleanup
-
-Add a `predev` script that kills stale processes on dev server ports before starting. This prevents "port already in use" errors that commonly occur after crashes, orphaned processes, or forgotten terminal sessions.
+**Multi-environment dev:**
 
 ```json
-{
-  "scripts": {
-    "predev": "lsof -ti :5173 -ti :8787 | xargs kill 2>/dev/null; true",
-    "dev": "next dev"
-  }
-}
+"// ── Dev with API (3 environments) ───────────────": "",
+"dev:full": "API_MODE=local ./scripts/dev-full.sh",
+"dev:full:preview": "API_MODE=preview pnpm dev",
+"dev:full:prod": "API_MODE=production pnpm dev"
 ```
 
-How it works:
+Section names, suffix conventions, monorepo namespace prefixes, `_` internal scripts: [references/patterns.md](references/patterns.md).
 
-- `lsof -ti :PORT` — finds PIDs listening on the specified port (`-t` = terse/PID-only, `-i` = internet addresses)
-- Multiple ports: **repeat the flag** — `-ti :5173 -ti :8787`. A comma list takes the colon once, before the whole list (`:5173,8787` works; `:5173,:8787` is a usage error on macOS — "unknown service :8787"), so the repeated-flag form is the harder-to-mistype choice
-- `xargs kill` — sends SIGTERM (graceful) to found processes
-- `2>/dev/null; true` — silently succeeds when no processes are found
-- npm/pnpm auto-runs `predev` before `dev` (lifecycle hook convention)
+## 2. Serve / dev scripts
 
-Adapt port numbers to match your project's dev servers (e.g., `-ti :3000 -ti :8080` for a typical Node.js + API setup).
+Read [references/serve-scripts.md](references/serve-scripts.md) before changing any server-starting script. It covers:
 
-### Technique 3: External Shell Scripts for Multi-Process Commands
+- `--kill` — `preXXX` hook: `lsof -ti :PORT | xargs kill 2>/dev/null; true` (multiple ports: repeat `-ti :PORT`, never `:A,:B`)
+- `--net` — `COMMAND:net` variants bound to `0.0.0.0`, per-framework host flags
+- `--rotate` — non-destructive port rotation: copy `assets/find-free-port.mjs` (verbatim) + `assets/dev-launcher.mjs` into the project; multi-process variant in [references/port-rotation-multi-process.md](references/port-rotation-multi-process.md)
 
-When a command starts 2+ background processes, extract to `scripts/*.sh`.
+Invoked with no flag and no clear intent: ask which tweak to apply. Prefer rotation over kill when worktrees/second checkouts run side by side or the port may belong to something the user wants alive.
 
-Template available at `scripts/multi-process-dev.sh.template`. Key pattern:
+## 3. pnpm version via corepack
 
-```bash
-#!/bin/bash
-set -e
-cleanup() {
-  kill $PID_1 $PID_2 2>/dev/null
-  wait $PID_1 $PID_2 2>/dev/null
-}
-trap cleanup EXIT INT TERM
+Pin in package.json: `"packageManager": "pnpm@10.30.2+sha512.…"`. Once per machine: `corepack enable`.
 
-if [ "$MODE" = "local" ]; then
-  backend-server &
-  PID_1=$!
-  sleep 3
-fi
+- **Node ≥25 no longer bundles corepack** — `npm install -g corepack` first, or use pnpm's standalone installer (`curl -fsSL https://get.pnpm.io/install.sh | sh -`); recent pnpm reads `packageManager` and self-manages the pinned version.
+- Never `pnpm self-update` — it errors under corepack.
+- Never add `corepack use pnpm@latest` to setup steps (a common AI/automation mistake) — it bumps `packageManager` and churns `pnpm-lock.yaml`. Upgrade only intentionally: one person runs `corepack use pnpm@<version>` and commits package.json + lockfile.
 
-pnpm dev &
-PID_2=$!
-wait
-```
+## 4. Dependency build-script security
 
-Call from package.json: `"dev:full": "MODE=local ./scripts/dev-full.sh"`
+pnpm 10+ blocks dependency lifecycle scripts by default. Verdicts go in the `allowBuilds` map in **`pnpm-workspace.yaml`** (`true` = run, `false` = deny + silence the warning) — NOT `.npmrc`, where such keys are silent no-ops. Never bulk-approve; evaluate each package.
 
-Make executable: `chmod +x scripts/*.sh`
-
-### Multi-Environment Pattern
-
-For apps with local/preview/production API targets:
-
-```json
-{
-  "// ── Dev with API (3 environments) ───────────────": "",
-  "dev:full": "API_MODE=local ./scripts/dev-full.sh",
-  "dev:full:preview": "API_MODE=preview pnpm dev",
-  "dev:full:prod": "API_MODE=production pnpm dev"
-}
-```
-
-### Detailed Patterns
-
-See [references/patterns.md](references/patterns.md) for:
-
-- Full list of suggested section names
-- Namespace prefixing for monorepo sub-packages
-- Internal/private script conventions (`_` prefix)
-- Complete multi-process shell script template with explanations
-
----
-
-## Part 2: pnpm Version Management with Corepack
-
-### The `packageManager` Field
-
-Pin the exact pnpm version in `package.json`:
-
-```json
-{
-  "packageManager": "pnpm@10.30.2+sha512.36cdc707e7b..."
-}
-```
-
-This ensures every developer and CI uses the identical pnpm version. Corepack reads this field and auto-downloads the specified version.
-
-### Setup (Once Per Machine)
-
-```bash
-corepack enable
-```
-
-After this, running `pnpm install` / `pnpm dev` / etc. just works — corepack intercepts the `pnpm` command and uses the pinned version automatically. No global pnpm install needed.
-
-**Node ≥25:** Corepack was removed from the default Node.js distribution starting with Node 25 (Oct 2025), so `corepack enable` fails with "command not found" out of the box. Install it first:
-
-```bash
-npm install -g corepack
-corepack enable
-```
-
-Alternatively, skip corepack and use pnpm's own standalone installer (`curl -fsSL https://get.pnpm.io/install.sh | sh -`) — recent pnpm versions read the `packageManager` field themselves and self-manage the pinned version without corepack. On Node <25, the plain `corepack enable` step above still applies unchanged.
-
-### Key Rules
-
-- **Never run `pnpm self-update`** — it errors when pnpm is managed by corepack
-- **Never run `corepack use pnpm@latest` routinely** — it bumps the version in `package.json` and often regenerates `pnpm-lock.yaml`, creating noisy diffs
-- **Only update intentionally** — when the team decides to upgrade, one person runs `corepack use pnpm@<version>`, commits the `package.json` + lockfile changes, and everyone else gets it via `pnpm install`
-- **Different repos can pin different versions** — corepack handles per-project version switching automatically
-
-### Common Mistake
-
-AI tools and automation sometimes add `corepack use pnpm@latest` to setup steps. This causes unnecessary version bumps and lockfile churn. Remove it — `corepack enable` + the existing `packageManager` field is sufficient.
-
----
-
-## Part 3: Dependency Build Script Security (pnpm `allowBuilds`)
-
-Evaluate and manage dependency build scripts for supply chain security. pnpm 10+ blocks dependency
-lifecycle scripts by default; decisions are recorded in the `allowBuilds` map in
-**`pnpm-workspace.yaml`** (`true` = run, `false` = deny + silence) — NOT in `.npmrc`, which since
-pnpm 11 carries only auth/registry settings.
-
-See [references/build-scripts.md](references/build-scripts.md) for:
-
-- The full evaluation workflow for "Ignored build scripts" warnings
-- Decision criteria for `allowBuilds` `true` vs `false`
-- Common package evaluations (reference table)
-- `pnpm-workspace.yaml` configuration patterns and `strictDepBuilds` (escalate warning → install failure)
+Workflow for "Ignored build scripts" warnings, decision criteria, known-package verdict table, `strictDepBuilds`: [references/build-scripts.md](references/build-scripts.md).

@@ -110,6 +110,19 @@ mkdir -p "$LOCK_DIR"
 - When the workflow ends or aborts, the locks clear themselves (flock on subshell exit). No manual cleanup required
 - If a child reports a port-lock timeout (600s exceeded), that means another child held the port too long — treat as a bug in that child's logic, not a resource-contention fact of life
 
+### Rule 3 — the machine-wide heavy-test guard
+
+Rule 1 only bounds **this run**. A second session — another `/x-wt-teams`, an `/x-as-pr`, a Codex session — knows nothing about it, and two or three heavy suites at once starve the machine of memory and go red for reasons unrelated to the code. Every heavy run the manager performs (b4push, e2e, long build + full test) therefore goes through `$HOME/.claude/scripts/heavy-guard.sh`, a slot semaphore plus memory gate shared with Codex:
+
+```bash
+bash $HOME/.claude/scripts/heavy-guard.sh -- pnpm b4push
+```
+
+- Projects on the current `/dev-b4push` template wrap their own heavy steps; wrapping again is a harmless no-op.
+- Run it foreground with a tool timeout that covers queue + run. Exit 75 = queue/memory timeout, the suite never ran — contention, not a failure.
+- Read the guard's `verdict=` line before the failure output. `ENV_SUSPECT` → rerun once; still red with no broken expectation → **defer** it to CI under a `deferred-verification` issue and continue. `FAIL` → real, fix it.
+- Full policy (what is deferrable, what never is): [`skills/.shared/heavy-test-policy.md`](../../.shared/heavy-test-policy.md).
+
 ### Decision rule
 
 If you're reaching for `flock`, first ask: "Could I defer this to the manager instead?" If yes, do that (Rule 1). `flock` is only for cases where the check genuinely must run in the child context during implementation.

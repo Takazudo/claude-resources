@@ -13,7 +13,7 @@ One-direction publish from `$HOME/.claude/` (private) to `$HOME/repos/p/claude-r
 If the user passes `-a` or `--auto` (e.g. `/claude-resources-share -a`, `/claude-resources-share --auto`, or wording like "auto", "if no problems do copy and push", "do it all if clean"), enable **auto mode**:
 
 - **Step 1**: still run the scan, but if findings are clean (no HIGH/MEDIUM priority issues per `/purge-private-info`), skip the user-confirmation gate and proceed automatically. If findings are NOT clean, stop and report — do not auto-proceed.
-- **Step 6**: skip the choice prompt and run `/commits` with push (option 1) automatically.
+- **Step 6**: skip the choice prompt and run `/co` with push (option 1) automatically.
 
 In normal mode (no flag), follow the original gates: ask for confirmation after the scan and ask which commit option to use.
 
@@ -180,9 +180,9 @@ echo "CLAUDE.md: 1 file"
 2. Commit only (no push)
 3. Skip (leave changes uncommitted)
 
-If the user chooses to commit, use the `/commits` skill to commit inside the target repo directory. If they also want to push, push after committing.
+If the user chooses to commit, use the `/co` skill to commit inside the target repo directory. If they also want to push, push after committing.
 
-**Auto mode** (`-a` / `--auto`): skip the prompt. Run `/commits` inside the target repo directory and push (equivalent to option 1) without asking. Report the commit and push result back to the user.
+**Auto mode** (`-a` / `--auto`): skip the prompt. Run `/co` inside the target repo directory and push (equivalent to option 1) without asking. Report the commit and push result back to the user.
 
 ## Scan whitelist
 
@@ -191,6 +191,8 @@ The following items are known and acceptable — do NOT flag them during the Ste
 - IFTTT webhook event names in `hooks/notify-ifttt.sh` (the key itself is in an env var)
 - References to "CodeGrid", "esa", repo names like `takazudo-codegrid-writing`, `takazudo-esa-writing` in skills/agents (publicly known authorship)
 - `$HOME/repos/w/` and `$HOME/repos/p/` directory structure references (personal convention, no secrets)
+- Work-org/employer names (`pxgrid`, `SAISONCARD`) appearing only as "never touch" exclusions or account-scope notes, e.g. in `skills/gm-clean/SKILL.md` and `skills/db/references/env-secrets.md` (accepted; do not flag or block auto mode)
+- The repo owner's own email/username (`takazudo@gmail.com`, `takazudo`)
 
 ## Important rules
 

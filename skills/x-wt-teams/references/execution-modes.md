@@ -11,7 +11,7 @@ Two axes that are easy to conflate — keep them separate:
 
 Concretely:
 
-- **All topics marked `subagents` = subagents path (inline default).** No team is created. Each topic runs as a one-shot Agent call with `subagent_type: "frontend-worktree-child"` (or `general-purpose` for non-frontend), pointing at the pre-created worktree. No TeamCreate, no shutdown ceremony, no peer-to-peer messaging. Children DO still report to the manager via SendMessage — that is the only channel a completion report reaches him on (see `SKILL.md` Step 5 item (i)). This is exactly the inline `SKILL.md` Step 5 / Step 7 flow.
+- **All topics marked `subagents` = subagents path (inline default).** No team is created. Each topic runs as a one-shot Agent call with `subagent_type: "general-purpose"` (standing rules in `references/child-brief.md`), pointing at the pre-created worktree. No TeamCreate, no shutdown ceremony, no peer-to-peer messaging. Children DO still report to the manager via SendMessage — that is the only channel a completion report reaches him on (see `SKILL.md` Step 5 item (i)). This is exactly the inline `SKILL.md` Step 5 / Step 7 flow.
 - **Any topic marked `teams`, OR any topic missing the marker = teams path for the whole session.** Read `references/teams-path.md` and run the full team workflow there. Simpler than mixing the two spawn mechanisms and matches how peers expect to message each other. The subagent-marked topics still benefit from the team's shared task list, just without subagent savings. The missing-marker fallback being teams preserves pre-annotation behavior.
 
 ## Why two paths exist
@@ -111,7 +111,7 @@ This is **advisory, not blocking**. Don't pause for confirmation when no drift s
    ```
    Agent({
      description: "Implement <topic-name>",
-     subagent_type: "frontend-worktree-child",   // or "general-purpose" for non-frontend
+     subagent_type: "general-purpose",   // prompt opens with: read references/child-brief.md (absolute path)
      model: <resolved per-topic team-member model (see references/per-topic-models.md), default opus>,
      prompt: <the canonical prompt body (items a–k) from SKILL.md Step 5, with these adjustments:
               - tell the agent its working directory is the absolute path of worktrees/<topic>/
@@ -153,7 +153,7 @@ The rest of the workflow (Step 6 merge, Step 8 sync, Step 9 review, Step 10 veri
 
 ## What about the self-review inside subagents?
 
-**The trap: starting the review and then waiting for it.** Any review a child starts out-of-band lands the same way — a `/codex-review` shell-out backgrounded via Bash, or a `/code-review` that returns an async handle because the built-in reviewer runs as a background subagent with its own context window. Subagents *can* reach these (the `frontend-worktree-child` agent has "All tools"); reachability is not the problem. The problem is a child that ends its turn waiting on a completion notification, because that notification is delivered to the **manager**, not to the child. The child parks indefinitely — often with real work already committed but never reported. This is the documented cause behind two linked defects in issue #114: parked children, and a manager that (lacking any report) fell back to merging on worktree inspection alone.
+**The trap: starting the review and then waiting for it.** Any review a child starts out-of-band lands the same way — a `/codex-review` shell-out backgrounded via Bash, or a `/code-review` that returns an async handle because the built-in reviewer runs as a background subagent with its own context window. Subagents *can* reach these (children have all tools); reachability is not the problem. The problem is a child that ends its turn waiting on a completion notification, because that notification is delivered to the **manager**, not to the child. The child parks indefinitely — often with real work already committed but never reported. This is the documented cause behind two linked defects in issue #114: parked children, and a manager that (lacking any report) fell back to merging on worktree inspection alone.
 
 The fix is `SKILL.md` Step 5 item (k) (mirrored above in this file's Agent-call shape): **the child reviews its own diff by hand** — read `git diff <base>...HEAD` — applies findings, COMMITs, then reports. Item (k) is a prompt-level override: the child follows this explicit orchestrator instruction over whatever a review skill's own default flow would do.
 
@@ -182,7 +182,7 @@ For a child, in priority order:
 2. **If something you called nevertheless returned an async handle, assume you cannot drain it.** `TaskOutput` is not in a subagent's toolset (measured — see the table above), so there is no pull channel. Abandon the handle and fall back to step 1. Never wait passively for a notification.
 3. **If you cannot collect it in-turn, abandon it and do the work yourself** (step 1). A self-done foreground pass is strictly better than a parked turn.
 
-A message like "review still running / waiting on a notification / I'll report when it lands" is a **parked report, not a completion report** — the Step 6 merge gate does not open on it and the manager must nudge you. This invariant is the canonical statement referenced by `skills/codex-review/SKILL.md` (Step 4 fallback), `skills/x-wt-teams/references/reviewer-modes.md` ("Child self-review"), and `agents/frontend-worktree-child.md` ("Self-Review Must Not Park").
+A message like "review still running / waiting on a notification / I'll report when it lands" is a **parked report, not a completion report** — the Step 6 merge gate does not open on it and the manager must nudge you. This invariant is the canonical statement referenced by `skills/codex-review/SKILL.md` (Step 4 fallback), `skills/x-wt-teams/references/reviewer-modes.md` ("Child self-review"), and `references/child-brief.md` ("Self-review must not park").
 
 ## Mixed-mode degradation rationale
 

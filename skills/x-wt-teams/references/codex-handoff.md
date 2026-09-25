@@ -38,7 +38,7 @@ bash "$HOME/.claude/scripts/handoff-to-codex.sh" \
   --submit          # only when -a was passed
 ```
 
-The script opens the window as `codex -m gpt-5.6-sol -c model_reasoning_effort="medium"`, waits for Codex's composer, types the command, and focuses the window. It handles what silently breaks a naive `send-keys`:
+The script opens the window as `codex -m gpt-6-sol -c model_reasoning_effort="medium"`, waits for Codex's composer, types the command, and focuses the window. It handles what silently breaks a naive `send-keys`:
 
 | Exit | Cause |
 | --- | --- |
@@ -54,7 +54,7 @@ Codex needs ~10-14s before it accepts input, so the script polls for the compose
 
 ### The Codex session starts on Sol at medium effort
 
-The launch pins `-m gpt-5.6-sol` and `-c model_reasoning_effort="medium"` for every caller of this script — `/tocodex`, `/big-plan -toco`, and both implementation skills' own `-toco`. A hand-off fires *after* the plan exists: the Codex session is executing a spec that has already been argued out, which is a manager's job — dispatch the topics, keep the run moving — not a reasoning-heavy one. That is the manager tier; the reasoning-heavy topics are dispatched from there to `gpt-6-astra` workers at `max` effort. The receiving session can raise its own with `/model`.
+The launch pins `-m gpt-6-sol` and `-c model_reasoning_effort="medium"` for every caller of this script — `/tocodex`, `/big-plan -toco`, and both implementation skills' own `-toco`. A hand-off fires *after* the plan exists: the Codex session is executing a spec that has already been argued out, which is a manager's job — dispatch the topics, keep the run moving — not a reasoning-heavy one. That is the manager tier; workers are dispatched from there by difficulty — `high` → `gpt-6-astra`/high, `mid` → `gpt-6-sol`/medium, `standard` → `gpt-6-luna`/max. The receiving session can raise its own with `/model`.
 
 This is the one place the two hand-offs differ in spirit. `-tocl` pins Opus as a *floor* because a fresh Claude session inherits nothing and cannot know what the work needs ([`claude-handoff.md`](claude-handoff.md)); `-toco` pins the manager tier as a *ceiling* because by then the thinking is done and written down, and what reasoning remains is pushed down into the Astra workers.
 

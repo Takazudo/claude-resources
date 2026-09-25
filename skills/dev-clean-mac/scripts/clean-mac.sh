@@ -7,6 +7,9 @@
 #   clean-mac.sh                 # dry run: report what WOULD be freed, delete nothing
 #   clean-mac.sh --run           # actually delete
 #   clean-mac.sh --run --keep-node-modules   # delete caches but keep node_modules
+#   clean-mac.sh --run --keep-repo ~/repos/myoss/zfb  # spare one repo you're working in
+#                                                     # (repeatable; skips its node_modules,
+#                                                     #  target/, .zfb-build and tarballs)
 #
 # macOS gotcha (the reason this script exists as a script): on APFS, deleting files
 # does NOT free space while local Time Machine snapshots still reference the data —
@@ -17,17 +20,28 @@ set -u
 
 RUN=0
 KEEP_NODE_MODULES=0
+KEEP_REPOS=()
+want_keep_repo=0
 for a in "$@"; do
+  if [ "$want_keep_repo" -eq 1 ]; then
+    p="${a/#\~/$HOME}"
+    KEEP_REPOS+=("${p%/}")
+    want_keep_repo=0
+    continue
+  fi
   case "$a" in
     --run|-y) RUN=1 ;;
     --dry-run) RUN=0 ;;
     --keep-node-modules) KEEP_NODE_MODULES=1 ;;
+    --keep-repo) want_keep_repo=1 ;;
+    --keep-repo=*) p="${a#*=}"; p="${p/#\~/$HOME}"; KEEP_REPOS+=("${p%/}") ;;
     -h|--help)
-      sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
-    *) echo "unknown arg: $a (use --run, --dry-run, --keep-node-modules)"; exit 2 ;;
+    *) echo "unknown arg: $a (use --run, --dry-run, --keep-node-modules, --keep-repo <path>)"; exit 2 ;;
   esac
 done
+[ "$want_keep_repo" -eq 1 ] && { echo "--keep-repo needs a path"; exit 2; }
 
 REPOS="$HOME/repos"
 TOTAL_KB=0
@@ -44,6 +58,12 @@ del_path() {
     "$HOME"/*) : ;;
     *) printf '  SKIP (outside $HOME): %s\n' "$p"; return 0 ;;
   esac
+  local keep
+  for keep in ${KEEP_REPOS+"${KEEP_REPOS[@]}"}; do
+    case "$p" in
+      "$keep"|"$keep"/*) printf '  kept (--keep-repo)  %s\n' "$p"; return 0 ;;
+    esac
+  done
   local kb hum
   kb=$(du -sk "$p" 2>/dev/null | awk '{print $1}'); [ -z "$kb" ] && kb=0
   hum=$(du -sh "$p" 2>/dev/null | awk '{print $1}')

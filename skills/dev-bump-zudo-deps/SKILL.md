@@ -173,7 +173,7 @@ Summarize for the user:
 - **Verify result**: typecheck/build status per workspace
 - **Lockfiles changed**: which ones (so they get committed)
 
-Leave committing to the user / `/commits` unless they asked otherwise.
+Leave committing to the user / `/co` unless they asked otherwise.
 
 ## Step 9 — File upstream reports for anything the bump surfaced
 

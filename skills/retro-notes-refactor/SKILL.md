@@ -195,7 +195,7 @@ One short message:
 - Whether the file is committed (mention only if state changed).
 - Suggest: "Future `/big-plan` runs touching {area} will now load the synthesized patterns first."
 
-Do NOT commit automatically. Per project git policy, commits happen only when the user asks. The file change is left staged-but-uncommitted (or unstaged) so the user can run `/commits` themselves.
+Do NOT commit automatically. Per project git policy, commits happen only when the user asks. The file change is left staged-but-uncommitted (or unstaged) so the user can run `/co` themselves.
 
 ## What NOT to do
 

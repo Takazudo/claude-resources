@@ -261,4 +261,4 @@ with a summary listing everything that failed and the elapsed time. Seeing all
 five failures at once beats fixing them one round-trip at a time.
 
 Playwright E2E is deliberately excluded from b4push for time budget — it runs in
-CI. Generate or refresh the script with `/dev-create-b4push-script`.
+CI. Generate or refresh the script with `/dev-b4push`.

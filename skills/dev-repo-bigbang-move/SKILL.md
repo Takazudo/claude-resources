@@ -40,7 +40,7 @@ Run `/purge-private-info` on the NEW repo (`$1`) to scan and clean private/clien
 
 ### Step 4: Commit and Push
 
-1. Run `/commits` on the new repo to commit all files
+1. Run `/co` on the new repo to commit all files
 2. Push to the remote: `git push -u origin main` (or the appropriate branch name)
 
 ### Step 5: Update Old Repo Remote (Optional)

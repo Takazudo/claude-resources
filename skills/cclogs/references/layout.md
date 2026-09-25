@@ -37,7 +37,7 @@ A repeated name gets `-2`, `-3` appended before the extension rather than overwr
 | `*-x-as-pr-*.md` | `/x-as-pr` | Session report for a single-topic run |
 | `*-cleanup-resources-*.md` | `/cleanup-resources` | What was closed, kept, deleted |
 | `local-workflow/` | `-lo` / `--local` runs | The plan and progress ledger that would otherwise be GitHub issues |
-| `<descriptive-name>/` | `/prototype-first-wisdom` | A standalone prototype |
+| `<descriptive-name>/` | `/protodev`, `/big-plan -pr` | A standalone prototype. A `-pr` one is the UI-rough exploration behind a plan: `BRIEF.md`, a shared mock foundation, one file per variant, `index.html` gallery, `shots/`, and a `roundN/` subdir per feedback round — the chosen variant is also baked into the repo under `_temp-resource/`, so this dir is the rejected-alternatives record, not the handoff |
 | `*-screenshots/`, `verify-ui-*/` | `/verify-ui`, `/headless-browser` | Visual evidence, usually paired with a report |
 
 ## Directory shapes
@@ -65,7 +65,7 @@ Read `plan.md` first — it frames every sibling. The marker block in a sub spec
 
 ## Path mechanics
 
-`get-logdir.js` resolves the base in order: `$DROPBOX_CCLOGS_DIR` → platform default (macOS `$HOME/Library/CloudStorage/Dropbox/cclogs`, WSL `/mnt/c/Users/takaz/Dropbox/cclogs`) → `$HOME/cclogs`. The env var is absent in hooks, cron, and other non-login shells, which is why the platform fallback exists.
+`get-logdir.js` resolves the base in order: `$DROPBOX_CCLOGS_DIR` → platform default (macOS `$HOME/Library/CloudStorage/Dropbox/cclogs`, WSL `/mnt/c/Users/<windows-user>/Dropbox/cclogs`, auto-detected) → `$HOME/cclogs`. The env var is absent in hooks, cron, and other non-login shells, which is why the platform fallback exists.
 
 The repo slug is the git toplevel basename, with two foldings: a worktree traces back to its main repo via `--git-common-dir`, and a trailing number is stripped (`zzmod2` → `zzmod`), so sibling clones of one project share a directory. Outside a git repo the slug is `_misc`.
 

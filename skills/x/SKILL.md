@@ -1,7 +1,7 @@
 ---
 name: x
-description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). The downstream skill runs /code-review by default; -co/--codex upgrades it to /deep-review. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m. Pass -lo/--local to keep the run's bookkeeping (plan / tracking / spec) in a cclogs dir instead of creating GitHub issues — for public / team repos where those issues read as spam; agent-found problem issues are still raised (add -nori to suppress those too). Pass -toco/--to-codex to implement on Codex CLI instead of in-session, or -tocl/--to-claude to implement in a FRESH Claude Code session (a clean context window -- the agent-side stand-in for /clear, which cannot be invoked from inside a session). Both work on every route -- the escalation plans here and hands the epic off at the end of /big-plan, while the fast paths hand off immediately -- by opening a new tmux window running that CLI with the matching invocation (terminal-only, mutually exclusive)."
-argument-hint: "[-co|--codex] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [-tocl|--to-claude] [-v|--verify-ui] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
+description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). The downstream skill runs /code-review by default; -co/--codex upgrades it to /deep-review. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m. Pass -lo/--local to keep the run's bookkeeping (plan / tracking / spec) in a cclogs dir instead of creating GitHub issues — for public / team repos where those issues read as spam; agent-found problem issues are still raised (add -nori to suppress those too). Pass -toco/--to-codex to implement on Codex CLI instead of in-session, or -tocl/--to-claude to implement in a FRESH Claude Code session (a clean context window -- the agent-side stand-in for /clear, which cannot be invoked from inside a session). Both work on every route -- the escalation plans here and hands the epic off at the end of /big-plan, while the fast paths hand off immediately -- by opening a new tmux window running that CLI with the matching invocation (terminal-only, mutually exclusive). Pass -pr/--prototype for UI work that should be prototyped before it is planned (UI polish, new-feature UI brainstorming): it forces the /big-plan escalation, where a rough-UI build/feedback loop runs before decomposition -- the fast paths have no planning step to prototype in front of."
+argument-hint: "[-co|--codex] [-a|--auto] [-m|--merge] [-pr|--prototype] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [-tocl|--to-claude] [-v|--verify-ui] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
 ---
 
 # X — Development Workflow Facade
@@ -52,7 +52,7 @@ These rules apply to the facade itself and propagate to the chosen downstream sk
 
 Parse `$ARGUMENTS` for:
 
-- **All flags from both skills** (`-co`, `--codex`, `--make-issue`, `--issue`, `-s`, `--stay`, `-lo`, `--local`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, `-toco`, `--to-codex`, `-tocl`, `--to-claude`, etc.)
+- **All flags from both skills** (`-co`, `--codex`, `--make-issue`, `--issue`, `-s`, `--stay`, `-lo`, `--local`, `-v`, `--verify-ui`, `-nor`, `--no-review`, `-ri`, `--raise-issues`, `-nori`, `--no-raise-issues`, `--no-issue`, `-a`, `--auto`, `-m`, `--merge`, `-pr`, `--prototype`, `-f`, `-fix`, `--auto-fix`, `-nf`, `--no-fix`, `-toco`, `--to-codex`, `-tocl`, `--to-claude`, etc.)
 - **GitHub issue URL or number**
 - **Implementation instructions** (remaining text)
 
@@ -71,7 +71,7 @@ Two tiers plus a skip, forwarded to the chosen skill. They change which reviewer
 | Passed | Reviewer at the downstream review step |
 | --- | --- |
 | nothing | `/code-review --fix` — **the default**, the built-in reviewer in its own context |
-| `-co` / `--codex` | `/deep-review` — `/code-review` **plus** `/codex-review` for cross-model coverage (also swings research/doc writing to codex) |
+| `-co` / `--codex` | `/deep-review` — `/code-review` **plus** `/codex-review` for cross-model coverage |
 | `-nor` / `--no-review` | none |
 
 **There is no effort level.** Neither this skill nor the downstream ones take one — the reviewer is invoked bare and uses its own default (`/code-review` reuses the level the user last typed). Depth comes from `-co`. Never pass `ultra` — only the user can launch that, by typing `/code-review ultra` themselves.
@@ -88,9 +88,21 @@ When `-a` or `--auto` is passed, forward it to the chosen skill. `-a` means "run
 
 ### Merge Mode (`-m` / `--merge`)
 
-When `-m` or `--merge` is passed, forward it to the chosen skill. When the final implementation is done, the downstream skill merges the PR into its base branch, runs the cleanup phase, and watches CI on the base branch (fixing it if it goes red) — via `/pr-complete` + `/watch-ci`. On the escalation path, `/big-plan` forwards `-m` into whichever implementation skill it chains into. Intended for safe-to-merge work; without `-m`, the workflow ends with a ready-but-unmerged PR.
+When `-m` or `--merge` is passed, forward it to the chosen skill. When the final implementation is done, the downstream skill merges the PR into its base branch, runs the cleanup phase, and watches CI on the base branch (fixing it if it goes red) — via `/prc` + `/watch-ci`. On the escalation path, `/big-plan` forwards `-m` into whichever implementation skill it chains into. Intended for safe-to-merge work; without `-m`, the workflow ends with a ready-but-unmerged PR.
 
 **On web (web-mode.md §8):** the downstream merge runs **in-turn** — the agent polls CI via the GitHub MCP and merges in the same run once green, because web has no background-task wakeup to resume a backgrounded `/watch-ci`. So on web, `-a -m` must finish at a *merged* PR in one autonomous run; the agent must not stop at "PR ready, CI running, I'll check back" (the recurring "agent is waiting for my order to merge" failure). Off web this is inert — the terminal's background-poll path already auto-resumes.
+
+### Prototype Mode (`-pr` / `--prototype`)
+
+For UI work that should be **prototyped before it is planned** — a UI polish session, or rough-idea brainstorming for a new feature's UI. `/big-plan -pr` builds throwaway rough UIs, shows them, takes the user's feedback, iterates, and only then decomposes, with the settled direction as the spec.
+
+**`-pr` forces the `/big-plan` escalation.** A fast path has no planning step to put a prototype in front of, so `/x -pr …` never routes to `/x-as-pr` or `/x-wt-teams` directly — it escalates regardless of how small the work looks (Axis 1 is decided by the flag, not by the size heuristic). Forward it verbatim: `/x -pr "rework the settings page"` → `/big-plan -a -pr "rework the settings page"`.
+
+**It does NOT override epic detection.** An `[Epic]` / `[Super-Epic]` issue is already planned, so prototyping in front of it is meaningless — the epic-issue rule below still routes to `/x-wt-teams`. Say `-pr` was ignored for that reason rather than dropping it silently.
+
+**Don't confuse `-pr` with `/x-as-pr`.** The similarity is accidental: `-pr` is the prototype flag, `/x-as-pr` is the single-topic implementation skill. `/x -pr …` means "prototype first", never "route to `/x-as-pr`".
+
+`/x` only parses and forwards — the loop, its non-suppressible feedback checkpoint (`-a` and `-nor` do not remove it), and its flag composition all live in `/big-plan` (see its Prototype Mode section and `big-plan/references/prototype-mode.md`).
 
 ### Handoff Modes (`-toco` / `--to-codex`, `-tocl` / `--to-claude`)
 
@@ -139,7 +151,7 @@ When `-lo` or `--local` is passed, forward it to the chosen skill (fast paths **
 
 Routing has **two axes**. Decide both before invoking anything.
 
-**Axis 1 — plan-first vs implement-now.** Does the request need research, decomposition, or have unclear scope? If yes, escalate to `/big-plan -a` (it plans, then routes downstream to `/x-as-pr` or `/x-wt-teams` itself — so the single/multi decision stays in one place). If the work is ready to build, skip planning and go straight to a fast path.
+**Axis 1 — plan-first vs implement-now.** `-pr` / `--prototype` decides this axis on its own: it always escalates (see Prototype Mode above). Otherwise: does the request need research, decomposition, or have unclear scope? If yes, escalate to `/big-plan -a` (it plans, then routes downstream to `/x-as-pr` or `/x-wt-teams` itself — so the single/multi decision stays in one place). If the work is ready to build, skip planning and go straight to a fast path.
 
 **Axis 2 — single vs multi (fast paths only).** When the work is ready to build, decide between `/x-as-pr` (single cohesive topic) and `/x-wt-teams` (multiple independent topics). `/big-plan` makes this same decision downstream when you escalate, so you only apply Axis 2 on the fast paths.
 
@@ -159,13 +171,15 @@ Escalate to planning when the request is research/decomposition-heavy or its sco
 - `/x "big thing"` → `/big-plan -a` (plan + auto-implement; PR left ready-but-unmerged; auto-fix and issue-raising run by default downstream).
 - `/x -a -m "big thing"` → `/big-plan -a -m` (plan + auto-implement + auto-merge + cleanup — full hands-off).
 - `/x -nf "big thing"` → `/big-plan -a -nf` (the no-fix opt-out rides through `/big-plan`'s hand-off into the implementation skill, exactly like `-m`; `-nori` rides the same way).
+- `/x -pr "rework the settings page"` → `/big-plan -a -pr "…"` (prototype the UI, take feedback, then plan — see Prototype Mode above; `-pr` escalates on its own, whatever the size heuristic says).
 - `/x -lo "big thing"` → `/big-plan -a -lo` (local mode rides all the way down: `/big-plan` writes the plan to cclogs instead of an epic/sub issues and hands the plan path — not an issue URL — to the implementation skill).
 - `/x -a -m -toco "big thing"` → `/big-plan -a -m -toco` (plan here, implement on Codex: `/big-plan` ends by handing `$x-wt-teams -a -m {epic#}` to `/tocodex`, which runs it in a new tmux window. Nothing is implemented in this session — see Handoff Modes below).
 - `/x -a -m -tocl "big thing"` → `/big-plan -a -m -tocl` (same, but the epic goes to `/toclaude`, which starts a **fresh Claude Code session** on `/x-wt-teams -a -m {epic#}` — for when the implementation should not inherit the planner's context).
-- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` / `-lo` / `-toco` / `-tocl` ride along. **Do NOT forward `-co` to `/big-plan`** — it has no reviewer flags: its Step 5 plan review is unconditional (`/codex-2nd`, with a silent Opus fallback) and `-nor` is the only opt-out. `-co` keeps its meaning on the fast paths, where it upgrades the code review to `/deep-review`. Note that on the escalation path, implementation-only flags (`-v`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, `-nori`, and `-lo` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
+- `-a` is appended by `/x` on every escalation (this replaces the retired `-impl` flag); user-typed `-m` / `-nf` / `-nori` / `-lo` / `-pr` / `-toco` / `-tocl` ride along. **Do NOT forward `-co` to `/big-plan`** — it has no reviewer flags: its Step 5 plan review is unconditional (`/codex-2nd`, with a silent Opus fallback) and `-nor` is the only opt-out. `-co` keeps its meaning on the fast paths, where it upgrades the code review to `/deep-review`. Note that on the escalation path, implementation-only flags (`-v`, reviewer flags) do NOT reach the implementation skill — `/big-plan` forwards only `-a`, `-m`, `-nf`, `-nori`, and `-lo` downstream (per its own rules). Only the fast paths forward the full implementation-flag set to `/x-as-pr` / `/x-wt-teams`.
 
 **Guardrail (asymmetric cost — escalation is more expensive than a fast path):**
 
+- **`-pr` / `--prototype` passed** → escalate, full stop. The flag *is* the decision; the size heuristics below do not apply to it.
 - **Clearly small / ready-to-build** → take the fast path directly (`/x-as-pr` or `/x-wt-teams`). Keep the "I roughly call `/x`" speed for small work — do NOT escalate small tasks into planning.
 - **Clearly big / research-or-decomposition-heavy** → escalate to `/big-plan -a`.
 - **Ambiguous** → ask **one** line before escalating, e.g. "This looks like it needs planning first — escalate to `/big-plan`, or build it directly? (plan / build)". Then proceed on the answer. **EXCEPTION: if `-a` / `--auto` was passed, do NOT ask — just escalate** (the user opted into autonomy). This one-line confirm is the only place `/x` ever pauses; it is NOT plan mode and must not drift into one (Auto-Pilot still prefers action).
@@ -214,6 +228,7 @@ Epic issues are created by `/big-plan` and contain multiple sub-issues meant for
 | "migrate the app to the new framework" | `/big-plan -a` | Cross-cutting; needs wave sequencing |
 | `/x -a -m "overhaul onboarding end-to-end"` | `/big-plan -a -m` | Big + `-a -m` → escalate, no confirm, autonomous + auto-merge |
 | "improve the dashboard somehow" (vague) | one-line confirm → likely `/big-plan -a` | Ambiguous scope; ask plan/build first (unless `-a`) |
+| `/x -pr "the settings page feels dated"` | `/big-plan -a -pr` | `-pr` decides Axis 1 by itself — prototype the UI, take feedback, then plan |
 | `https://github.com/owner/repo/issues/42` | `/x-as-pr` | Single issue, ready to build |
 | `https://github.com/owner/repo/issues/42` (title has `[Epic]`) | `/x-wt-teams` | Epic issue from `/big-plan` (already planned) |
 
@@ -224,7 +239,7 @@ Once the strategy is chosen, invoke the appropriate skill.
 **Plan-first escalation (Axis 1 → big):** append `-a` (and forward `-m` / `-nf` / `-nori` if passed) and invoke `/big-plan`. `-a` is appended by `/x` even when the user didn't type it — `/x`'s contract is action, so the plan chains into implementation in-session.
 
 ```
-Skill tool: skill="big-plan", args="-a <-m if passed> <-nf if passed> <-nori if passed> <-lo if passed> <-toco or -tocl if passed> <other flags> <instructions-or-issue-refs>"
+Skill tool: skill="big-plan", args="-a <-m if passed> <-pr if passed> <-nf if passed> <-nori if passed> <-lo if passed> <-toco or -tocl if passed> <other flags> <instructions-or-issue-refs>"
 ```
 
 (If the request was ambiguous and `-a` was NOT passed, ask the one-line plan/build confirm first — see Strategy Selection — then either escalate as above or take a fast path per the answer.)
@@ -237,7 +252,7 @@ Skill tool: skill="x-as-pr", args="<flags> <instructions>"
 Skill tool: skill="x-wt-teams", args="<flags> <instructions>"
 ```
 
-Pass through ALL arguments (flags + instructions) to the chosen skill (`-a`, `-m`, `-f`/`-nf`, `-ri`/`-nori`, `-lo`/`--local`, and `-toco`/`--to-codex` or `-tocl`/`--to-claude` included — they're forwarded on every route; the defaults `-f`/`-ri` need no forwarding when not explicitly typed).
+Pass through ALL arguments (flags + instructions) to the chosen skill (`-a`, `-m`, `-f`/`-nf`, `-ri`/`-nori`, `-lo`/`--local`, and `-toco`/`--to-codex` or `-tocl`/`--to-claude` included — they're forwarded on every route; the defaults `-f`/`-ri` need no forwarding when not explicitly typed). **`-pr` is the one exception: never forward it to a fast path.** It normally forces the escalation, so the question only arises on the epic-issue carve-out above — there, drop it from the `/x-wt-teams` args and say it was ignored because the epic is already planned.
 
 ## Important Notes
 

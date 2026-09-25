@@ -194,7 +194,7 @@ The manager (you) just executes the plan — do NOT add a separate `gh issue clo
 
 If problems were discovered that need follow-up, they should already have been raised as **separate issues** during the workflow (per "Raising Issues for Unrelated Findings"). Those carry the `unrelated-finding` role in the manifest and the cleanup agent's prompt enforces KEEP for them — they will NOT be closed alongside the tracking issue.
 
-**Exception**: If the user provided the issue (not created by this workflow), the manifest tags it `claimed-existing` instead of `tracking`. The cleanup agent proposes KEEP unless `-m` flow + `/pr-complete -c` already closed it externally.
+**Exception**: If the user provided the issue (not created by this workflow), the manifest tags it `claimed-existing` instead of `tracking`. The cleanup agent proposes KEEP unless `-m` flow + `/prc -c` already closed it externally.
 
 ## Accumulating-epic Auto-Suggest hand-off
 
@@ -205,7 +205,7 @@ For the `--stay` accumulating-epic wave pattern (user runs `/x-wt-teams <sub-iss
 The session was invoked with `-s` / `--stay` AND the user's original instructions contain ANY of:
 
 - "wave" / "Wave N<letter>" / "Sub N" / "next sub" / "next wave"
-- "accumulating epic PR" or "Do NOT ... merge PR #NNNN" or "Do NOT run /pr-complete"
+- "accumulating epic PR" or "Do NOT ... merge PR #NNNN" or "Do NOT run /prc"
 - "close the sub-issue" (sequential sub-issue pattern)
 - An enumerated list of remaining sub-issues / waves
 - The session merged a sub-issue into the epic base and the epic PR stayed open
@@ -247,7 +247,7 @@ Accumulating epic PR: #<EPIC_PR> (stays open)
 
 Run the next sub in a FRESH session:
 
-    /x-wt-teams <next-sub-issue-url> <model-flags> <wave-label> only: <short sub description>. --stay on <EPIC_BASE>. Merge into base via --no-ff, push, then close the sub-issue. Do NOT run /pr-complete or merge PR #<EPIC_PR> (accumulating epic PR).
+    /x-wt-teams <next-sub-issue-url> <model-flags> <wave-label> only: <short sub description>. --stay on <EPIC_BASE>. Merge into base via --no-ff, push, then close the sub-issue. Do NOT run /prc or merge PR #<EPIC_PR> (accumulating epic PR).
 
 Remaining open sub-issues:
 1. #<next-number>  <next-title>   ← run next
@@ -261,7 +261,7 @@ Remaining open sub-issues:
 - **Chain / merge flags** — forward `-a` / `-m` / `-nf` / `-nori` / `-lo` if they were on this session (auto-fix and issue-raising are defaults — only the opt-outs need forwarding). (Under `-a`, the manager also auto-invokes this command immediately per the Auto-Suggest chain rule instead of stopping; `-m` merges the epic PR only at chain termination, never on an intermediate wave.)
 - **`--stay` MUST be present** — accumulating-epic continuation, not a fresh workflow.
 - **Wave / sub label** (e.g., "Wave 4b only: Sub 10b #1493 —") if user's original instructions used one; omit otherwise.
-- **Explicit "Do NOT run /pr-complete or merge PR #<EPIC_PR> (accumulating epic PR)"** clause so the next session preserves the accumulating pattern.
+- **Explicit "Do NOT run /prc or merge PR #<EPIC_PR> (accumulating epic PR)"** clause so the next session preserves the accumulating pattern.
 - **Use the literal issue URL** from `gh` output — do not hand-construct `github.com/...` URLs.
 
 ### Hand-off — last sub or next unclear

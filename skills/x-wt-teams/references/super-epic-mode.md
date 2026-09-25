@@ -335,7 +335,7 @@ gh issue comment "$ISSUE_NUMBER" --body "Epic-PR merged into \`$SUPER_EPIC_BASE\
 gh issue close "$ISSUE_NUMBER"
 ```
 
-**`open` ⇔ `not yet implemented` is the invariant the whole chain rides on.** Auto-Suggest picks the next sibling as "the first entry in `## Implementation order` whose issue is still OPEN", and the chain terminates when none are. If a merged epic stays open, the chain re-picks it forever — re-implementing finished work against a base branch that no longer exists. Nothing else closes it: the mandatory merge above is a raw `gh pr merge` (not `/pr-complete`), and the epic-PR body carries no `Closes #N` keyword (nor would GitHub honor one — the PR merges into the super base, not the default branch).
+**`open` ⇔ `not yet implemented` is the invariant the whole chain rides on.** Auto-Suggest picks the next sibling as "the first entry in `## Implementation order` whose issue is still OPEN", and the chain terminates when none are. If a merged epic stays open, the chain re-picks it forever — re-implementing finished work against a base branch that no longer exists. Nothing else closes it: the mandatory merge above is a raw `gh pr merge` (not `/prc`), and the epic-PR body carries no `Closes #N` keyword (nor would GitHub honor one — the PR merges into the super base, not the default branch).
 
 This is a deliberate exception to Rule 27 (cleanup-resources owns end-of-workflow closes) — the same class as the `-fix` step's closes. It MUST happen here, before Auto-Suggest runs; the Step 16 audit only confirms KEEP-as-closed.
 
@@ -535,7 +535,7 @@ The super-PR URL is also recorded on the super-epic issue.
    ```
 8. Print the all-done report: merged super-PR URL, closed super-epic, and a note that `/deep-review -t` on `$SUPER_PARENT` remains a recommended (optional) quality pass over the full multi-epic diff.
 
-**Pipeline position:** this whole sequence runs inside the Auto-Suggest all-done branch — i.e. AFTER Step 15.5 (auto-fix) and Step 16 (`/cleanup-resources`), not in Merge Mode. Merge Mode's numbered steps (`/pr-complete` on the root PR) are **skipped entirely in Super-Epic child mode** — the "root PR" there is the epic-PR, which the mandatory step already merged. Consequence to respect: any `agent-fix` PR from Step 15.5 targets `$SUPER_EPIC_BASE` and must be merged **before** step 4 above deletes it (see SKILL.md's `-m` fix-PR rule), and the Step 16 manifest must carry the super base as `super-base` / the super-PR as `super-pr` — never as `parent` (cleanup-resources forbids deleting a `parent`).
+**Pipeline position:** this whole sequence runs inside the Auto-Suggest all-done branch — i.e. AFTER Step 15.5 (auto-fix) and Step 16 (`/cleanup-resources`), not in Merge Mode. Merge Mode's numbered steps (`/prc` on the root PR) are **skipped entirely in Super-Epic child mode** — the "root PR" there is the epic-PR, which the mandatory step already merged. Consequence to respect: any `agent-fix` PR from Step 15.5 targets `$SUPER_EPIC_BASE` and must be merged **before** step 4 above deletes it (see SKILL.md's `-m` fix-PR rule), and the Step 16 manifest must carry the super base as `super-base` / the super-PR as `super-pr` — never as `parent` (cleanup-resources forbids deleting a `parent`).
 
 ## How `-m` / `--merge` works in Super-Epic child mode (deferred to chain termination)
 

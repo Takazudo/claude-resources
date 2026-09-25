@@ -154,6 +154,14 @@ issue number. **When no open dashboard exists, that is not an error** — there 
 reason to carry, and the `no-auto` issues in the snapshot are still re-included on their own. A
 dashboard entry whose issue is already closed is ticked, not a candidate.
 
+**Free text typed alongside the sweep flag.** When the invocation also describes a *new* problem
+("sweep issues + found problem: …"), that problem has no issue yet, so it cannot be triaged, planned
+in existing-issue mode, or superseded-closed. **File it first** — one plain issue per described
+problem, written from the user's words (no `epic`/`sub` label) — then re-take the snapshot so it
+joins the candidate set like any other issue. Say which issue numbers you minted. Free text that is
+*guidance about the sweep* ("skip the ops ones", "prototype the UI ones") is not a problem report —
+apply it to triage, do not file it.
+
 ## Step 2: Triage — handle vs skip
 
 **Coordination shortcut (check FIRST, before the `no-auto` shortcut):** workflow-bookkeeping
@@ -219,6 +227,17 @@ Classify each issue into one of four buckets:
 - **Untouched — coordination** — workflow bookkeeping caught by the coordination shortcut above.
   Report it; mutate nothing.
 
+**`-pr` — also mark which Handle candidates need a UI prototype.** Alongside the bucket, record
+`UI proto: yes|no` for every **Handle** candidate. `yes` means the issue's outcome is a *visible
+surface whose right shape is not derivable from the issue text* — a new control, dialog, or flow; a
+layout complaint with several defensible answers; "there is no way to do X in the UI". `no` covers
+everything else, including UI-touching issues whose answer is already determined (a wrong label, a
+missing busy state that follows the design system, a focus bug). Mark sparingly: every `yes` costs
+the user feedback rounds, and a loop over an issue with one obvious answer is the incoherence the
+old `-pr`/sweep rejection was guarding against. An issue that *was* a design/scope Skip only because
+its UI direction was undecided becomes **Handle + UI proto: yes** — the loop is exactly the decision
+it was waiting for. The marks are recommendations; Step 3 lets the user flip any of them.
+
 When unsure whether something is "too big," lean toward a **Skip** bucket and surface it in
 Step 3 rather than autonomously running it.
 
@@ -237,6 +256,10 @@ Present a triage table before doing anything irreversible:
   dashboard comments read in Step 1). These are what the run exists to work through, so list them
   as their own group rather than folding them into the buckets above
 - **Will skip**: `#N` — title — reason
+- **`-pr` only — UI proto**: mark each Will-handle row `proto` or leave it blank, and list the
+  `proto` ones once more as their own line (`Will prototype: #N, #N`) so the size of the loop is
+  visible before the user confirms. Under `-isask`, fold "prototype this one?" into that
+  candidate's own question rather than asking it separately
 - **Will leave untouched (coordination)**: `#N` — title — reason
 - **Epic count** → whether the super-epic bundle fires: `{N} epics` (tiny batch epic counts as
   one) → **bundled under one super-epic** if ≥2, single standalone epic if 1
@@ -346,6 +369,86 @@ the count.) Do **not** apply `deferred` here — that one stays a suggestion in 
 decision, label the epic only, not its sub-issues — the subs follow the epic's fate. (Historical
 note: `needs-human-verified` was a duplicate of `needs-human-verify` and was deleted — don't
 recreate it.)
+
+## Step 3p: Targeted prototype loop (`-pr` only)
+
+**Run only when `-pr` was passed AND the confirmed Handle list has at least one `UI proto: yes`
+issue.** None marked → say in one line that `-pr` found no surface to prototype and continue as a
+plain sweep (no proto dir, no checkpoint, no bake). It runs **here** — after the confirmation and
+the Step 3a labels, **before** the Step 3b bootstrap — because the loop can change the epic count
+(an item the user defers drops out), and that count decides whether the bundle fires.
+
+The mechanics are [`prototype-mode.md`](prototype-mode.md) — read it in full first. A sweep changes
+only the *shape* of the loop:
+
+- **ONE loop, not one per issue.** One proto dir for the sweep
+  (`$(node "$HOME/.claude/scripts/get-logdir.js")/{sweep-slug}-proto/`), one `BRIEF.md` with a
+  section per prototyped issue, **one shared foundation** (`shared.css` / `shared.js` lifted from the
+  production tokens once), and one subdir per issue (`2107-save-shortcut/`, …) holding that issue's
+  variants. `index.html` is a gallery grouped by issue.
+- **Do the orientation per issue, lightly** (prototype-mode's Step 2 first pass): fetch each marked
+  issue, find its surface, and note the states that change the design question. The full
+  blast-radius map waits for that issue's own Step 4b plan run.
+- **Sub-mode and spread are per issue**, and lean narrow. A sweep item is nearly always "add one
+  missing control to an established surface": polish-sized, **3–6 variants**. Reach for a wide
+  brainstorm round only when the issue genuinely asks for alternative directions. Fan out with the
+  Workflow tool when the round totals roughly 8+ variant files across all issues; otherwise
+  generate directly. Write ownership is unchanged — one child, one variant file.
+- **One checkpoint per round covers every issue still open in the loop.** Present the gallery and
+  the shots grouped by issue and take the reactions together; the user answers per issue. **Issues
+  accept independently**: an accepted issue leaves the loop with its chosen variant, and the next
+  round carries only the unsettled ones. The 5-round cap and its continue / defer / select question
+  apply **per issue**.
+- **The checkpoint is unsuppressible, exactly as in a plain `-pr` run** (`-a` / `-nor` / `-po`).
+  A `-pr` sweep therefore has two planned human gates — the Step 3 confirmation/interview, then this
+  loop — and is fully autonomous after the last issue leaves the loop.
+- **"Defer" on an issue = it is not planned this sweep.** Treat it as a confirmed design/scope skip:
+  apply `no-auto` (Step 3a), record the reason for the dashboard, keep its variants on disk, and
+  drop it from the Handle list **before** counting epics for Step 3b.
+
+**What Step 4 then does differently for a prototyped issue:**
+
+- **It is always substantial — its own epic, never folded into the tiny batch epic** (Step 4a). The
+  bake needs an epic number for its path and an epic base to ride; a batch epic shared with
+  unrelated tiny fixes has neither to spare. Two prototyped issues on the obviously-same surface may
+  still pair into one epic, as any two substantial issues may.
+- **Its plan run is a `-pr` plan whose Step 2.5 already happened.** Plan the accepted direction, fold
+  the accepted feedback into the requirements checklist (Added / Removed / Superseded), write the
+  `## Prototype` section, embed the chosen variant's screenshots with the Screenshot Requirement
+  Contract, and carry the authority-order line into every sub-issue on that surface —
+  prototype-mode §9–§10, unchanged.
+- **The bake rides the child epic's own base** (bundled sweep). After that epic exists:
+
+  ```bash
+  # Literal values — shell state does not persist between commands.
+  SUPER_BASE=base/<sweep-slug>
+  EPIC_BASE=base/<sweep-slug>-<epic-slug>          # == the epic's **This epic's base branch:** marker
+  RES=_temp-resource/<epic#>-<epic-slug>
+  bash "$HOME/.claude/skills/dev-setup-temp-resource/scripts/ensure-temp-resource.sh"   # once per repo
+  git diff --quiet && git diff --cached --quiet || { echo "tree not clean — abort"; exit 1; }
+  git checkout "$SUPER_BASE" && git checkout -b "$EPIC_BASE" \
+    && mkdir -p "$RES" && cp -R <chosen variant + the shared files + shots it needs> "$RES/" \
+    && git add "$RES" && git commit -m "chore: bake accepted prototype for #<epic#>" \
+    && git push -u origin "$EPIC_BASE" \
+    || { echo "bake failed — abort"; exit 1; }
+  gh pr create --draft --base "$SUPER_BASE" --head "$EPIC_BASE" \
+    --title "<Impl Title>: epic PR (carries the accepted prototype)" --body-file <file>
+  git checkout "$SUPER_BASE"      # Step 3b rule 4: the sweep stays on the super base between plans
+  ```
+
+  If `ensure-temp-resource.sh` had to add CI-exclude plumbing, that commit belongs on the **first**
+  baked epic base only; say so in that epic's body. Then add the "**Use this PR as base**" note to
+  the epic body **as a read-modify-write that preserves the three Super-Epic markers**. This is the
+  state `/x-wt-teams`'s super-epic mode already adopts — *epic base exists, open epic-PR* → "adopt it
+  as this run's root PR" — so nothing downstream needs to know a bake happened. The implementing
+  session deletes `$RES` before the epic-PR merges, as in every resource handoff.
+- **Unbundled sweep** (single epic): the ordinary `-pr` bake, exactly as prototype-mode §9 writes it.
+  **`-lo` sweep**: no bake, reference the proto dir by path from that plan's `plan.md`. **Web**: the
+  sweep already degrades to standalone epics; follow prototype-mode §1's web rules per epic.
+- **Step 4e manifest**: add each baked epic base (`parent`, KEEP) and its draft epic-PR (`parent`,
+  KEEP).
+- **Step 6 report**: add a *Prototyped* line — `#N` → chosen variant, rounds, baked path — and a
+  *Deferred at the prototype loop* line for any issue that left the sweep there.
 
 ## Step 3b: Super-epic bundle bootstrap (≥2 epics)
 
@@ -625,6 +728,8 @@ issue, and that's exactly where orders got forgotten.)
 A **tiny** topic is one whose plan would come out as a single-sub epic — one-file fixes, test
 hygiene, comment drift, small guards. Everything else is **substantial**. The split was shown in
 the Step 3 triage table, so the user has already confirmed the batch composition.
+**Under `-pr`, an issue that went through the Step 3p loop is substantial by definition**, whatever
+its diff size — see Step 3p.
 
 - **Tiny topics → ONE batch plan** covering all their issue URLs ("plan these N tiny cleanups as
   one batch epic — one sub-issue per source topic"). One batch epic lets a single `/x-wt-teams`

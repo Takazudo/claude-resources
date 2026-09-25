@@ -1,102 +1,90 @@
 ---
 name: dev-ci-ifttt-notify
-description: "Add IFTTT webhook notification to a GitHub Actions CI/CD workflow. Use when: (1) User wants CI deploy notifications via IFTTT, (2) User says 'add IFTTT notify', 'CI notification', or 'deploy notification', (3) User wants webhook notifications for build/deploy status."
-argument-hint: <IFTTT_WEBHOOK_URL>
+description: "Add an IFTTT webhook notify job to a GitHub Actions workflow for mobile push notifications on deploy/CI success or failure. Use when the user says 'IFTTT notify', 'deploy notification', 'CI notification', or 'push notification for CI'."
+argument-hint: "[IFTTT_WEBHOOK_URL]"
 ---
 
 # CI IFTTT Notification
 
-Add an IFTTT webhook notification job to a GitHub Actions workflow. The notification reports deploy status (succeeded, failed with reason, cancelled) along with a link to the workflow run.
+Append a `notify` job to a GitHub Actions workflow (usually the production deploy workflow) that POSTs the run result to an IFTTT Webhooks URL held in the `IFTTT_PROD_NOTIFY` repo secret.
 
-## Requirements
+## Payload contract (convention C2 — this skill owns it)
 
-- User must provide the IFTTT webhook URL (e.g., `https://maker.ifttt.com/trigger/<event>/with/key/<key>`)
-- Project must have a GitHub Actions workflow to add the notification to
-- `gh` CLI must be available for setting the repo secret
-
-## IFTTT Payload Design
-
-IFTTT notifications (especially mobile push) typically only show `value1` prominently. Put **all critical info in `value1`** so the notification is self-explanatory at a glance:
+Everything that posts to `IFTTT_PROD_NOTIFY` uses this layout. Mobile push shows only `value1` prominently, so it must be self-explanatory alone:
 
 | Field | Content | Example |
 | --- | --- | --- |
 | `value1` | `<project>: <emoji> <status>` | `my-app: ✅ Deploy succeeded` |
-| `value2` | Run URL for tapping through | `https://github.com/.../runs/123` |
-| `value3` | (unused / empty) | `""` |
+| `value2` | Run URL | `https://github.com/.../runs/123` |
+| `value3` | unused | `""` |
 
-**Do NOT split project name and status across value1/value2** — the user should see the full picture from the notification title alone.
+Never split project name and status across value1/value2. Emoji: `✅` success, `❌` failure (name the failed stage), `⚠️` cancelled/other.
 
-This is the canonical IFTTT payload contract (convention C2) shared by every skill that posts to `IFTTT_PROD_NOTIFY`. `/dev-gha-ifttt-notify` follows this same layout.
-
-## Workflow
-
-### 1. Identify the Workflow
-
-Read `.github/workflows/` to find the target workflow (typically the production deploy workflow). Identify all job names and their dependency chain.
-
-### 2. Add the Notify Job
-
-Add a `notify` job at the end of the workflow with this pattern:
+## Notify job
 
 ```yaml
-notify:
-  name: Notify
-  needs: [<all-prior-jobs>]
-  runs-on: ubuntu-latest
-  timeout-minutes: 2
-  if: always()
-  steps:
-    - name: Send IFTTT notification
-      env:
-        IFTTT_PROD_NOTIFY: ${{ secrets.IFTTT_PROD_NOTIFY }}
-      run: |
-        if [ -z "$IFTTT_PROD_NOTIFY" ]; then
-          echo "IFTTT_PROD_NOTIFY not set, skipping notification"
-          exit 0
-        fi
+  notify:
+    name: Notify
+    needs: [quality, build, deploy] # ALL prior jobs
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify via IFTTT
+        if: env.IFTTT_PROD_NOTIFY != ''
+        env:
+          IFTTT_PROD_NOTIFY: ${{ secrets.IFTTT_PROD_NOTIFY }}
+        run: |
+          QUALITY="${{ needs.quality.result }}"
+          BUILD="${{ needs.build.result }}"
+          DEPLOY="${{ needs.deploy.result }}"
 
-        JOB1_RESULT="${{ needs.<job1>.result }}"
-        JOB2_RESULT="${{ needs.<job2>.result }}"
-        DEPLOY_RESULT="${{ needs.<deploy-job>.result }}"
-        # ... one variable per job in needs
+          # deploy success first, then failures in pipeline order
+          if [ "$DEPLOY" = "success" ]; then
+            STATUS="✅ Deploy succeeded"
+          elif [ "$QUALITY" = "failure" ]; then
+            STATUS="❌ Quality checks failed"
+          elif [ "$BUILD" = "failure" ]; then
+            STATUS="❌ Build failed"
+          elif [ "$DEPLOY" = "failure" ]; then
+            STATUS="❌ Deploy failed"
+          else
+            STATUS="⚠️ Cancelled (quality=$QUALITY build=$BUILD deploy=$DEPLOY)"
+          fi
 
-        # Determine status — check deploy success first, then failures in pipeline order
-        if [ "$DEPLOY_RESULT" = "success" ]; then
-          STATUS="✅ Deploy succeeded"
-        elif [ "$JOB1_RESULT" = "failure" ]; then
-          STATUS="❌ <Job1 description> failed"
-        elif [ "$JOB2_RESULT" = "failure" ]; then
-          STATUS="❌ <Job2 description> failed"
-        elif [ "$DEPLOY_RESULT" = "failure" ]; then
-          STATUS="❌ Deploy failed"
-        else
-          STATUS="⚠️ Deploy result: job1=$JOB1_RESULT job2=$JOB2_RESULT deploy=$DEPLOY_RESULT"
-        fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-        curl -s -o /dev/null \
-          -H "Content-Type: application/json" \
-          -d "{\"value1\":\"<project-name>: $STATUS\",\"value2\":\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"value3\":\"\"}" \
-          "$IFTTT_PROD_NOTIFY"
+          jq -n --arg v1 "<project-name>: $STATUS" --arg v2 "$RUN_URL" \
+            '{value1: $v1, value2: $v2, value3: ""}' | \
+          curl -sf -X POST "$IFTTT_PROD_NOTIFY" -H 'Content-Type: application/json' -d @-
 ```
 
-Key design points:
+- `secrets.*` cannot be used in an `if:` directly — map it to `env` on the step and test `env.IFTTT_PROD_NOTIFY != ''`. The job then skips silently in forks / repos without the secret.
+- Build the JSON with `jq -n`, not string interpolation — dynamic values stay safely escaped.
+- `needs` must list every job whose result is reported; a job missing from `needs` has no `needs.<job>.result`.
+- Add a line about the notify job to the workflow's header comment if it has one.
 
-- **`value1` contains project name + status** — notification is readable without opening it
-- **Emoji prefixes** (`✅`, `❌`, `⚠️`) for instant visual scanning on mobile
-- `needs` lists ALL prior jobs so status of each can be checked
-- `if: always()` ensures notification runs regardless of success/failure
-- Empty check on `IFTTT_PROD_NOTIFY` allows silent skip if secret not configured
-- Status determination checks jobs in pipeline order to identify which stage failed
-- `curl -s -o /dev/null` to suppress output noise in CI logs
-
-### 3. Set GitHub Repo Secret
+## Secret and applet
 
 ```bash
-gh secret set IFTTT_PROD_NOTIFY --body "<webhook-url>"
+gh secret set IFTTT_PROD_NOTIFY --body "<webhook-url>"   # omit --body to paste interactively
+gh secret list
 ```
 
-Verify with `gh secret list`.
+URL shape: `https://maker.ifttt.com/trigger/{EVENT}/with/key/{KEY}`. If the user has no applet yet: https://ifttt.com/maker_webhooks → trigger "Receive a web request" → action "Send a notification from the IFTTT app" with template `{{Value1}}` (`{{Value2}}` into the link field if the action has one).
 
-### 4. Update Workflow Header Comment
+An applet created with the old `{{Value1}}: {{Value2}}` template must be updated on the IFTTT side — that is a manual user action; tell the user.
 
-Add a line to the workflow's header comment describing the notification step.
+Optional `.env.example` entry for documentation:
+
+```bash
+# IFTTT webhook for production deploy notifications (GitHub Actions secret)
+# IFTTT_PROD_NOTIFY=https://maker.ifttt.com/trigger/{event}/with/key/xxxxxx
+```
+
+Test the webhook:
+
+```bash
+curl -sf -X POST "$IFTTT_PROD_NOTIFY" -H 'Content-Type: application/json' \
+  -d '{"value1":"my-app: ✅ Deploy succeeded","value2":"https://github.com/owner/repo/actions/runs/123","value3":""}'
+```

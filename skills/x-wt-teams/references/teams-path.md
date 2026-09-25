@@ -24,7 +24,7 @@ Use TeamCreate to create a team, then the Task tool to spawn child agents — on
 1. TeamCreate with team_name: "<project-name>"
 2. TaskCreate for each topic (implementation tasks)
 3. Task tool to spawn agents with:
-   - subagent_type: "frontend-worktree-child" (or "general-purpose" for non-frontend topics)
+   - subagent_type: "general-purpose" — the standing child rules live in references/child-brief.md; the prompt must open by telling the child to read $HOME/.claude/skills/x-wt-teams/references/child-brief.md first
    - team_name: "<project-name>"
    - name: "topic-<name>"  (e.g., "topic-topicA")
    - (Do NOT pass a `mode:` param. Agent-team teammates inherit the lead's permission mode at spawn

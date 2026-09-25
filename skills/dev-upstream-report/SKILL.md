@@ -49,26 +49,43 @@ package. A misread API is not an upstream bug.
 Also capture the **installed version** from the lockfile or
 `node_modules/<pkg>/package.json` — the issue is meaningless without it.
 
-## Step 3: Decide whether to name the source project
+## Step 3: Identify the source project and related issues
 
-An upstream issue is far easier to act on when it says which repo the finding
-came from — but that repo may be private or client work, so check before
-naming it:
+On invocation, identify the current working project (not the upstream package
+repo or the repo storing this skill). In watch mode, repeat this check if the
+working project changes. An upstream report should retain the source context
+when the following ownership and visibility rules allow it:
 
 ```bash
 gh repo view --json nameWithOwner,visibility -q '.nameWithOwner + " " + .visibility'
 ```
 
-- `PUBLIC` → name the source repo in the issue's Context line as
-  `<src-owner>/<src-repo>`, and link a permalink
-  (`https://github.com/<src-owner>/<src-repo>/blob/<sha>/<path>#L<n>`) to the
-  calling code when it sharpens the repro.
-- `PRIVATE`, `INTERNAL`, or the command fails (no remote, not a GitHub repo,
-  `gh` unavailable) → treat it as private: describe the project generically and
-  name nothing.
+- Compare the source repo's owner case-insensitively with `takazudo` and
+  `zudolab`. An exact match means **include source context**, regardless of
+  whether visibility is `PUBLIC`, `PRIVATE`, or `INTERNAL`. The user authorizes
+  naming and linking these repos and their related issues in upstream reports,
+  including reports on public upstream repos; no extra confirmation is needed.
+- For other owners, `PUBLIC` also means **include source context**.
+- For other owners with `PRIVATE` or `INTERNAL` visibility, or when identity
+  cannot be verified, **anonymize source context**. Do not infer ownership from
+  the upstream package, npm scope, directory name, or logged-in GitHub user.
 
-Default to private when in doubt — guessing that way costs one line of context;
-guessing the other way leaks a client's name onto a public tracker.
+When including source context, name and link `<src-owner>/<src-repo>` in the
+Context block. Include relevant source-project issue URLs from the current
+session; if none are known, search the source repo for the finding:
+
+```bash
+gh issue list -R <src-owner>/<src-repo> --search "<keywords>" --state all --limit 20
+```
+
+Read candidate issues and link only those actually related to the finding,
+with a short explanation of the connection. Use full URLs so cross-repo
+references are unambiguous. If none are found or accessible, omit the related
+issues line; never invent links or create source issues just for attribution.
+Link a calling-code permalink
+(`https://github.com/<src-owner>/<src-repo>/blob/<sha>/<path>#L<n>`) when it
+helps explain the repro. Apply this context policy to duplicate-issue comments
+and reopened issues as well as new reports.
 
 ## Step 4: Check for duplicates
 
@@ -76,9 +93,22 @@ guessing the other way leaks a client's name onto a public tracker.
 gh issue list -R <owner>/<repo> --search "<keywords>" --state all --limit 20
 ```
 
-If an existing issue already covers it, add a comment with the new context
-(installed version, repro from this project) instead of opening a duplicate,
-and report that URL.
+If an existing issue already covers it, check its **state and closing reason**
+before commenting. A comment on a closed issue is not an active report.
+
+- **Open:** add the new version/repro context there instead of opening a duplicate.
+- **Closed as superseded:** follow the replacement issue. If it is open, comment
+  there; if it is also closed and the problem still reproduces, reopen the
+  issue that best describes the live bug and add the new evidence there.
+- **Closed as fixed, not reproducible, or otherwise resolved:** verify the
+  finding against the relevant released version. If it still reproduces,
+  reopen that issue with the fresh evidence and explain why its prior closure
+  no longer reflects the observed behavior. Open a new issue only when the
+  new finding is materially different or reopening is unavailable.
+
+After commenting or reopening, query the issue state again. Do not report a
+still-closed issue as tracking an unresolved bug; leave an open upstream issue
+for a confirmed, unresolved finding and include its URL in the final summary.
 
 ## Step 5: File the issue
 
@@ -102,6 +132,8 @@ Issue body shape:
 Found while developing
 [<src-owner>/<src-repo>](https://github.com/<src-owner>/<src-repo>).
 Installed version: `<pkg>@<version>`.
+Related source issues: [<src-owner>/<src-repo>#<number>](<full issue URL>) — <connection to this finding>.
+<!-- Omit the related source issues line when none were found. -->
 
 ## Expected
 
@@ -121,8 +153,8 @@ independent of the current project>
 <only if the cause was actually located in the package source>
 ```
 
-When Step 3 said the source repo is not public, use this Context block instead
-— no repo name, no link:
+When Step 3 says to anonymize source context, use this Context block instead
+— no source repo name, source issue links, or calling-code permalinks:
 
 ```markdown
 ## Context
@@ -131,10 +163,12 @@ Found while developing a private project. Installed version: `<pkg>@<version>`.
 ```
 
 **Privacy**: upstream repos may be public while the current project may be
-private or client work. Name the source repo only on a Step 3 `PUBLIC` verdict.
-Either way, reduce the repro to the package's API surface — no client names,
-private URLs, business logic, or pasted blocks of the current project's
-proprietary code.
+private or client work. Follow Step 3: verified `takazudo` / `zudolab` source
+repos may be named and linked even when private; other private sources stay
+anonymous. This permission covers source repo identity, related issue links,
+and relevant code permalinks, not secrets or unrelated private content. Reduce
+the repro to the package's API surface — no credentials, client names, private
+service URLs, business logic, or pasted proprietary code.
 
 ### Fallback: when you can't file on the upstream repo
 
@@ -187,7 +221,5 @@ Filing the issue is a side quest — return to the main task immediately after.
   one-line comment linking the issue: `// workaround for <issue URL>` (this
   is exactly the "context that lives outside the codebase" comment exception).
 - Never patch files inside `node_modules/` as the fix.
-- If the user would rather fix the package now instead of just reporting,
-  point them at `/dev-wip-package-upstream-wt-dev`.
 - Include every filed or commented issue URL in the final summary of the
   turn, so the user can review them.

@@ -35,17 +35,6 @@ Children never run `/deep-review` or `/codex-review`, regardless of the manager'
 
 Canonical rule: `references/execution-modes.md` → "Invariant".
 
-## Codex mode (`-co`) beyond review
-
-`-co` also swings non-review work to codex, unchanged by this document's review changes:
-
-| Default | With `-co` | Used for |
-| --- | --- | --- |
-| Agent tool (web search, research) | `/codex-research` | Research during planning or implementation |
-| Agent tool (doc writing) | `/codex-writer` | READMEs, doc comments, prose |
-
-Every codex-backed skill falls back silently to a Claude equivalent when codex is rate-limited or unavailable. Nothing at the dispatcher level needs to handle that — the fallback is invisible, and it never pauses the workflow or surfaces a quota error.
-
 ## There is no reviewer-model flag
 
 **Claude Code ignores skill-level model overrides** — a skill that forks into a subagent resolves its model as `CLAUDE_CODE_SUBAGENT_MODEL` → per-invocation param → its own frontmatter → the main conversation's model. So `/code-review` runs on **the session model**. Change it with `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`.

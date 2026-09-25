@@ -1,6 +1,6 @@
 ---
 name: cclogs
-description: "Load recent prototypes, logs, plans, and artifacts from the repo-scoped Dropbox-synced cclogs dir so work started in an earlier session can be continued. Use whenever the user invokes /cclogs, including inline forms like '/cclogs refer the recent prototype and continue — we need an STL enclosure' or 'the top page prototype is in /cclogs, do the next step'. Also use, without being asked, whenever the user refers to a prototype, plan, log, agent report, or generated artifact from a previous session as if it already exists — cclogs is where /big-plan, /x-wt-teams, /x-as-pr, and /prototype-first-wisdom put those, and the user should never have to explain what cclogs is."
+description: "Load recent prototypes, logs, plans, and artifacts from the repo-scoped Dropbox-synced cclogs dir so work started in an earlier session can be continued. Use whenever the user invokes /cclogs, including inline forms like '/cclogs refer the recent prototype and continue — we need an STL enclosure' or 'the top page prototype is in /cclogs, do the next step'. Also use, without being asked, whenever the user refers to a prototype, plan, log, agent report, or generated artifact from a previous session as if it already exists — cclogs is where /big-plan, /x-wt-teams, /x-as-pr, and /protodev put those, and the user should never have to explain what cclogs is."
 disable-model-invocation: false
 argument-hint: "[name | N | --dirs | repos | (empty = recent entries) ] [+ what to do next]"
 allowed-tools: Read, Bash(node *), Bash(ls *), Bash(find *), Bash(stat *), Bash(head *), Bash(grep *), Bash(wc *), Bash(file *)
@@ -63,7 +63,7 @@ Open each kind on its own terms rather than dumping bytes:
 
 A file reported as `0 B (unsynced?)` is almost certainly an online-only Dropbox placeholder rather than an empty artifact — usually from the other machine. Wait a few seconds and re-check before treating it as empty.
 
-**If the material is not there,** check `__inbox/` in the repo root before concluding it is missing: a prototype that had to import the repo's production code or use its Vite tooling lives there instead (the documented exception in `/prototype-first-wisdom`).
+**If the material is not there,** check `__inbox/` in the repo root before concluding it is missing: a prototype that had to import the repo's production code or use its Vite tooling lives there instead (the documented exception in `/protodev`).
 
 ## Then do the work
 
@@ -79,7 +79,7 @@ Same directory, via the `{logdir}` placeholder so the path resolves correctly:
 node "$HOME/.claude/scripts/save-file.js" "{logdir}/{timestamp}-<slug>.md" "$CONTENT"
 ```
 
-New prototypes go in `$LOGDIR/<descriptive-name>/` per `/prototype-first-wisdom`. Never write cclogs paths into a GitHub issue — they are machine-local by nature and unreachable from Claude Code web, so an issue that depends on one is a dead end for whoever picks it up.
+New prototypes go in `$LOGDIR/<descriptive-name>/` per `/protodev`. Never write cclogs paths into a GitHub issue — they are machine-local by nature and unreachable from Claude Code web, so an issue that depends on one is a dead end for whoever picks it up.
 
 ## Reference
 
@@ -88,4 +88,4 @@ Read [references/layout.md](references/layout.md) to interpret an unfamiliar ent
 ## Related skills
 
 - `/db`, `/ss` — the Dropbox resolver and screenshot loader, for material outside cclogs
-- `/prototype-first-wisdom` — where prototypes come from and why they live here
+- `/protodev` — where prototypes come from and why they live here

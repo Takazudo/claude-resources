@@ -6,7 +6,7 @@ description: >-
   LATER session through git — not Dropbox/cclogs. Use when: (1) setting up `_temp-resource/` in a
   repo, (2) a planning or dev session must delegate files a later session will need — especially
   `/big-plan` → `/x-wt-teams`, or any handoff to Claude Code web where Dropbox/cclogs is
-  unavailable, (3) deciding where to put prototype output (e.g. from `/prototype-first-wisdom`) that
+  unavailable, (3) deciding where to put prototype output (e.g. from `/protodev`) that
   you've decided a downstream session should reuse, (4) reading resources a prior session left under
   `_temp-resource/`. Keywords: _temp-resource, temp resource, delegate resources, share prototype
   across sessions, web Claude Code handoff, "use this PR as base".
@@ -33,7 +33,7 @@ Use it **only when delegating to a later session** AND the resource is not alrea
 too big/binary to express inline in the issue (a prototype, a design mockup + screenshots, test
 fixtures, sample data).
 
-Do **not** reflexively store everything. `/prototype-first-wisdom` output is often discarded or never
+Do **not** reflexively store everything. `/protodev` output is often discarded or never
 acted on — keep that in cclogs. Promote a copy into `_temp-resource/` only once you've decided a
 downstream session concretely needs it. In-session work needs none of this; just use the file directly.
 

@@ -127,31 +127,8 @@ allowBuilds:
 
 This table should be expanded as new packages are evaluated.
 
-## pnpm-workspace.yaml Configuration Example
+## Notes
 
-```yaml
-# Escalate unreviewed build scripts from warning to install failure (good for CI)
-strictDepBuilds: true
-
-allowBuilds:
-  # true — scripts that must run:
-  # core-js / core-js-pure: postinstall donation banner (harmless; true also fine)
-  # unrs-resolver: native binding build (required)
-  core-js: true
-  core-js-pure: true
-  unrs-resolver: true
-  # false — evaluated and deemed unnecessary (warning silenced):
-  # @parcel/watcher: prebuilt binaries available, install script is for manual build only
-  # svelte-preprocess: postinstall is just an echo message
-  "@parcel/watcher": false
-  svelte-preprocess: false
-```
-
-## Key Principles
-
-1. **Default deny is built in** — pnpm 10+ blocks every dependency lifecycle script until you rule on it
-2. **Evaluate each package** — never bulk-approve with `pnpm approve-builds` selecting all
-3. **Document decisions** — comments in `pnpm-workspace.yaml` explain why each package is `true`/`false`
-4. **Re-evaluate on update** — when a package version changes, its scripts may change too
-5. **Check prebuilt binaries** — many native packages now ship platform-specific prebuilts (e.g., `@pkg/tool-darwin-arm64`), making their install scripts unnecessary
-6. **`strictDepBuilds: true` in CI** — turns "someone ignored the warning" into a red install
+- Re-evaluate on update — a new package version may change its scripts.
+- Many native packages now ship platform prebuilts (`@pkg/tool-darwin-arm64`), making their install scripts unnecessary.
+- `strictDepBuilds: true` for CI turns "someone ignored the warning" into a red install.

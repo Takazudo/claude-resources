@@ -20,6 +20,37 @@ For self-hosted runners this is even more pointless — the pnpm store is alread
 - run: pnpm install
 ```
 
+### Never Cache `node_modules` (Any CI)
+
+The package-manager rule extends to caching `node_modules` directories directly — `actions/cache` with `path: node_modules`, AWS Amplify `cache.paths`, other hosts' build caches. With pnpm it is worse than slow:
+
+- **Symlinks get materialized.** pnpm's `node_modules` (and every workspace package's `node_modules`) is mostly symlinks into the `.pnpm` virtual store, including cycles. Cache archivers that follow symlinks copy the same packages over and over. Measured in a pnpm monorepo: 391 symlinks under `packages/*/node_modules` → 166,841 files and 36 symlink loops when followed.
+- **It can OOM the container after the build succeeds.** On AWS Amplify (Standard compute, 8 GiB) the build finished normally, then "Creating cache artifact" ran the container out of memory ("Build container ran out of memory"). Once one build saved the bloated cache, every later build restored it (extraction 16.6 s → 1 m 43 s) and died at the same step. The trigger was a change that made the workspace-package install run more often, which is what populated `packages/*/node_modules`.
+- **It gives no speedup.** The pnpm content-addressable store lives outside `node_modules` (e.g. `~/.local/share/pnpm/store`) and wasn't cached, so `pnpm install` still logged `reused 0` and downloaded every package (~10 s for ~700 packages). The cache round trip cost 2.5–4 min per build.
+
+```yaml
+# BAD (amplify.yml) — symlinked pnpm trees, no reuse, can OOM the cache step
+cache:
+  paths:
+    - node_modules/**/*
+    - packages/**/node_modules/**/*
+
+# GOOD — cache only expensive build outputs + the hash files that gate rebuilding them
+cache:
+  paths:
+    - packages/.base-hash
+    - packages/*/public/build/**/*
+```
+
+**What to cache instead:** outputs of expensive build steps (workspace-package bundles, generated assets), skipped via a content hash. Include the lockfile in that hash so a dependency bump still forces a rebuild. Measured effect of the fix: 7 m 50 s → 3 m per build.
+
+**How to recognize this failure:**
+
+- The build log ends abruptly right after the build command's own output — the platform's "build completed" / "creating cache" lines never appear — and the platform reports OOM.
+- Cache *extraction* time at the start of builds grows between runs.
+- The install step still downloads everything (`reused 0`) despite a restored `node_modules`.
+- Diff the failing log against the last successful one: if the build phase is identical and only the cache timings differ, it's the cache, not your code.
+
 ### Custom Cache (Playwright browsers, etc.)
 
 ```yaml

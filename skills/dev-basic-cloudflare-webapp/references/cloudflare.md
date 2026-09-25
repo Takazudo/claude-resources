@@ -1,7 +1,7 @@
 # Cloudflare Configuration Reference
 
 House patterns for `wrangler.toml` and Cloudflare resources. For current
-wrangler flags and binding APIs, use `/wrangler` and `/cloudflare` — they
+wrangler flags and binding APIs, use `/cloudflare:wrangler` and `/cloudflare:cloudflare` — they
 retrieve live docs. This file is the opinion layer.
 
 ## Contents
