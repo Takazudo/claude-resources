@@ -46,6 +46,17 @@
     "zudo-pattern-gen-thumb": "user-invocable-only"
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash $HOME/.claude/scripts/web-refresh-profile.sh",
+            "timeout": 90
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",

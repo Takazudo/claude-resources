@@ -34,6 +34,23 @@ for dir in skills agents commands scripts hooks web; do
     cp -a "$REPO/$dir/." "$DEST/$dir/"
   fi
 done
+
+# Prune entries removed upstream. cp -a only adds/overwrites, and the env Setup
+# script's result is cached as an environment snapshot — without this, a
+# renamed/deleted skill (e.g. the old /pr-complete) lingers in every session.
+# Symlinks are kept: they are wisdom skills from setup-web-wisdom.sh.
+for dir in skills agents commands; do
+  [ -d "$REPO/$dir" ] && [ -d "$DEST/$dir" ] || continue
+  for entry in "$DEST/$dir"/* "$DEST/$dir"/.[!.]*; do
+    [ -e "$entry" ] || [ -L "$entry" ] || continue
+    [ -L "$entry" ] && continue
+    name="$(basename "$entry")"
+    if [ ! -e "$REPO/$dir/$name" ]; then
+      rm -rf "$entry"
+      echo "pruned stale $dir/$name"
+    fi
+  done
+done
 [ -f "$REPO/CLAUDE.md" ] && cp -a "$REPO/CLAUDE.md" "$DEST/CLAUDE.md"
 
 # Overlay the web-safe settings: no IFTTT/statusline/plugins, no Mac-absolute
@@ -65,6 +82,8 @@ fi
 # is already in place if it times out or the container kills the setup.
 # Runs AFTER the cp -a mirror so wisdom skill names (which are gitignored on Mac
 # and therefore absent from the public mirror) cannot collide with mirrored skills.
-bash "$REPO/scripts/setup-web-wisdom.sh"
+if [ "${CLAUDE_WEB_SKIP_WISDOM:-}" != "1" ]; then
+  bash "$REPO/scripts/setup-web-wisdom.sh"
+fi
 
 echo "web profile installed into $DEST"

@@ -14,6 +14,8 @@
 # Environments are per-account, so this is inherently self-only — no
 # CLAUDE_WEB_PROFILE_OPT_IN gate needed here (that gate belongs to the
 # committed single-repo hook, .claude/web-bootstrap.sh).
+# loader-rev: 2026-09-26 — bump when re-pasting; a changed script rebuilds the
+# environment's cached snapshot (stale snapshots keep deleted skills alive).
 set -uo pipefail
 
 [ -n "${HOME:-}" ] || { echo "claude-profile: \$HOME unset — skipping"; exit 0; }

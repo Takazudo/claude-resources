@@ -22,15 +22,24 @@ DROPBOX_CCLOGS_DIR=/tmp/cclogs
 DROPBOX_SCREENSHOTS_DIR=/tmp/screenshots
 ```
 
+**Per-session refresh — user-level SessionStart hook.** The Setup script's
+result is cached as an environment snapshot, so on its own it would freeze the
+profile at snapshot time. `web/settings.web.json` (installed as the container's
+`~/.claude/settings.json`) runs `scripts/web-refresh-profile.sh` every session —
+multi-repo included, since user-level hooks do register there — which pulls
+`~/.claude-src` (or re-fetches the mirror) and re-runs `setup-web.sh` without
+the slow wisdom step. Rebuild the snapshot itself by bumping `loader-rev` in
+`web/env-setup-script.sh` and re-pasting it.
+
 **Secondary — committed SessionStart hook (single-repo top-up).**
 `.claude/settings.json` registers a SessionStart hook running
 `.claude/web-bootstrap.sh` — a self-only gate (no-op unless on web **and**
 `CLAUDE_WEB_PROFILE_OPT_IN=1` is set) that re-runs `scripts/setup-web.sh` from
 the session's own checkout. In a single-repo web session on this repo that
 overlays the **current branch**'s files on top of the pre-launch install (the
-setup script only knows the default branch). The overlay is additive
-(`cp -a` union copy) — files deleted or renamed on the branch may linger from
-the default-branch install. **Limitation (verified in-container):** in multi-repo sessions
+setup script only knows the default branch). Skills, agents and
+commands missing from the source are pruned (symlinked wisdom skills kept), so
+deleted or renamed entries do not linger. **Limitation (verified in-container):** in multi-repo sessions
 the project dir is `/home/user` with repos as subdirectories, and repo-level
 settings **hooks are not registered** — CLAUDE.md and skills load, hooks don't —
 so this path silently skips there. The Setup script covers those sessions.
