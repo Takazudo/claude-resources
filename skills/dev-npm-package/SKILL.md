@@ -1,6 +1,6 @@
 ---
 name: dev-npm-package
-description: "Develop npm packages with Node.js and TypeScript following modern best practices. Use when: (1) Creating a new npm package, (2) Setting up package.json exports (dual ESM/CJS or ESM-only), (3) Configuring TypeScript for library authoring (Bundler or Node16 moduleResolution), (4) Building/publishing with tsup or tsc, (5) Creating CLI tools with bin field, (6) Testing with vitest, (7) CI/CD for npm publishing, (8) ESM/CJS interop issues, (9) Choosing a versioning / dist-tag / release-channel strategy — especially the pre-1.0 (0.x) ruling for what `latest` vs `next` should point at, how to tag prereleases, and avoiding the stale-`latest` footgun. Use this whenever the user mentions dist-tags, `latest`/`next`, prerelease tagging, 0.x versioning, or 'what version/release strategy should we use', even if they don't explicitly say 'npm package'. Keywords: npm package, publish to npm, library development, dist-tag, latest vs next, prerelease tagging, 0.x versioning, release strategy, semver channel."
+description: "Develop npm packages with Node.js/TypeScript: exports, ESM/CJS, tsup/tsc, CLI bins, vitest, publishing CI, and dist-tag / 0.x release strategy (latest vs next). Use for npm package or release-channel questions."
 ---
 
 # npm Package Development
@@ -236,6 +236,8 @@ The default install is the `latest` dist-tag: a tagless `npm install <pkg>` (or 
 
 **In CI, derive `--tag` from the version string and always pass it explicitly:** hyphen → `--tag next`, clean `X.Y.Z` → `--tag latest`. npm ≥ 11 hard-errors when you publish a prerelease without `--tag`; npm ≤ 10 silently routed prereleases onto `latest` (a silent-downgrade footgun). Never rely on the implicit default for a prerelease. At `1.0.0` the normal stable/preview split resumes automatically under this same rule — no special-casing.
 
+**Release by staging, not direct CI publish.** CI runs `npm stage publish` with a stage-only token (npm >= 11.15.0) and a maintainer promotes it with `npm stage approve <stage-id> --otp=<code>`; token-based direct publishing from CI ends January 2027. A package's **first** version cannot be staged — a maintainer publishes it once by hand. Details: [references/publishing.md](references/publishing.md#default-staged-publishing-ci-stages-a-human-approves).
+
 Detailed mechanics, the **dual-tag "advance-latest" anti-pattern** that strands `latest`, and `^0.x` range gotchas: [references/publishing.md](references/publishing.md).
 
 ## Key Rules
@@ -297,5 +299,5 @@ npm publish --dry-run      # Simulate publish
 Read these when you need specifics:
 
 - **Build tools, tsconfig, testing, linting, monorepo**: [references/tooling.md](references/tooling.md) - tsup/tsdown/unbuild comparison, TypeScript config, vitest setup, Biome vs ESLint, pnpm workspaces + Turborepo, dev workflow
-- **Publishing, versioning, dist-tags, CI/CD, security**: [references/publishing.md](references/publishing.md) - semver, **dist-tag strategy (`latest`/`next`, the pre-1.0 `0.x` clean-mainline ruling, the dual-tag stale-`latest` anti-pattern, `^0.x` range mechanics)**, Changesets/semantic-release, GitHub Actions OIDC trusted publishing, npm provenance, publint/attw, size-limit, supply chain security
+- **Publishing, versioning, dist-tags, CI/CD, security**: [references/publishing.md](references/publishing.md) - semver, **dist-tag strategy (`latest`/`next`, the pre-1.0 `0.x` clean-mainline ruling, the dual-tag stale-`latest` anti-pattern, `^0.x` range mechanics)**, Changesets/semantic-release, **staged publishing (`npm stage publish` → approve)**, GitHub Actions OIDC trusted publishing, npm provenance, publint/attw, size-limit, supply chain security
 - **Architecture, ESM/CJS, exports, CLI, dependencies**: [references/patterns.md](references/patterns.md) - dual publishing patterns, conditional exports, subpath exports, dependency types (peer/optional/bundled), CLI bin setup, argument parsing, tree-shaking optimization

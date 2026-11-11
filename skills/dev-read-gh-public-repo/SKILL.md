@@ -1,6 +1,6 @@
 ---
 name: dev-read-gh-public-repo
-description: "Read files from a PUBLIC GitHub repo that the Claude Code web/remote environment reports as out-of-scope for its GitHub MCP tools. Use when (1) running in the web/remote container (claude.ai/code, NOT a local Mac/terminal session), AND (2) a `mcp__github__*` call fails with \"Access denied: repository ... is not configured for this session\", AND (3) the repo is public. Triggers: \"can't see that repo\", \"access denied repository not configured\", \"read a public repo that's not in scope\", \"clone a public repo to read it\"."
+description: "Read a PUBLIC GitHub repo that the web environment's GitHub MCP reports as not configured for the session. Use on 'Access denied: repository ... is not configured' for a public repo."
 ---
 
 # Read a public GitHub repo that's out of MCP scope

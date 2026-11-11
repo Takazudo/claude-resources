@@ -1,6 +1,6 @@
 ---
 name: x
-description: "Facade for development workflows. Routes on two axes: plan-first vs implement-now (escalates to /big-plan -a when the request needs research / decomposition / has unclear scope — the appended -a makes the plan chain into implementation in-session), then single vs multi on the ready-to-build fast paths (/x-as-pr single-topic, /x-wt-teams multi-topic parallel). Use when: (1) User says '/x' followed by dev instructions, (2) User wants to start development without choosing the workflow skill, (3) User says 'dev', 'implement', or 'build' with a task. Default option: -v (verify-ui). The downstream skill runs /code-review by default; -co/--codex upgrades it to /deep-review. Forwards -a (autonomy/auto-chain) and -m (merge at the end + cleanup + CI watch) through every route; auto-fix of raised findings (-f) and issue-raising (-ri) are downstream defaults, with -nf/--no-fix and -nori/--no-raise-issues as the forwarded opt-outs. -a and -m are orthogonal — full hands-off end-to-end is -a -m. Pass -lo/--local to keep the run's bookkeeping (plan / tracking / spec) in a cclogs dir instead of creating GitHub issues — for public / team repos where those issues read as spam; agent-found problem issues are still raised (add -nori to suppress those too). Pass -toco/--to-codex to implement on Codex CLI instead of in-session, or -tocl/--to-claude to implement in a FRESH Claude Code session (a clean context window -- the agent-side stand-in for /clear, which cannot be invoked from inside a session). Both work on every route -- the escalation plans here and hands the epic off at the end of /big-plan, while the fast paths hand off immediately -- by opening a new tmux window running that CLI with the matching invocation (terminal-only, mutually exclusive). Pass -pr/--prototype for UI work that should be prototyped before it is planned (UI polish, new-feature UI brainstorming): it forces the /big-plan escalation, where a rough-UI build/feedback loop runs before decomposition -- the fast paths have no planning step to prototype in front of."
+description: "Facade for dev workflows: routes to /big-plan -a, /x-as-pr, or /x-wt-teams. Use for '/x <instructions>', or 'dev', 'implement', 'build' with a task. Forwards flags such as -a, -m, -co, -lo, -pr, -toco, -tocl."
 argument-hint: "[-co|--codex] [-a|--auto] [-m|--merge] [-pr|--prototype] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [-tocl|--to-claude] [-v|--verify-ui] [-s|--stay] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [options] <instructions>"
 ---
 
@@ -80,7 +80,8 @@ There is no reviewer-model flag. `/code-review` runs on the session model — Cl
 
 ### Child and subagent models
 
-No flag sets them. Child worktree agents in `/x-wt-teams` take their model from the per-topic `/big-plan` `**Model:**` annotation (default `opus`); the fix-delegation agent in `/x-as-pr` is always `opus`.
+Apply [model policy](../.shared/model-policy.md): explicit scoped user choices override defaults; the manager judges from evidence. Worker annotations are recommendations, missing ones default to Sonnet, and ordinary bounded fix agents use Sonnet. Reviewer settings remain separate.
+
 
 ### Autonomy Mode (`-a` / `--auto`)
 

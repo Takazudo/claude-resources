@@ -1,6 +1,6 @@
 ---
 name: gh-actions-wisdom
-description: "GitHub Actions workflow best practices and pitfalls reference. Use when: (1) Writing or reviewing .yml workflows, (2) Setting up CI/CD pipelines, (3) Debugging slow, expensive, or stuck workflow runs, (4) User says 'gh actions', 'github actions', 'workflow best practices', (5) Before creating or modifying any .github/workflows/ file, (6) Editing another CI's build/cache config (e.g. AWS Amplify amplify.yml) or debugging 'Build container ran out of memory'. Keywords: GitHub Actions, CI/CD, workflow, timeout, concurrency, security, caching, node_modules, pnpm, Amplify."
+description: "GitHub Actions best practices and pitfalls. Use before writing or changing .github/workflows/ files, when debugging slow/stuck/expensive runs, or for 'gh actions' / 'workflow best practices' / Amplify build config."
 ---
 
 # GitHub Actions Wisdom

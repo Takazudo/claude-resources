@@ -1,6 +1,6 @@
 ---
 name: dev-dependabot-resolve
-description: "Comprehensive dependency update workflow for resolving Dependabot alerts and PRs. Use when: (1) User wants to update dependencies, (2) User mentions 'dependabot', 'security vulnerabilities', or 'dependency updates', (3) User asks to run security audit, (4) User wants to create a deps-update PR. Analyzes Dependabot issues, runs pnpm audit, applies updates, runs quality checks (typecheck, lint, test, build), handles Playwright Docker image sync, creates PR with changelog."
+description: "Resolve Dependabot alerts and PRs: audit, update deps, run quality checks, open a deps-update PR. Use for 'dependabot', 'security vulnerabilities', 'dependency updates', or 'run security audit'."
 ---
 
 # Dependabot Resolution Workflow

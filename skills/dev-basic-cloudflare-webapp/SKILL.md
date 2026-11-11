@@ -1,6 +1,6 @@
 ---
 name: dev-basic-cloudflare-webapp
-description: "The house tech stack for a new web project on Cloudflare — framework, lint, test, CI, docs, and repo conventions, with copy-ready config templates. Cloudflare is the default infra and backend (Workers, D1, KV, R2, Durable Objects); AWS is not. Use this whenever a new web app, site, API, or worker is being started or scaffolded, whenever someone asks 'what stack should we use', 'what should I pick for X', 'set up CI/lint/test for this project', or 'scaffold a new project' — even if Cloudflare is never named, because Cloudflare is the assumed target. Also use when adding CI, lint, formatting, git hooks, deploy workflows, or a docs site to an existing project so it matches the other repos. Keywords: new project, scaffold, boilerplate, starter, tech stack, tech choice, Cloudflare, Workers, wrangler, D1, KV, R2, Durable Objects, zfb, zudo-doc, pnpm, lefthook, vitest, playwright, GitHub Actions, b4push."
+description: "House tech stack for new web projects on Cloudflare (Workers, D1, KV, R2) with config templates. Use when scaffolding a new app/site/API, choosing a stack, or adding CI/lint/test/docs to match other repos."
 argument-hint: "[project description] [--scaffold]"
 ---
 

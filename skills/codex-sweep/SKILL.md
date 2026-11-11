@@ -1,6 +1,6 @@
 ---
 name: codex-sweep
-description: "Kill stale OpenAI Codex plugin processes (orphaned app-server brokers, codex app-server/exec orphans) and clean their cxc-* temp dirs. Use when: (1) User says 'codex sweep', 'stale codex', 'codex processes', 'too many codex processes', or 'kill codex orphans', (2) A build fails with EMFILE, 'too many open files', or fs.inotify.max_user_instances exhaustion (e.g. Vite dev server on WSL2), (3) ps shows many app-server-broker.mjs or codex app-server processes, (4) After force-killing terminals or removing worktrees that had codex review sessions."
+description: "Kill stale Codex plugin processes and clean their cxc-* temp dirs. Use for 'codex sweep', 'stale codex', 'too many codex processes', or EMFILE / 'too many open files' / inotify exhaustion errors."
 argument-hint: "[--dry-run] [--age <hours>]"
 allowed-tools:
   - Bash(node *)

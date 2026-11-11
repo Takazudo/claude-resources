@@ -1,7 +1,9 @@
 ---
 name: toclaude
-description: "Hand work over to a FRESH Claude Code session instead of doing it here: opens a NEW tmux window running `CLAUDE_CODE_NO_FLICKER=1 claude --dangerously-skip-permissions --model opus` at the repo root, starts it on a prompt passed as argv, and focuses the window. This session implements nothing. Use when: (1) User says '/toclaude', (2) User says 'hand this to a fresh session', 'do this in a new session', 'start a clean session for this', 'clear and implement', or 'continue with a fresh context', (3) A planning session (typically /big-plan -po) has finished and the implementation should start on a clean context window rather than inherit the planner's, (4) /big-plan Step 11 delegates its -tocl hand-off here. This is the agent-side substitute for /clear, which only the user can invoke. Default behaviour is to pass the user's instruction through verbatim; a plan / epic issue is routed to the matching workflow skill (/x-wt-teams or /x-as-pr) instead. Long or multi-line prompts are written to a cclogs file and the path is sent. Submits by default; -ns/--no-submit stages the command in the composer for the user to send. Terminal-only (needs tmux plus claude on PATH). NOT for spawning a subagent, and NOT for /tocodex, which hands the job to Codex CLI rather than to Claude Code."
-argument-hint: "[-ns|--no-submit] [-a] [-m] [-nf] [-nori] [-lo] [/claude-skill-invocation | issue-number | instructions]"
+description: "Hand work to a FRESH Claude Code session in a new tmux window instead of doing it here (agent-side /clear). Use for /toclaude, 'do this in a new session', 'clear and implement', or /big-plan -tocl."
+argument-hint: >-
+  [-ns|--no-submit] [-a] [-m] [-nf] [-nori] [-lo] [/claude-skill-invocation | issue-number |
+  instructions]
 ---
 
 # Hand off to a fresh Claude Code session
@@ -54,7 +56,7 @@ Strip `-tocl` / `--to-claude` and `-toco` / `--to-codex` out of whatever you bui
 
 ### Which flags travel
 
-Forward `-a` / `-m` / `-nf` / `-nori` / `-lo` when they were passed, and nothing else — reviewer flags, effort levels and `-s` / `--stay` are the new session's own choice, and it picks its own branch.
+Forward `-a` / `-m` / `-nf` / `-nori` / `-lo` when they were passed, and nothing else — reviewer flags and `-s` / `--stay` are the new session's own choice, and it picks its own branch.
 
 **Forward only what was typed.** A bare `/toclaude` after a plan sends `/x-wt-teams 445`, which stops at the PR. `-m` merges and `-a` runs unattended; neither is something to start on someone's behalf because it would have been convenient. Full hands-off is `/toclaude -a -m`.
 
@@ -84,11 +86,11 @@ bash "$HOME/.claude/scripts/handoff-to-claude.sh" \
   --submit          # omit only under -ns / --no-submit
 ```
 
-The script opens the window with `CLAUDE_CODE_NO_FLICKER=1`, `--dangerously-skip-permissions` and `--model opus`, waits for the session to come up, and focuses it. The prompt rides in as the CLI's positional argument, so Claude Code submits it itself — there is no composer to type into and no Enter to get wrong.
+The script opens the window with `CLAUDE_CODE_NO_FLICKER=1`, `--dangerously-skip-permissions` and `--model opus --effort medium`, waits for the session to come up, and focuses it. The prompt rides in as the CLI's positional argument, so Claude Code submits it itself — there is no composer to type into and no Enter to get wrong.
 
-### The new session starts on Opus
+### The new session requests Opus/medium
 
-The launch pins `--model opus`, and the script reports which model it pinned — repeat that in the report. A hand-off exists to start *implementation* on a clean context; inheriting whatever this session happened to be dialled down to is not part of a clean start, and the new process has no way to know what the work needs. Opus is the deliberate floor, and the receiving session can still `/model` its way elsewhere.
+The fresh accepted-plan manager requests Opus/medium. Apply `skills/.shared/model-policy.md`: user model/effort choices override defaults, actual settings require observation, and unavailable strict requirements or unresolved high-risk work stop/report. Pass supported `--model`/`--effort` overrides to the helper; `inherit` omits the respective control.
 
 Pass `--model <alias>` to the script to pin something else, or `--model inherit` to send no `--model` at all and let the new session take its configured default. There is no skill-level flag for this — if the user names a model, hand it to the script.
 
@@ -139,7 +141,7 @@ Then stop touching that work. No branch, no PR, no worktree, no cleanup audit fo
 
 ```
 /toclaude implement the product detail pages
-   → new window: claude --dangerously-skip-permissions --model opus 'implement the product detail pages'   (passthrough, submitted)
+   → new window: claude --dangerously-skip-permissions --model opus --effort medium 'implement the product detail pages'   (passthrough, submitted)
 
 /toclaude
    → session just planned epic #445 with 6 sub-issues

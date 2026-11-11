@@ -35,16 +35,27 @@ echo "CODE_ROOT for repo scans: $CODE_ROOT"
 # or `wsl --manage --move`), so ask the registry rather than guessing paths.
 # Docker Desktop registers its own distros there too — match $WSL_DISTRO_NAME.
 vhdx=""
-if command -v reg.exe >/dev/null 2>&1 && [ -n "${WSL_DISTRO_NAME:-}" ]; then
-  base="$(reg.exe query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss' /s 2>/dev/null | tr -d '\r' \
-    | awk -v d="$WSL_DISTRO_NAME" '/^HKEY/{n=""} $1=="DistributionName"{n=$3} $1=="BasePath"&&n==d{sub(/^[ \t]*BasePath[ \t]+REG_SZ[ \t]+/,""); print; exit}')"
-  base="${base#\\\\?\\}"
-  [ -n "$base" ] && vhdx="$(wslpath -u "$base" 2>/dev/null)/ext4.vhdx"
-  [ -e "$vhdx" ] || vhdx=""
+# reg.exe is missing from PATH when Windows interop PATH is off (e.g. non-login shells), so fall back to its fixed location
+REG="$(command -v reg.exe 2>/dev/null || true)"
+[ -z "$REG" ] && [ -x /mnt/c/Windows/System32/reg.exe ] && REG=/mnt/c/Windows/System32/reg.exe
+# $WSL_DISTRO_NAME can be unset in agent shells; recover it from a live process env
+distro="${WSL_DISTRO_NAME:-$(cat /proc/1/environ 2>/dev/null | tr '\0' '\n' | sed -n 's/^WSL_DISTRO_NAME=//p' | head -1)}"
+if [ -n "$REG" ]; then
+  # with a known distro match it exactly; otherwise take every BasePath whose ext4.vhdx exists (largest wins — Docker's distros are tiny)
+  while IFS= read -r base; do
+    base="${base#\\\\?\\}"
+    c="$(wslpath -u "$base" 2>/dev/null)/ext4.vhdx"
+    [ -e "$c" ] || continue
+    if [ -z "$vhdx" ] || [ "$(stat -c %s "$c")" -gt "$(stat -c %s "$vhdx")" ]; then vhdx="$c"; fi
+  done < <("$REG" query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss' /s 2>/dev/null | tr -d '\r' \
+    | awk -v d="$distro" '/^HKEY/{n=""} $1=="DistributionName"{n=$3} $1=="BasePath"&&(d==""||n==d){sub(/^[ \t]*BasePath[ \t]+REG_SZ[ \t]+/,""); print}')
 fi
 if [ -z "$vhdx" ]; then
-  for g in /mnt/c/Users/*/AppData/Local/wsl/*/ext4.vhdx /mnt/c/Users/*/AppData/Local/Packages/*/LocalState/ext4.vhdx; do
-    [ -e "$g" ] && vhdx="$g" && break
+  # last resort: shallow search of every Windows drive (vhdx is often moved to D:, e.g. D:\wsl-rescue\ext4.vhdx)
+  for g in /mnt/c/Users/*/AppData/Local/wsl/*/ext4.vhdx /mnt/c/Users/*/AppData/Local/Packages/*/LocalState/ext4.vhdx /mnt/[a-z]/*/ext4.vhdx /mnt/[a-z]/*/*/ext4.vhdx; do
+    [ -e "$g" ] || continue
+    case "$g" in */docker*|*/Docker*) continue;; esac
+    if [ -z "$vhdx" ] || [ "$(stat -c %s "$g")" -gt "$(stat -c %s "$vhdx")" ]; then vhdx="$g"; fi
   done
 fi
 host_mnt=""

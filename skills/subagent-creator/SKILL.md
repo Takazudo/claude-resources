@@ -1,6 +1,6 @@
 ---
 name: subagent-creator
-description: "Create new Claude Code custom agents (subagents). Use when: (1) User wants to create a new custom agent, (2) User says 'create agent', 'new agent', 'make subagent', (3) User wants a specialized agent for delegation. Covers agent file format, YAML frontmatter, tool restrictions, model selection, permission modes, persistent memory, placement."
+description: "Create Claude Code custom agents (subagents). Use for 'create agent', 'new agent', 'make subagent'."
 ---
 
 # Create Custom Agent

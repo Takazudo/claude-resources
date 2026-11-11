@@ -1,6 +1,6 @@
 ---
 name: ss
-description: "Load screenshots, shared files, or directories from the Dropbox screenshots directory — the shorthand for '/db screenshots/'. Use when the user invokes /ss, including inline forms like '/ss webdaw/ use its docs'. NEVER manually list/read files from the screenshots dir — this skill handles Dropbox sync delays, freshness checks and retry logic that manual reads miss. Supports: /ss (latest 1), /ss 2 or /ss latest3 (latest N), /ss filename.png (exact or substring), /ss dirname/, /ss full-path, /ss a.png b.png (multiple), and non-image files (/ss report.html)."
+description: "Load screenshots or files from the Dropbox screenshots dir (shorthand for '/db screenshots/'). Use whenever the user invokes /ss (e.g. '/ss', '/ss 2', '/ss name.png'); never read that dir manually."
 disable-model-invocation: false
 argument-hint: "[N | latestN | filename | dirname/ | file1 file2 ...]"
 allowed-tools: Read, Bash(ls *), Bash(find *), Bash(stat *), Bash(for *), Bash(while *), Bash(head *), Bash(seq *), Bash(sleep *), Bash(printf *), Bash(sort *), Bash(cut *)

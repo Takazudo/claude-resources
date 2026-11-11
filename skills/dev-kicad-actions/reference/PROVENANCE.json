@@ -1,0 +1,36 @@
+{
+  "repository": "https://github.com/Takazudo/zudo-osc-hole-field",
+  "frozen_source_sha": "fa16c6ffa6497f095e1902c223150c23fafccd6e",
+  "smoke_tooling_sha": "cedeea792be7393f95d20cf351786781c391e2f3",
+  "identity_reviewed_head": "880f2fe75478f5dbf328f0173561e2e7d9a3f8d1",
+  "identity_merge_tooling_sha": "a133464c16237a9f423477612b46a71b62f071b5",
+  "smoke_pr": "https://github.com/Takazudo/zudo-osc-hole-field/pull/291",
+  "identity_pr": "https://github.com/Takazudo/zudo-osc-hole-field/pull/292",
+  "smoke_run": "https://github.com/Takazudo/zudo-osc-hole-field/actions/runs/39655809642",
+  "identity_run": "https://github.com/Takazudo/zudo-osc-hole-field/actions/runs/39661826910",
+  "identity_ci": "https://github.com/Takazudo/zudo-osc-hole-field/actions/runs/39658320858",
+  "smoke_status": "SUCCESS; internal artifact uninspected",
+  "identity_status": "SUCCESS; logs inspected, internal artifact uninspected",
+  "identity_artifact": {
+    "id": 12372993799,
+    "bytes": 46086,
+    "sha256": "c8da5b2a4ab7bbedcbdb1041cb0f1af1f3563bfa74c65ea40a60816b89ba65e0"
+  },
+  "cad_included": false,
+  "candidate_ingestion": "UNIMPLEMENTED",
+  "connectivity_drc_routing_acceptance": "NOT_IMPLEMENTED_BY_THIS_LANE",
+  "source_urls": {
+    ".github/workflows/osc-candidate-check.yml": "https://github.com/Takazudo/zudo-osc-hole-field/blob/a133464c16237a9f423477612b46a71b62f071b5/.github/workflows/osc-candidate-check.yml",
+    "scripts/ci/osc_candidate_check.py": "https://github.com/Takazudo/zudo-osc-hole-field/blob/a133464c16237a9f423477612b46a71b62f071b5/scripts/ci/osc_candidate_check.py",
+    "scripts/ci/test_osc_candidate_check.py": "https://github.com/Takazudo/zudo-osc-hole-field/blob/a133464c16237a9f423477612b46a71b62f071b5/scripts/ci/test_osc_candidate_check.py",
+    "scripts/ci/osc_frozen_board_inventory.py": "https://github.com/Takazudo/zudo-osc-hole-field/blob/a133464c16237a9f423477612b46a71b62f071b5/scripts/ci/osc_frozen_board_inventory.py",
+    "scripts/ci/osc_inventory_check.py": "https://github.com/Takazudo/zudo-osc-hole-field/blob/a133464c16237a9f423477612b46a71b62f071b5/scripts/ci/osc_inventory_check.py",
+    "scripts/ci/test_osc_inventory_check.py": "https://github.com/Takazudo/zudo-osc-hole-field/blob/a133464c16237a9f423477612b46a71b62f071b5/scripts/ci/test_osc_inventory_check.py",
+    "scripts/ci/test_osc_inventory_workflow.py": "https://github.com/Takazudo/zudo-osc-hole-field/blob/a133464c16237a9f423477612b46a71b62f071b5/scripts/ci/test_osc_inventory_workflow.py"
+  },
+  "oracle_urls": {
+    "scripts/kicad/run.sh": "https://github.com/Takazudo/zudo-osc-hole-field/blob/fa16c6ffa6497f095e1902c223150c23fafccd6e/scripts/kicad/run.sh",
+    "scripts/kicad/pin.env": "https://github.com/Takazudo/zudo-osc-hole-field/blob/fa16c6ffa6497f095e1902c223150c23fafccd6e/scripts/kicad/pin.env",
+    "package.json": "https://github.com/Takazudo/zudo-osc-hole-field/blob/fa16c6ffa6497f095e1902c223150c23fafccd6e/package.json"
+  }
+}

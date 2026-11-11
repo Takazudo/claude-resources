@@ -1,0 +1,39 @@
+{
+  "project": "zudo-osc-hole-field (example instance, not a default)",
+  "repository": "https://github.com/Takazudo/zudo-osc-hole-field",
+  "source_sha": "fa16c6ffa6497f095e1902c223150c23fafccd6e",
+  "tooling_sha": null,
+  "image": "kicad/kicad@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec",
+  "kicad_version": "10.0.6",
+  "wrapper_prefix": ["bash", "scripts/kicad/run.sh"],
+  "containers_per_command": 2,
+  "pins": {
+    "scripts/kicad/run.sh": "bc74f0ade82c29d64c44119ea435bc7bfd164fc06e9afff240a3cb2b44b272a0",
+    "scripts/kicad/pin.env": "769e2be0b61e7d92a6930684f13166b7dc098522008de3969cd30d6c4a363246",
+    "package.json": "ff749b4655a4cbe22c74ea248b3354a0a9ba22cc08d512ec24be3bc55b24261e"
+  },
+  "version_commands": [
+    ["bash", "scripts/kicad/run.sh", "kicad-cli", "version"],
+    ["bash", "scripts/kicad/run.sh", "python3", "-c", "import pcbnew; print(pcbnew.GetBuildVersion())"]
+  ],
+  "limits": {
+    "jobs": 1,
+    "job_timeout_minutes": 20,
+    "artifact_retention_days": 7,
+    "artifact_max_bytes": 104857600
+  },
+  "modes": {
+    "smoke": {
+      "expected_status": "FROZEN_SOURCE_SMOKE_PASS_NOT_BOARD_ACCEPTANCE",
+      "wrapper_commands": 2
+    },
+    "identity": {
+      "expected_status": "IDENTITY_INVENTORY_COMPLETE_NOT_CONNECTIVITY_ACCEPTANCE",
+      "inventory_status": "IDENTITY_ONLY_CONNECTIVITY_UNQUALIFIED",
+      "wrapper_commands": 3,
+      "extra_pins": {"boards/osc-core/osc-core.kicad_pcb": "fa60b4e1587a67501782fb55374f0e5d5133f65cd0bbe62624aef502441fda10"},
+      "expected_pad_count": 501,
+      "expected_ref_count": 160
+    }
+  }
+}

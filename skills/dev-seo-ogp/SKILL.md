@@ -1,6 +1,6 @@
 ---
 name: dev-seo-ogp
-description: "Add Open Graph (OGP) and Twitter Card meta tags for social media link previews. Use when: (1) User says 'add OGP', 'og tags', 'social preview', 'link preview', (2) Setting up SEO meta tags for a new site, (3) User wants og:image or Twitter cards, (4) User mentions 'OGP', 'Open Graph', 'twitter:card', 'social sharing'."
+description: "Add Open Graph and Twitter Card meta tags for link previews. Use for 'add OGP', 'og tags', 'og:image', 'social preview', 'twitter:card'."
 user-invocable: true
 argument-hint: "[project path or URL]"
 ---

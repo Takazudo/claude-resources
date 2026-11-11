@@ -1,6 +1,6 @@
 ---
 name: pr-revise
-description: "Update an existing PR's title and description to reflect the full implementation. Use when: (1) User says 'revise pr', 'update pr description', 'pr revise', (2) Additional work was done after the PR was created and the title/body no longer matches, (3) User wants to sync PR metadata with the branch state."
+description: "Update an existing PR's title and description to match the full implementation. Use for 'revise pr', 'update pr description', or when later work made the PR text stale."
 ---
 
 # PR Revise

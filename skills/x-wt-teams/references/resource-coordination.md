@@ -119,7 +119,7 @@ bash $HOME/.claude/scripts/heavy-guard.sh -- pnpm b4push
 ```
 
 - Projects on the current `/dev-b4push` template wrap their own heavy steps; wrapping again is a harmless no-op.
-- Run it foreground with a tool timeout that covers queue + run. Exit 75 = queue/memory timeout, the suite never ran — contention, not a failure.
+- The guard waits with no time limit until a slot and memory are free, then runs. Run it with `run_in_background: true` — the harness wakes the manager when it finishes, so a queued run resumes without the user. Never end the turn asking the user to resume. Exit 75 (only with an explicit `--wait`) = the suite never ran — re-run it, not a failure.
 - Read the guard's `verdict=` line before the failure output. `ENV_SUSPECT` → rerun once; still red with no broken expectation → **defer** it to CI under a `deferred-verification` issue and continue. `FAIL` → real, fix it.
 - Full policy (what is deferrable, what never is): [`skills/.shared/heavy-test-policy.md`](../../.shared/heavy-test-policy.md).
 

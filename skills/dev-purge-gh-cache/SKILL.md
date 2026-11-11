@@ -1,6 +1,6 @@
 ---
 name: dev-purge-gh-cache
-description: "Purge GitHub Actions caches across every non-archived repo for one or more GitHub owners (users or orgs). Use when (1) the user says \"purge gh cache\", \"clear actions cache\", \"delete CI cache\", or invokes /dev-purge-gh-cache, (2) the user wants to free up GitHub Actions cache storage for an account/org, (3) the user names one or more GitHub owners (e.g. \"Takazudo\", \"zudolab\") and asks to wipe their Actions caches. Handles fan-out across all repos, parallel survey, bulk delete, and real-time verification."
+description: "Purge GitHub Actions caches across all non-archived repos of one or more owners. Use for 'purge gh cache', 'clear actions cache', 'delete CI cache', or /dev-purge-gh-cache."
 allowed-tools: Bash
 argument-hint: <owner> [owner...] [--survey-only]
 ---

@@ -8,12 +8,11 @@
 #   handoff-to-codex.sh --dir <repo-root> --command '<text>' [--name <window>] [--submit] [--model <name>] [--effort <level>] [--timeout <sec>] [--no-auto-answer]
 #
 # --model / --effort pin the Codex session's model and reasoning effort,
-# default 'gpt-6-sol' and 'medium' (launched as `-m <model> -c
+# default 'gpt-6.1-sol' and 'low' (launched as `-m <model> -c
 # model_reasoning_effort="<effort>"`). The hand-off happens after the plan is
 # already made, so the receiving session is executing a decided spec rather than
-# deciding anything -- a manager's job, not a reasoning-heavy one. Sol at medium
-# is the manager tier; workers are dispatched by difficulty (Astra/high,
-# Sol/medium, Luna/max). The session can change either from inside.
+# deciding anything. Apply skills/.shared/model-policy.md for role-scoped choices.
+# Launch arguments request settings; they do not prove the runtime applied them.
 # Pass 'inherit' to either one to omit that flag and take the value from
 # ~/.codex/config.toml instead.
 #
@@ -37,7 +36,7 @@
 set -uo pipefail
 
 DIR="" COMMAND="" NAME="" SUBMIT=0 TIMEOUT=60 SESSION="" AUTO_ANSWER=1
-MODEL="gpt-6-sol" EFFORT="medium"
+MODEL="gpt-6.1-sol" EFFORT="low"
 
 # `shift 2` on a flag whose value is missing aborts under `set -u` with a raw
 # bash error, escaping the advertised exit-64 contract. Check first.

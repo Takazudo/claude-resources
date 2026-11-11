@@ -1,6 +1,6 @@
 ---
 name: prc
-description: "Land the current work and merge it: self-heals the branch state (commits and pushes uncommitted work via /co push, pushes a new branch, opens the PR via /pr if none exists), then monitors CI checks and merges when ready. Use when: (1) User says 'complete pr', 'merge pr', or 'finish pr', (2) PR is reviewed and ready but CI may still be running, (3) User wants to wait for CI and auto-merge, (4) User wants their current branch committed, PR'd, and merged in one go. Missing PR, missing upstream, uncommitted changes, and a missing linked issue for -c are all normal states to fix silently — never preconditions to stop and report."
+description: "Land the current work: commit/push, open a PR if missing, wait for CI, and merge. Use for 'complete pr', 'merge pr', 'finish pr'. Missing PR, upstream or uncommitted changes are fixed silently, not reported."
 argument-hint: "[-c/--close] [-k/--keep-issue] [-w/--watch-ci] [-now/--no-wait]"
 ---
 

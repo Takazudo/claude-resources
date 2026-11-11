@@ -1,0 +1,81 @@
+{
+  "name": "OSC frozen-source candidate infrastructure smoke",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "osc-smoke-fa16c6ffa6497f095e1902c223150c23fafccd6e",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "frozen-source-smoke": {
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 20,
+      "env": {
+        "TOOLING_SHA": "${{ github.workflow_sha }}",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "steps": [
+        {
+          "name": "Initialize small failure receipt",
+          "timeout-minutes": 1,
+          "run": "mkdir -p receipts\nprintf '%s\\n' '{\"status\":\"SETUP_INCOMPLETE\",\"candidate_ingestion\":\"UNIMPLEMENTED\"}' > receipts/receipt.json"
+        },
+        {
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "timeout-minutes": 2,
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "tooling",
+            "persist-credentials": false,
+            "sparse-checkout-cone-mode": false,
+            "sparse-checkout": "/scripts/ci/osc_candidate_check.py\n/scripts/ci/test_osc_candidate_check.py\n/.github/workflows/osc-candidate-check.yml"
+          }
+        },
+        {
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "timeout-minutes": 2,
+          "with": {
+            "ref": "fa16c6ffa6497f095e1902c223150c23fafccd6e",
+            "path": "frozen",
+            "persist-credentials": false,
+            "sparse-checkout-cone-mode": false,
+            "sparse-checkout": "/scripts/kicad/run.sh\n/scripts/kicad/pin.env\n/package.json"
+          }
+        },
+        {
+          "name": "Pure tests",
+          "timeout-minutes": 2,
+          "run": "python3 - <<'PY'\nimport json,sys\nfrom pathlib import Path\nsys.path.insert(0,'tooling/scripts/ci')\nfrom osc_candidate_check import run_command\nrows=[]\nfor flags in ([],['-O']):\n    r=run_command(['python3','-B',*flags,'-m','unittest','discover','-s','scripts/ci','-p','test_osc_candidate_check.py','-v'],Path('tooling').resolve(),30)\n    rows.append(r)\n    Path('receipts/tests.json').write_text(json.dumps(rows,indent=2))\n    if r['failure'] or r['exit_code']: raise SystemExit(1)\nPY"
+        },
+        {
+          "name": "Frozen source versions only",
+          "timeout-minutes": 9,
+          "run": "python3 -B tooling/scripts/ci/osc_candidate_check.py --source frozen --out receipts"
+        },
+        {
+          "name": "Bound upload to explicit small artifacts",
+          "if": "always()",
+          "timeout-minutes": 1,
+          "run": "python3 - <<'PY'\nimport json\nfrom pathlib import Path\nsrc=Path('receipts'); dst=Path('upload-safe'); dst.mkdir(exist_ok=False)\nallowed={'receipt.json','tests.json'}\ntry:\n    entries=list(src.iterdir())\n    if any(p.name not in allowed or p.is_symlink() or not p.is_file() for p in entries):\n        raise ValueError('artifact allowlist/type violation')\n    total=0; payload={}\n    for p in entries:\n        with p.open('rb') as f: data=f.read(100*1024*1024+1)\n        total+=len(data)\n        if total>100*1024*1024: raise ValueError('artifact byte cap exceeded')\n        payload[p.name]=data\n    if 'receipt.json' not in payload: raise ValueError('missing failure receipt')\n    for name,data in payload.items(): (dst/name).write_bytes(data)\nexcept Exception as exc:\n    (dst/'receipt.json').write_text(json.dumps({'status':'ARTIFACT_POLICY_FAILURE','error':str(exc)}))\n    raise SystemExit(1)\nPY"
+        },
+        {
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "if": "always()",
+          "timeout-minutes": 2,
+          "with": {
+            "name": "osc-smoke-fa16c6f-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "upload-safe/receipt.json\nupload-safe/tests.json",
+            "retention-days": 7,
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    }
+  }
+}

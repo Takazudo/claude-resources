@@ -1,16 +1,6 @@
 ---
 name: dev-ai-based-test
-description: >-
-  AI-based testing via subagent + a per-task test-flow skill. Use when the user wants to verify
-  something that mechanical assertions can't fully capture — image recognition, visual size/position
-  comparison, animation smoothness, multi-step manual flows that need AI judgment. Triggers:
-  'AI-based test', 'AI test', 'visual verify', 'image recognition test', 'manual operation test',
-  'human-eye check', 'verify visually', 'compare screenshots', 'looks the same', 'looks correct'.
-  The skill's job is to (1) author a focused test-flow skill that captures the exact procedure +
-  verdict criteria, then (2) dispatch a verification subagent via the Agent tool that loads BOTH the
-  test-flow skill AND a browser-driving skill (/verify-ui primary, /headless-browser fallback) so
-  the subagent has clear context and consistent verdicts. NEVER uses `claude -p` — subagent dispatch
-  goes through the Agent tool exclusively.
+description: "AI-judged testing via a subagent and a per-task test-flow skill. Use for 'AI test', 'visual verify', 'compare screenshots', 'looks correct', or checks mechanical assertions can't capture."
 ---
 
 # Dev: AI-based test

@@ -1,6 +1,6 @@
 ---
 name: tocodex
-description: "Hand work over to OpenAI Codex CLI instead of doing it here: opens a NEW tmux window running codex at the repo root on model gpt-6-sol at medium reasoning effort, stages a prompt in its composer, submits it, and focuses the window. This session implements nothing. Use when: (1) User says '/tocodex', (2) User says 'hand this to codex', 'do this on codex', 'let codex implement it', 'implement the next feature with codex', or 'continue on codex', (3) A planning session (typically /big-plan -po) has finished and the user wants Codex to build the epic, (4) /big-plan Step 11 delegates its -toco hand-off here. Default behaviour is to pass the user's instruction through to Codex verbatim; a plan / epic issue is routed to the matching $-prefixed Codex workflow skill ($x-wt-teams or $x-as-pr) instead. Long or multi-line prompts are written to a cclogs file and the path is sent, because the Codex composer takes one line. Submits by default; -ns/--no-submit stages the command for the user to send. Terminal-only (needs tmux plus codex on PATH). NOT for /codex-review, /codex-2nd, /codex-sweep or other read-only Codex consultations -- those answer a question in this session, while this one starts a whole implementation session elsewhere. For a hand-off to a FRESH Claude Code session rather than to Codex -- a clean context window, the agent-side stand-in for /clear -- use /toclaude instead; the two are mutually exclusive."
+description: "Hand work to OpenAI Codex CLI in a new tmux window instead of doing it here. Use for /tocodex, 'hand this to codex', 'let codex implement it', or /big-plan -toco. Not for /codex-review or /codex-2nd."
 argument-hint: "[-ns|--no-submit] [-a] [-m] [-nf] [-nori] [-lo] [$codex-skill-invocation | issue-number | instructions]"
 ---
 
@@ -48,7 +48,7 @@ Before sending any `$name`, confirm the port exists: `ls "$HOME/.codex/skills/{n
 
 ### Which flags travel
 
-Forward `-a` / `-m` / `-nf` / `-nori` / `-lo` into the Codex invocation when they were passed. Do **not** forward reviewer flags (`-co`, `-nor`), effort levels, or `-s` / `--stay` — those are the Codex session's own choice, and it picks its own branch.
+Forward `-a` / `-m` / `-nf` / `-nori` / `-lo` into the Codex invocation when they were passed. Do **not** forward reviewer flags (`-co`, `-nor`) or `-s` / `--stay` — those are the Codex session's own choice, and it picks its own branch.
 
 **Forward only what was typed.** A bare `/tocodex` after a plan sends `$x-wt-teams 445`, which stops at the PR. `-m` merges and `-a` runs unattended; neither is something to start on someone's behalf because it would have been convenient. Full hands-off is `/tocodex -a -m`.
 
@@ -80,11 +80,11 @@ bash "$HOME/.claude/scripts/handoff-to-codex.sh" \
   --submit          # omit only under -ns / --no-submit
 ```
 
-The script opens the window as `codex -m gpt-6-sol -c model_reasoning_effort="medium"`, answers Codex's startup prompts, waits for the composer, types the command, and focuses the window. It handles what silently breaks a naive `send-keys`, and reports the model and effort it pinned — repeat that in the report.
+The script opens the window as `codex -m gpt-6.1-sol -c model_reasoning_effort="low"`, answers Codex's startup prompts, waits for the composer, types the command, and focuses the window. It handles what silently breaks a naive `send-keys`, and reports the model and effort it pinned — repeat that in the report.
 
-### The Codex session starts on Sol at medium effort
+### The Codex session starts on Sol at low effort
 
-The launch pins `-m gpt-6-sol` and `-c model_reasoning_effort="medium"`. A hand-off fires *after* the planning is done: the receiving session is executing a spec that has already been argued out, which is a manager's job — dispatch the work, keep the run moving — not a reasoning-heavy one. Re-deriving decisions that are already written down buys nothing, so the manager sits at Sol/medium and workers are dispatched by the Codex `x-wt-teams` difficulty policy — `high` → `gpt-6-astra`/high, `mid` → `gpt-6-sol`/medium, `standard` → `gpt-6-luna`/max. The Codex session can raise its own with `/model` if the work turns out to need it.
+The fresh accepted-plan manager requests GPT-6.1 Sol/low. Apply the canonical model policy in `skills/.shared/model-policy.md`, including separate worker/reviewer choices, scoped user overrides, and disclosed fallback boundaries. A launch argument is requested configuration; report actual settings only when observed. The existing planner keeps its settings.
 
 Pass `--model <name>` or `--effort <level>` to the script to pin something else, or either one as `inherit` to send no flag at all and let `~/.codex/config.toml` decide. There is no skill-level flag for this — if the user names a model or an effort, hand it to the script.
 
@@ -140,7 +140,7 @@ Then stop touching that work. No branch, no PR, no worktree, no cleanup audit fo
 
 ```
 /tocodex implement the product detail pages
-   → new window: codex -m gpt-6-sol -c model_reasoning_effort="medium"
+   → new window: codex -m gpt-6.1-sol -c model_reasoning_effort="low"
    → composer: implement the product detail pages          (passthrough, submitted)
 
 /tocodex

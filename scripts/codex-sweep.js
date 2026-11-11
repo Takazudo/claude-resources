@@ -58,7 +58,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const HOME = os.homedir();
 const MARKER_FILE = path.join(HOME, ".claude", ".codex-sweep-last");
@@ -1004,7 +1004,15 @@ async function main() {
 
 // Only auto-run when executed directly as a CLI; when imported by tests, export
 // the helpers instead so fixtures can drive them (and match the state-dir hash).
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+// realpaths: also true when reached through the cloud profile's symlinked scripts dir.
+const isDirectRun = (() => {
+  try {
+    return fs.realpathSync(process.argv[1] ?? "") === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
+if (isDirectRun) {
   main().catch((err) => {
     process.stderr.write(`[codex-sweep] error: ${err?.message ?? err}\n`);
   });

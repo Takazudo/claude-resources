@@ -112,6 +112,10 @@ These transfer between projects far better than individual verdicts do.
 - **Speculative feature flags are quiet weight.** A feature enabled with a comment saying it is
   "unused today but useful later" is a removal with no behavior risk. Grep manifests for
   aspirational comments next to feature lists.
+- **An undeclared peer can live inside a compiled binary.** A Rust/Go CLI that embeds a JS runtime
+  ships its JS as strings in the executable, so grepping the npm package's `dist/` finds only comments.
+  Run `strings <binary> | grep "from '<dep>'"` on the platform binary package before calling a
+  toolchain-adjacent dep unused (`preact-render-to-string` under zfb).
 - **A KEEP justified by "an upstream framework retains it" goes stale when that upstream drops the
   dep — re-check retention-based KEEPs after first-party bumps.**
 
@@ -169,3 +173,10 @@ These transfer between projects far better than individual verdicts do.
 | 2026-09-20 | `remark-cjk-friendly` | js | REMOVE | zudo-sg | zfb 2.19 owns CJK-friendly Markdown handling natively; the obsolete root declaration removed seven package records |
 | 2026-09-20 | `minisearch` | js | REMOVE | zudo-ez-host | zudo-doc 5.26.2 has no MiniSearch runtime or peer import; custom scorer and 39-entry EN/JA search index verified; removing doc declaration removed one lockfile package record. |
 | 2026-09-20 | `pagefind` | js | REMOVE | zudo-ez-host | zudo-doc 5.26.2 emits search-index.json without Pagefind scripts/assets; EN/JA 39-entry build and unavailable-index fallback verified; removing doc declaration removed eight lockfile package records. |
+| 2026-09-24 | `@types/minimist` | js | KEEP | zudo-doc | Only minimist consumer is an unchecked MJS CLI: compiler-safe to remove types, but retain its editor typing; create-zudo-doc retains same types version so zero package reduction. |
+| 2026-09-24 | `@takazudo/mdx-formatter` | js | KEEP | zudo-doc | Root format scripts and pre-commit used unpinned dlx despite package test pin; declare same exact version at root and use pnpm exec. Offline install consolidated lru-cache 11.2.7 into existing 11.5.2, 459 to 458 lock records. |
+| 2026-09-24 | `tauri-build` | rust | KEEP | zudo-doc | All four app/template build.rs files call tauri_build::build(). cargo machete --with-metadata generated ignored Cargo.lock files inside templates; remove audit-created locks before scaffold manifest and template drift tests. |
+| 2026-09-29 | `@types/jest (business-loan-simulation)` | js | REMOVE | sai | tsconfig sets types: [] and the package has zero test files on any branch, so neither ts-jest nor svelte-check loads jest types. Hygiene only: sibling packages declare the same version, lockfile delta 0 packages. |
+| 2026-09-29 | `preact-render-to-string` | js | KEEP | sai | Zero imports in _doc source and only comments in zfb/zudo-doc dist, yet 'strings' on the zfb native binary shows embedded JS doing import { render } from 'preact-render-to-string'. Undeclared peer hidden inside a compiled binary; grep dist is not enough. |
+| 2026-09-29 | `pretty-quick` | js | DECIDE | sai | Only consumer is a root 'pretty' script duplicating the lefthook pre-commit prettier step. Dropping script+dep frees 3 packages (pretty-quick, @pkgr/core 0.2.10, tinyexec 0.3.2) but retires a dev command a prior audit deliberately pinned; left for a human. |
+| 2026-09-29 | `@babel/plugin-transform-modules-commonjs` | js | KEEP | sai | Declared only at root, but six packages/*/babel.config.js name it as a string in env.test and resolve it by walking up to the root node_modules. Removing it breaks sub-package jest runs, not the root. |

@@ -1,6 +1,6 @@
 ---
 name: dev-package-json
-description: "Organize and maintain package.json and pnpm config: scripts layout and separators, multi-process/multi-environment dev commands, serve/dev script tweaks (predev kill-port, `:net` LAN variants, non-destructive port-rotation launcher), corepack/packageManager pinning, and pnpm build-script security (allowBuilds / strictDepBuilds). Use when editing package.json scripts, on 'tweak serve', 'kill port', 'port in use', 'port rotation', 'don't kill the port', or on pnpm 'Ignored build scripts' warnings."
+description: "Organize package.json scripts and pnpm config: dev/serve scripts, kill-port, port rotation, corepack pinning, pnpm build-script security. Use when editing scripts or on 'Ignored build scripts' warnings."
 user-invocable: true
 argument-hint: "[--kill] [--net] [--rotate]"
 ---

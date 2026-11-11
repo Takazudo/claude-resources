@@ -1,6 +1,6 @@
 ---
 name: codex-2nd
-description: "Get a second opinion from OpenAI Codex CLI on a plan or approach. Use when: (1) During planning phase of /x-as-pr or /x-wt-teams to validate the approach, (2) User says 'codex 2nd', 'second opinion', or 'codex opinion', (3) Wanting an alternative perspective before committing to a plan. Sends context and plan to codex, returns feedback. Called automatically by /x-as-pr and /x-wt-teams during planning."
+description: "Get a second opinion from OpenAI Codex CLI on a plan or approach. Use for 'codex 2nd', 'second opinion', or during /x-as-pr and /x-wt-teams planning."
 allowed-tools:
   - Bash(bash $HOME/.claude/scripts/codex-guard.sh *)
   - Bash(node *)
@@ -44,7 +44,7 @@ RATE_CHECK=$(node $HOME/.claude/scripts/codex-rate-limit.js check 2>&1)
 RATE_EXIT=$?
 ```
 
-If `RATE_EXIT` is non-zero (rate-limited), **silently fall back to Opus** (see Step 5 Fallback). Do NOT report the rate limit to the user or pause the workflow.
+If `RATE_EXIT` is non-zero (rate-limited), **consider a disclosed Opus fallback for bounded work under [model policy](../.shared/model-policy.md)** (see Step 5 Fallback). Record the reason and actual reviewer; unavailable strict/high-risk review stops the affected task.
 
 ### Step 1: Build Context Prompt
 
@@ -140,7 +140,7 @@ Return the codex feedback to the caller. The caller decides whether to incorpora
 
 ### Step 5: Fallback — Opus second opinion
 
-If codex was rate-limited, timed out, or produced no usable output, **silently fall back to Opus**. Spawn one general-purpose subagent with `model: opus` to give the same second opinion the codex prompt would have produced. The caller still gets advisory feedback — no quota-loud failure mode, no missing second opinion.
+If codex was rate-limited, timed out, or produced no usable output, **consider a disclosed Opus fallback for bounded work under [model policy](../.shared/model-policy.md)**. Only after an acceptable bounded fallback is selected and disclosed, spawn one general-purpose subagent with `model: opus` to give the same second opinion the codex prompt would have produced. Record whether advisory feedback was actually obtained.
 
 ```
 Agent tool:
@@ -150,14 +150,14 @@ Agent tool:
   prompt: <same second-opinion prompt that would have gone to codex — plan/context + the standard questions>
 ```
 
-Return the subagent's feedback to the caller exactly as if it came from codex. Do NOT mention the fallback to the user — silent means silent.
+Return the feedback with actual reviewer provenance and the fallback reason. Do not claim cross-provider review occurred; strict requirements or unresolved high-risk work stop/report when unavailable.
 
 ## Timeout Policy
 
 - **Timeout**: 30 minutes (1800s), via `gtimeout`/`timeout`
 - **MUST be backgrounded** (Bash `run_in_background: true`). The Bash tool clamps foreground `timeout` to 600000 ms, so any foreground run dies at 10 minutes with a 0-byte output file and an orphaned `codex-companion.mjs`
-- **If codex times out**: Silently fall back to Opus (Step 5)
-- **Fallback agent**: general-purpose subagent at `model: opus` — the caller always gets a second opinion, just from Opus instead of codex when codex is down. Opus is the designated Claude-side stand-in for codex throughout these skills
+- **If codex times out**: apply the disclosed bounded fallback rules in Step 5.
+- **Fallback agent**: general-purpose subagent at `model: opus` — the caller gets a second opinion only when an acceptable disclosed fallback is available. Opus is the designated Claude-side stand-in for codex throughout these skills
 
 ## When Called by /x-as-pr or /x-wt-teams
 
@@ -173,6 +173,6 @@ These skills call `/codex-2nd` during their planning phase:
 
 - Codex reads workspace files for context — no need to paste file contents into the prompt
 - All file writing done by Claude Code, never by codex
-- This is advisory — never block the workflow if codex is unresponsive
-- **Silent fallback policy**: If codex is rate-limited, timed out, or unavailable, silently fall back to an Opus general-purpose subagent (Step 5). NEVER pause the workflow, NEVER report the rate limit, NEVER ask what to do. The caller still gets a second opinion — just from Opus instead of codex
+- This is advisory; continue bounded work only with an acceptable disclosed fallback. Strict requirements and unresolved high-risk review stop/report.
+- **Disclosed fallback policy**: If codex is rate-limited, timed out, or unavailable, use a disclosed bounded Opus fallback under the model policy (Step 5). Record the fallback reason and actual reviewer; do not silently increase cost or lower required capability. Report unavailable strict/high-risk review rather than claiming a second opinion
 - NEVER use `~` in paths — use `$HOME`

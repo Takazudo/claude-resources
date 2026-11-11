@@ -1,6 +1,6 @@
 ---
 name: dev-setup-webenv
-description: "(Re)apply the Claude Code on the web profile setup. Use when: (1) User says '/dev-setup-webenv', 'set up web env', 'enable my skills on web', (2) A web session boots without the profile, (3) A new web environment or account needs the Setup script re-applied. Runs LOCALLY (Mac/terminal) — prints the canonical env setup script (PRIMARY: per-account, pre-launch, covers multi-repo sessions) and/or commits a single-repo SessionStart top-up hook from the bundled template."
+description: "(Re)apply the Claude Code on the web profile setup: prints the environment setup script and/or commits a single-repo SessionStart hook. Use for /dev-setup-webenv, 'set up web env', or 'enable my skills on web'."
 argument-hint: "[--committed] [--env-script] [--self-only]"
 ---
 
@@ -133,7 +133,7 @@ and the env script is read from disk instead of being embedded here.
   lingers. Two guards: `setup-web.sh` prunes non-symlink skills/agents/commands
   missing from the source, and the user-level SessionStart hook in
   `web/settings.web.json` runs `scripts/web-refresh-profile.sh` each session
-  (pull `~/.claude-src` or re-fetch the mirror, re-run `setup-web.sh` with
+  (pull `~/.claude-src`, else fresh private clone, else workspace checkout, else the mirror; re-run `setup-web.sh` with
   `CLAUDE_WEB_SKIP_WISDOM=1`). To rebuild the snapshot itself, bump the
   `loader-rev` line and re-paste the script.
 - **Cloud sessions never read the Mac's `~/.claude`** — only claude.ai

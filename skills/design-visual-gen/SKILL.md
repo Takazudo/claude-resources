@@ -1,6 +1,6 @@
 ---
 name: design-visual-gen
-description: Create simple vector-style illustrations and diagrams for help text, documentation, onboarding, and feature explanations, matching the project's visual language. Use for schematic UI miniatures and explanatory images, including -var / --variations galleries; use a raster image skill for photographic or painterly artwork.
+description: "Create simple vector-style illustrations and diagrams for docs, help text and onboarding in the project's visual language. Use for schematic UI miniatures and explanatory images (-var for variations)."
 ---
 
 # Simple Visual Gen

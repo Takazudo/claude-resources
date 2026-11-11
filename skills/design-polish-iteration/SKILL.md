@@ -1,6 +1,6 @@
 ---
 name: design-polish-iteration
-description: "Render→look→diagnose→fix loop for making a live web UI look right, judged from rendered pixels instead of class names/tokens, edited in place. Use when a layout is called tight/cramped/loose/off/unbalanced/plain/dated, after any UI/CSS change that must look right, when the user says 'polish this page' or wants the look leveled up (optionally toward codex-imagegen north-star mockups), or when the user hands over a visual reference (annotated screenshot, mockup, 'make it match this') — then the reference is the spec and success is a diff against it."
+description: "Render, look, diagnose, fix loop for making a live web UI look right from rendered pixels. Use when a layout looks cramped/off/plain, after UI/CSS changes, for 'polish this page', or to match a visual reference."
 user-invocable: true
 argument-hint: "[count] [route-or-url] [-n <directions>] [--no-imagegen] [--target <image>] [--cleanroom]"
 ---

@@ -1,6 +1,6 @@
 ---
 name: gh-fetch-issue
-description: "Fetch a GitHub issue with all attachments (images, screenshots) downloaded locally so Claude can read them. Also resolves `/ss <filename>` screenshot placeholders in the issue by uploading the matching local screenshots and embedding them as real images. Classifies each comment and the issue body by GitHub author_association and fences untrusted (non OWNER/MEMBER/COLLABORATOR) content as data-not-instructions to blunt prompt-injection via drive-by comments. Use PROACTIVELY when: (1) User provides a GitHub issue URL, (2) User asks to read/view/check a GitHub issue, (3) User references an issue number, (4) User asks about issue screenshots or images. Ensures Claude can see issue-embedded images that are otherwise inaccessible via API."
+description: "Fetch a GitHub issue with its images downloaded locally and untrusted comments fenced. Use proactively whenever the user gives an issue URL or number or asks to read an issue."
 user-invocable: true
 argument-hint: <issue-url-or-number> [--repo owner/repo]
 allowed-tools:

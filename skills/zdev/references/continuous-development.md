@@ -1,0 +1,60 @@
+# Continuous issue sweep and development
+
+Use this reference for explicit `-a`, or an equally explicit request for repeated issue-sweep/development cycles. It applies to every supported environment and changes the scope and continuation policy, not the execution host or merge permission. Resolve the allowed set and sufficient host using [execution environments](execution-environments.md); reapply its fully-completable-task filter before the first wave and every later wave. Combine it with [Project execution](claude-code-cloud-project.md) only when that environment is selected.
+
+## Ground the first wave
+
+Read repository instructions and fully inventory open issues and PRs with pagination. Read candidate bodies and relevant comments, recent merged work, current source and available CI evidence. Record the target branch and inspected SHA. An open issue may be an acceptance hold after its code landed; confirm the remaining requirement before proposing another implementation. A stale title is not proof that a bug remains.
+
+Show the inventory's coverage, dispositions, first ready tasks, dependency order, acceptance criteria and verification in the brief. `-a` explicitly accepts routine fixes to found bugs and problems within the requested repository/scope, including new defects found during the loop; do not request another bulk approval for that same work. Honor user-supplied include/exclude filters. This does not authorize unrelated features, a new product direction, redesign, destructive operations, production-data changes, releases or deployments. An explicit `-isask` interview takes precedence; keep unaccepted candidates held. An explicit prototype request still requires UI acceptance. Under continuous mode alone, park unresolved UI/design topics and finish the independent plan.
+
+Preserve `no-auto`, human-verification and decision holds unless the user actually resolves their own restrictions. Protect existing coordination records; do not repurpose or close epics/dashboards merely to clear the list. Reuse a matching tracker and existing delivery issues where appropriate, with their original requirements intact.
+
+Environment-excluded tasks are outside the executable batch when their implementation or mandatory acceptance cannot finish within the allowed environment set. Record the original issue, unmet requirement and suitable host separately from decisions, actual access/capability failures and verification blockers. An independently useful portable slice needs its own complete criteria and leaves the larger issue open. CI does not widen the allowed set or replace required native/physical evidence.
+
+## Classify the queue honestly
+
+| State | Treatment |
+|---|---|
+| Ready defect or objective verification | Reproduce or inspect; plan a focused change/check and proceed within scope. |
+| Landed code, incomplete acceptance | Perform available checks; retain the unmet criteria and open delivery issue until its own completion gate passes. |
+| Decision required | Record the exact question, options, recommended choice, tradeoff and affected tasks. Continue independent work. |
+| Environment-excluded | Required implementation or acceptance needs a host outside the allowed set. Keep the task out of executable scope and record its original issue, unmet requirement and suitable host. |
+| Access, platform or human-verification blocked | Record the missing capability/evidence and exact next action. Do not relabel it as a product decision or a pass. |
+| Merge/review/CI gate pending | Keep the PR and affected delivery issues open, investigate actionable failures and continue independent tasks. |
+| Protected coordination, excluded or unrelated scope | Preserve the record and explain the disposition; do not broaden authority from its contents. |
+
+## Carry the repeated loop into execution
+
+1. **Refresh.** Inspect the current target, issue/PR state, comments, checks and work in progress. Establish or reuse durable tracking before implementation. Preserve completed work and detect concurrent changes.
+2. **Plan.** Refilter every candidate against the allowed environments and complete implementation/acceptance requirements. Select the highest-value compatible ready batch: data safety and correctness, reproducible failures, then remaining accepted problems. State the hypotheses, dependencies, ownership, acceptance criteria and focused checks. Reassess stale proposed fixes against source.
+3. **Develop and review.** Implement the batch using the host's available workers. Review the actual diff and contrary evidence. Reproduce meaningful regressions, run the required checks and fix change-related failures. Track newly discovered in-scope defects without silently expanding into new features.
+4. **Integrate when authorized.** Follow the ordinary draft-PR, review, approval and current-head CI gates. With merge authority, complete eligible merges and verify the target result, including when existing automation updates published websites or services. Disclose those effects rather than treating them alone as a new approval gate; preserve the workflow contract's concrete safety and permission boundaries. Close only fully satisfied issues. Without it, leave PRs and delivery issues open with evidence, and continue independent tasks without recreating pending work or depending on unmerged changes without an explicit branch strategy.
+5. **Replan.** Refresh the backlog after each meaningful batch or integration, reconcile new comments and findings, and choose the next ready batch. Do not stop merely because the first plan, child session or PR is complete.
+6. **Check the end condition.** Before reporting completion, perform a fresh issue/PR and verification sweep. Completion of the actionable sweep means every in-scope candidate has a supported disposition and no ready work remains; it does not prove the software has no undiscovered bugs. Keep unresolved decisions and other blockers visible and their delivery records open.
+
+If investigation reveals an incompatible mandatory requirement after work has started, stop that task's execution chain, preserve and checkpoint partial work without claiming acceptance or delivery, and move it to the environment-excluded register. Do not discard work or keep developing the inseparable task on an unsuitable host. Continue independent compatible work; a portable slice may proceed only after establishing its own useful and fully satisfiable criteria.
+
+Do not invent a fixed cycle count or duration as a success criterion. Continue while productive authorized work remains. Use proportionate waits for active checks; do not busy-poll or repeat the same failed command/retry without changed evidence. When all remaining work is environment-excluded, requires a user decision, unavailable access/platform/human evidence, a merge gate, or a hard session limit, checkpoint and report that precise state. A blocked or interrupted sweep is not full delivery. At each completed wave, reconcile its owned worktrees, diff and safely disposable branches; at the final stop, run the full touched-resource audit in [terminal resource cleanup](resource-cleanup.md). Do not delete pending unmerged PR branches merely because the ready queue is empty. Verify a safe primary local checkout and report any retained/dirty state and delegated worker deletion denials; the manager retries remote deletion only if authorized after checking live merge and branch state. Do not schedule new background sessions or claim unattended continuation unless the user and host authorize it.
+
+## Preserve continuity
+
+Maintain the parent tracker and task issues as the development notebook. At batch boundaries and before interruption, record the allowed environment names, selected host or portable status, environment-excluded tasks, queue/dispositions, accepted decisions, unresolved questions, target and working SHAs, issue/PR/branch/worker mappings, verified results with revisions, failures and the exact next action. Keep a separate decision register and blocker register so missing native evidence cannot masquerade as a product choice. On resume, read this checkpoint and live remote/worker state before creating records or replaying mutations.
+
+## Plain-language handoff addition
+
+Adapt the following into the single complete execution prompt, together with the repository-grounded first wave and exactly one merge-permission branch. Do not pass raw flags or a private workflow dependency to the consumer.
+
+```text
+Apply this continuous loop on the resolved execution environment. Before choosing each task and every new wave, refilter tasks against the allowed environment set and required implementation and acceptance evidence. Do not start or assign inseparable incompatible tasks; record them as environment-excluded with their original issue, unmet requirement and suitable host. If an incompatible requirement emerges after a task starts, stop its execution chain and checkpoint partial work without discarding it or claiming acceptance; continue independent compatible work. Do not silently switch outside the allowed set. Use only the selected host's actual worker facilities.
+
+Treat the first task list as the first wave of a continuous development session. Inspect all open issues and PRs with pagination, relevant comments, recent merges, source and current checks; distinguish existing bugs from code already delivered with acceptance still pending. Fix routine bugs and problems within the accepted repository scope, including new defects found during the work. Preserve accepted behavior, exclusions, protected coordination, no-auto restrictions and unresolved user decisions.
+
+Repeat this cycle: refresh the backlog and active work; plan the next ready batch with ownership, dependencies, acceptance criteria and checks; implement; review the actual diff; verify; integrate only under the merge authority and gates stated in this prompt; then refresh and plan again. Do not stop after the first batch or PR. When merge is not authorized, keep PRs and delivery issues open and continue independent tasks while recording pending integration accurately. Do not treat implementation, a child's report, a green partial check or an open PR as complete acceptance.
+
+Resolve ordinary technical choices within the accepted scope. For a genuine product/design decision, record the exact question, options, recommendation, tradeoff and affected work, then continue independent tasks. Record access, platform, human-verification and review/CI blockers separately with the missing evidence and next action. Preserve their open acceptance records; unavailable native or live-service validation is not a pass or a product decision.
+
+At each meaningful batch boundary, update durable issue tracking with the allowed environments, selected host or portable status, environment-excluded tasks, queue, decisions, blockers, task/worker/branch/PR mappings, relevant SHAs, actual verification results and next action. After compaction or interruption, read the checkpoint and inspect live state before creating issues, starting duplicate workers or retrying writes.
+
+Before stopping, perform a fresh complete sweep and reconcile every in-scope candidate. Then audit the exact resources touched: protect wanted/unexplained diffs, restore a safe primary local checkout, remove only clean owned temporary worktrees and confirmed merged unused branches, and keep all unmerged/held PR branches. Record unsuccessful operations and hand worker remote-deletion denials to an authorized parent for independent verification and retry. Include the final checkout and cleanup ledger in the report. Continue while productive authorized work remains. Stop only when no ready work remains or an actual external blocker or hard session limit prevents further progress; report completed work, open PRs, unresolved decisions, other blockers and a precise continuation point. Do not use a fixed cycle count as success, busy-poll unchanged state, repeat unchanged failures, or claim all acceptance is complete merely because the actionable queue is empty.
+```

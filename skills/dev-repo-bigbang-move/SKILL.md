@@ -1,6 +1,6 @@
 ---
 name: dev-repo-bigbang-move
-description: "Big-bang move a repository to a new remote, stripping commit history and purging private info. Use when: (1) User says 'bigbang move', 'repo move', or 'move repo', (2) User wants to move a repo to a new remote while cleaning out client/private information, (3) User needs to start fresh in a new repo without commit history."
+description: "Move a repository to a new remote without history, purging private info. Use for 'bigbang move', 'repo move', or 'move repo'."
 argument-hint: <old-repo-path> <new-repo-path>
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: dev-b4push
-description: "Set up before-push validation (b4push) in a project: scripts/run-b4push.sh, the package.json entry, a project-level b4push skill, and optionally a mirroring GitHub Actions CI workflow. Use when the user says 'create b4push', 'set up b4push', 'before push checks', 'add CI', or a new project needs a local validation workflow."
+description: "Set up before-push validation (b4push): scripts/run-b4push.sh, package.json entry, project b4push skill, optional CI. Use for 'create/set up b4push', 'before push checks', or 'add CI'."
 user-invocable: true
 allowed-tools:
   - Bash
@@ -107,7 +107,7 @@ Takes ~[duration]. All steps must pass.
 
 Identify the failed step, auto-fix what you can (`pnpm check:fix`, `pnpm lint:fix`, same under `doc/`), re-run `pnpm b4push`, report the final status.
 
-Heavy steps print a `heavy-guard: verdict=...` line. Exit 75 = queued too long, the step never ran. `ENV_SUSPECT` = failed while the machine was starved: rerun once; still red with no assertion / type / lint error in the output → defer that step to CI under a `deferred-verification` issue and report it as deferred, not passed. `FAIL` = real, fix it.
+Heavy steps print a `heavy-guard: verdict=...` line. A queued step waits (no time limit) and starts by itself when the machine frees up — run `pnpm b4push` with `run_in_background: true` so the session is woken when it finishes, and never stop to ask the user to resume. Exit 75 (only with an explicit `--wait`) = the step never ran; re-run it. `ENV_SUSPECT` = failed while the machine was starved: rerun once; still red with no assertion / type / lint error in the output → defer that step to CI under a `deferred-verification` issue and report it as deferred, not passed. `FAIL` = real, fix it.
 ```
 
 ## 4. CI workflow (optional, GitHub, no CI yet)

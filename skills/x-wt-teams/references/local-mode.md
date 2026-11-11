@@ -64,7 +64,7 @@ Plan: ./plan.md
 <full task spec — what to build, acceptance criteria, files involved>
 ```
 
-`**Execution mode:**` is `subagents` or `teams`, each followed by a `— {one-line reason}`; `**Model:**` is `fable` / `opus` / `sonnet` / `haiku`, likewise followed by a `— {one-line reason}`. `**Depends on:**` is exactly `none` or a comma-space list of complete sibling filenames (for example, `sub-02-schema.md, sub-03-api.md`) matching `sub-NN-<slug>.md`. Short IDs such as `sub-02` are legacy output and must not be emitted by a new plan. A blank reason on `**Execution mode:**` or `**Model:**` parses as a **missing** marker (falls back to teams / default `opus` respectively) exactly as in issue mode — see `references/execution-modes.md` and `references/per-topic-models.md`. These drive the same spawn-path / model / dependency-ordering decisions as in issue mode.
+`**Execution mode:**` is `subagents` or `teams`, each followed by a `— {one-line reason}`; `**Model:**` is `fable` / `opus` / `sonnet` / `haiku`, likewise followed by a `— {one-line reason}`. `**Depends on:**` is exactly `none` or a comma-space list of complete sibling filenames (for example, `sub-02-schema.md, sub-03-api.md`) matching `sub-NN-<slug>.md`. Short IDs such as `sub-02` are legacy output and must not be emitted by a new plan. A blank reason on `**Execution mode:**` or `**Model:**` parses as a **missing** marker (falls back to teams / default `sonnet` respectively) exactly as in issue mode — see `references/execution-modes.md` and `references/per-topic-models.md`. These drive the same spawn-path / model / dependency-ordering decisions as in issue mode.
 
 ### Legacy short-ID repair
 

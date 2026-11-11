@@ -112,7 +112,7 @@ This is **advisory, not blocking**. Don't pause for confirmation when no drift s
    Agent({
      description: "Implement <topic-name>",
      subagent_type: "general-purpose",   // prompt opens with: read references/child-brief.md (absolute path)
-     model: <resolved per-topic team-member model (see references/per-topic-models.md), default opus>,
+     model: <resolved per-topic team-member model (see references/per-topic-models.md), default sonnet>,
      prompt: <the canonical prompt body (items a–k) from SKILL.md Step 5, with these adjustments:
               - tell the agent its working directory is the absolute path of worktrees/<topic>/
               - tell it to commit locally only (no push)

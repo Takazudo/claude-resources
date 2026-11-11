@@ -1,6 +1,6 @@
 ---
 name: dev-clean-wsl
-description: "Reclaim disk space on WSL2 by purging dev caches and orphaned build artifacts, then guide the user through compacting the ext4.vhdx from Windows. Use when: (1) the user says 'dev-clean-wsl', 'clean wsl', 'wsl disk full', 'free disk space', 'reclaim space', 'purge caches', or 'disk almost full' on a WSL machine; (2) a build or tool fails with ENOSPC / no space left; (3) the user wants to shrink the WSL virtual disk. Covers cargo target/registry, pnpm/npm caches, node_modules, and the vhdx-compaction step that actually returns space to the Windows drive holding it (C: or wherever it was moved)."
+description: "Reclaim disk space on WSL2 by purging dev caches and build artifacts, then compacting ext4.vhdx. Use for 'clean wsl', 'wsl disk full', 'free disk space', or ENOSPC on a WSL machine."
 argument-hint: "[code-root]"
 ---
 
@@ -13,7 +13,7 @@ themselves to make that space real.
 
 On WSL2 the Linux filesystem is a single `ext4.vhdx` file on a **Windows drive** —
 `C:` by default, but it is often moved (e.g. to `D:`). The scan resolves the real
-location from the registry (`HKCU\...\Lxss` → `BasePath` for `$WSL_DISTRO_NAME`). Two consequences drive this whole skill:
+location from the registry (`HKCU\...\Lxss` → `BasePath` for `$WSL_DISTRO_NAME`), falling back to `/mnt/c/Windows/System32/reg.exe` and a shallow scan of every drive (e.g. `D:\wsl-rescue\ext4.vhdx`) when interop PATH or the distro env var is missing. Two consequences drive this whole skill:
 
 1. **`/` looking healthy is not enough.** The disk that actually fills up is
 

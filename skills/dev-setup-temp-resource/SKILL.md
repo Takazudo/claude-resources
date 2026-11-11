@@ -1,15 +1,6 @@
 ---
 name: dev-setup-temp-resource
-description: >-
-  Set up and use the committed `_temp-resource/<issue>-<topic>/` convention for handing scratch
-  resources (prototypes, design references, fixtures, sample data) from one Claude Code session to a
-  LATER session through git — not Dropbox/cclogs. Use when: (1) setting up `_temp-resource/` in a
-  repo, (2) a planning or dev session must delegate files a later session will need — especially
-  `/big-plan` → `/x-wt-teams`, or any handoff to Claude Code web where Dropbox/cclogs is
-  unavailable, (3) deciding where to put prototype output (e.g. from `/protodev`) that
-  you've decided a downstream session should reuse, (4) reading resources a prior session left under
-  `_temp-resource/`. Keywords: _temp-resource, temp resource, delegate resources, share prototype
-  across sessions, web Claude Code handoff, "use this PR as base".
+description: "Use the committed _temp-resource/<issue>-<topic>/ convention to hand prototypes, references or fixtures to a later session through git. Use for /big-plan to /x-wt-teams handoffs or web sessions without cclogs."
 ---
 
 # Dev Setup: Temp Resource

@@ -1,6 +1,6 @@
 ---
 name: purge-private-info
-description: "Scan the repo for private/confidential information and remove, rename, or replace it. Use when: (1) User says 'purge private info', 'check for secrets', or 'scan for credentials', (2) Before making a repo public, (3) User wants to ensure no client names, passwords, or personal info are exposed."
+description: "Scan the repo for private or confidential information and remove or replace it. Use for 'purge private info', 'check for secrets', or before making a repo public."
 ---
 
 # Purge Private Info

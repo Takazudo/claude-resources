@@ -29,7 +29,11 @@
 #                    ALL callers must agree on N — set it per machine in the
 #                    shell profile, not per call.
 #   --wait SECS      Max seconds to queue for a slot + memory headroom
-#                    (env HEAVY_GUARD_WAIT, default 1800). On timeout: exit 75.
+#                    (env HEAVY_GUARD_WAIT, default 0 = no limit). The default
+#                    is to wait until the machine frees up and then run: a
+#                    queued run resumes by itself instead of exiting and
+#                    leaving the calling agent idle. On timeout: exit 75.
+#   HEAVY_GUARD_HEARTBEAT  Seconds between "still queued" lines (default 60).
 #   --max-run SECS   Hard cap on the wrapped command (env HEAVY_GUARD_MAX_RUN,
 #                    default 1800; 0 disables). On expiry the command's process
 #                    group gets TERM, then KILL after 10s; exit 124.
@@ -56,8 +60,8 @@
 #
 # Exit codes
 #   *    The wrapped command's exit code, passed through.
-#   75   EX_TEMPFAIL — no slot / no memory headroom within --wait. Contention,
-#        not a test failure. Never bypass by running unguarded.
+#   75   EX_TEMPFAIL — no slot / no memory headroom within an explicit --wait.
+#        Contention, not a test failure. Never bypass by running unguarded.
 #   124  --max-run expired.
 #   2    Usage error.
 
@@ -79,7 +83,8 @@ is_uint() {
 }
 
 SLOTS="${HEAVY_GUARD_SLOTS:-1}"
-WAIT="${HEAVY_GUARD_WAIT:-1800}"
+WAIT="${HEAVY_GUARD_WAIT:-0}"
+HEARTBEAT="${HEAVY_GUARD_HEARTBEAT:-60}"
 MAX_RUN="${HEAVY_GUARD_MAX_RUN:-1800}"
 MIN_MEM_MB="${HEAVY_GUARD_MIN_MEM_MB:-2048}"
 LOW_MEM_MB="${HEAVY_GUARD_LOW_MEM_MB:-512}"
@@ -112,7 +117,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-for pair in "slots:$SLOTS" "wait:$WAIT" "max-run:$MAX_RUN" "min-mem-mb:$MIN_MEM_MB" "low-mem-mb:$LOW_MEM_MB"; do
+for pair in "slots:$SLOTS" "wait:$WAIT" "max-run:$MAX_RUN" "min-mem-mb:$MIN_MEM_MB" "low-mem-mb:$LOW_MEM_MB" "heartbeat:$HEARTBEAT"; do
   if ! is_uint "${pair#*:}"; then
     echo "heavy-guard: --${pair%%:*} must be a non-negative integer (got: '${pair#*:}')" >&2
     exit 2
@@ -215,17 +220,44 @@ try_acquire() {
   return 1
 }
 
-deadline=$(( $(date +%s) + 10#$WAIT ))
+queued_at=$(date +%s)
+deadline=""
+[ "$((10#$WAIT))" -gt 0 ] && deadline=$(( queued_at + 10#$WAIT ))
+wait_limit_text() { if [ -n "$deadline" ]; then echo "up to ${WAIT}s"; else echo "no time limit"; fi; }
+wait_expired() { [ -n "$deadline" ] && [ "$(date +%s)" -ge "$deadline" ]; }
+
+# Periodic progress while queued, so a caller watching the output can tell a
+# long queue from a hang.
+next_beat=0
+heartbeat() {
+  local now
+  now=$(date +%s)
+  [ "$((10#$HEARTBEAT))" -gt 0 ] || return 0
+  if [ "$next_beat" -eq 0 ]; then next_beat=$(( now + 10#$HEARTBEAT )); return 0; fi
+  [ "$now" -ge "$next_beat" ] || return 0
+  next_beat=$(( now + 10#$HEARTBEAT ))
+  echo "heavy-guard: still waiting ($(( now - queued_at ))s so far) — $1" >&2
+}
+
+holders() {
+  local i out=""
+  for ((i = 0; i < 10#$SLOTS; i++)); do
+    out="$out${out:+; }$(cat "$HEAVY_GUARD_DIR/slot-$i.info" 2>/dev/null || echo "slot-$i busy")"
+  done
+  echo "$out"
+}
+
 announced=""
 while ! try_acquire; do
-  if [ "$(date +%s)" -ge "$deadline" ]; then
+  if wait_expired; then
     echo "heavy-guard: timed out after ${WAIT}s waiting for a heavy-test slot (all ${SLOTS} busy — another session is running heavy tests). Contention, not a test failure." >&2
     exit 75
   fi
   if [ -z "$announced" ]; then
-    echo "heavy-guard: queued behind another heavy run (up to ${WAIT}s)..." >&2
+    echo "heavy-guard: queued behind another heavy run ($(wait_limit_text)); will start automatically when it finishes..." >&2
     announced=1
   fi
+  heartbeat "held by: $(holders)"
   sleep 1
 done
 
@@ -237,14 +269,15 @@ if [ "$((10#$MIN_MEM_MB))" -gt 0 ]; then
     avail="$(mem_avail_mb)"
     [ -n "$avail" ] || break
     [ "$avail" -ge "$((10#$MIN_MEM_MB))" ] && break
-    if [ "$(date +%s)" -ge "$deadline" ]; then
+    if wait_expired; then
       echo "heavy-guard: timed out — only ${avail}MB available, need ${MIN_MEM_MB}MB. Machine is memory-starved by something outside the guard. Contention, not a test failure." >&2
       exit 75
     fi
     if [ -z "$announced" ]; then
-      echo "heavy-guard: holding slot, waiting for memory (${avail}MB available, need ${MIN_MEM_MB}MB)..." >&2
+      echo "heavy-guard: holding slot, waiting for memory (${avail}MB available, need ${MIN_MEM_MB}MB; $(wait_limit_text)); will start automatically..." >&2
       announced=1
     fi
+    heartbeat "memory ${avail}MB available, need ${MIN_MEM_MB}MB"
     sleep 2
   done
 fi

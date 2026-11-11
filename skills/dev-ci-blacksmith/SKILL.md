@@ -1,6 +1,6 @@
 ---
 name: dev-ci-blacksmith
-description: "Run GitHub Actions on Blacksmith runners: setup, migrating from GitHub-hosted / self-hosted (detect-runner) runners, runner label choice, caching, concurrency, cost/perf habits, gotchas, debugging. Use when the user says 'blacksmith', 'CI runner', 'faster CI', 'slow CI', 'migrate runners', 'switch to blacksmith', 'drop detect-runner', or when a workflow has (or should get) a `blacksmith-*` `runs-on` label, a job sits queued forever, or a `useblacksmith/*` action shows up."
+description: "Run GitHub Actions on Blacksmith runners: setup, migration, labels, caching, debugging. Use for 'blacksmith', 'faster/slow CI', 'migrate runners', or workflows with blacksmith-* runs-on labels."
 ---
 
 # CI on Blacksmith

@@ -4,17 +4,10 @@
 # skills/dev-setup-webenv prints this file verbatim — NEVER embed a copy of it
 # in a SKILL.md (skill argument substitution mangles $-positionals).
 #
-# Runs BEFORE Claude Code launches, so the profile (skills / agents / commands /
-# settings) is in place at boot. This is the PRIMARY web loader: committed
-# .claude/settings.json SessionStart hooks do NOT register in multi-repo
-# sessions (the project dir is /home/user with repos as subdirectories, so
-# repo-level hooks never fire) — this script is per-environment and always
-# runs, whatever the repo mix.
-#
-# Environments are per-account, so this is inherently self-only — no
-# CLAUDE_WEB_PROFILE_OPT_IN gate needed here (that gate belongs to the
-# committed single-repo hook, .claude/web-bootstrap.sh).
-# loader-rev: 2026-09-26 — bump when re-pasting; a changed script rebuilds the
+# Runs BEFORE Claude Code launches, so the profile is in place at boot. PRIMARY
+# web loader: repo-level SessionStart hooks never fire in multi-repo sessions.
+# Environments are per-account, so no CLAUDE_WEB_PROFILE_OPT_IN gate here.
+# loader-rev: 2026-11-06 — bump when re-pasting; a changed script rebuilds the
 # environment's cached snapshot (stale snapshots keep deleted skills alive).
 set -uo pipefail
 
@@ -31,14 +24,30 @@ rm -rf "$SRC"
 TIMEOUT=""
 command -v timeout >/dev/null 2>&1 && TIMEOUT="timeout 120"
 
-# Tier 1: clone the private source repo — full, freshest config. Works when
-# Takazudo/claude-settings is within the environment's allowed GitHub repos.
-# GIT_TERMINAL_PROMPT=0 fails fast instead of hanging on a credential prompt.
+# Tier 1: clone the private repo (GIT_TERMINAL_PROMPT=0 fails fast).
+# Tier 1b: that clone usually fails pre-launch (no GitHub auth yet), but attached
+# repos are already cloned under the workspace root — export the claude-settings
+# checkout's committed HEAD (`git archive`, no stray working-tree edits).
+WORKSPACE="${CLAUDE_PROJECT_DIR:-/home/user}"
+CHECKOUT=""
+for d in "$WORKSPACE"/*/; do
+  url="$(git -C "$d" config --get remote.origin.url 2>/dev/null || true)"
+  case "$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')" in
+    *github.com/takazudo/claude-settings | *github.com/takazudo/claude-settings.git)
+      CHECKOUT="$d"; break ;;
+  esac
+done
+
 if GIT_TERMINAL_PROMPT=0 $TIMEOUT git clone --depth 1 \
     "https://github.com/Takazudo/claude-settings" "$SRC" 2>&1; then
   echo "claude-profile: cloned claude-settings"
+elif [ -n "$CHECKOUT" ] && rm -rf "$SRC" && mkdir -p "$SRC" \
+    && git -C "$CHECKOUT" archive HEAD | tar -x -C "$SRC" \
+    && [ -f "$SRC/scripts/setup-web.sh" ]; then
+  echo "claude-profile: installed from workspace checkout $CHECKOUT"
 else
-  # Tier 2: public claude-resources mirror as a plain-HTTPS tarball — no git
+  # Tier 2 (last resort): public claude-resources mirror — only as fresh as the
+  # last /claude-resources-share run. Plain-HTTPS tarball, no git
   # involved, so it works even where the git proxy rejects the clone.
   rm -rf "$SRC"; mkdir -p "$SRC"
   TARBALL="$(mktemp)"

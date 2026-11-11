@@ -1,6 +1,6 @@
 ---
 name: retro-notes
-description: "Capture AI-readable postmortems after a dev attempt resolves into a project-scoped lessons file that future /big-plan runs can read. Use when: (1) User says 'retro-notes', 'retro', 'capture lessons', 'fail-notes', 'postmortem', (2) A dev session wrapped up that took longer than expected, changed approach mid-way, or had non-obvious gotchas. Reader is a future planning agent."
+description: "Capture AI-readable postmortems into a project lessons file that future /big-plan runs read. Use for 'retro-notes', 'retro', 'capture lessons', 'postmortem', or after a session with non-obvious gotchas."
 ---
 
 # Retro Notes

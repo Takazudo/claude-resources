@@ -31,9 +31,17 @@ bash "$HOME/.codex/scripts/heavy-guard.sh"  -- pnpm test:e2e   # Codex
   until `HEAVY_GUARD_MIN_MEM_MB` (default 2048) is available. Tune per machine with
   `HEAVY_GUARD_SLOTS` / `HEAVY_GUARD_MIN_MEM_MB` in the shell profile — never per call, all callers
   must agree.
-- **Run it in the foreground and wait.** A queued guard can sit for up to `--wait` (default 30 min)
-  before it starts. Give the tool call a timeout that covers queue + run. A child / worker agent
-  must never background it and end its turn (completion notices go to the manager, not the child).
+- **A queued run resumes by itself — never park the session on the user.** By default the guard
+  has no queue limit: it waits until a slot and memory headroom are free, then runs, printing a
+  `still waiting` line every minute. Waiting is the expected path, not a failure to report.
+  - **Claude Code main / manager session:** run the guarded command with `run_in_background: true`
+    (the Bash tool caps a foreground call at 10 min, far shorter than a real queue). The harness
+    wakes the session when the command exits, so the work continues on its own. Do not poll it,
+    and do not end the turn asking the user to resume.
+  - **Foreground callers** (Codex; a Claude subagent / child, whose background notices go to the
+    manager instead): give the call the longest timeout the tool allows. If the tool cuts the call
+    off while it is still queued, run the same command again immediately — the killed guard freed
+    its place, nothing to clean up. Keep re-running; never end the turn to wait for the user.
 - An agent that dies mid-run frees its slot automatically and its test tree is torn down. There is
   nothing to clean up and no lock to break — never delete files under `$HOME/.agent-guard`.
 - This does not replace the per-workflow rule that children / workers hand heavy runs to the
@@ -49,7 +57,7 @@ heavy-guard: verdict=PASS|FAIL|ENV_SUSPECT exit=N secs=N min_mem_mb=N reason=...
 
 | Outcome | Meaning | Do |
 | --- | --- | --- |
-| exit 75 | Queue or memory wait timed out. The suite never ran. | Retry later, or defer (Rule 3). Never bypass the guard. Never report as a test failure. |
+| exit 75 | Only with an explicit `--wait`: the queue timed out, the suite never ran. | Re-run the same command right away (Rule 1). Never bypass the guard, never report it as a test failure, never stop to ask the user. |
 | `ENV_SUSPECT` | Failed with an environment signature: exit 137 (OOM kill), exit 124 (`--max-run` expired), or memory dipped under the low-water mark. | Rerun ONCE — the guard already guarantees it runs alone. Green → it was starvation; move on, no issue. Red again → Rule 3. |
 | `FAIL` | Failed with memory to spare. | A real failure. Fix it. Not deferrable. |
 
@@ -63,8 +71,7 @@ process are the environment-shaped ones.
 When a heavy step cannot produce a trustworthy local result, do not block the workflow and do not
 call it green. Defer it:
 
-1. **Deferrable only if all hold:** (a) exit 75, or `ENV_SUSPECT` that stayed red on the solo
-   rerun, or the step cannot run on this platform at all (a macOS-only step on WSL/Linux, and the
+1. **Deferrable only if all hold:** (a) `ENV_SUSPECT` that stayed red on the solo rerun, or the step cannot run on this platform at all (a macOS-only step on WSL/Linux, and the
    reverse); (b) the failure output shows no broken expectation (Rule 2); (c) something else WILL
    run that exact step — a CI job that mirrors it, or the other machine.
 2. **Record it.** Raise an issue labelled `deferred-verification` (create the label if missing)
@@ -81,6 +88,8 @@ it as **unverified** and stop short of merging.
 
 - Run a heavy suite unguarded because the queue is slow.
 - Raise slots or lower the memory gate for one call to get through.
-- Treat exit 75 or `ENV_SUSPECT` as a pass, or retry more than once hoping for green.
+- Treat exit 75 or `ENV_SUSPECT` as a pass, or retry an `ENV_SUSPECT` run more than once hoping
+  for green.
+- Stop and hand a queued run back to the user. A queue is a wait, not a blocker.
 - Weaken the test (longer timeouts, fewer workers, skipped specs) to fit this machine. Machine
   limits are the scheduler's problem.

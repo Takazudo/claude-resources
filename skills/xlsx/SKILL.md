@@ -1,6 +1,6 @@
 ---
 name: xlsx
-description: "Spreadsheet creation, editing, and analysis. Use when working with .xlsx, .xlsm, .csv, .tsv files for: (1) Creating spreadsheets with formulas and formatting, (2) Reading or analyzing data, (3) Modifying existing spreadsheets while preserving formulas, (4) Data analysis and visualization, (5) Recalculating formulas."
+description: "Create, edit and analyze spreadsheets (.xlsx, .xlsm, .csv, .tsv), preserving formulas. Use for spreadsheet work."
 license: Proprietary. LICENSE.txt has complete terms
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: cleanup-resources
-description: "End-of-workflow audit of touched GitHub issues, PRs, and branches via a Sonnet subagent, plus a deterministic sweep of stale build-tool temp artifacts (e.g. zfb-shadow-session-*) to reclaim disk. Use when: (1) /big-plan, /x-as-pr, or /x-wt-teams finishes its main work and needs to verify every touched resource is in the right state (closed when done, kept when ongoing, deleted when dead), (2) User says 'cleanup resources', 'audit cleanup', 'check what should be closed', or 'clean disk / clear stale temp files', (3) A long workflow ends and the manager wants a structured paper trail of what it closed/kept/deleted. Auto-execute by default — the Sonnet agent proposes GitHub actions, the manager (you) executes the safe ones, sweeps stale temp dirs (allowlist + age gated), and prints a final report."
+description: "End-of-workflow audit of touched GitHub issues, PRs and branches (close/keep/delete) plus a sweep of stale build temp dirs. Use after /big-plan, /x-as-pr, /x-wt-teams, or for 'cleanup resources' / 'clean disk'."
 argument-hint: "[workflow:big-plan|x-as-pr|x-wt-teams] [-a|--auto-merged] [extra context]"
 ---
 

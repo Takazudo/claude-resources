@@ -1,10 +1,6 @@
 ---
 name: pdf-combine
-description: >-
-  Combine multiple PDF files into a single PDF. Use when: (1) User wants to merge PDF files, (2)
-  User mentions 'combine PDFs', 'merge PDFs', or 'join PDFs', (3) User has multiple PDFs that need
-  to be consolidated. Respects file order: when given a directory, files are sorted alphabetically;
-  when given specific file paths, the order provided is preserved.
+description: "Combine multiple PDF files into one, preserving the given order. Use for 'combine PDFs', 'merge PDFs', 'join PDFs'."
 ---
 
 # Combine PDF Files

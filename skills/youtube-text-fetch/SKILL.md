@@ -1,6 +1,6 @@
 ---
 name: youtube-text-fetch
-description: "Fetch transcript/caption text from YouTube videos using youtube-transcript-api. Use when: (1) User wants text from a YouTube video, (2) User provides YouTube URLs and needs transcripts, (3) User says 'fetch youtube text', 'get captions', 'youtube transcript'. Outputs plain text saved to the repo-scoped cclogs dir (resolved via get-logdir.js) as youtube-{VIDEO_ID}.txt."
+description: "Fetch transcript text from YouTube videos into the cclogs dir. Use for 'fetch youtube text', 'get captions', 'youtube transcript', or YouTube URLs that need transcripts."
 user-invocable: true
 argument-hint: "YouTube URL(s) — space-separated if multiple. Optional flags: --timestamps (include timestamps in output)"
 ---

@@ -1,6 +1,6 @@
 ---
 name: dev-upstream-report
-description: "Report bugs and improvement ideas found in Takazudo's own upstream packages as GitHub issues on the upstream repo. The current project depends on packages built by the user under github.com/takazudo and github.com/zudolab (e.g. zudolab/zudo-doc, Takazudo/zudo-front-builder, the @takazudo/* npm scope). Use when: (1) User invokes /dev-upstream-report — with a description to report something now, or with no args to enable upstream-watch mode for the rest of the session, (2) During development a bug, limitation, or missing feature is traced to one of these upstream packages rather than the current project, (3) User says 'report upstream', 'upstream issue', 'file it on the package repo', or blames one of these packages for a problem."
+description: "File bugs and ideas found in Takazudo's own upstream packages (takazudo/zudolab repos, @takazudo/* npm) as issues on the upstream repo. Use for /dev-upstream-report, 'report upstream', 'upstream issue'."
 argument-hint: "[what to report — leave empty to enable upstream-watch mode]"
 ---
 

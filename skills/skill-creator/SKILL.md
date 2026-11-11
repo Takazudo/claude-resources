@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: "Guide for creating new Claude Code skills AND tweaking/fixing existing ones. Use when: (1) User wants to create a new skill, (2) User wants to improve, fix, or tweak an existing skill, (3) User says 'create skill', 'new skill', 'fix skill', 'update skill', 'tweak skill', 'skill not working', or 'skill triggers too often'. Covers skill anatomy (SKILL.md, scripts/, references/, assets/), progressive disclosure, frontmatter, bundled resources, init_skill.py, diagnosing trigger/behavior issues, and iteration."
+description: "Create new Claude Code skills or fix/tweak existing ones. Use for 'create skill', 'new skill', 'fix skill', 'update skill', 'skill not working', or 'skill triggers too often'."
 ---
 
 # Skill Creator

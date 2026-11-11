@@ -1,6 +1,6 @@
 ---
 name: format-md
-description: "Format markdown (.md) and MDX (.mdx) files using @takazudo/mdx-formatter. Use when: (1) User wants to format markdown files, (2) User mentions 'format md', 'prettify markdown', or 'fix markdown formatting', (3) Markdown/MDX files need consistent formatting. Features: remark-based AST formatting, MDX (JSX, imports/exports), Japanese text, HTML→md conversion, Docusaurus admonitions, GFM (tables, strikethrough, task lists)."
+description: "Format .md and .mdx files with @takazudo/mdx-formatter. Use for 'format md', 'prettify markdown', 'fix markdown formatting'."
 ---
 
 # Format Markdown/MDX Files

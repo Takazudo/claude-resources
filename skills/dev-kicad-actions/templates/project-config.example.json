@@ -1,0 +1,38 @@
+{
+  "project": "<project name>",
+  "repository": "https://github.com/<owner>/<repo>",
+  "source_sha": "<40-hex immutable source/board commit>",
+  "tooling_sha": null,
+  "image": "kicad/kicad@sha256:<64-hex digest>",
+  "kicad_version": "<exact version, e.g. 10.0.6>",
+  "wrapper_prefix": ["bash", "scripts/kicad/run.sh"],
+  "containers_per_command": 2,
+  "pins": {
+    "scripts/kicad/run.sh": "<sha256>",
+    "scripts/kicad/pin.env": "<sha256>"
+  },
+  "version_commands": [
+    ["bash", "scripts/kicad/run.sh", "kicad-cli", "version"],
+    ["bash", "scripts/kicad/run.sh", "python3", "-c", "import pcbnew; print(pcbnew.GetBuildVersion())"]
+  ],
+  "limits": {
+    "jobs": 1,
+    "job_timeout_minutes": 20,
+    "artifact_retention_days": 7,
+    "artifact_max_bytes": 104857600
+  },
+  "modes": {
+    "smoke": {
+      "expected_status": "<controller success status for smoke>",
+      "wrapper_commands": 2
+    },
+    "identity": {
+      "expected_status": "<controller success status for identity>",
+      "inventory_status": "<inventory payload status>",
+      "wrapper_commands": 3,
+      "extra_pins": {"<board path>": "<sha256>"},
+      "expected_pad_count": 0,
+      "expected_ref_count": 0
+    }
+  }
+}

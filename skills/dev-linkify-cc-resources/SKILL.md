@@ -1,6 +1,6 @@
 ---
 name: dev-linkify-cc-resources
-description: "Link Claude Code skill names mentioned in a CodeGrid article (data/{series}/{n}.md) to the author's public claude-resources repo, pinned to the latest commit hash so links don't rot. Use when: (1) user says 'linkify cc resources', 'link the skills', 'link skill names', or invokes /dev-linkify-cc-resources; (2) editing a CodeGrid article that mentions `/commits`, `/pr-complete`, `/skill-creator` or other Claude Code skills and they should point to claude-resources. Only links skills that actually exist in the public repo; skips hypothetical examples and code blocks."
+description: "Link Claude Code skill names in a CodeGrid article to the public claude-resources repo, pinned to the latest commit. Use for 'linkify cc resources', 'link the skill names', or /dev-linkify-cc-resources."
 ---
 
 # Linkify CodeGrid skill mentions

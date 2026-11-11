@@ -1,6 +1,6 @@
 ---
 name: push-forbid
-description: "Disable automatic pushing. From now on, do NOT push to the remote automatically. Use when: (1) User says 'push forbid', 'no push', or 'stop pushing', (2) During sequential large development to save CI costs, (3) User wants to control when changes are pushed."
+description: "Disable automatic pushing for the rest of the session. Use for 'push forbid', 'no push', 'stop pushing'."
 ---
 
 # Push Forbid

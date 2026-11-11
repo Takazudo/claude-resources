@@ -1,0 +1,23 @@
+{
+  "name": "zudo-osc-hole-field",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.2",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "dev": "pnpm --dir doc dev",
+    "build": "zudo-circuit-doc models && zudo-circuit-doc generate && pnpm --dir doc build",
+    "check": "zudo-circuit-doc check && pnpm --dir doc check",
+    "circuit:check": "zudo-circuit-doc validate",
+    "circuit:generate": "zudo-circuit-doc generate",
+    "circuit:doctor": "zudo-circuit-doc doctor",
+    "check:site": "node scripts/checks/check-site-host.mjs && node scripts/checks/check-site-assets.mjs && zudo-circuit-doc check-built && zudo-circuit-doc scan && pnpm --dir doc check:links -- --strict-anchors --strict-broken --allowlist=../scripts/checks/check-site-links-allowlist.txt",
+    "previews:generate": "zudo-circuit-doc footprints generate"
+  },
+  "devDependencies": {
+    "@takazudo/zudo-circuit-doc": "^0.1.0"
+  }
+}

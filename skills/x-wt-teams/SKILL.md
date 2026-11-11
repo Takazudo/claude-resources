@@ -1,6 +1,6 @@
 ---
 name: x-wt-teams
-description: "Parallel multi-topic development using git worktrees, base branches, and Claude Code agent teams. Use when: (1) User wants to work on multiple related features in parallel, (2) User mentions 'worktree', 'base branch', 'parallel development', 'split into topics', or 'multi-topic'. FULLY AUTONOMOUS — creates worktrees, spawns teams, coordinates everything. Also supports Super-Epic child mode for [Epic] issues from /big-plan with '**Super-epic:** #N' markers (targets the super-epic base branch instead of main). Pass -toco/--to-codex to hand the whole job to Codex CLI instead of implementing here, or -tocl/--to-claude to hand it to a FRESH Claude Code session (a clean context window -- the agent-side stand-in for /clear): either opens a new tmux window running that CLI with the matching invocation, focuses it, and ends the session -- fired at the very start, before any branch or PR is created (terminal-only, mutually exclusive)."
+description: "Parallel multi-topic development with git worktrees, base branches and agent teams, fully autonomous. Use for 'worktree', 'parallel development', 'multi-topic', or [Epic] issues from /big-plan."
 argument-hint: "[-co|--codex] [-a|--auto] [-m|--merge] [-f|-fix|--auto-fix] [-nf|--no-fix] [-lo|--local] [-toco|--to-codex] [-tocl|--to-claude] [--no-issue] [-s|--stay] [-v|--verify-ui] [-nor|--no-review] [-ri|--raise-issues] [-nori|--no-raise-issues] [#issue-number] <instructions>"
 ---
 
@@ -22,7 +22,7 @@ Detail lives in `references/` so this file stays a workflow spine. Open the rele
 - **`references/execution-modes.md`** — subagents vs teams routing: how `/big-plan`'s `Execution mode:` markers are read, default-to-teams fallback, mixed-mode degradation, Step 5 / Step 7 path differences, drift sanity check.
 - **`references/teams-path.md`** — the on-demand teams-path body (read ONLY when a topic is marked `teams` or a marker is missing): TeamCreate + named teammates, idle/wake, the shutdown_request teardown, TeamDelete. The common subagents default is inline in Step 5 / Step 7.
 - **`references/child-brief.md`** — standing rules every child reads first (worktree rules, self-review-must-not-park, codex broker reap, workspace package rebuild, log + report). Children spawn as `general-purpose`; this file replaces the retired `frontend-worktree-child` agent.
-- **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, per-topic model assignment in spawn calls, default-to-opus fallback.
+- **`references/per-topic-models.md`** — per-topic Claude model resolution for child agents: how `/big-plan`'s `Model:` markers are read, per-topic model assignment in spawn calls, default-to-Sonnet fallback.
 - **`references/issue-templates.md`** — tracking issue body, claim comments, unrelated-findings issue, Step 14 session report, Step 15 verification comments, accumulating-epic Auto-Suggest hand-off.
 - **`references/github-text-conventions.md`** — writing GitHub-posted text: never use a bare `#N` for your own plan items (topics/waves/options) — it autolinks to an unrelated issue/PR; reserve `#N` for real existing issues/PRs.
 - **`references/handoff-common.md`** — rules shared by BOTH hand-off modes: where the hand-off fires per caller, which flags travel, the recursion and mutual-exclusion guards, the long-prompt-to-a-file rule, what "terminal-only" means per caller, and the after-hand-off checklist. Read it before either file below.
@@ -82,7 +82,7 @@ These rules apply to the manager session and are carried into child agent prompt
 
 **Playwright / browser tools**: Neither manager nor child agents may invoke `/headless-browser`, `/verify-ui`, or any Playwright / Chrome DevTools-backed tool directly. Every browser check is dispatched to a fresh disposable Opus subagent (one alive at a time, sequential only, killed on return). Across sessions, Playwright work additionally queues on the machine-wide `playwright-guard.sh` semaphore (automatic inside `/headless-browser` and `/verify-ui`; guard timeout exit 75 = another session is running browser work — wait/retry, never bypass).
 
-**Heavy / port-based tests**: Child agents must NOT run full e2e / integration suites, long builds, or hold a dev server (`pnpm dev` etc.) open for verification. Children commit + report back; the manager runs these sequentially on the merged base. Legitimate short port-binding work uses `flock` on `/tmp/x-wt-teams-<repo>-locks/port-<N>.lock`. The manager's own heavy runs go through the machine-wide `$HOME/.claude/scripts/heavy-guard.sh` (slot + memory gate, shared with other sessions and Codex): exit 75 = contention, `verdict=ENV_SUSPECT` = rerun once then defer to CI under a `deferred-verification` issue — see [`skills/.shared/heavy-test-policy.md`](../.shared/heavy-test-policy.md).
+**Heavy / port-based tests**: Child agents must NOT run full e2e / integration suites, long builds, or hold a dev server (`pnpm dev` etc.) open for verification. Children commit + report back; the manager runs these sequentially on the merged base. Legitimate short port-binding work uses `flock` on `/tmp/x-wt-teams-<repo>-locks/port-<N>.lock`. The manager's own heavy runs go through the machine-wide `$HOME/.claude/scripts/heavy-guard.sh` (slot + memory gate, shared with other sessions and Codex; queued runs wait and resume by themselves — run with `run_in_background: true`, never park on the user): exit 75 = contention, re-run, `verdict=ENV_SUSPECT` = rerun once then defer to CI under a `deferred-verification` issue — see [`skills/.shared/heavy-test-policy.md`](../.shared/heavy-test-policy.md).
 
 **See `references/resource-coordination.md` for the full dispatch pattern, lock pattern, and rationale. Both rules are HARD — they prevent local-machine freezes and token blow-ups.**
 
@@ -253,7 +253,7 @@ Use the issue body as the primary input for planning. Set `ISSUE_NUMBER=<number>
   edges after normalization, or a cycle. Never infer an edge from Wave numbers or prose.
 
 - **Execution mode per topic** — extract the `**Execution mode:** {subagents|teams}` marker from each `[Sub]` issue body (or each inline sub-task in a legacy inline-format Super-Epic child). This drives Step 5's spawn path. See `references/execution-modes.md` for the parsing logic, default-to-teams fallback, and mixed-mode degradation rule.
-- **Model per topic** — extract the `**Model:** {opus|sonnet|haiku|fable}` marker from each `[Sub]` issue body (or each inline sub-task in a legacy inline-format Super-Epic child). This drives the per-child model assignment in Step 5. Default when the marker is missing: `opus`. See `references/per-topic-models.md` for the resolution table.
+- **Model per topic** — extract the `**Model:** {opus|sonnet|haiku|fable}` marker from each `[Sub]` issue body (or each inline sub-task in a legacy inline-format Super-Epic child). This drives the per-child model assignment in Step 5. Default when the marker is missing: `sonnet`, with a diagnostic and task-risk assessment. See `references/per-topic-models.md` for the resolution table.
 - **Optional SKIP decision per topic** — accept at most one exact `**SKIP:** <non-empty reason>` line. It never satisfies the dependency graph by itself. Once ready, spawn that topic as a verification-only child on the current base; require the ordinary foreground self-review, clean-tree, exact-SHA, and manager-report gate before recording a verified no-op. If the child finds the skip unjustified, it implements the original scope or reports a blocker. Duplicate/blank markers block before branch/worktree creation.
 - **Baseline-aware confirm repair** — a trusted confirm spec may accidentally require exit 0 from a repository-wide command that was already red before the epic. If a confirm worker reports such a failure, do not silently pass it and do not expand the topic into unrelated cleanup. Reproduce the exact command on the recorded parent/pre-epic SHA in an isolated clean worktree. If the failure signature/count is the same or better and all previously-green checks remain green, mechanically repair the trusted local/owner-authored confirm acceptance text to an explicit no-new-failures contract, record the baseline SHA/evidence in the ledger, and rerun the worker's foreground review/report gate. Any new or worsened failure remains a real blocker. This is handoff conversion, not re-planning.
 
@@ -321,15 +321,15 @@ For all other sessions (no issue, or user-provided non-epic issue), after Step 1
 4. Optionally re-run (up to 3 iterations).
 5. Finalize and proceed to Step 2.
 
-This is advisory. If codex is unresponsive, proceed with the original plan.
+A successful advisory review with no actionable findings permits proceeding. If Codex is unavailable, apply [model policy](../.shared/model-policy.md): strict user requirements or unresolved high-risk work require stop/report before proceeding or substitution. Only an acceptable bounded fallback may proceed, with the unavailable review and actual reviewer provenance disclosed; do not claim cross-model agreement.
 
 ### Manager invariant & reviewer selection
 
-**The manager session is ALWAYS Opus.** No flag downgrades the manager.
+**Keep the current manager settings.** Apply [model policy](../.shared/model-policy.md); fresh accepted-plan managers default to Opus/medium.
 
 **Reviewer selection** — `-co` upgrades Step 9 from `/code-review` to `/deep-review` (adding the codex cross-model pass). One tier per run. This skill sets no effort level: whichever reviewer runs is invoked bare and uses its own default. See `references/reviewer-modes.md`.
 
-**Child models are per-topic, never session-wide** — each child's model resolves from its `/big-plan` `Model:` annotation (default `opus`). There is no flag that overrides them here. See `references/per-topic-models.md` for resolution order and `references/arguments.md` for the canonical flag table.
+**Child choices are scoped separately** — explicit user choices override recommendations; otherwise use the evidence-based manager judgment and `/big-plan` annotation (default `sonnet`). See `references/per-topic-models.md` for resolution order and `references/arguments.md` for the canonical flag table.
 
 ### Step 1.5: Resuming an interrupted run (MANDATORY check before Step 2 creates anything)
 
@@ -599,14 +599,11 @@ Full routing logic, marker grep patterns, drift sanity check, and the subagents-
 
 #### Resolve model per topic
 
-The downstream child model is **per-topic**, not session-wide. Resolve in this order:
-
-1. **Per-topic annotation** — use the `**Model:**` marker extracted from each topic's `[Sub]` issue body (or legacy inline sub-task) in Step 1a.
-2. **Default** — if a topic has no marker, default to `opus`.
-
-Tell the user the resolution before spawning, e.g. "Models per topic: topicA=opus, topicB=sonnet, topicC=opus." When children spawn (either path), set each one's model parameter to its own resolved value — children in the same session may run different models, that's fine.
-
-Note: reviewer flags do NOT affect children — nothing on the invocation does. The annotation is the only input. Full table and rationale: `references/per-topic-models.md`.
+Apply `references/per-topic-models.md` and [model policy](../.shared/model-policy.md).
+Explicit scoped user choices win over annotations and defaults. Give one brief
+model/effort reason before each spawn, check the live dispatch controls, and record
+requested versus observed settings. Missing/invalid annotations default to Sonnet
+with a diagnostic and task-risk assessment. Reviewer flags do not select workers.
 
 #### Subagents path (default)
 
@@ -1466,11 +1463,12 @@ If the user asks "clean up everything," just invoke `/cleanup-resources` and tru
 17. **NEVER auto-detect `-s` / `--stay`** — always create a new base branch unless explicitly passed. Do not infer from branch state, existing PRs, or context.
 18. **Max 6 concurrent child agents** — Step 5 caps parallelism. With 7+ topics, queue the rest and spawn as earlier agents complete. **On web (web-mode.md §6) this cap is lifted** — fan out all topics in one batch (it is Mac-freeze protection, irrelevant in the cloud container).
 19. **Playwright / browser tools go through an isolated one-shot Opus subagent** — see `references/resource-coordination.md`. Neither manager nor child may invoke browser tools directly. At most one browser-verification subagent alive at a time, sequential only.
-20. **No heavy / port-based tests in child agents** — see `references/resource-coordination.md`. Children commit + report; manager runs sequentially on merged base, through `heavy-guard.sh`. Legitimate short port-binding work uses `flock`. A heavy step that is starved (exit 75 / `ENV_SUSPECT` twice) or platform-bound is deferred per `skills/.shared/heavy-test-policy.md` and reported as deferred — never as passed.
+20. **No heavy / port-based tests in child agents** — see `references/resource-coordination.md`. Children commit + report; manager runs sequentially on merged base, through `heavy-guard.sh`. Legitimate short port-binding work uses `flock`. A queued heavy step is waited out, never handed back to the user. A heavy step that is starved (`ENV_SUSPECT` twice) or platform-bound is deferred per `skills/.shared/heavy-test-policy.md` and reported as deferred — never as passed.
 21. **Auto-Suggest Next Command is MANDATORY for multi-session plans** — before STOP, if Signal A (Super-Epic) or Signal B (`--stay` accumulating-epic) applies, MUST print a copy-pasteable next command. The user should never have to type "give me next command" for a planned multi-session workflow.
 22. **Super-Epic child sessions MUST merge the epic-PR into the super-epic base before STOP, then switch to the super-epic base and delete the local epic base** — see `references/super-epic-mode.md`. The mandatory merge step is unconditional in Super-Epic child mode and runs whether or not `-m` was passed — `-m` never governs the epic-PR; it defers to chain termination, where the LAST sibling merges the super-PR (and closes the super-epic issue + cleans up the super base). This rule OVERRIDES Rule 1's "stay on `base/<project-name>`" default.
 23. **Execution mode is read from `/big-plan` annotations, not guessed** — when an `[Epic]` or Super-Epic child issue is the input, Step 1a extracts the per-topic `**Execution mode:** {subagents|teams}` markers and Step 5 routes accordingly. The **subagents path is the inline default** (it owns the canonical prompt body in Step 5 / Step 7); the **routing fallback when a marker is missing is teams** (preserves pre-annotation behavior). All-subagents → spawn one-shot Agent calls without TeamCreate (inline). Any-teams or any-missing → full team workflow in `references/teams-path.md`. The skill never auto-classifies execution mode itself — that decision belongs in `/big-plan`. Full routing logic, drift sanity check, and the subagents-path Agent-call shape live in `references/execution-modes.md`; the teams-path body lives in `references/teams-path.md`.
-24. **Per-topic model is read from `/big-plan` annotations** — Step 1a extracts each topic's `**Model:** {opus|sonnet|haiku|fable}` marker and Step 5 spawns each child with its own model. No invocation flag overrides them; the annotation is the only input. Default-when-missing is **opus** (preserves pre-annotation behavior). The skill never auto-classifies the model itself — that decision belongs in `/big-plan`. Full resolution table and rationale: `references/per-topic-models.md`.
+24. **Per-topic selection follows model policy** — explicit scoped user choices override defaults; the manager judges from evidence, using valid planner annotations and Sonnet fallback. Give one brief selection reason and record requested versus observed model/effort. See `references/per-topic-models.md`.
+
 25. **`-a` / `--auto` auto-continues multi-wave plans in one session** — when `-a` is passed AND Auto-Suggest detected a next wave (Signal A or Signal B), the manager appends `-a` to the next-wave command (forwarding `-m` / `-nf` / `-nori` / `-lo` too) and invokes it immediately via the Skill tool instead of stopping. The chain keeps running until a future iteration finds no more siblings; if `-m` rode the chain, the merge runs at chain termination (Signal B: the root PR; Signal A: the super-PR, merged by the last sibling per `references/super-epic-mode.md`). Pause (soft-stop with hand-off + blocker note) on the conditions listed in the Auto-Suggest sub-section — never silently swallow a blocker to keep the chain going. Single-session runs and `-a`-less invocations are unaffected. (`-a` replaces the retired `-seq` flag; `-a` itself never merges — merging is `-m`'s job.)
 26. **Dead Branch Cleanup Principle (general meta-rule)** — whenever this skill orchestrates a merge (or watches one) where the source branch's work is absorbed into a parent **and** the source remote is deleted (e.g., `gh pr merge --delete-branch`, `/prc`, equivalent), the local source branch is now a dead pointer and MUST be cleaned up before session ends. Pattern:
 1. Capture the dead branch name BEFORE switching off it: `DEAD_BRANCH=$(git branch --show-current)`

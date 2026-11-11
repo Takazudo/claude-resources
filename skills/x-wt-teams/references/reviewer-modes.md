@@ -17,7 +17,7 @@ Which reviewer runs at each review point, and how the flags select it. The skill
 
 ## Where each review point lands
 
-- **Step 1 (planning 2nd opinion)** — `/codex-2nd`, unchanged. This reviews the *plan*, not code, and is a separate concern from the tiers above. It falls back silently to an Opus subagent when codex is down.
+- **Step 1 (planning 2nd opinion)** — `/codex-2nd`, unchanged. This reviews the *plan*, not code, and is a separate concern from the tiers above. It may use a disclosed, bounded fallback under [model policy](../../.shared/model-policy.md); record actual reviewer provenance.
 - **Step 5 (child self-review)** — children review their own diff by hand, invoking no review skill. See "Child self-review" below; this is the one review point with a hard constraint on it.
 - **Step 9 (quality assurance)** — the manager runs whichever tier the flags selected, on the `base/<project-name>` branch.
 
@@ -37,7 +37,7 @@ Canonical rule: `references/execution-modes.md` → "Invariant".
 
 ## There is no reviewer-model flag
 
-**Claude Code ignores skill-level model overrides** — a skill that forks into a subagent resolves its model as `CLAUDE_CODE_SUBAGENT_MODEL` → per-invocation param → its own frontmatter → the main conversation's model. So `/code-review` runs on **the session model**. Change it with `/model` or `CLAUDE_CODE_SUBAGENT_MODEL`.
+Check the actual runtime/version and forced subagent settings before claiming a reviewer model. Model precedence changed across Claude versions; a skill's model recommendation is not proof of a dispatch override. Keep built-in review levels separate from worker effort and record observed or unknown settings. See [model policy](../../.shared/model-policy.md).
 
 Effort is `/code-review`'s own dial, not this skill's — nothing on this invocation sets it. A child's model comes from its per-topic `/big-plan` annotation; see `arguments.md`.
 

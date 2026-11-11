@@ -25,6 +25,7 @@ import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { fileURLToPath } from 'url';
 
 function cclogsBase() {
   const env = process.env.DROPBOX_CCLOGS_DIR;
@@ -88,11 +89,16 @@ export function getLogDir() {
   }
 }
 
-// CLI mode: print logdir path when run directly
-const isDirectRun =
-  process.argv[1] &&
-  path.resolve(process.argv[1]) ===
-    path.resolve(new URL(import.meta.url).pathname);
-if (isDirectRun) {
+// CLI mode: print logdir path when run directly. Compare realpaths so the check
+// still holds when the script is reached through a symlinked scripts dir (cloud profile).
+function isDirectRun() {
+  if (!process.argv[1]) return false;
+  try {
+    return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+if (isDirectRun()) {
   console.log(getLogDir());
 }

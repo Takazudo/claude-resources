@@ -1,16 +1,6 @@
 ---
 name: dev-reduce-deps
-description: >-
-  Audit a project's dependencies and remove the unnecessary ones — dead declarations, dead code
-  holding a library alive, redundant/overlapping deps, and unmaintained deps needing a decision. Use
-  when: (1) User says '/dev-reduce-deps', 'check our deps', 'confirm our deps', 'reduce
-  dependencies', 'kill unnecessary deps', 'unused dependencies', 'dependency audit', 'slim the
-  dependency graph', or 'can we replace this lib with our own code', (2) A lockfile has grown
-  uncomfortably large, (3) Before a release or a supply-chain review, (4) A dependency is discovered
-  to be deprecated, archived, or unmaintained. Covers Rust/Cargo and JS/npm/pnpm. Carries an
-  accumulating cross-project verdict reference so a dep judged once is not re-litigated, a hard
-  abandon rule that stops 'replace it with our own script' from turning into an unbounded rewrite,
-  and an adversarial pass that attacks every removal verdict before it is acted on.
+description: "Audit dependencies and remove unnecessary ones (dead, redundant, unmaintained) for Cargo and npm/pnpm. Use for /dev-reduce-deps, 'check our deps', 'reduce dependencies', 'unused dependencies', 'dependency audit'."
 user-invocable: true
 argument-hint: "[path (default: repo root)] [--rust | --js] [--plan]"
 ---

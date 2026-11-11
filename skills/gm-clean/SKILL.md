@@ -1,6 +1,6 @@
 ---
 name: gm-clean
-description: "Archive GitHub notification emails from Takazudo's personal dev orgs (Takazudo, zudolab) out of the takazudo@gmail.com inbox. Use when: (1) User invokes /gm-clean, (2) User says 'clean gmail', 'archive github mails', or 'clear github notifications from inbox'. Covers issue, PR, review and CI-run notifications for every repo under those two orgs. Never touches work orgs (pxgrid, SAISONCARD, etc.). Archive only — removes the INBOX label, never deletes."
+description: "Archive GitHub notification emails from the Takazudo and zudolab orgs out of the Gmail inbox (never deletes, never touches work orgs). Use for /gm-clean, 'clean gmail', 'archive github mails'."
 ---
 
 # gm-clean

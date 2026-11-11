@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: "Deep code review — runs the built-in /code-review together with /codex-review, which carries the depth. Use when: (1) User says 'deep review', (2) A substantial change needs a pre-merge quality gate, (3) A general review already ran and more coverage is wanted. For an ordinary review, invoke /code-review directly instead — this skill exists only for the two-reviewer pass. Fixes are applied inline by default; -t delegates them to /x-wt-teams when the work is genuinely large. Unfixed findings become agent-found GitHub issues by default (-nori to suppress)."
+description: "Deep code review: /code-review plus /codex-review. Use for 'deep review' or a pre-merge quality gate on a substantial change. For an ordinary review use /code-review directly."
 argument-hint: "[low|medium|high|xhigh|max] [-t|-nt] [-ri|-nori] [target]"
 ---
 

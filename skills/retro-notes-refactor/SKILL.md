@@ -1,19 +1,6 @@
 ---
 name: retro-notes-refactor
-description: >-
-  Refactor an accumulated `l-lessons-*` skill (created by /retro-notes) when later entries partially
-  supersede or extend earlier ones, so future planning agents see the cross-cutting wisdom first
-  instead of having to read every dated entry. Use when (1) the user says "lessons refactor", "retro
-  refactor", "retro-notes refactor", "refactor lessons", or "synthesize lessons", (2) a
-  `/retro-notes` session just added a new dated entry that broadens / narrows / contradicts a claim
-  in an earlier entry on the same area, (3) an `l-lessons-*/SKILL.md` has 5+ dated entries on the
-  same problem area OR exceeds ~500 lines, (4) the next `/big-plan` run in that area would have to
-  scan many entries to find the relevant pattern. Produces a top-of-file "Recurring patterns
-  (synthesized)" section in Trigger/Action/See format, adds Caveat notes to entries whose claims
-  were later widened, updates the frontmatter description with pattern keywords, and formats with
-  mdx-formatter. Does NOT delete historical entries — they remain as terse drill-down postmortems.
-  Pair with /retro-notes (which writes new entries) and /big-plan (which reads the synthesized
-  section first).
+description: "Synthesize an accumulated l-lessons-* skill so cross-cutting patterns come first. Use for 'lessons refactor', 'retro refactor', 'synthesize lessons', or when a lessons file has many overlapping entries."
 ---
 
 # Retro Notes Refactor

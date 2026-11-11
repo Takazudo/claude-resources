@@ -388,9 +388,42 @@ As of Node.js v22+, CJS code can `require()` ESM modules natively, reducing the 
 
 ## CI/CD for npm Packages
 
+### Default: staged publishing (CI stages, a human approves)
+
+Direct publishing from CI is being phased out: npm has scheduled the end of token-based direct publishing for January 2027, and the recommended automation token is now **"Read and write (stage only)"** (GitHub Changelog, 2026-09-18). A stage-only token is rejected by `npm publish` even with "Bypass 2FA" on; CI uploads a *stage*, and a maintainer with 2FA promotes it. Treat this as the default for every new package workflow.
+
+Flow:
+
+1. **CI stages** — `npm stage publish --tag latest --access public --provenance`. The version is uploaded but **not live**; a green workflow does not mean the release shipped.
+2. **Review** — `npm stage list <pkg>`, `npm stage view <stage-id>`, `npm stage download <stage-id>` (or npmjs.com).
+3. **Approve** — `npm stage approve <stage-id> --otp=<code>` (2FA required), or `npm stage reject <stage-id>`.
+
+```yaml
+      # npm >= 11.15.0 has `npm stage`; the npm bundled with setup-node may be older.
+      - name: Install npm with staged publishing
+        run: npm install -g npm@11.20.0
+
+      - name: Stage package for approval
+        working-directory: packages/my-pkg
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}   # stage-only token
+        run: npm stage publish --tag latest --access public --provenance
+```
+
+Requirements and gotchas (learned in practice):
+
+- **npm CLI >= 11.15.0 and Node >= 22.14.0.** A local npm 11.6 says `Unknown command: "stage"`; run approvals with `npx npm@11.20.0 stage ...` or upgrade npm. npm 12 needs Node `^22.22.2 || ^24.15.0 || >=26`, so pin npm 11.x in CI unless Node is new enough.
+- **A brand-new package name cannot be staged.** The first version must be a direct publish by a maintainer: build and `npm pack` (or `pnpm pack`) the exact tagged tree, `npm login`, then `npm publish <tarball> --access public --tag latest --otp=<code>`. Run the release workflow first so every check passes; its stage step fails for the new name by design. A local publish carries no provenance statement.
+- **`pnpm publish` does not stage.** Swap it for `npm stage publish` in the package directory. npm does not rewrite pnpm `workspace:` / `catalog:` specs, so this only works as-is when the published `package.json` has none of them; otherwise pack with pnpm and verify the tarball before staging.
+- **Symptoms of the wrong token on a direct publish:** `E404 ... PUT https://registry.npmjs.org/<pkg>` (no write access), `ERR_PNPM_OTP_NON_INTERACTIVE` (token without 2FA bypass). With a stage-only token, switch to staging instead of widening the token.
+- **Public reads can serve a cached 404** for a few minutes after a first publish while the authenticated `npm dist-tag ls` already shows `latest`. Poll before concluding a publish failed.
+- Staging composes with trusted publishing (OIDC): CI authenticates without a token, but a maintainer still approves with 2FA.
+
+References: [Staged publishing](https://docs.npmjs.com/staged-publishing/), [npm stage](https://docs.npmjs.com/cli/v11/commands/npm-stage/), [Stage-only tokens](https://github.blog/changelog/2026-09-18-stage-only-npm-tokens-for-safer-automation/).
+
 ### GitHub Actions: Trusted Publishing with OIDC
 
-Trusted publishing (GA since July 2025) eliminates the need for npm access tokens. Authentication happens via short-lived OIDC tokens.
+Trusted publishing (GA since July 2025) eliminates the need for npm access tokens. Authentication happens via short-lived OIDC tokens. Pair it with staging above: replace the final `npm publish` below with `npm stage publish` so a maintainer approves each version.
 
 #### Setup Steps
 
@@ -435,9 +468,9 @@ Key points:
 - Provenance attestations are generated automatically with trusted publishing (no `--provenance` flag needed)
 - No `NODE_AUTH_TOKEN` secret is needed
 
-#### Workflow with Token-Based Auth (Legacy)
+#### Workflow with Token-Based Direct Publish (Legacy)
 
-If trusted publishing is not available, use token-based authentication:
+Direct `npm publish` from CI with a token is being retired (January 2027) — prefer staging above. Kept for reference only:
 
 ```yaml
 name: Publish to npm

@@ -1,6 +1,6 @@
 ---
 name: video-reader
-description: "Analyze a video file (mov, mp4, webm, etc.) or a YouTube video by extracting still frames with ffmpeg and reading them chronologically with vision — Claude cannot ingest video files directly. Use whenever the user provides a video file path or YouTube URL and wants to know what happens in it: \"read this video\", \"watch this video\", \"check this recording\", \"what happens in this .mov/.mp4\", analyzing a screen recording of a UI bug, or verifying UI behavior captured in a video, even if they don't name this skill."
+description: "Analyze a video file or YouTube video by extracting frames with ffmpeg and reading them in order. Use whenever the user shares a video path or YouTube URL and wants to know what happens in it."
 argument-hint: <video-path-or-youtube-url> [-seq N] [question]
 ---
 

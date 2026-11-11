@@ -1,6 +1,6 @@
 ---
 name: ref
-description: "Refer another project while protecting sensitive information. Use when: (1) User says 'refer project', 'copy from project', or 'look at another repo', (2) User wants to reference patterns or setup from another codebase, (3) User needs to learn from another project's structure without leaking private data. Pass -p/--pull to verify the referenced repo is fresh before reading it — checks it's on its default branch, checks for uncommitted work, then pulls and reports the commit it landed on."
+description: "Refer to another project's code or setup without leaking sensitive info. Use for 'refer project', 'copy from project', 'look at another repo'. -p/--pull refreshes the referenced repo first."
 argument-hint: "[-p|--pull] [-u|--update] <slug|path> [slug2 ...] — repo slug (e.g. zmod) or full path"
 ---
 

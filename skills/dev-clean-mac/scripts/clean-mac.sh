@@ -64,6 +64,13 @@ del_path() {
       "$keep"|"$keep"/*) printf '  kept (--keep-repo)  %s\n' "$p"; return 0 ;;
     esac
   done
+  # A dir holding git-tracked files is source, not a cache (e.g. zfb's checked-in
+  # node_modules test fixtures); deleting it dirties the checkout and breaks tests.
+  local tracked
+  tracked=$(git -C "$(dirname "$p")" ls-files -- "$(basename "$p")" 2>/dev/null | head -1)
+  if [ -n "$tracked" ]; then
+    printf '  kept (git-tracked) %s\n' "$p"; return 0
+  fi
   local kb hum
   kb=$(du -sk "$p" 2>/dev/null | awk '{print $1}'); [ -z "$kb" ] && kb=0
   hum=$(du -sh "$p" 2>/dev/null | awk '{print $1}')

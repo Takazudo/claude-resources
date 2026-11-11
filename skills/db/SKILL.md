@@ -1,6 +1,6 @@
 ---
 name: db
-description: "Resolve and load any file or directory the user shares through Dropbox, from the Dropbox root. Use whenever the user invokes /db, including inline forms like '/db foobar/ check its docs' — '/db <path>' always means the Dropbox path <path>. Handles Dropbox sync delay, online-only placeholders, directory settling, and recursive search that a plain ls/Read misses. Covers /db (root listing), /db dirname/, /db path/to/file.png, /db env/ (shared dev credentials), and multiple files at once. /ss is the shorthand for /db screenshots/."
+description: "Load files or directories shared through Dropbox, by path from the Dropbox root. Use whenever the user invokes /db (e.g. '/db foo/ check its docs'); handles sync delay and online-only placeholders."
 disable-model-invocation: false
 argument-hint: "[path/ | path/to/file | file1 file2 | (empty = root listing)]"
 allowed-tools: Read, Bash(ls *), Bash(find *), Bash(stat *), Bash(for *), Bash(while *), Bash(head *), Bash(seq *), Bash(sleep *), Bash(printf *), Bash(sort *), Bash(cut *), Bash(cp *), Bash(grep *)

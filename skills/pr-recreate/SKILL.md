@@ -1,6 +1,6 @@
 ---
 name: pr-recreate
-description: "Recreate a PR with clean commit history when it has too many messy commits. Use when: (1) User says 'recreate pr' or 'clean up pr history', (2) A PR has accumulated try-and-error commits and needs a fresh start, (3) User wants to squash messy history into clean logical commits."
+description: "Recreate a PR with clean commit history. Use for 'recreate pr', 'clean up pr history', or a PR full of try-and-error commits."
 argument-hint: "[PR_URL]"
 ---
 

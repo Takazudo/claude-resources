@@ -38,7 +38,7 @@ bash "$HOME/.claude/scripts/handoff-to-codex.sh" \
   --submit          # only when -a was passed
 ```
 
-The script opens the window as `codex -m gpt-6-sol -c model_reasoning_effort="medium"`, waits for Codex's composer, types the command, and focuses the window. It handles what silently breaks a naive `send-keys`:
+The script opens the window as `codex -m gpt-6.1-sol -c model_reasoning_effort="low"`, waits for Codex's composer, types the command, and focuses the window. It handles what silently breaks a naive `send-keys`:
 
 | Exit | Cause |
 | --- | --- |
@@ -52,9 +52,10 @@ The script opens the window as `codex -m gpt-6-sol -c model_reasoning_effort="me
 
 Codex needs ~10-14s before it accepts input, so the script polls for the composer rather than sleeping blind. It also collapses whitespace in the command to one line — free text forwarded from `/x-as-pr -toco` can contain newlines, and one deterministic line is easier to read back. (A literal newline sent this way is taken as a line break, not a submit — verified — so this is tidiness, not a fix for early submission.)
 
-### The Codex session starts on Sol at medium effort
+### The Codex session starts on Sol at low effort
 
-The launch pins `-m gpt-6-sol` and `-c model_reasoning_effort="medium"` for every caller of this script — `/tocodex`, `/big-plan -toco`, and both implementation skills' own `-toco`. A hand-off fires *after* the plan exists: the Codex session is executing a spec that has already been argued out, which is a manager's job — dispatch the topics, keep the run moving — not a reasoning-heavy one. That is the manager tier; workers are dispatched from there by difficulty — `high` → `gpt-6-astra`/high, `mid` → `gpt-6-sol`/medium, `standard` → `gpt-6-luna`/max. The receiving session can raise its own with `/model`.
+The fresh accepted-plan manager requests GPT-6.1 Sol/low. Apply the canonical model policy in `skills/.shared/model-policy.md`, including separate worker/reviewer choices, scoped user overrides, and disclosed fallback boundaries. A launch argument is requested configuration; report actual settings only when observed. The existing planner keeps its settings.
+
 
 This is the one place the two hand-offs differ in spirit. `-tocl` pins Opus as a *floor* because a fresh Claude session inherits nothing and cannot know what the work needs ([`claude-handoff.md`](claude-handoff.md)); `-toco` pins the manager tier as a *ceiling* because by then the thinking is done and written down, and what reasoning remains is pushed down into the Astra workers.
 

@@ -1,7 +1,7 @@
 ---
 name: codex-review
 argument-hint: "[base-branch|pr-number]"
-description: "Cross-model code review via the OpenAI Codex CLI. This is the codex half of /deep-review, not a general reviewer — for ordinary code review use the built-in /code-review instead. Use when: (1) /deep-review invokes it, (2) User explicitly asks for 'codex review' or a non-Claude opinion on a diff. Reports findings; the caller owns the fixes. When codex is rate-limited or unavailable it degrades silently — reporting 'codex unavailable' to /deep-review so it doesn't claim cross-model consensus it didn't get, or falling back to /code-review when invoked standalone."
+description: "Codex half of /deep-review: cross-model code review via the OpenAI Codex CLI. Use when /deep-review invokes it or the user asks for 'codex review'. For ordinary review use /code-review."
 allowed-tools:
   - Skill
   - Bash(bash $HOME/.claude/scripts/codex-guard.sh *)
@@ -114,13 +114,13 @@ node $HOME/.claude/scripts/codex-rate-limit.js check-output \
 
 Non-zero exit, or a missing/empty output file *after the run has finished*, goes to Step 4. Otherwise read the findings, organize them by priority, and return them to the caller with the log path.
 
-### Step 4: Fallback — silently, always
+### Step 4: Fallback — disclosed and bounded
 
-Codex being down must never stall the caller or surface a quota error. Do not report it to the user, do not pause, do not ask.
+Apply [model policy](../.shared/model-policy.md) before any fallback: strict user requirements or unresolved high-risk work require stop/report before substitution. Report the unavailable Codex review accurately; an infrastructure, authentication, or quota failure does not justify selecting a larger model. Only an acceptable bounded fallback may proceed, with actual reviewer provenance disclosed and required capability preserved.
 
-- **Called by `/deep-review`**: return **"codex unavailable — no findings"** and nothing else. Do **not** run `/code-review` as a stand-in: `/deep-review` already ran it in parallel in its Step 1, so a second run would review the same diff with the same reviewer, and its Step 2 ranks "findings both reviewers raised independently" as the highest-confidence signal. Two runs of one reviewer agree by construction, which would manufacture exactly that signal with no cross-model corroboration behind it. Telling the caller the codex half is missing is what lets it skip the consensus ranking honestly. Silent means silent *to the user*, never to the caller.
-- **Manager context, invoked standalone**: `Skill(skill="code-review", args="<the effort and target this skill was given, else medium>")` and return those findings instead. Here there is no parallel run to duplicate, so the user still gets a review.
-- **Subagent / child context**: review the diff yourself in the foreground — read `git diff "$BASE"...HEAD` and return what you find. **Spawn nothing.** A nested `Agent` call returns an async handle even with `run_in_background: false`, and its completion notification routes to the manager, so a child that dispatches a fallback reviewer and ends its turn parks with work done but never reported. See the canonical rule — *a subagent must never end its turn waiting on anything it did not itself synchronously complete* — in `$HOME/.claude/skills/x-wt-teams/references/execution-modes.md` → "Invariant".
+- **Called by `/deep-review`**: return **"codex unavailable — no findings"** and nothing else. Do **not** run `/code-review` as a stand-in: `/deep-review` already ran it in parallel in its Step 1, so a second run would review the same diff with the same reviewer, and its Step 2 ranks "findings both reviewers raised independently" as the highest-confidence signal. Two runs of one reviewer agree by construction, which would manufacture exactly that signal with no cross-model corroboration behind it. Telling the caller the codex half is missing is what lets it skip the consensus ranking honestly. The caller must record the missing Codex review and actual reviewer provenance, honor the stop boundary above, and avoid claiming cross-model consensus.
+- **Manager context, invoked standalone**: only after the boundary above permits an acceptable disclosed bounded fallback, invoke `Skill(skill="code-review", args="<the effort and target this skill was given, else medium>")` and return those findings instead. Here there is no parallel run to duplicate, so the user still gets a review.
+- **Subagent / child context**: only when the same boundary permits a disclosed bounded fallback, review the diff yourself in the foreground — read `git diff "$BASE"...HEAD` and return what you find. **Spawn nothing.** A nested `Agent` call returns an async handle even with `run_in_background: false`, and its completion notification routes to the manager, so a child that dispatches a fallback reviewer and ends its turn parks with work done but never reported. See the canonical rule — *a subagent must never end its turn waiting on anything it did not itself synchronously complete* — in `$HOME/.claude/skills/x-wt-teams/references/execution-modes.md` → "Invariant".
 
 ### Step 5: Reap the broker (child context only, every exit path)
 

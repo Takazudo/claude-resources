@@ -1,6 +1,6 @@
 ---
 name: permission-review
-description: "Review commands that were blocked by the permission system and decide which to allowlist. Reads the denial ledger written by the PermissionDenied hook and deny-check.sh, groups the blocks, and proposes concrete settings.json edits for approval. Use when (1) user says '/permission-review', 'review blocks', 'what got blocked', 'tune permissions', (2) a /x-wt-teams or /x-as-pr run has just finished and blocked commands should be triaged, (3) the user is moving to auto mode and wants to reduce prompts. Also runs a static scan of skill commands not covered by the allowlist."
+description: "Review commands blocked by the permission system and propose settings.json allowlist edits. Use for /permission-review, 'what got blocked', 'tune permissions', or after a /x-wt-teams or /x-as-pr run."
 ---
 
 # Permission review

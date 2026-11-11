@@ -1,6 +1,6 @@
 ---
 name: codex-ratelimit-notify
-description: "Send an IFTTT mobile push \"codex rate limit detected\" when an OpenAI Codex CLI run hits a rate/usage limit. The companion codex skills (/codex-review, /codex-2nd) fire this automatically via codex-rate-limit.js. Invoke manually whenever a codex run that BYPASSES that path — /codex-imagegen, /codex:codex-rescue, or an ad-hoc `codex exec` — shows \"you've hit your limit\", \"rate limit\", \"usage limit\", \"too many requests\", \"quota exceeded\", \"429\", or a reset time, even if the flow otherwise stays silent. Also use to test the notification."
+description: "Send an IFTTT push when a Codex CLI run hits a rate/usage limit. Use when a codex run outside /codex-review or /codex-2nd shows 'rate limit', 'usage limit', '429' or a reset time, or to test the notification."
 allowed-tools:
   - Bash(node *)
 ---

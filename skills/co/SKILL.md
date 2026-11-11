@@ -1,6 +1,6 @@
 ---
 name: co
-description: "Commit changes with logical grouping and conventional messages, optionally push. Use when the user says 'commit', 'commits', 'save changes', or '/co', or when finished work needs committing. `/co auto` / `/co forbid` switch the session's auto-commit mode."
+description: "Commit changes with logical grouping and conventional messages, optionally push. Use for 'commit', 'save changes', '/co', or when finished work needs committing. '/co auto' / '/co forbid' toggle auto-commit."
 argument-hint: "[push] [auto|forbid] [--no-push] [--push-auto]"
 ---
 

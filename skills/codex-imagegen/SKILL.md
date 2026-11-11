@@ -1,6 +1,6 @@
 ---
 name: codex-imagegen
-description: "Generate or redesign raster images (PNG mockups, illustrations, photos, UI design polish) from inside Claude Code by driving Codex CLI's built-in $imagegen, billed to ChatGPT-included usage instead of per-image OpenAI API charges. Use whenever the user wants to create/generate an image, make a mockup or illustration, produce a photo, polish or redesign a UI from a screenshot, or get a PNG out of a session — even if they don't mention Codex or \"imagegen\". This is the preferred image-generation path because Anthropic models cannot generate raster images and this route avoids API billing."
+description: "Generate or redesign raster images (mockups, illustrations, photos, UI polish) via Codex CLI's $imagegen. Use whenever the user wants an image or PNG made, even without mentioning Codex."
 ---
 
 # codex-imagegen

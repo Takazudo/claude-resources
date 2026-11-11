@@ -46,11 +46,11 @@ bash "$HOME/.claude/scripts/handoff-to-claude.sh" \
   --submit          # only when -a was passed
 ```
 
-The script opens the window with `CLAUDE_CODE_NO_FLICKER=1`, `--dangerously-skip-permissions` and `--model opus`, waits for the session to come up, and focuses the window. It passes the command to tmux as its own argument rather than building a shell string, so quotes, `$(…)` and backticks in a free-text prompt reach the new session literally.
+The script opens the window with `CLAUDE_CODE_NO_FLICKER=1`, `--dangerously-skip-permissions` and `--model opus --effort medium`, waits for the session to come up, and focuses the window. It passes the command to tmux as its own argument rather than building a shell string, so quotes, `$(…)` and backticks in a free-text prompt reach the new session literally.
 
-### The new session starts on Opus
+### The new session requests Opus/medium
 
-The launch pins `--model opus` for every caller of this script — `/toclaude`, `/big-plan -tocl`, and both implementation skills' own `-tocl`. A hand-off exists to start *implementation* on a clean context window, and inheriting whatever model the launching session happened to be dialled down to is not part of a clean start; the new process cannot know what the work needs, so Opus is the deliberate floor. The receiving session can still `/model` its way elsewhere.
+The fresh accepted-plan manager requests Opus/medium. Apply `skills/.shared/model-policy.md`: user model/effort choices override defaults, actual settings require observation, and unavailable strict requirements or unresolved high-risk work stop/report. Pass supported `--model`/`--effort` overrides to the helper; `inherit` omits the respective control.
 
 `--model <alias>` on the script pins something else, and `--model inherit` sends no `--model` at all so the new session takes its configured default — the escape hatch for an account where the pinned model is unavailable, which would otherwise kill startup (exit 7). No skill exposes a flag for this; it is a script argument. The script prints the model it pinned — repeat that line in the hand-off report.
 

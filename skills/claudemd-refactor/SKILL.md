@@ -1,6 +1,6 @@
 ---
 name: claudemd-refactor
-description: "Refactor and optimize CLAUDE.md files in a repository. Analyzes the existing setup, explores repo structure, proposes splitting CLAUDE.md into a hierarchical directory-scoped structure. Use when: (1) User wants to optimize CLAUDE.md, (2) Root CLAUDE.md is too large, (3) User wants to split CLAUDE.md into directory-scoped files, (4) User mentions 'refactor CLAUDE.md', 'split CLAUDE.md', or 'organize CLAUDE.md'."
+description: "Refactor CLAUDE.md files: analyze the setup and split a large root CLAUDE.md into directory-scoped files. Use for 'refactor/split/organize CLAUDE.md' or when the root CLAUDE.md is too large."
 ---
 
 # Refactor CLAUDE.md

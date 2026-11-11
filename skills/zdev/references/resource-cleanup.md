@@ -1,0 +1,56 @@
+# End-of-session resource reconciliation
+
+This reference adapts the terminal resource audit in [Takazudo/codex-settings cleanup-resources](https://github.com/Takazudo/codex-settings/tree/main/skills/cleanup-resources) to standalone implementation prompts. Read it for **every selected execution environment**. It is especially important for local Grok CLI on Mac/WSL, where the agent has sometimes stopped on a topic branch with unintended working-tree changes. The implementing agent must follow the **inlined procedure below**; do not require it to install or invoke another skill.
+
+## When to run
+
+- Run after the final development/review/verification/integration decision, immediately before the final implementation report. For continuous work, run a scoped reconciliation after each completed wave and a full touched-resource audit at the terminal STOP. Even if a task is blocked, halted, or not merge-authorized, reconcile what is safe and preserve unfinished work; do not defer the audit just because the PR remains open.
+- Take a starting snapshot when implementation begins: original branch and commit, `git status --porcelain=v1`, available worktree paths, existing task PRs/branches and known resources. If a snapshot is missing, treat uncertain items as pre-existing, keep them, and report the ambiguity. Avoid repo-wide/org-wide speculative cleanup.
+- Apply the same principle to Project/cloud managers, CLI parents and delegated workers. A worker audits its own local changes and returns a manifest; **the manager** owns integration and cross-worker/remote cleanup. A cloud manager cannot pretend it removed a local worktree on a worker's machine.
+
+## Manifest and audit
+
+List every touched resource with its exact identity, owner/role, status, intended disposition and reason:
+
+- Issues: source, tracker, epic, child, unrelated finding, protected coordination.
+- PRs: task/root, child/fix, intentionally held, merged, closed without merge.
+- Branches: original/parent, task/topic, integration/base, fix, protected/super-base, foreign.
+- Worktrees: exact path, current checkout, workflow-owned temporary, pre-existing/external, stale metadata.
+- Working-tree changes: tracked/untracked/ignored generated files; distinguish starting/pre-existing edits, verified intentional deliverables, temporary output and unexplained diffs.
+
+Check live state before acting: `git status --short`, `git diff --stat`, `git diff --cached --stat`, `git branch --show-current`, `git worktree list --porcelain`, relevant issue/PR state, merged commit and remote branch. Check task branch commits are pushed or otherwise durably checkpointed before deleting/checking out. Refresh after any concurrent change. Do not treat an issue or PR as complete solely because code was written or a check passed on another SHA.
+
+## Safe disposition
+
+1. **Protect work.** Never silently discard pre-existing, user-owned, uncommitted, untracked or unexplained changes. Preserve accepted incomplete work on its intended task branch, a commit or explicit checkpoint and identify its location. If a dirty tree prevents checkout/worktree removal, leave it in place and report the exact paths; do not use blanket `git reset --hard`, `git clean -fd`, `git restore .`, `git branch -D`, forced worktree removal, or an automatic stash that hides changes. Remove only individually identified, unequivocally disposable files created by this workflow after confirming they are not deliverables; never infer disposability from an unfamiliar filename. Do not commit generated junk just to obtain a clean status.
+2. **Reconcile issues/PRs.** Close only fully accepted and verified integrated delivery issues, children before the parent; preserve unresolved checklist items, coordination, unrelated findings and intentional holds. Leave unmerged PRs and their delivery issues open without merge authority. Do not close intentional open PRs as "cleanup". A merged PR remains as a record; a PR closed without merge is a warning to investigate. Never delete an open super-PR's head/super-base branch, close its super-epic or remove another workflow's resources.
+3. **Restore the stable checkout.** When the task work is safely committed/pushed or checkpointed, switch the primary local checkout off the disposable task branch, preferably to the original safe parent branch or the repository default branch. Never switch over dirty/unprotected changes. If an original branch was itself a working branch, preserve it rather than delete it; if a branch is checked out in another worktree, respect Git's refusal. If safe restoration is impossible, report the exact branch/path and blocker, not "clean".
+4. **Remove only owned temporary worktrees.** Remove a workflow-created worktree only when its task is safely integrated or explicitly abandoned with no unique work, and the path is neither the active checkout nor dirty; use `git worktree remove <exact-path>`, never `rm -rf` or `--force`. Prune confirmed stale metadata with `git worktree prune`. Keep external/unknown worktrees, unfinished tasks and ambiguous resources.
+5. **Delete only dead branches.** Delete workflow-owned local branches only after verifying their work is integrated and no live PR/other work depends on them, using `git branch -d <exact-branch>`; honor refusal. Delete a matching remote branch only after verifying the PR is merged (or the branch's disposal was separately authorized), its current ref is still the expected one, and no open PR or integration chain needs it. Use authenticated ordinary deletion, never force. With no merge authority or while CI/review blocks integration, **keep the unmerged task branch locally/remotely**, though return the checkout to a safe parent when possible. Never delete default, parent, protected/super-base or other owners' branches.
+6. **Verify the end state.** Rerun `git status --short`, `git branch --show-current`, `git worktree list --porcelain` and check relevant remote refs. Aim for a clean stable primary checkout with all intended work available in commits/PRs. If anything remains intentionally dirty or checked out elsewhere, name it explicitly rather than asserting a clean exit.
+
+## Permission denial and parent-manager retry
+
+For delegated work (including **Grok bot cloud manager → Cursor/local worker**), a child that cannot delete a remote branch or complete another scoped cleanup action must **not** call the audit complete. Return the exact repository, branch/ref/path, expected head SHA, associated PR/issue, whether merge is confirmed, attempted action, raw error/permission class and recommended next action. The parent adds it to a cleanup retry queue.
+
+The parent independently rechecks live state, ownership, merge/PR dependencies and its own authority. **If allowed**, it retries the denied remote deletion using its authenticated identity; record success or the exact continuing blocker. A child's inability to delete a remote branch is not proof the parent cannot. Equally, manager privileges are not license to bypass branch protection, security boundaries, a hard denial or a user hold. An approval/sandbox escalation is attempted only through supported, authorized facilities; do not loop through the same denied credentials or pretend escalation worked. If the parent also lacks authority, retain the branch and report a human/access action. Local checkout/worktree cleanup remains the responsibility of the worker/host that owns those files, with the parent verifying the returned evidence.
+
+Run the terminal audit **after** child results are integrated and after the final merge/hold outcome; if cleanup is delegated for investigation, the parent performs/authorizes mutations and verifies their results. All failed or skipped safe actions must appear in the report.
+
+## Final report contract
+
+Finish with a concise `Cleanup audit` section: `Closed issues`, `Removed worktrees`, `Deleted local branches`, `Deleted remote branches`, `Kept intentionally`, `Warnings/permission retries`, `Ambiguous`, and `Final checkout/status`. Include exact resource identities, reasons and whether a parent retry succeeded. When no changes are needed, still state that the audit ran and report the verified clean checkout or explicit retained state. Do not hide an unfinished PR, retained dirty diff or remote branch.
+
+## Plain-language handoff addition (always inline)
+
+Include this within the **single** standalone execution prompt after the implementation and merge/hold procedure, before its final-report instruction. It applies even when no resources are ultimately created. Never substitute a skill name or hyperlink for these instructions.
+
+```text
+Before your final report, perform a terminal cleanup audit of the resources this work actually touched. Record the initial checkout/status and pre-existing changes before editing; at the end enumerate associated issues, PRs, local/remote branches, worktrees and tracked/untracked diffs, with their owners and current states. Check live Git and GitHub state before each mutation. Close only fully verified, integrated issues (children before parents); preserve incomplete issues, protected coordination and intentional open PRs. Do not delete the branches of unmerged/held PRs, an open integration/super-PR or another owner's work.
+
+Protect all pre-existing, unexplained and uncommitted work. Finish or checkpoint intended edits on the task branch; remove only individually identified disposable output you created, never blindly discard unknown diffs. Do not use git reset --hard, git clean -fd, git restore ., git branch -D, forced worktree removal or a blind automatic stash. After safely recording task work, return the primary local checkout from the task branch to its safe original parent/default branch when possible, without overwriting dirty work. Remove only clean, workflow-owned temporary worktrees via git worktree remove; prune confirmed stale metadata. Delete only confirmed merged, unused workflow-owned branches with safe non-force deletion and current remote-ref checks. If a task PR is still open, retain its branch even if you can switch the primary checkout away from it.
+
+If a delegated worker lacks permission to delete a remote branch, report its exact repository, ref and expected SHA, related PR and merge state, attempted operation and raw error to the parent manager. The parent must independently recheck safety and, only when its own permissions and repository policy authorize it, retry the deletion using its own credentials; otherwise retain the branch and document the blocker. The parent owns the cross-worker cleanup ledger and retry result, while each local worker owns its machine's worktrees and checkout. Do not bypass explicit denials or branch protections.
+
+Finally rerun git status --short, git branch --show-current and git worktree list --porcelain (where a local checkout exists), and verify relevant remote refs. Report a Cleanup audit with closed/kept issues, removed/kept worktrees, deleted/retained local and remote branches, warnings including parent retry outcomes, ambiguous items and the exact final checkout/diff status. Never claim clean completion if unintended changes, an unreturned task checkout or failed cleanup remain.
+```

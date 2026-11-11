@@ -13,16 +13,16 @@
 # path, which does type into the composer.
 #
 # Usage:
-#   handoff-to-claude.sh --dir <repo-root> --command '<text>' [--name <window>] [--submit] [--model <alias>] [--timeout <sec>] [--session <tmux-session>] [--no-auto-answer]
+#   handoff-to-claude.sh --dir <repo-root> --command '<text>' [--name <window>] [--submit] [--model <alias>] [--effort <level>] [--timeout <sec>] [--session <tmux-session>] [--no-auto-answer]
 #
 # --submit  passes the command as argv, so Claude Code starts on it by itself.
 # Without it the command is typed into the composer and left unsent.
 #
-# --model   pins the new session's model, default 'opus'. A hand-off exists to
-# start implementation work on a clean context, and that work should not silently
-# inherit whatever the launching session happened to be dialled down to -- the
-# new session gets Opus unless the caller says otherwise. Pass 'inherit' to send
-# no --model at all and let the new session take its configured default.
+# --model / --effort request Opus/medium for a fresh implementation manager (model policy).
+# Explicit user choices override these defaults; 'inherit' omits either control.
+# Unsupported explicit effort exits 64 before window creation. An unsupported
+# default effort is disclosed as inherited; this is not a verified live setting.
+# Apply skills/.shared/model-policy.md; no automatic model fallback is attempted.
 #
 # Exit codes (deliberately the same numbering as handoff-to-codex.sh so the two
 # scripts read side by side):
@@ -43,7 +43,7 @@
 
 set -uo pipefail
 
-DIR="" COMMAND="" NAME="" SUBMIT=0 TIMEOUT=60 SESSION="" AUTO_ANSWER=1 MODEL="opus"
+DIR="" COMMAND="" NAME="" SUBMIT=0 TIMEOUT=60 SESSION="" AUTO_ANSWER=1 MODEL="opus" EFFORT="medium" EFFORT_EXPLICIT=0
 
 # `shift 2` on a flag whose value is missing aborts under `set -u` with a raw
 # bash error, escaping the advertised exit-64 contract. Check first.
@@ -57,6 +57,7 @@ while [ $# -gt 0 ]; do
     --command) need_value "$1" $#; COMMAND="$2"; shift 2 ;;
     --name) need_value "$1" $#; NAME="$2"; shift 2 ;;
     --model) need_value "$1" $#; MODEL="$2"; shift 2 ;;
+    --effort) need_value "$1" $#; EFFORT="$2"; EFFORT_EXPLICIT=1; shift 2 ;;
     --timeout) need_value "$1" $#; TIMEOUT="$2"; shift 2 ;;
     --session) need_value "$1" $#; SESSION="$2"; shift 2 ;;
     --submit) SUBMIT=1; shift ;;
@@ -76,6 +77,11 @@ esac
 [ -n "$MODEL" ] || { echo "--model must not be empty (pass 'inherit' to send no --model)" >&2; exit 64; }
 case "$MODEL" in
   -*) echo "--model must be an alias or model name, not a flag: $MODEL" >&2; exit 64 ;;
+esac
+
+case "$EFFORT" in
+  low|medium|high|xhigh|max|inherit) ;;
+  *) echo "--effort must be low, medium, high, xhigh, max, or inherit" >&2; exit 64 ;;
 esac
 
 # 'inherit' is the opt-out, not a model name: it drops --model from the launch so
@@ -110,9 +116,12 @@ if [ "$COMMAND" != "$COLLAPSED" ]; then
   echo "Note: collapsed whitespace in the command to a single line." >&2
 fi
 
+EFFORT_FLAG_TEXT=""
+[ "$EFFORT" = "inherit" ] || EFFORT_FLAG_TEXT=" --effort $EFFORT"
+
 manual_instructions() {
   cat <<EOF
-  cd $(printf "%q" "$DIR") && CLAUDE_CODE_NO_FLICKER=1 claude --dangerously-skip-permissions${MODEL_FLAG_TEXT}
+  cd $(printf "%q" "$DIR") && CLAUDE_CODE_NO_FLICKER=1 claude --dangerously-skip-permissions${MODEL_FLAG_TEXT}${EFFORT_FLAG_TEXT:-}
   # then type:  $COMMAND
 EOF
 }
@@ -138,6 +147,22 @@ if [ -z "$CLAUDE_BIN" ]; then
   exit 3
 fi
 
+EFFORT_ARGS=()
+EFFORT_FLAG_TEXT=""
+if [ "$EFFORT" != "inherit" ]; then
+  CLAUDE_HELP=$("$CLAUDE_BIN" --help 2>&1)
+  if grep -q -- '--effort' <<<"$CLAUDE_HELP"; then
+    EFFORT_ARGS=(--effort "$EFFORT")
+    EFFORT_FLAG_TEXT=" --effort $EFFORT"
+    MODEL_NOTE="$MODEL_NOTE at requested '$EFFORT' effort"
+  elif [ "$EFFORT_EXPLICIT" -eq 1 ]; then
+    echo "Claude CLI does not advertise --effort; explicit request cannot be applied. No window opened." >&2
+    exit 64
+  else
+    echo "Claude CLI does not advertise --effort; default effort is inherited/unknown." >&2
+  fi
+fi
+
 # Defaults to the invoking session — that is the "same session" the handoff wants.
 [ -n "$SESSION" ] || SESSION=$(tmux display-message -p '#{session_name}')
 
@@ -150,11 +175,11 @@ fi
 # -P -F prints the new pane's id so we can poll exactly this pane.
 if [ "$SUBMIT" -eq 1 ]; then
   PANE=$(tmux new-window -t "$SESSION" -n "$NAME" -c "$DIR" -e CLAUDE_CODE_NO_FLICKER=1 \
-    -P -F '#{pane_id}' "$CLAUDE_BIN" --dangerously-skip-permissions ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} "$COMMAND")
+    -P -F '#{pane_id}' "$CLAUDE_BIN" --dangerously-skip-permissions ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} ${EFFORT_ARGS[@]+"${EFFORT_ARGS[@]}"} "$COMMAND")
   NEW_WINDOW_STATUS=$?
 else
   PANE=$(tmux new-window -t "$SESSION" -n "$NAME" -c "$DIR" -e CLAUDE_CODE_NO_FLICKER=1 \
-    -P -F '#{pane_id}' "$CLAUDE_BIN" --dangerously-skip-permissions ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"})
+    -P -F '#{pane_id}' "$CLAUDE_BIN" --dangerously-skip-permissions ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} ${EFFORT_ARGS[@]+"${EFFORT_ARGS[@]}"})
   NEW_WINDOW_STATUS=$?
 fi
 

@@ -1,6 +1,6 @@
 ---
 name: cclogs
-description: "Load recent prototypes, logs, plans, and artifacts from the repo-scoped Dropbox-synced cclogs dir so work started in an earlier session can be continued. Use whenever the user invokes /cclogs, including inline forms like '/cclogs refer the recent prototype and continue — we need an STL enclosure' or 'the top page prototype is in /cclogs, do the next step'. Also use, without being asked, whenever the user refers to a prototype, plan, log, agent report, or generated artifact from a previous session as if it already exists — cclogs is where /big-plan, /x-wt-teams, /x-as-pr, and /protodev put those, and the user should never have to explain what cclogs is."
+description: "Load recent prototypes, plans, logs and artifacts from the repo-scoped cclogs dir to continue earlier work. Use for /cclogs, or whenever the user refers to a prior session's prototype/plan/report as if it exists."
 disable-model-invocation: false
 argument-hint: "[name | N | --dirs | repos | (empty = recent entries) ] [+ what to do next]"
 allowed-tools: Read, Bash(node *), Bash(ls *), Bash(find *), Bash(stat *), Bash(head *), Bash(grep *), Bash(wc *), Bash(file *)

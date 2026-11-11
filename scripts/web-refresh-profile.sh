@@ -23,6 +23,42 @@ if [ -d "$SRC/.git" ]; then
   fi
 fi
 
+# No usable .git in $SRC (the snapshot came from a checkout export or the public
+# mirror): fresh clone of the private repo — works once the session is up.
+if [ -z "$updated" ]; then
+  TMP="$(mktemp -d)"
+  if GIT_TERMINAL_PROMPT=0 $TIMEOUT git clone --depth 1 --quiet \
+      "https://github.com/Takazudo/claude-settings" "$TMP/src" 2>/dev/null \
+      && [ -f "$TMP/src/scripts/setup-web.sh" ]; then
+    rm -rf "$SRC"
+    mv "$TMP/src" "$SRC"
+    updated=1
+  fi
+  rm -rf "$TMP"
+fi
+
+# The session's own claude-settings checkout (committed HEAD only).
+if [ -z "$updated" ]; then
+  WORKSPACE="${CLAUDE_PROJECT_DIR:-/home/user}"
+  for d in "$WORKSPACE"/*/; do
+    url="$(git -C "$d" config --get remote.origin.url 2>/dev/null || true)"
+    case "$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')" in
+      *github.com/takazudo/claude-settings | *github.com/takazudo/claude-settings.git) ;;
+      *) continue ;;
+    esac
+    TMP="$(mktemp -d)"
+    if git -C "$d" archive HEAD | tar -x -C "$TMP" 2>/dev/null \
+        && [ -f "$TMP/scripts/setup-web.sh" ]; then
+      rm -rf "$SRC"
+      mv "$TMP" "$SRC"
+      updated=1
+      break
+    fi
+    rm -rf "$TMP"
+  done
+fi
+
+# Last resort: public claude-resources mirror (as fresh as its last sync).
 if [ -z "$updated" ]; then
   TMP="$(mktemp -d)"
   if curl -fsSL --max-time 30 \

@@ -1,0 +1,14 @@
+interface:
+  display_name: Bambu 3MF
+  short_description: Create and edit Bambu Studio projects from your template
+  default_prompt: Use $bambu-3mf to create or update a Bambu Studio project using
+    my printer template.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

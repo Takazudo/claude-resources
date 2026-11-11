@@ -10,8 +10,10 @@ commands. This directory + `scripts/setup-web.sh` close that gap.
 **Primary — environment Setup script (pre-launch).** Paste
 [`web/env-setup-script.sh`](./env-setup-script.sh) into the web environment's
 **Setup script** field (claude.ai/code → Environment). It runs **before Claude
-Code launches**: clones `Takazudo/claude-settings` (falls back to the public
-`claude-resources` tarball when the clone is rejected), then runs
+Code launches**: clones `Takazudo/claude-settings`; when that clone is
+rejected (the usual case pre-launch) it exports the session's own
+`claude-settings` checkout under the workspace root, and only then falls back to
+the public `claude-resources` tarball (as stale as its last sync). Then it runs
 `scripts/setup-web.sh`, so the profile is fully in place at boot. Environments
 are per-account, so this path is inherently self-only. Also add to the
 environment's **Environment variables** field:
@@ -27,7 +29,8 @@ result is cached as an environment snapshot, so on its own it would freeze the
 profile at snapshot time. `web/settings.web.json` (installed as the container's
 `~/.claude/settings.json`) runs `scripts/web-refresh-profile.sh` every session —
 multi-repo included, since user-level hooks do register there — which pulls
-`~/.claude-src` (or re-fetches the mirror) and re-runs `setup-web.sh` without
+`~/.claude-src`, else clones the private repo fresh, else exports the workspace
+checkout, else re-fetches the mirror, and re-runs `setup-web.sh` without
 the slow wisdom step. Rebuild the snapshot itself by bumping `loader-rev` in
 `web/env-setup-script.sh` and re-pasting it.
 
